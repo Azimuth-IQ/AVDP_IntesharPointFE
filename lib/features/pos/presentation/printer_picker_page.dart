@@ -1,0 +1,144 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inteshar/core/printing/bluetooth_service.dart';
+import 'package:inteshar/core/printing/escpos_builder.dart';
+import 'package:inteshar/core/printing/printer_registry.dart';
+
+class PrinterPickerPage extends ConsumerStatefulWidget {
+  const PrinterPickerPage({super.key});
+
+  @override
+  ConsumerState<PrinterPickerPage> createState() => _PrinterPickerPageState();
+}
+
+class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
+  List<ScanResult> _results = [];
+  bool _scanning = false;
+  late BluetoothPrinterService _service;
+
+  @override
+  void initState() {
+    super.initState();
+    _service = ref.read(bluetoothServiceProvider.notifier);
+    _startScan();
+  }
+
+  @override
+  void dispose() {
+    _service.stopScan();
+    super.dispose();
+  }
+
+  void _startScan() {
+    setState(() {
+      _scanning = true;
+      _results = [];
+    });
+    final stream = _service.scan();
+    stream.listen(
+      (results) {
+        if (mounted) setState(() => _results = results);
+      },
+      onDone: () {
+        if (mounted) setState(() => _scanning = false);
+      },
+    );
+  }
+
+  Future<void> _connect(BluetoothDevice device) async {
+    // Stop the scan immediately so the Android BLE adapter fully releases
+    // scanner resources before we attempt a GATT connection (prevents GATT 133).
+    _service.stopScan();
+    if (mounted) setState(() => _scanning = false);
+    try {
+      await _service.connect(device);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Connected to ${device.platformName}')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Connection failed: $e'), backgroundColor: Theme.of(context).colorScheme.error));
+      }
+    }
+  }
+
+  Future<void> _testPrint() async {
+    try {
+      final bytes = await buildTestReceipt();
+      await _service.send(bytes);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Test print sent!')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Print error: $e')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final printerState = ref.watch(bluetoothServiceProvider);
+    final isConnected = printerState.status == PrinterStatus.connected;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Printer Setup')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // Supported models
+          Text('Supported Printer Models', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 8),
+          Wrap(spacing: 8, runSpacing: 8, children: supportedPrinterModels.map((m) => Chip(label: Text(m.name))).toList()),
+          const Divider(height: 32),
+
+          // Connected status
+          if (isConnected) ...[
+            ListTile(
+              leading: const Icon(Icons.print, color: Colors.green),
+              title: Text(printerState.deviceName ?? 'Printer'),
+              subtitle: const Text('Connected'),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextButton(onPressed: _testPrint, child: const Text('Test Print')),
+                  TextButton(onPressed: () => _service.disconnect(), child: const Text('Disconnect')),
+                ],
+              ),
+            ),
+            const Divider(height: 32),
+          ],
+
+          // Scan section
+          Row(
+            children: [
+              Text('Nearby Devices', style: Theme.of(context).textTheme.titleSmall),
+              const Spacer(),
+              if (_scanning)
+                const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+              else
+                TextButton.icon(onPressed: _startScan, icon: const Icon(Icons.refresh, size: 18), label: const Text('Scan')),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (_results.isEmpty && !_scanning)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('No devices found. Make sure Bluetooth is on and the printer is powered.', textAlign: TextAlign.center),
+            ),
+          ..._results.map(
+            (r) => ListTile(
+              leading: const Icon(Icons.bluetooth),
+              title: Text(r.device.platformName.isNotEmpty ? r.device.platformName : 'Unknown'),
+              subtitle: Text(r.device.remoteId.str),
+              trailing: printerState.status == PrinterStatus.connecting
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : FilledButton(onPressed: () => _connect(r.device), child: const Text('Connect')),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

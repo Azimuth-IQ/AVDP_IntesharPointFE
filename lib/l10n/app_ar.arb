@@ -1,0 +1,41 @@
+{
+  "@@locale": "ar",
+  "appTitle": "إنتشار بوينت",
+  "navDashboard": "لوحة التحكم",
+  "navHierarchy": "الهيكل التنظيمي",
+  "navChildren": "الفروع",
+  "navCatalog": "الكتالوج",
+  "navInventory": "المخزون",
+  "navBatchAdd": "إضافة مجمّعة",
+  "navTransactions": "المعاملات",
+  "navPos": "نقطة البيع",
+
+  "loginTitle": "تسجيل الدخول",
+  "loginPhone": "رقم الهاتف",
+  "loginPassword": "كلمة المرور",
+  "loginSignIn": "دخول",
+  "loginServerUrl": "عنوان الخادم",
+  "loginNoUsers": "لا يوجد مستخدمون في قاعدة البيانات. شغّل أمر البذر في instructions.md §7 لإنشاء أول مدير.",
+  "loginSeedDemo": "بيانات تجريبية",
+
+  "posHome": "نقطة البيع",
+  "posPrintVoucher": "طباعة القسيمة",
+  "posConnectPrinter": "توصيل الطابعة",
+  "posPrinterConnected": "الطابعة متصلة",
+  "posAvailable": "{count} متاح",
+  "@posAvailable": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "posSerial": "الرقم التسلسلي",
+  "posPin": "الرقم السري",
+
+  "signOut": "تسجيل الخروج",
+
+  "aboutTitle": "حول التطبيق",
+  "aboutVersion": "الإصدار 1.0.0",
+  "aboutSupportedPrinters": "الطابعات المدعومة",
+  "aboutPrinterNote": "جميع الطرازات تطبع على ورق 58 مم ESC/POS عبر البلوتوث.",
+
+  "retryButton": "إعادة المحاولة",
+  "emptyListHint": "لا يوجد شيء هنا بعد."
+}

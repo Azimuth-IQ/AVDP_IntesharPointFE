@@ -47,8 +47,8 @@ class BluetoothPrinterService extends Notifier<BluetoothPrinterState> {
       // (e.g. "1800") rather than the canonical full form, so we check both:
       //   - Short form: 1800 (Generic Access), 1801 (Generic Attribute)
       //   - Long form:  0000xxxx-0000-1000-8000-00805f9b34fb
-      const _skipServices = {'1800', '1801'};
-      final isStandardShort = _skipServices.contains(svcUuid);
+      const skipServices = {'1800', '1801'};
+      final isStandardShort = skipServices.contains(svcUuid);
       final isStandardLong = svcUuid.startsWith('0000') && svcUuid.endsWith('-0000-1000-8000-00805f9b34fb');
       if (isStandardShort || isStandardLong) {
         debugPrint('[BT] skipping standard service: $svcUuid');
@@ -91,6 +91,15 @@ class BluetoothPrinterService extends Notifier<BluetoothPrinterState> {
       await _writeChar!.write(bytes.sublist(i, end), withoutResponse: withoutResponse);
       if (withoutResponse) await Future.delayed(const Duration(milliseconds: 30));
     }
+  }
+
+  /// Connect directly to a device by MAC address without scanning.
+  /// Useful for printers that are not advertising (e.g. virtual BT on POS
+  /// machines like Topwise T1) or devices that are simply off-screen during
+  /// a scan window.
+  Future<void> connectByAddress(String macAddress) async {
+    final device = BluetoothDevice.fromId(macAddress);
+    await connect(device);
   }
 
   bool get isConnected => _device != null && state.status == PrinterStatus.connected;

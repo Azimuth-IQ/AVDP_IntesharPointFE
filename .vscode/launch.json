@@ -1,0 +1,26 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Flutter Web (No Security)",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart",
+      "args": [
+        "-d",
+        "chrome",
+        "--web-port",
+        "9090",
+        "--web-browser-flag",
+        "--disable-web-security"
+      ],
+      "preLaunchTask": "flutter-clean-build"
+    },
+    {
+      "name": "Flutter Debug",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart"
+    }
+  ]
+}

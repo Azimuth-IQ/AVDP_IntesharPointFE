@@ -17,17 +17,52 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
   bool _scanning = false;
   late BluetoothPrinterService _service;
 
+  final _macController = TextEditingController();
+  final _macFormKey = GlobalKey<FormState>();
+
   @override
   void initState() {
     super.initState();
     _service = ref.read(bluetoothServiceProvider.notifier);
     _startScan();
+    _loadLastPrinterId();
+  }
+
+  Future<void> _loadLastPrinterId() async {
+    final id = await _service.lastPrinterId;
+    if (id != null && mounted) {
+      setState(() => _macController.text = id);
+    }
   }
 
   @override
   void dispose() {
     _service.stopScan();
+    _macController.dispose();
     super.dispose();
+  }
+
+  String? _validateMac(String? v) {
+    if (v == null || v.isEmpty) return 'Enter a MAC address';
+    final macRegex = RegExp(r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$');
+    if (!macRegex.hasMatch(v)) return 'Format: XX:XX:XX:XX:XX:XX';
+    return null;
+  }
+
+  Future<void> _connectByAddress() async {
+    if (!_macFormKey.currentState!.validate()) return;
+    _service.stopScan();
+    if (mounted) setState(() => _scanning = false);
+    try {
+      await _service.connectByAddress(_macController.text.trim().toUpperCase());
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Connected via manual address')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Connection failed: $e'), backgroundColor: Theme.of(context).colorScheme.error));
+      }
+    }
   }
 
   void _startScan() {
@@ -109,6 +144,39 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
             ),
             const Divider(height: 32),
           ],
+
+          // Manual address entry
+          Text('Manual Address', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 4),
+          Text('Use this when the device is not visible in the scan list.', style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 8),
+          Form(
+            key: _macFormKey,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _macController,
+                    validator: _validateMac,
+                    decoration: const InputDecoration(hintText: 'XX:XX:XX:XX:XX:XX', labelText: 'Bluetooth MAC address', border: OutlineInputBorder(), isDense: true),
+                    keyboardType: TextInputType.text,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    textCapitalization: TextCapitalization.characters,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                printerState.status == PrinterStatus.connecting
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                      )
+                    : FilledButton(onPressed: _connectByAddress, child: const Text('Connect')),
+              ],
+            ),
+          ),
+          const Divider(height: 32),
 
           // Scan section
           Row(

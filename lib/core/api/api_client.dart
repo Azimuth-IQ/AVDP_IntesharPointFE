@@ -49,9 +49,9 @@ class ApiClient {
     return _dio.get('$base$path', queryParameters: params);
   }
 
-  Future<Response<dynamic>> post(String path, {dynamic data}) async {
+  Future<Response<dynamic>> post(String path, {dynamic data, Map<String, dynamic>? params}) async {
     final base = await baseUrl;
-    return _dio.post('$base$path', data: data);
+    return _dio.post('$base$path', data: data, queryParameters: params);
   }
 
   Future<Response<dynamic>> put(String path, {dynamic data}) async {

@@ -12,6 +12,7 @@ import 'package:inteshar/features/inventory/domain/product.dart';
 import 'package:inteshar/features/inventory/domain/product_definition.dart';
 import 'package:inteshar/features/transactions/data/transaction_repository.dart';
 import 'package:inteshar/features/transactions/domain/transaction.dart';
+import 'package:inteshar/l10n/app_localizations.dart';
 
 final seedControllerProvider =
     AsyncNotifierProvider<SeedController, void>(SeedController.new);
@@ -154,7 +155,7 @@ class SeedController extends AsyncNotifier<void> {
 
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Demo data seeded successfully!')),
+        SnackBar(content: Text(AppLocalizations.of(context)!.commonSeedSuccess)),
       );
     }
   }

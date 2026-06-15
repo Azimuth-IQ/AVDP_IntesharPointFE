@@ -1,14 +1,26 @@
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 
 class EntityMeta {
+  /// App-wide fallback used when an entity hasn't configured its own
+  /// [lowStockThreshold]. A SKU with fewer available units is flagged low.
+  static const int defaultLowStockThreshold = 50;
+
   final String name;
   final String slogan;
   final String description;
   final String logoUrl;
   final String backgroundUrl;
   final List<String> sliderImagesUrl;
+  final String primaryColor;   // brand hex (e.g. #F5B100) — white-label
+  final String secondaryColor; // accent hex — white-label
+  final int lowStockThreshold; // per-account low-stock alert level; 0 = unset → default
 
-  const EntityMeta({this.name = '', this.slogan = '', this.description = '', this.logoUrl = '', this.backgroundUrl = '', this.sliderImagesUrl = const []});
+  const EntityMeta({this.name = '', this.slogan = '', this.description = '', this.logoUrl = '', this.backgroundUrl = '', this.sliderImagesUrl = const [], this.primaryColor = '', this.secondaryColor = '', this.lowStockThreshold = 0});
+
+  /// The threshold to actually apply: the configured value, or the default
+  /// when unset (0 or negative).
+  int get effectiveLowStockThreshold =>
+      lowStockThreshold > 0 ? lowStockThreshold : defaultLowStockThreshold;
 
   factory EntityMeta.fromJson(Map<String, dynamic> j) => EntityMeta(
     name: j['name'] as String? ?? '',
@@ -17,6 +29,9 @@ class EntityMeta {
     logoUrl: j['logoUrl'] as String? ?? '',
     backgroundUrl: j['backgroundUrl'] as String? ?? '',
     sliderImagesUrl: (j['sliderImagesUrl'] as List<dynamic>?)?.cast<String>() ?? [],
+    primaryColor: j['primaryColor'] as String? ?? '',
+    secondaryColor: j['secondaryColor'] as String? ?? '',
+    lowStockThreshold: (j['lowStockThreshold'] as num?)?.toInt() ?? 0,
   );
 
   Map<String, dynamic> toJson() => {
@@ -26,15 +41,21 @@ class EntityMeta {
     'logoUrl': logoUrl,
     'backgroundUrl': backgroundUrl,
     'sliderImagesUrl': sliderImagesUrl,
+    'primaryColor': primaryColor,
+    'secondaryColor': secondaryColor,
+    'lowStockThreshold': lowStockThreshold,
   };
 
-  EntityMeta copyWith({String? name, String? slogan, String? description, String? logoUrl, String? backgroundUrl, List<String>? sliderImagesUrl}) => EntityMeta(
+  EntityMeta copyWith({String? name, String? slogan, String? description, String? logoUrl, String? backgroundUrl, List<String>? sliderImagesUrl, String? primaryColor, String? secondaryColor, int? lowStockThreshold}) => EntityMeta(
     name: name ?? this.name,
     slogan: slogan ?? this.slogan,
     description: description ?? this.description,
     logoUrl: logoUrl ?? this.logoUrl,
     backgroundUrl: backgroundUrl ?? this.backgroundUrl,
     sliderImagesUrl: sliderImagesUrl ?? this.sliderImagesUrl,
+    primaryColor: primaryColor ?? this.primaryColor,
+    secondaryColor: secondaryColor ?? this.secondaryColor,
+    lowStockThreshold: lowStockThreshold ?? this.lowStockThreshold,
   );
 }
 

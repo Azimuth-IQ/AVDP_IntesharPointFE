@@ -6,9 +6,15 @@ class SessionStorage {
   static const _entityIdKey = 'current_entity_id';
   static const _entityTypeKey = 'current_entity_type';
   static const _phoneKey = 'current_phone';
+  static const _localeKey = 'app_locale';
 
   // static const defaultBaseUrl = 'http://localhost:8080';
-  static const defaultBaseUrl = 'http://100.80.229.16:8080';
+  // Override at launch with --dart-define=API_BASE=http://<host>:8080 for local
+  // testing; defaults to the hosted dev backend when unset.
+  static const defaultBaseUrl = String.fromEnvironment(
+    'API_BASE',
+    defaultValue: 'https://inteshar-be-dev.azimuth-iraq.com',
+  );
 
   Future<void> setToken(String token) async {
     final p = await SharedPreferences.getInstance();
@@ -66,6 +72,16 @@ class SessionStorage {
   Future<String?> getCurrentPhone() async {
     final p = await SharedPreferences.getInstance();
     return p.getString(_phoneKey);
+  }
+
+  Future<void> setLocale(String languageCode) async {
+    final p = await SharedPreferences.getInstance();
+    await p.setString(_localeKey, languageCode);
+  }
+
+  Future<String?> getLocale() async {
+    final p = await SharedPreferences.getInstance();
+    return p.getString(_localeKey);
   }
 }
 

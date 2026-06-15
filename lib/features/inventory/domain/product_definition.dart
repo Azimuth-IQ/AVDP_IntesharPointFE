@@ -1,3 +1,5 @@
+import 'package:inteshar/features/inventory/domain/voucher_template.dart';
+
 class ProductDefinition {
   final String id;
   final String name;
@@ -6,6 +8,10 @@ class ProductDefinition {
   final String defaultPrice;
   final String sku;
 
+  /// Print/redeem template applied by the Store/POS. Defaults to a sensible
+  /// template when the backend hasn't stored one yet.
+  final VoucherTemplate template;
+
   const ProductDefinition({
     required this.id,
     required this.name,
@@ -13,6 +19,7 @@ class ProductDefinition {
     this.imageUrl = '',
     required this.defaultPrice,
     required this.sku,
+    this.template = const VoucherTemplate(),
   });
 
   factory ProductDefinition.fromJson(Map<String, dynamic> j) =>
@@ -21,8 +28,11 @@ class ProductDefinition {
         name: j['name'] as String? ?? '',
         description: j['description'] as String? ?? '',
         imageUrl: j['imageUrl'] as String? ?? '',
-        defaultPrice: j['defaultPrice'] as String? ?? '0',
+        defaultPrice: (j['defaultPrice'] is num)
+            ? (j['defaultPrice'] as num).toInt().toString()
+            : (j['defaultPrice']?.toString() ?? '0'),
         sku: j['sku'] as String? ?? '',
+        template: VoucherTemplate.fromJson(j['voucherTemplate'] as Map<String, dynamic>?),
       );
 
   Map<String, dynamic> toJson() => {
@@ -32,6 +42,7 @@ class ProductDefinition {
         'imageUrl': imageUrl,
         'defaultPrice': defaultPrice,
         'sku': sku,
+        'voucherTemplate': template.toJson(),
       };
 
   ProductDefinition copyWith({
@@ -41,6 +52,7 @@ class ProductDefinition {
     String? imageUrl,
     String? defaultPrice,
     String? sku,
+    VoucherTemplate? template,
   }) =>
       ProductDefinition(
         id: id ?? this.id,
@@ -49,5 +61,6 @@ class ProductDefinition {
         imageUrl: imageUrl ?? this.imageUrl,
         defaultPrice: defaultPrice ?? this.defaultPrice,
         sku: sku ?? this.sku,
+        template: template ?? this.template,
       );
 }

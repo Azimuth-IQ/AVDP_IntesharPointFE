@@ -2,22 +2,35 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Flutter Web (No Security)",
+      "name": "Flutter Web (No Security, :9090)",
       "type": "dart",
       "request": "launch",
       "program": "lib/main.dart",
       "args": [
         "-d",
         "chrome",
-        "--web-port",
-        "9090",
-        "--web-browser-flag",
-        "--disable-web-security"
-      ],
-      "preLaunchTask": "flutter-clean-build"
+        "--web-port=9090",
+        "--web-browser-flag=--disable-web-security",
+        "--web-browser-flag=--user-data-dir=/tmp/flutter_web_dev",
+        "--web-browser-flag=--disable-site-isolation-trials"
+      ]
     },
     {
-      "name": "Flutter Debug",
+      "name": "Flutter Web (No Security, :9090) — Profile",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart",
+      "flutterMode": "profile",
+      "args": [
+        "-d",
+        "chrome",
+        "--web-port=9090",
+        "--web-browser-flag=--disable-web-security",
+        "--web-browser-flag=--user-data-dir=/tmp/flutter_web_dev"
+      ]
+    },
+    {
+      "name": "Flutter (default device)",
       "type": "dart",
       "request": "launch",
       "program": "lib/main.dart"

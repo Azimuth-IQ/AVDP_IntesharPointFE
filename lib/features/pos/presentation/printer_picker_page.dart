@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/printing/bluetooth_service.dart';
 import 'package:inteshar/core/printing/escpos_builder.dart';
 import 'package:inteshar/core/printing/printer_registry.dart';
+import 'package:inteshar/l10n/app_localizations.dart';
+import 'package:inteshar/shared/widgets/brand_cta.dart';
+import 'package:inteshar/shared/widgets/design_system.dart';
 
 class PrinterPickerPage extends ConsumerStatefulWidget {
   const PrinterPickerPage({super.key});
@@ -42,13 +47,6 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
     super.dispose();
   }
 
-  String? _validateMac(String? v) {
-    if (v == null || v.isEmpty) return 'Enter a MAC address';
-    final macRegex = RegExp(r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$');
-    if (!macRegex.hasMatch(v)) return 'Format: XX:XX:XX:XX:XX:XX';
-    return null;
-  }
-
   Future<void> _connectByAddress() async {
     if (!_macFormKey.currentState!.validate()) return;
     _service.stopScan();
@@ -56,11 +54,15 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
     try {
       await _service.connectByAddress(_macController.text.trim().toUpperCase());
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Connected via manual address')));
+        final l = AppLocalizations.of(context)!;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l.printerPickerConnectedManual)));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Connection failed: $e'), backgroundColor: Theme.of(context).colorScheme.error));
+        final l = AppLocalizations.of(context)!;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l.printerPickerConnectionFailed(e.toString())), backgroundColor: Theme.of(context).colorScheme.error),
+        );
       }
     }
   }
@@ -82,18 +84,20 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
   }
 
   Future<void> _connect(BluetoothDevice device) async {
-    // Stop the scan immediately so the Android BLE adapter fully releases
-    // scanner resources before we attempt a GATT connection (prevents GATT 133).
     _service.stopScan();
     if (mounted) setState(() => _scanning = false);
     try {
       await _service.connect(device);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Connected to ${device.platformName}')));
+        final l = AppLocalizations.of(context)!;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l.printerPickerConnectedTo(device.platformName))));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Connection failed: $e'), backgroundColor: Theme.of(context).colorScheme.error));
+        final l = AppLocalizations.of(context)!;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l.printerPickerConnectionFailed(e.toString())), backgroundColor: Theme.of(context).colorScheme.error),
+        );
       }
     }
   }
@@ -103,53 +107,117 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
       final bytes = await buildTestReceipt();
       await _service.send(bytes);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Test print sent!')));
+        final l = AppLocalizations.of(context)!;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l.printerPickerTestPrintSent)));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Print error: $e')));
+        final l = AppLocalizations.of(context)!;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l.printerPickerPrintError(e.toString()))));
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context)!;
     final printerState = ref.watch(bluetoothServiceProvider);
     final isConnected = printerState.status == PrinterStatus.connected;
+    final cs = Theme.of(context).colorScheme;
+
+    String? validateMac(String? v) {
+      if (v == null || v.isEmpty) return l.printerPickerEnterMac;
+      final macRegex = RegExp(r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$');
+      if (!macRegex.hasMatch(v)) return l.printerPickerMacFormat;
+      return null;
+    }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Printer Setup')),
+      appBar: AppBar(
+        title: Text(l.printerPickerTitle, style: Theme.of(context).appBarTheme.titleTextStyle),
+      ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
         children: [
-          // Supported models
-          Text('Supported Printer Models', style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: 8),
-          Wrap(spacing: 8, runSpacing: 8, children: supportedPrinterModels.map((m) => Chip(label: Text(m.name))).toList()),
-          const Divider(height: 32),
-
+          SectionLabel(l.aboutSupportedPrinters),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: supportedPrinterModels
+                .map((m) => Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: cs.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            m.name,
+                            style: TextStyle(fontFamily: 'CodecPro', 
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: cs.onSurface,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '${m.paperMm}mm',
+                            style: GoogleFonts.jetBrainsMono(
+                              fontSize: 10,
+                              color: cs.onSurfaceVariant,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ))
+                .toList(),
+          ),
+          const SizedBox(height: 22),
           // Connected status
           if (isConnected) ...[
-            ListTile(
-              leading: const Icon(Icons.print, color: Colors.green),
-              title: Text(printerState.deviceName ?? 'Printer'),
-              subtitle: const Text('Connected'),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
+            InkCard(
+              ruleColor: IntesharColors.sage,
+              padding: const EdgeInsets.all(16),
+              child: Row(
                 children: [
-                  TextButton(onPressed: _testPrint, child: const Text('Test Print')),
-                  TextButton(onPressed: () => _service.disconnect(), child: const Text('Disconnect')),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: IntesharColors.sage.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(IntesharRadii.xs),
+                    ),
+                    child: const Icon(Icons.bluetooth_connected, color: IntesharColors.sage, size: 18),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          printerState.deviceName ?? l.printerPickerUnknown,
+                          style: IntesharType.serif(18, color: cs.onSurface, w: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(l.printerPickerConnected, style: IntesharType.overline(color: IntesharColors.sage)),
+                      ],
+                    ),
+                  ),
+                  TextButton(onPressed: _testPrint, child: Text(l.printerPickerTestPrint)),
+                  TextButton(onPressed: _service.disconnect, child: Text(l.printerPickerDisconnect)),
                 ],
               ),
             ),
-            const Divider(height: 32),
+            const SizedBox(height: 22),
           ],
-
-          // Manual address entry
-          Text('Manual Address', style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: 4),
-          Text('Use this when the device is not visible in the scan list.', style: Theme.of(context).textTheme.bodySmall),
-          const SizedBox(height: 8),
+          SectionLabel(l.printerPickerManualAddress),
+          Text(
+            l.printerPickerManualHint,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 10),
           Form(
             key: _macFormKey,
             child: Row(
@@ -158,51 +226,90 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
                 Expanded(
                   child: TextFormField(
                     controller: _macController,
-                    validator: _validateMac,
-                    decoration: const InputDecoration(hintText: 'XX:XX:XX:XX:XX:XX', labelText: 'Bluetooth MAC address', border: OutlineInputBorder(), isDense: true),
+                    validator: validateMac,
+                    style: GoogleFonts.jetBrainsMono(fontSize: 14, color: cs.onSurface, letterSpacing: 1.2),
+                    decoration: InputDecoration(
+                      hintText: 'XX:XX:XX:XX:XX:XX',
+                      labelText: l.printerPickerMacLabel,
+                    ),
                     keyboardType: TextInputType.text,
                     autocorrect: false,
                     enableSuggestions: false,
                     textCapitalization: TextCapitalization.characters,
                   ),
                 ),
-                const SizedBox(width: 8),
-                printerState.status == PrinterStatus.connecting
-                    ? const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-                      )
-                    : FilledButton(onPressed: _connectByAddress, child: const Text('Connect')),
+                const SizedBox(width: 10),
+                BrandCTAButton(
+                  label: l.printerPickerPair,
+                  loading: printerState.status == PrinterStatus.connecting,
+                  onPressed: printerState.status == PrinterStatus.connecting ? null : _connectByAddress,
+                  expand: false,
+                  height: 46,
+                  fontSize: 13,
+                ),
               ],
             ),
           ),
-          const Divider(height: 32),
-
-          // Scan section
-          Row(
-            children: [
-              Text('Nearby Devices', style: Theme.of(context).textTheme.titleSmall),
-              const Spacer(),
-              if (_scanning)
-                const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-              else
-                TextButton.icon(onPressed: _startScan, icon: const Icon(Icons.refresh, size: 18), label: const Text('Scan')),
-            ],
+          const SizedBox(height: 22),
+          SectionLabel(
+            l.printerPickerNearbyDevices,
+            trailing: _scanning
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : TextButton.icon(
+                    onPressed: _startScan,
+                    icon: const Icon(Icons.refresh, size: 14),
+                    label: Text(l.printerPickerRescan),
+                  ),
           ),
-          const SizedBox(height: 8),
           if (_results.isEmpty && !_scanning)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('No devices found. Make sure Bluetooth is on and the printer is powered.', textAlign: TextAlign.center),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Text(
+                l.printerPickerNoDevices,
+                style: Theme.of(context).textTheme.bodySmall,
+                textAlign: TextAlign.center,
+              ),
             ),
           ..._results.map(
-            (r) => ListTile(
-              leading: const Icon(Icons.bluetooth),
-              title: Text(r.device.platformName.isNotEmpty ? r.device.platformName : 'Unknown'),
-              subtitle: Text(r.device.remoteId.str),
-              trailing: printerState.status == PrinterStatus.connecting
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                  : FilledButton(onPressed: () => _connect(r.device), child: const Text('Connect')),
+            (r) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: InkCard(
+                padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+                child: Row(
+                  children: [
+                    Icon(Icons.bluetooth, size: 18, color: cs.onSurfaceVariant),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            r.device.platformName.isNotEmpty ? r.device.platformName : l.printerPickerUnknown,
+                            style: IntesharType.serif(16, color: cs.onSurface, w: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            r.device.remoteId.str,
+                            style: GoogleFonts.jetBrainsMono(
+                              fontSize: 11,
+                              color: cs.onSurfaceVariant,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    BrandCTAButton(
+                      label: l.printerPickerPair,
+                      loading: printerState.status == PrinterStatus.connecting,
+                      onPressed: printerState.status == PrinterStatus.connecting ? null : () => _connect(r.device),
+                      expand: false,
+                      height: 40,
+                      fontSize: 12.5,
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ],

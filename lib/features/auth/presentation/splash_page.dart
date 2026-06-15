@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
+import 'package:inteshar/shared/widgets/brand_band.dart';
+import 'package:inteshar/shared/widgets/brand_star.dart';
 
 class SplashPage extends ConsumerWidget {
   const SplashPage({super.key});
@@ -22,18 +25,44 @@ class SplashPage extends ConsumerWidget {
     return Scaffold(
       body: GestureDetector(
         onLongPress: () => context.go('/diagnostics'),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.store, size: 80, color: Theme.of(context).colorScheme.primary),
-              const SizedBox(height: 16),
-              Text(l.appTitle, style: Theme.of(context).textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Text('Voucher Distribution', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.secondary)),
-              const SizedBox(height: 32),
-              const SizedBox(width: 32, height: 32, child: CircularProgressIndicator(strokeWidth: 3)),
-            ],
+        child: BrandBand(
+          padding: EdgeInsets.zero,
+          sparkleSize: 420,
+          sparkleAlignment: const Alignment(1.4, -1.3),
+          child: SafeArea(
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IntesharStar(size: 96, color: IntesharColors.ink),
+                  const SizedBox(height: 28),
+                  Text(
+                    l.appTitle,
+                    style: IntesharType.display(46, color: IntesharColors.ink, w: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    l.splashTagline,
+                    style: TextStyle(
+                      fontFamily: 'CodecPro',
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.1,
+                      color: IntesharColors.ink.withValues(alpha: 0.72),
+                    ),
+                  ),
+                  const SizedBox(height: 56),
+                  SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: IntesharColors.ink,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

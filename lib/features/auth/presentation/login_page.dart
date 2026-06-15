@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/storage/session_storage.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/auth/application/seed_controller.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
+import 'package:inteshar/shared/widgets/brand_band.dart';
+import 'package:inteshar/shared/widgets/brand_cta.dart';
+import 'package:inteshar/shared/widgets/brand_star.dart';
+import 'package:inteshar/shared/widgets/design_system.dart';
+import 'package:inteshar/shared/widgets/responsive.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -54,43 +60,62 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final current = await sessionStorage.getBaseUrl();
     if (!mounted) return;
     final ctrl = TextEditingController(text: current);
-    final l = AppLocalizations.of(context)!;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom, left: 16, right: 16, top: 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(l.loginServerUrl, style: Theme.of(ctx).textTheme.titleMedium),
-            const SizedBox(height: 12),
-            TextField(
-              controller: ctrl,
-              decoration: const InputDecoration(labelText: 'Base URL', hintText: 'http://192.168.1.x:8080'),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
+      builder: (ctx) {
+        final lCtx = AppLocalizations.of(ctx)!;
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+            left: 24,
+            right: 24,
+            top: 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Theme.of(ctx).colorScheme.outline,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SectionLabel(lCtx.loginServerEndpoint),
+              Text(lCtx.loginServerUrl, style: Theme.of(ctx).textTheme.bodyMedium),
+              const SizedBox(height: 16),
+              TextField(
+                controller: ctrl,
+                decoration: InputDecoration(
+                  labelText: lCtx.loginBaseUrlLabel,
+                  hintText: 'http://192.168.1.x:8080',
+                ),
+              ),
+              const SizedBox(height: 16),
+              BrandCTAButton(
+                label: lCtx.loginSaveEndpoint,
+                variant: BrandCTAVariant.inverse,
                 onPressed: () async {
                   await sessionStorage.setBaseUrl(ctrl.text.trim());
                   if (ctx.mounted) Navigator.pop(ctx);
                 },
-                child: const Text('Save'),
               ),
-            ),
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
+              const SizedBox(height: 24),
+            ],
+          ),
+        );
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    // Listen for successful auth and navigate
     ref.listen(authStateProvider, (_, next) {
       if (next.hasValue && next.value is AuthAuthenticated) {
         context.go((next.value as AuthAuthenticated).homeRoute);
@@ -101,90 +126,356 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final authState = ref.watch(authStateProvider);
     final isAuthenticated = authState.valueOrNull is AuthAuthenticated;
 
+    final isWide = context.isWide;
+
+    final formCard = _LoginForm(
+      formKey: _formKey,
+      phoneCtrl: _phoneCtrl,
+      passCtrl: _passCtrl,
+      obscure: _obscure,
+      onToggleObscure: () => setState(() => _obscure = !_obscure),
+      loading: _loading,
+      error: _error,
+      showMongoHint: _showMongoHint,
+      isAuthenticated: isAuthenticated,
+      l: l,
+      onSignIn: _signIn,
+      onShowUrlSheet: _showUrlSheet,
+      onSeed: () => ref.read(seedControllerProvider.notifier).seed(context),
+    );
+
     return Scaffold(
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 400),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    GestureDetector(
-                      onLongPress: () => context.go('/diagnostics'),
-                      child: Column(
-                        children: [
-                          Icon(Icons.store, size: 64, color: Theme.of(context).colorScheme.primary),
-                          const SizedBox(height: 8),
-                          Text(l.appTitle, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
-                          Text('Voucher Distribution', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.secondary)),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 40),
-                    TextFormField(
-                      controller: _phoneCtrl,
-                      keyboardType: TextInputType.phone,
-                      decoration: InputDecoration(labelText: l.loginPhone, hintText: '07701234567', prefixIcon: const Icon(Icons.phone)),
-                      validator: (v) => v == null || v.isEmpty ? 'Required' : null,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _passCtrl,
-                      obscureText: _obscure,
-                      decoration: InputDecoration(
-                        labelText: l.loginPassword,
-                        prefixIcon: const Icon(Icons.lock),
-                        suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off), onPressed: () => setState(() => _obscure = !_obscure)),
-                      ),
-                      validator: (v) => v == null || v.isEmpty ? 'Required' : null,
-                    ),
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton.icon(onPressed: _showUrlSheet, icon: const Icon(Icons.settings, size: 16), label: Text(l.loginServerUrl)),
-                    ),
-                    if (_error != null) ...[
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(color: Theme.of(context).colorScheme.errorContainer, borderRadius: BorderRadius.circular(8)),
-                        child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer)),
-                      ),
-                    ],
-                    if (_showMongoHint) ...[
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(color: Theme.of(context).colorScheme.tertiaryContainer, borderRadius: BorderRadius.circular(8)),
-                        child: Text(
-                          '${l.loginNoUsers}\n\nDefault: phone=07701234567  password=password',
-                          style: TextStyle(color: Theme.of(context).colorScheme.onTertiaryContainer, fontSize: 12),
+        child: isWide
+            ? Row(
+                children: [
+                  Expanded(child: _BrandPanel()),
+                  Expanded(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 460),
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(32),
+                          child: formCard,
                         ),
                       ),
-                    ],
-                    const SizedBox(height: 24),
-                    FilledButton(
-                      onPressed: _loading ? null : _signIn,
-                      child: _loading ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)) : Text(l.loginSignIn),
                     ),
-                    if (isAuthenticated) ...[
-                      const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                        onPressed: () => ref.read(seedControllerProvider.notifier).seed(context),
-                        icon: const Icon(Icons.play_arrow),
-                        label: Text(l.loginSeedDemo),
+                  ),
+                ],
+              )
+            : Column(
+                children: [
+                  GestureDetector(
+                    onLongPress: () => context.go('/diagnostics'),
+                    behavior: HitTestBehavior.opaque,
+                    child: const _MobileBrandHeader(),
+                  ),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(24),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 460),
+                        child: Center(child: formCard),
                       ),
-                    ],
-                  ],
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+class _BrandPanel extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context)!;
+    return GestureDetector(
+      onLongPress: () => context.go('/diagnostics'),
+      behavior: HitTestBehavior.opaque,
+      child: BrandBand(
+        padding: const EdgeInsets.fromLTRB(56, 56, 56, 56),
+        sparkleSize: 360,
+        sparkleAlignment: const Alignment(1.3, 1.4),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            IntesharStar(size: 72, color: IntesharColors.ink),
+            const SizedBox(height: 28),
+            // Scale the wordmark down on narrow split-screens so the 96px
+            // display never overflows the half-width brand panel.
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: AlignmentDirectional.centerStart,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    'Inteshar',
+                    style: TextStyle(
+                      fontFamily: 'CodecPro',
+                      color: IntesharColors.ink,
+                      fontSize: 96,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -3.5,
+                      height: 1.0,
+                    ),
+                  ),
+                  Text(
+                    'Store.',
+                    style: TextStyle(
+                      fontFamily: 'CodecPro',
+                      color: IntesharColors.ink,
+                      fontSize: 96,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -3.5,
+                      height: 1.0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 28),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 380),
+              child: Text(
+                l.loginBrandTagline,
+                style: TextStyle(
+                  fontFamily: 'CodecPro',
+                  color: IntesharColors.ink.withValues(alpha: 0.78),
+                  fontSize: 17,
+                  height: 1.5,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
-          ),
+          ],
         ),
+      ),
+    );
+  }
+}
+
+class _MobileBrandHeader extends StatelessWidget {
+  const _MobileBrandHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context)!;
+    return BrandBand(
+      padding: const EdgeInsets.fromLTRB(28, 32, 28, 32),
+      sparkleSize: 200,
+      sparkleAlignment: const Alignment(1.4, 1.2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IntesharStar(size: 48, color: IntesharColors.ink),
+          const SizedBox(height: 16),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: AlignmentDirectional.centerStart,
+            child: const Text(
+              'Inteshar Store.',
+              style: TextStyle(
+                fontFamily: 'CodecPro',
+                color: IntesharColors.ink,
+                fontSize: 40,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -1.4,
+                height: 1.0,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            l.loginBrandTaglineShort,
+            style: TextStyle(
+              fontFamily: 'CodecPro',
+              fontSize: 14.5,
+              color: IntesharColors.ink.withValues(alpha: 0.72),
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LoginForm extends StatelessWidget {
+  final GlobalKey<FormState> formKey;
+  final TextEditingController phoneCtrl;
+  final TextEditingController passCtrl;
+  final bool obscure;
+  final VoidCallback onToggleObscure;
+  final bool loading;
+  final String? error;
+  final bool showMongoHint;
+  final bool isAuthenticated;
+  final AppLocalizations l;
+  final VoidCallback onSignIn;
+  final VoidCallback onShowUrlSheet;
+  final VoidCallback onSeed;
+
+  const _LoginForm({
+    required this.formKey,
+    required this.phoneCtrl,
+    required this.passCtrl,
+    required this.obscure,
+    required this.onToggleObscure,
+    required this.loading,
+    required this.error,
+    required this.showMongoHint,
+    required this.isAuthenticated,
+    required this.l,
+    required this.onSignIn,
+    required this.onShowUrlSheet,
+    required this.onSeed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Form(
+      key: formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            l.loginWelcomeBack,
+            style: IntesharType.display(34, color: cs.onSurface, w: FontWeight.w900),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            l.loginSubtitle,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+          ),
+          const SizedBox(height: 28),
+          TextFormField(
+            controller: phoneCtrl,
+            keyboardType: TextInputType.phone,
+            style: IntesharType.mono(14, color: cs.onSurface, letterSpacing: 0.6),
+            decoration: InputDecoration(
+              labelText: l.loginPhone,
+              hintText: '07701234567',
+              prefixIcon: const Icon(Icons.phone_outlined, size: 18),
+            ),
+            validator: (v) => v == null || v.isEmpty ? l.loginFieldRequired : null,
+          ),
+          const SizedBox(height: 14),
+          TextFormField(
+            controller: passCtrl,
+            obscureText: obscure,
+            style: IntesharType.mono(14, color: cs.onSurface, letterSpacing: 1.2),
+            decoration: InputDecoration(
+              labelText: l.loginPassword,
+              prefixIcon: const Icon(Icons.lock_outline, size: 18),
+              suffixIcon: IconButton(
+                icon: Icon(obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 18),
+                onPressed: onToggleObscure,
+              ),
+            ),
+            validator: (v) => v == null || v.isEmpty ? l.loginFieldRequired : null,
+          ),
+          const SizedBox(height: 6),
+          Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: TextButton.icon(
+              onPressed: onShowUrlSheet,
+              icon: const Icon(Icons.dns_outlined, size: 14),
+              label: Text(l.loginServerUrl),
+            ),
+          ),
+          if (error != null) ...[
+            const SizedBox(height: 10),
+            _Banner(
+              tone: cs.error,
+              icon: Icons.error_outline,
+              title: l.loginAuthDeclined,
+              body: error!,
+            ),
+          ],
+          if (showMongoHint) ...[
+            const SizedBox(height: 10),
+            _Banner(
+              tone: IntesharColors.saffronDeep,
+              icon: Icons.info_outline,
+              title: l.loginNoUsersTitle,
+              body: '${l.loginNoUsers}\n\n${l.loginNoUsersDefault}',
+            ),
+          ],
+          const SizedBox(height: 24),
+          BrandCTAButton(
+            label: l.loginSignIn,
+            trailing: Icons.arrow_forward,
+            loading: loading,
+            onPressed: loading ? null : onSignIn,
+          ),
+          if (isAuthenticated) ...[
+            const SizedBox(height: 12),
+            BrandCTAButton(
+              label: l.loginSeedDemo,
+              leading: Icons.play_arrow,
+              variant: BrandCTAVariant.outline,
+              onPressed: onSeed,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _Banner extends StatelessWidget {
+  final Color tone;
+  final IconData icon;
+  final String title;
+  final String body;
+  const _Banner({required this.tone, required this.icon, required this.title, required this.body});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: tone.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(IntesharRadii.md),
+        border: Border.all(color: tone.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16, color: tone),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  fontFamily: 'CodecPro',
+                  color: tone,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.1,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            body,
+            style: TextStyle(
+              fontFamily: 'CodecPro',
+              fontSize: 12.5,
+              height: 1.5,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
+import 'package:inteshar/l10n/app_localizations.dart';
+import 'package:inteshar/shared/widgets/design_system.dart';
 
 class ManageUsersSheet extends StatefulWidget {
   final Entity entity;
@@ -34,22 +38,24 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
     super.dispose();
   }
 
-  List<UserRole> get _allowedRoles => widget.entity.type == EntityType.STORE ? UserRole.values : [UserRole.ADMIN];
+  List<UserRole> get _allowedRoles =>
+      widget.entity.type == EntityType.STORE ? UserRole.values : [UserRole.ADMIN];
 
   void _tryAddUser() {
+    final l = AppLocalizations.of(context)!;
     final phone = _phoneCtrl.text.trim();
     final pass = _passCtrl.text.trim();
 
     if (phone.isEmpty) {
-      setState(() => _addError = 'Phone is required');
+      setState(() => _addError = l.manageUsersPhoneRequired);
       return;
     }
     if (pass.isEmpty) {
-      setState(() => _addError = 'Password is required');
+      setState(() => _addError = l.manageUsersPasswordRequired);
       return;
     }
     if (_users.any((u) => u.phone == phone)) {
-      setState(() => _addError = 'A user with this phone already exists');
+      setState(() => _addError = l.manageUsersPhoneDuplicate);
       return;
     }
 
@@ -67,8 +73,9 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
   }
 
   Future<void> _save() async {
+    final l = AppLocalizations.of(context)!;
     if (_users.isEmpty) {
-      setState(() => _addError = 'At least one user is required');
+      setState(() => _addError = l.manageUsersAtLeastOne);
       return;
     }
     setState(() => _saving = true);
@@ -76,7 +83,7 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
       await widget.onSave(List.unmodifiable(_users));
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l.manageUsersErrorSaving)));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -85,89 +92,106 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final l = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
     final entityName = widget.entity.meta.name.isNotEmpty ? widget.entity.meta.name : widget.entity.id;
 
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 16, right: 16, top: 24),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+        left: 24,
+        right: 24,
+        top: 20,
+      ),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Manage Users', style: theme.textTheme.titleMedium),
-            Text(entityName, style: theme.textTheme.bodySmall),
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(color: cs.outline, borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
             const SizedBox(height: 16),
+            SectionLabel(l.manageUsersSectionLabel),
+            Text(
+              l.manageUsersTitle,
+              style: IntesharType.display(26, color: cs.onSurface),
+            ),
+            const SizedBox(height: 4),
+            Text(entityName, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
+            const SizedBox(height: 18),
 
-            // Existing users list
+            // Existing users
             if (_users.isEmpty)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text('No users yet — add one below.', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(l.manageUsersEmpty, style: Theme.of(context).textTheme.bodySmall),
               )
             else
-              ..._users.map(
-                (u) => ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.person_outline),
-                  title: Text(u.phone),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _RoleChip(role: u.role),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline, color: Colors.red),
-                        onPressed: () => _removeUser(u),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              ..._users.map((u) => _UserRow(user: u, onRemove: () => _removeUser(u))),
 
-            const Divider(),
-            Text('Add User', style: theme.textTheme.labelMedium),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
+            Container(height: 1, color: cs.outline),
+            const SizedBox(height: 16),
 
+            Text(
+              l.manageUsersNewUser,
+              style: IntesharType.overline(color: cs.onPrimaryContainer),
+            ),
+            const SizedBox(height: 12),
             TextField(
               controller: _phoneCtrl,
               keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(labelText: 'Phone *'),
+              style: GoogleFonts.jetBrainsMono(fontSize: 14, color: cs.onSurface, letterSpacing: 0.6),
+              decoration: InputDecoration(labelText: l.manageUsersPhone),
             ),
             const SizedBox(height: 12),
-
             TextField(
               controller: _passCtrl,
               obscureText: _obscurePass,
+              style: GoogleFonts.jetBrainsMono(fontSize: 14, color: cs.onSurface, letterSpacing: 0.8),
               decoration: InputDecoration(
-                labelText: 'Password *',
-                suffixIcon: IconButton(icon: Icon(_obscurePass ? Icons.visibility : Icons.visibility_off), onPressed: () => setState(() => _obscurePass = !_obscurePass)),
+                labelText: l.manageUsersPassword,
+                suffixIcon: IconButton(
+                  icon: Icon(_obscurePass ? Icons.visibility : Icons.visibility_off, size: 18),
+                  onPressed: () => setState(() => _obscurePass = !_obscurePass),
+                ),
               ),
             ),
             const SizedBox(height: 12),
-
             DropdownButtonFormField<UserRole>(
               initialValue: _selectedRole,
-              decoration: const InputDecoration(labelText: 'Role'),
+              decoration: InputDecoration(labelText: l.manageUsersRole),
               items: _allowedRoles.map((r) => DropdownMenuItem(value: r, child: Text(r.name))).toList(),
               onChanged: (v) {
                 if (v != null) setState(() => _selectedRole = v);
               },
             ),
-
-            if (_addError != null) ...[const SizedBox(height: 8), Text(_addError!, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error))],
-
+            if (_addError != null) ...[
+              const SizedBox(height: 10),
+              Text(_addError!, style: TextStyle(color: cs.error, fontSize: 12)),
+            ],
             const SizedBox(height: 12),
             Align(
-              alignment: Alignment.centerRight,
-              child: OutlinedButton.icon(onPressed: _tryAddUser, icon: const Icon(Icons.person_add), label: const Text('Add')),
+              alignment: AlignmentDirectional.centerEnd,
+              child: OutlinedButton.icon(
+                onPressed: _tryAddUser,
+                icon: const Icon(Icons.person_add_alt, size: 16),
+                label: Text(l.manageUsersRegisterButton),
+              ),
             ),
-
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               child: FilledButton(
                 onPressed: _saving ? null : _save,
-                child: _saving ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Save'),
+                child: _saving
+                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                    : Text(l.manageUsersSave),
               ),
             ),
             const SizedBox(height: 24),
@@ -178,23 +202,38 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
   }
 }
 
-class _RoleChip extends StatelessWidget {
-  final UserRole role;
-  const _RoleChip({required this.role});
+class _UserRow extends StatelessWidget {
+  final EntityUser user;
+  final VoidCallback onRemove;
+  const _UserRow({required this.user, required this.onRemove});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final (bg, fg) = switch (role) {
-      UserRole.ADMIN => (cs.primaryContainer, cs.onPrimaryContainer),
-      UserRole.USER => (cs.secondaryContainer, cs.onSecondaryContainer),
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
-      child: Text(
-        role.name,
-        style: TextStyle(color: fg, fontSize: 11, fontWeight: FontWeight.w600),
+    final color = user.role == UserRole.ADMIN ? cs.onPrimaryContainer : IntesharColors.sage;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: InkCard(
+        ruleColor: color,
+        padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+        child: Row(
+          children: [
+            Icon(Icons.person_outline, size: 18, color: cs.onSurfaceVariant),
+            const SizedBox(width: 12),
+            Expanded(
+              child: SelectableText(
+                user.phone,
+                style: GoogleFonts.jetBrainsMono(fontSize: 13, color: cs.onSurface, letterSpacing: 0.4),
+              ),
+            ),
+            StampPill(label: user.role.name, color: color),
+            const SizedBox(width: 4),
+            IconButton(
+              icon: Icon(Icons.delete_outline, color: cs.error, size: 18),
+              onPressed: onRemove,
+            ),
+          ],
+        ),
       ),
     );
   }

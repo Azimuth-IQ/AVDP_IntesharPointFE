@@ -1,5 +1,6 @@
 {
   "@@locale": "ar",
+
   "appTitle": "إنتشار بوينت",
   "navDashboard": "لوحة التحكم",
   "navHierarchy": "الهيكل التنظيمي",
@@ -9,6 +10,7 @@
   "navBatchAdd": "إضافة مجمّعة",
   "navTransactions": "المعاملات",
   "navPos": "نقطة البيع",
+  "navTemplates": "القوالب",
 
   "loginTitle": "تسجيل الدخول",
   "loginPhone": "رقم الهاتف",
@@ -37,5 +39,466 @@
   "aboutPrinterNote": "جميع الطرازات تطبع على ورق 58 مم ESC/POS عبر البلوتوث.",
 
   "retryButton": "إعادة المحاولة",
-  "emptyListHint": "لا يوجد شيء هنا بعد."
+  "emptyListHint": "لا يوجد شيء هنا بعد.",
+
+  "languageLabel": "اللغة",
+  "languageArabic": "العربية",
+  "languageEnglish": "English",
+  "commonClose": "إغلاق",
+  "commonSeedSuccess": "تم إدخال بيانات التجربة بنجاح!",
+  "commonUpdateFailed": "فشل التحديث: {error}",
+  "@commonUpdateFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "commonDeleteFailed": "فشل الحذف: {error}",
+  "@commonDeleteFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+
+  "loginWelcomeBack": "مرحباً بعودتك",
+  "loginSubtitle": "سجّل دخولك للمتابعة. استخدم رقم الهاتف وكلمة المرور الصادرَين من المدير.",
+  "loginFieldRequired": "هذا الحقل مطلوب",
+  "loginServerEndpoint": "نقطة اتصال الخادم",
+  "loginBaseUrlLabel": "عنوان الخادم الأساسي",
+  "loginSaveEndpoint": "حفظ العنوان",
+  "loginAuthDeclined": "فشل تسجيل الدخول",
+  "loginNoUsersTitle": "لا يوجد مستخدمون مسجّلون",
+  "loginNoUsersDefault": "الافتراضي: هاتف 07701234567 · كلمة المرور \"password\"",
+  "loginBrandTagline": "اضغط، اشحن، وانطلق. أدِر مملكة القسائم من شاشة واحدة.",
+  "loginBrandTaglineShort": "اضغط، اشحن، وانطلق.",
+
+  "splashTagline": "توزيع القسائم بكل سهولة.",
+
+  "dashboardWelcomeBack": "أهلًا بعودتك،",
+  "dashboardQuickActions": "الإجراءات السريعة",
+  "dashboardOperatingNotes": "ملاحظات التشغيل",
+  "dashboardChildrenNote": "الجهات الفرعية المباشرة",
+  "dashboardProducts": "المنتجات",
+  "dashboardProductsNote": "المرتبطة بهذه الجهة",
+  "dashboardActionHierarchyDesc": "إدارة سلسلة التوزيع",
+  "dashboardActionCatalogDesc": "تحديد القسائم والأسعار",
+  "dashboardActionTemplatesDesc": "صمّم إيصال الطباعة الحراري ورمز QR لكل منتج.",
+  "dashboardActionInventoryHqDesc": "استعراض المخزون المطبوع",
+  "dashboardActionBatchAddDesc": "إصدار دفعة جديدة من القسائم",
+  "dashboardActionTransactionsDesc": "نقل المخزون بين الجهات",
+  "dashboardActionChildrenAgent1Desc": "إدارة الموزعين والمتاجر",
+  "dashboardActionInventoryAgentDesc": "فحص القسائم المتوفرة في المخزون",
+  "dashboardActionTransactionsAgentDesc": "إصدار المخزون واستلامه",
+  "dashboardActionChildrenAgent2Desc": "إدارة المتاجر المخصصة",
+  "dashboardActionInventoryStoreDesc": "عرض مخزون المنفذ بصورة سريعة",
+  "dashboardActionTransactionsStoreDesc": "الإيصالات الواردة من الجهة العليا",
+  "dashboardOpenPos": "تشغيل نقطة البيع",
+  "dashboardActionOpenPosDesc": "الطباعة عند منفذ البيع",
+  "dashboardNoteHq1": "أصدر قسائم جديدة وأرسلها عبر الإضافة الجماعية — يتحكم الكتالوج في كل قسيمة مطبوعة.",
+  "dashboardNoteHq2": "تؤثر تغييرات التسلسل الهرمي في مسار المخزون؛ راجع السلسلة قبل إصدار أي معاملة.",
+  "dashboardNoteHq3": "اضغط مطولًا على الشعار لفتح تشخيصات الخادم.",
+  "dashboardNoteAgent1": "أرسل المخزون إلى الجهات الفرعية قبل أن تطلبه — الطباعة عند الطلب تفشل حين تكون الرفوف فارغة.",
+  "dashboardNoteAgent2": "يستعلم الخادم عن المعاملات كل ثانية؛ امنح ما يصل إلى ثلاثين ثانية لاكتمال المعالجة.",
+  "dashboardNoteStore1": "افتح نقطة البيع لتشغيل المنفذ. تُسجَّل كل قسيمة مطبوعة بحالة «مطبوعة» على الخادم.",
+  "dashboardNoteStore2": "لا يمكن التراجع عن حالة «مطبوعة» إلا من قِبَل المسؤول.",
+
+  "healthDiagnosticsTitle": "التشخيصات",
+  "healthRefresh": "تحديث",
+  "healthConnectionSection": "الاتصال",
+  "healthBaseUrl": "رابط الخادم",
+  "healthJwt": "رمز JWT",
+  "healthChecksSection": "الحالة الصحية للنظام",
+  "healthNoResults": "لا توجد نتائج بعد.",
+  "healthFailed": "فشل",
+
+  "entityTypeInteshar": "انتشار",
+  "entityTypeAgent1": "وكيل أول",
+  "entityTypeAgent2": "وكيل ثاني",
+  "entityTypeStore": "متجر",
+  "entityTypeUser": "مستخدم",
+
+  "entityTreeSubtitle": "عرض شامل للجهات التابعة لك وفق ترتيب العرض على المستويات.",
+  "entityTreeLevels": "مستويات",
+  "entityTreeEntities": "جهات",
+  "entityTreeNoChildren": "لا توجد فروع مسجّلة بعد.",
+  "entityTreeRefresh": "تحديث",
+  "entityTreeRoot": "الجذر",
+  "entityTreeLevel": "المستوى {level}",
+  "@entityTreeLevel": {
+    "placeholders": { "level": { "type": "String" } }
+  },
+  "entityTreeEntityCount": "{count, plural, =1{جهة واحدة} =2{جهتان} few{{count} جهات} other{{count} جهة}}",
+  "@entityTreeEntityCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "entityTreeChildrenCount": "{count} فرع",
+  "@entityTreeChildrenCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "entityTreeProductsCount": "{count} منتج",
+  "@entityTreeProductsCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "entityTreeActions": "الإجراءات",
+  "entityTreeEdit": "تعديل",
+  "entityTreeManageUsers": "إدارة المستخدمين",
+  "entityTreeAddChild": "إضافة فرع",
+  "entityTreeDelete": "حذف",
+  "entityTreeIdent": "المعرّف",
+  "entityTreeParentLabel": "الجهة الأم",
+  "entityTreeAmendTitle": "تعديل {typeName}",
+  "@entityTreeAmendTitle": {
+    "placeholders": { "typeName": { "type": "String" } }
+  },
+  "entityTreeAddChildTitle": "إضافة {typeName}",
+  "@entityTreeAddChildTitle": {
+    "placeholders": { "typeName": { "type": "String" } }
+  },
+  "entityTreeDeleteTitle": "حذف الجهة",
+  "entityTreeDeleteConfirm": "هل تريد حذف \"{name}\"؟ لا يمكن التراجع عن هذا الإجراء.",
+  "@entityTreeDeleteConfirm": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "entityTreeCancel": "إلغاء",
+  "entityTreeDeleteFailed": "فشل الحذف. يرجى المحاولة مرة أخرى.",
+  "entityTreeSectionLabel": "تعديل الهيكل التنظيمي",
+  "entityTreeFieldName": "الاسم *",
+  "entityTreeFieldSlogan": "الشعار",
+  "entityTreeFieldDescription": "الوصف",
+  "entityTreeSave": "حفظ",
+  "entityTreeErrorSaving": "حدث خطأ أثناء الحفظ.",
+
+  "entityTreeColEntity": "الجهة",
+  "entityTreeColChildren": "الفروع",
+  "entityTreeColVouchers": "القسائم",
+
+  "entityFieldLogoUrl": "رابط الشعار",
+  "entityFieldPrimaryColor": "اللون الأساسي (hex)",
+  "entityFieldSecondaryColor": "اللون الثانوي (hex)",
+  "entityFieldLowStockThreshold": "حد تنبيه نقص المخزون",
+  "entityFieldLowStockThresholdHelp": "يُعلَّم المنتج كمنخفض عندما تقل وحداته المتاحة عن هذا الحد. اتركه فارغًا لاستخدام الافتراضي.",
+
+  "manageUsersSectionLabel": "سجل المستخدمين",
+  "manageUsersTitle": "إدارة المستخدمين",
+  "manageUsersEmpty": "لا يوجد مستخدمون مسجّلون. أضف مستخدماً أدناه.",
+  "manageUsersNewUser": "مستخدم جديد",
+  "manageUsersPhone": "الهاتف *",
+  "manageUsersPassword": "كلمة المرور *",
+  "manageUsersRole": "الدور",
+  "manageUsersRegisterButton": "تسجيل مستخدم",
+  "manageUsersSave": "حفظ السجل",
+  "manageUsersPhoneRequired": "رقم الهاتف مطلوب",
+  "manageUsersPasswordRequired": "كلمة المرور مطلوبة",
+  "manageUsersPhoneDuplicate": "يوجد مستخدم بهذا الرقم مسبقاً",
+  "manageUsersAtLeastOne": "يجب تسجيل مستخدم واحد على الأقل",
+  "manageUsersErrorSaving": "حدث خطأ أثناء الحفظ.",
+
+  "batchAddEyebrow": "المخزون",
+  "batchAddTitle": "إضافة قسائم",
+  "batchAddSubtitle": "أضف قسيمة واحدة يدوياً، أو استورد دفعة عبر قالب XLSX.",
+  "batchAddTabSingle": "فردي",
+  "batchAddTabCsvXlsx": "CSV / XLSX",
+  "batchAddDenomination": "الفئة",
+  "batchAddProductDefinition": "تعريف المنتج",
+  "batchAddImportedProducts": "تم استيراد {count} منتج بنجاح!",
+  "@batchAddImportedProducts": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "batchAddCsvFormat": "تنسيق الملف",
+  "batchAddRequiredColumns": "الأعمدة المطلوبة",
+  "batchAddDownloadTemplate": "تنزيل قالب XLSX",
+  "batchAddTemplateSaved": "تم حفظ القالب.",
+  "batchAddPickFile": "اختر ملف CSV / XLSX",
+  "batchAddErrorReadBytes": "تعذّرت قراءة بيانات الملف.",
+  "batchAddXlsxBadHeader": "يجب أن يحتوي ملف XLSX على عمودَي 'serialNumber' و 'pin' في الترويسة.",
+  "batchAddDuplicateRow": "الصف {index}: الرقم التسلسلي '{serial}' موجود مسبقاً في مخزون هذه الجهة.",
+  "@batchAddDuplicateRow": {
+    "placeholders": {
+      "index": { "type": "int" },
+      "serial": { "type": "String" }
+    }
+  },
+  "batchAddPreview": "معاينة",
+  "batchAddRowCount": "{count} صف",
+  "@batchAddRowCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "batchAddColSerial": "الرقم التسلسلي",
+  "batchAddColPin": "الرقم السري",
+  "batchAddMoreRows": "+ {count} صف إضافي",
+  "@batchAddMoreRows": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "batchAddProgressImported": "تم استيراد {done} / {total}",
+  "@batchAddProgressImported": {
+    "placeholders": {
+      "done": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "batchAddImportRows": "استيراد {count} صف",
+  "@batchAddImportRows": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "batchAddFailedAtRow": "فشل عند الصف {index}: {error}",
+  "@batchAddFailedAtRow": {
+    "placeholders": {
+      "index": { "type": "int" },
+      "error": { "type": "String" }
+    }
+  },
+  "batchAddPrinting": "جارٍ الطباعة",
+
+  "addVoucherDenomination": "الفئة",
+  "addVoucherSerial": "الرقم التسلسلي",
+  "addVoucherPin": "الرمز السري",
+  "addVoucherSave": "حفظ القسيمة",
+  "addVoucherSerialRequired": "الرقم التسلسلي مطلوب",
+  "addVoucherPinRequired": "الرمز السري مطلوب",
+  "addVoucherDuplicateSerial": "الرقم التسلسلي '{serial}' موجود مسبقاً في مخزون هذه الجهة.",
+  "@addVoucherDuplicateSerial": {
+    "placeholders": { "serial": { "type": "String" } }
+  },
+  "addVoucherSaved": "تم حفظ القسيمة.",
+
+  "defsFormTitleNew": "تعريف منتج جديد",
+  "defsFormTitleEdit": "تعديل تعريف المنتج",
+  "defsDeleteTitle": "حذف تعريف المنتج",
+  "defsDeleteConfirm": "هل تريد حذف \"{name}\"؟ قد يؤثر ذلك على المنتجات الحالية.",
+  "@defsDeleteConfirm": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "defsCancel": "إلغاء",
+  "defsDelete": "حذف",
+  "defsSubtitle": "السجل الرئيسي لفئات القسائم الصادرة عن إنتشار.",
+  "defsTitlesLabel": "عنوان",
+  "defsSearchHint": "بحث بالاسم أو رمز المنتج أو الوصف…",
+  "defsEmptyFirst": "لا توجد تعريفات منتجات بعد. أضف الفئة الأولى.",
+  "defsEmptySearch": "لا توجد نتائج لـ \"{query}\".",
+  "@defsEmptySearch": {
+    "placeholders": { "query": { "type": "String" } }
+  },
+  "defsAddFirst": "إضافة أول تعريف",
+  "defsNewDenomination": "فئة جديدة",
+  "defsPrice": "السعر",
+  "defsEdit": "تعديل",
+  "defsMintLabel": "إنشاء فئة جديدة",
+  "defsAmendLabel": "تعديل فئة موجودة",
+  "defsFieldName": "الاسم *",
+  "defsFieldSku": "رمز المنتج * (مثال: AC5)",
+  "defsFieldPrice": "السعر الافتراضي (IQD) *",
+  "defsFieldDescription": "الوصف",
+  "defsFieldId": "المعرّف (يُنشأ تلقائياً)",
+  "defsSave": "حفظ",
+
+  "inventoryEyebrow": "العداد",
+  "inventorySubtitle": "القسائم المملوكة حالياً لهذه الجهة — ابحث بالاسم أو رمز المنتج أو الرقم التسلسلي.",
+  "inventoryStatusAvailable": "متاح",
+  "inventoryStatusPrinted": "مطبوع",
+  "inventoryStatusDamaged": "تالف",
+  "inventoryStatusSentForPrinting": "قيد الطباعة",
+  "inventoryStatusFailedPrinting": "فشلت الطباعة",
+  "inventorySearchHint": "بحث بالاسم أو رمز المنتج أو الرقم التسلسلي…",
+  "inventoryFilterAll": "الكل",
+  "inventoryEmptyFirst": "لا توجد منتجات مملوكة لهذه الجهة بعد.",
+  "inventoryEmptyFiltered": "لا توجد منتجات تطابق معايير التصفية الحالية.",
+  "inventoryRefresh": "تحديث",
+  "inventoryUnitCount": "{count, plural, =1{وحدة واحدة} =2{وحدتان} few{{count} وحدات} other{{count} وحدة}}",
+  "@inventoryUnitCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "inventoryAvailableCount": "{count} متاح",
+  "@inventoryAvailableCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "inventoryPrintedCount": "{count} مطبوع",
+  "@inventoryPrintedCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "inventoryDamagedCount": "{count} تالف",
+  "@inventoryDamagedCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "inventorySnLabel": "ر.ت",
+  "inventoryChangeStatus": "تغيير الحالة",
+  "inventoryMarkStatus": "تعيين كـ {status}",
+  "@inventoryMarkStatus": {
+    "placeholders": { "status": { "type": "String" } }
+  },
+  "inventoryValueLabel": "قيمة المخزون",
+  "inventoryValueUnits": "وحدة متاحة",
+  "inventoryLoadMore": "تحميل المزيد",
+  "inventoryShowingCount": "عرض {shown} من {total}",
+  "@inventoryShowingCount": {
+    "placeholders": { "shown": { "type": "int" }, "total": { "type": "int" } }
+  },
+  "inventoryNoCodes": "لا توجد رموز للعرض.",
+  "inventoryLoadCodesFailed": "تعذّر تحميل الرموز.",
+
+  "posHomeLiveCounter": "العداد المباشر",
+  "posHomeSetupPrinter": "إعداد الطابعة",
+  "posHomePickDenomination": "اختر الفئة",
+  "posHomeCounterSubtitle": "اطبع عند المنفذ من المخزون المتاح.",
+  "posHomeSearchHint": "ابحث بالاسم أو رمز المنتج…",
+  "posHomeInStock": "في المخزون",
+  "posHomeNoVouchers": "لا توجد قسائم متاحة في المنفذ.",
+  "posHomeNoMatches": "لا توجد نتائج لـ \"{query}\".",
+  "@posHomeNoMatches": {
+    "placeholders": { "query": { "type": "String" } }
+  },
+  "posHomePrint": "طباعة",
+  "posHomeScratchNote": "اكشط الرمز عند نقطة الاستبدال فقط.",
+  "posHomePrinterNotConnected": "الطابعة غير متصلة",
+  "posHomeCancel": "إلغاء",
+  "posHomePrinting": "جارٍ الطباعة…",
+  "posHomeUpdateError": "تعذّر تحديث الحالة: {error}",
+  "@posHomeUpdateError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "posHomePrintFailed": "فشلت الطباعة: {error}",
+  "@posHomePrintFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+
+  "printerPickerTitle": "إعداد الطابعة",
+  "printerPickerConnectedManual": "تم الاتصال عبر العنوان اليدوي",
+  "printerPickerConnectionFailed": "فشل الاتصال: {error}",
+  "@printerPickerConnectionFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "printerPickerConnectedTo": "تم الاتصال بـ {name}",
+  "@printerPickerConnectedTo": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "printerPickerTestPrintSent": "تم إرسال الطباعة التجريبية!",
+  "printerPickerPrintError": "خطأ في الطباعة: {error}",
+  "@printerPickerPrintError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "printerPickerConnected": "متصل",
+  "printerPickerTestPrint": "طباعة تجريبية",
+  "printerPickerDisconnect": "قطع الاتصال",
+  "printerPickerManualAddress": "العنوان اليدوي",
+  "printerPickerManualHint": "استخدم هذا الخيار عندما لا تظهر الطابعة في قائمة البحث.",
+  "printerPickerEnterMac": "أدخل عنوان MAC",
+  "printerPickerMacFormat": "الصيغة: XX:XX:XX:XX:XX:XX",
+  "printerPickerMacLabel": "عنوان MAC للبلوتوث",
+  "printerPickerPair": "اقتران",
+  "printerPickerNearbyDevices": "الأجهزة المجاورة",
+  "printerPickerRescan": "إعادة البحث",
+  "printerPickerNoDevices": "لم يتم العثور على أجهزة. تأكد من تشغيل البلوتوث وتشغيل الطابعة.",
+  "printerPickerUnknown": "غير معروف",
+
+  "newTxnTitle": "معاملة جديدة",
+  "newTxnIssueStock": "إصدار مخزون",
+  "newTxnIssueStockHint": "اختر الجهة المستلمة، حدد الفئات، ثم أرسل الطلب. يقوم الخادم بالاستعلام كل ثانية؛ انتظر حتى 30 ثانية لاستقرار دفتر الحسابات.",
+  "newTxnManifestLines": "بنود البيان",
+  "newTxnAddLine": "إضافة بند",
+  "newTxnGrandTotal": "الإجمالي الكلي",
+  "newTxnUnitsCount": "{count} وحدة",
+  "@newTxnUnitsCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "newTxnSource": "المصدر",
+  "newTxnDestination": "الجهة المستلمة",
+  "newTxnNoChildren": "لا توجد جهات فرعية",
+  "newTxnNoChildrenHint": "أضف جهة فرعية من شاشة التسلسل الهرمي أولاً",
+  "newTxnChooseEntity": "اختر الجهة",
+  "newTxnProduct": "المنتج",
+  "newTxnQty": "الكمية",
+  "newTxnUnitPrice": "سعر الوحدة (د.ع.)",
+  "newTxnLineTotal": "إجمالي البند",
+  "newTxnPosting": "جارٍ الإرسال…",
+  "newTxnSubmit": "إرسال المعاملة",
+  "newTxnPostedToLedger": "تم الترحيل إلى دفتر الحسابات",
+  "newTxnDeclined": "تم رفض المعاملة",
+  "newTxnResultPosted": "مُرحَّلة",
+  "newTxnResultDeclined": "مرفوضة",
+  "newTxnRef": "المرجع · {id}",
+  "@newTxnRef": {
+    "placeholders": { "id": { "type": "String" } }
+  },
+  "newTxnReturnToTransactions": "العودة إلى المعاملات",
+
+  "txnsSubtitle": "حركات المخزون من وإلى هذه الجهة، مرتبة من الأحدث إلى الأقدم.",
+  "txnsTallyOut": "صادر",
+  "txnsTallyIn": "وارد",
+  "txnsTallyDone": "مكتمل",
+  "txnsEmpty": "لا توجد معاملات في دفتر الحسابات لهذه الجهة حتى الآن.",
+  "txnsCreateAction": "إنشاء معاملة",
+  "txnsDirectionTo": "إلى",
+  "txnsDirectionFrom": "من",
+  "txnsUnitLineSummary": "{units} وحدة · {lines} بند",
+  "@txnsUnitLineSummary": {
+    "placeholders": {
+      "units": { "type": "int" },
+      "lines": { "type": "int" }
+    }
+  },
+  "txnsViewDetails": "عرض التفاصيل",
+  "txnsDetailTitle": "تفاصيل المعاملة",
+  "txnsFrom": "من",
+  "txnsTo": "إلى",
+  "txnsMetaReference": "المرجع",
+  "txnsMetaIssued": "تاريخ الإصدار",
+  "txnsMetaNote": "ملاحظة",
+  "txnsLineItems": "البنود",
+  "txnsColSku": "رمز المنتج",
+  "txnsColQty": "الكمية",
+  "txnsColUnit": "سعر الوحدة",
+  "txnsColTotal": "الإجمالي",
+
+  "txnStatusPending": "قيد الانتظار",
+  "txnStatusProcessing": "قيد المعالجة",
+  "txnStatusComplete": "مكتملة",
+  "txnStatusFailed": "فشلت",
+
+  "appShellActiveEntity": "الجهة الحالية",
+  "emptyStateTitle": "لا يوجد شيء هنا بعد",
+  "errorStateErrorLabel": "خطأ",
+  "errorStateTitle": "حدث خطأ أثناء تنفيذ هذا الطلب.",
+
+  "vtTitle": "قوالب القسائم",
+  "vtSubtitle": "صمّم القسيمة المطبوعة لكل منتج — الترويسة والحقول ورمز QR قابل للمسح.",
+  "vtSelectPrompt": "اختر منتجًا لتعديل قالبه",
+  "vtHeaderText": "نص الترويسة",
+  "vtFields": "الحقول",
+  "vtShowProductName": "إظهار اسم المنتج",
+  "vtShowSerial": "إظهار الرقم التسلسلي",
+  "vtShowPin": "إظهار الرمز السري",
+  "vtShowPrice": "إظهار السعر",
+  "vtQrSection": "رمز QR",
+  "vtQrEnabled": "تفعيل رمز QR",
+  "vtQrSource": "محتوى الرمز",
+  "vtQrSourcePin": "الرمز السري",
+  "vtQrSourceSerial": "التسلسلي",
+  "vtQrPrefix": "بادئة الرمز",
+  "vtQrSuffix": "لاحقة الرمز",
+  "vtQrExample": "يُمسح كـ",
+  "vtRedeemInstructions": "تعليمات الاستخدام",
+  "vtFooterText": "نص التذييل",
+  "vtPreview": "معاينة حية",
+  "vtSave": "حفظ القالب",
+  "vtSaved": "تم حفظ القالب",
+  "vtSaveFailed": "تعذّر حفظ القالب",
+  "vtEmpty": "لا توجد منتجات بعد — أنشئ منتجًا في الكتالوج أولًا.",
+
+  "dashKpiStock": "القسائم في المخزون",
+  "dashKpiTransactions": "المعاملات",
+  "dashKpiLowStock": "منتجات منخفضة المخزون",
+  "dashPlatformOverview": "نظرة عامة على المنصة",
+  "dashKpiDirectChildren": "فروع مباشرة",
+  "dashKpiSkusCount": "{count} منتج",
+  "@dashKpiSkusCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "dashKpiThisAccount": "هذا الحساب",
+  "dashKpiAllHealthy": "كل شيء بخير",
+  "dashKpiNeedsAttention": "يحتاج إلى مراجعة",
+  "dashRecentTransactions": "آخر المعاملات",
+  "dashLowStock": "مخزون منخفض",
+  "dashViewAll": "عرض الكل",
+  "dashColRoute": "المسار",
+  "dashColSku": "المنتج",
+  "dashColQty": "الكمية",
+  "dashColStatus": "الحالة",
+  "dashColAmount": "المبلغ",
+  "dashUnitsLeft": "متبقٍ",
+  "dashAllHealthy": "مستويات المخزون جيدة",
+  "dashNoTransactions": "لا توجد معاملات بعد"
 }

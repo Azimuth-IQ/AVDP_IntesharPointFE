@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
+import 'package:inteshar/shared/widgets/brand_cta.dart';
+import 'package:inteshar/shared/widgets/design_system.dart';
 
 class ErrorState extends StatelessWidget {
   final Object error;
@@ -10,19 +14,71 @@ class ErrorState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
-    final msg = error.toString().replaceFirst('ApiException', 'Error').replaceAll(RegExp(r'\(\d+\): '), ': ');
+    final cs = Theme.of(context).colorScheme;
+    final msg = error
+        .toString()
+        .replaceFirst('ApiException', 'Error')
+        .replaceAll(RegExp(r'\(\d+\): '), ': ');
+
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline, size: 64, color: Theme.of(context).colorScheme.error),
-            const SizedBox(height: 16),
-            Text(msg, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyMedium),
-            const SizedBox(height: 16),
-            FilledButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh), label: Text(l.retryButton)),
-          ],
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: InkCard(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                StampPill(
+                  label: l.errorStateErrorLabel,
+                  color: cs.error,
+                  icon: Icons.warning_amber_rounded,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  l.errorStateTitle,
+                  style: TextStyle(
+                    fontFamily: 'CodecPro',
+                    fontSize: 20,
+                    color: cs.onSurface,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(IntesharRadii.md),
+                    border: Border.all(color: cs.outline),
+                  ),
+                  child: SelectableText(
+                    msg,
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 12,
+                      color: cs.onSurface,
+                      height: 1.45,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: BrandCTAButton(
+                    label: l.retryButton,
+                    leading: Icons.refresh,
+                    onPressed: onRetry,
+                    expand: false,
+                    height: 44,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

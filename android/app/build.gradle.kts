@@ -19,6 +19,11 @@ android {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
+    // AGP 8+ disables AIDL by default; the Sunmi InnerPrinter integration needs it.
+    buildFeatures {
+        aidl = true
+    }
+
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.inteshar"

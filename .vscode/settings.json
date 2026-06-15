@@ -1,0 +1,11 @@
+{
+  // Web-only dev defaults: applied to every `flutter run` from VS Code,
+  // including the editor's green ▶ button and the Dart CodeLens above main().
+  // Pairs with launch.json. Remove these when running native targets.
+  "dart.flutterRunAdditionalArgs": [
+    "--web-port=9090",
+    "--web-browser-flag=--disable-web-security",
+    "--web-browser-flag=--user-data-dir=/tmp/flutter_web_dev",
+    "--web-browser-flag=--disable-site-isolation-trials"
+  ]
+}

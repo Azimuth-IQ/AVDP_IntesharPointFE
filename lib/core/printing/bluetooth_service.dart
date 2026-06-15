@@ -1,14 +1,33 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inteshar/core/printing/sunmi_printer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class BluetoothPrinterService extends Notifier<BluetoothPrinterState> {
   BluetoothDevice? _device;
   BluetoothCharacteristic? _writeChar;
+  bool _sunmi = false;
 
   @override
-  BluetoothPrinterState build() => const BluetoothPrinterState();
+  BluetoothPrinterState build() {
+    _detectSunmi();
+    return const BluetoothPrinterState();
+  }
+
+  /// On Sunmi hardware the embedded printer is always available through the
+  /// native InnerPrinter channel — mark it connected and route prints there.
+  Future<void> _detectSunmi() async {
+    try {
+      if (await SunmiPrinter.isAvailable()) {
+        _sunmi = true;
+        state = state.copyWith(
+          status: PrinterStatus.connected,
+          deviceName: 'Sunmi Printer',
+        );
+      }
+    } catch (_) {}
+  }
 
   Stream<List<ScanResult>> scan({Duration timeout = const Duration(seconds: 8)}) {
     FlutterBluePlus.startScan(timeout: timeout);
@@ -80,6 +99,10 @@ class BluetoothPrinterService extends Notifier<BluetoothPrinterState> {
   }
 
   Future<void> send(List<int> bytes) async {
+    if (_sunmi) {
+      await SunmiPrinter.printRaw(bytes);
+      return;
+    }
     if (_writeChar == null) throw Exception('No printer connected');
     // Without explicit MTU negotiation the BLE ATT default is 23 bytes,
     // leaving exactly 20 bytes of payload per write.  Staying at 20 is safe
@@ -102,7 +125,7 @@ class BluetoothPrinterService extends Notifier<BluetoothPrinterState> {
     await connect(device);
   }
 
-  bool get isConnected => _device != null && state.status == PrinterStatus.connected;
+  bool get isConnected => _sunmi || (_device != null && state.status == PrinterStatus.connected);
 
   Future<String?> get lastPrinterId async {
     final prefs = await SharedPreferences.getInstance();

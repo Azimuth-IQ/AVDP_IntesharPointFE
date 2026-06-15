@@ -1,10 +1,45 @@
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/endpoints.dart';
 import 'package:inteshar/features/inventory/domain/product.dart';
+import 'package:inteshar/features/inventory/domain/sku_summary.dart';
 
 class ProductRepository {
   final ApiClient _api;
   ProductRepository(this._api);
+
+  /// Per-SKU rollup (counts per status + price) for an entity — one small,
+  /// indexed aggregation that replaces downloading every voucher to group them.
+  Future<List<SkuSummary>> summaryByEntity(String entityId) async {
+    final response = await _api
+        .get(Endpoints.productSummaryByEntity, params: {'entityId': entityId});
+    return _api.unwrap(response, (d) {
+      final list = d as List<dynamic>;
+      return list
+          .map((e) => SkuSummary.fromJson(e as Map<String, dynamic>))
+          .toList();
+    });
+  }
+
+  /// One page of a single SKU's vouchers for an entity (lazy expand).
+  Future<List<Product>> readByEntityAndSku(
+    String entityId,
+    String sku, {
+    int page = 0,
+    int size = 50,
+  }) async {
+    final response = await _api.get(Endpoints.productReadByEntityAndSku, params: {
+      'entityId': entityId,
+      'sku': sku,
+      'page': page,
+      'size': size,
+    });
+    return _api.unwrap(response, (d) {
+      final list = d as List<dynamic>;
+      return list
+          .map((e) => Product.fromJson(e as Map<String, dynamic>))
+          .toList();
+    });
+  }
 
   Future<Product> create(Product product) async {
     final response =
@@ -29,6 +64,23 @@ class ProductRepository {
         await _api.get(Endpoints.productRead, params: {'id': id});
     return _api.unwrap(
         response, (d) => Product.fromJson(d as Map<String, dynamic>));
+  }
+
+  /// The single channel that yields a decrypted PIN: flips the product to
+  /// SENT_FOR_PRINTING (audited) and returns it with the PIN decrypted. Backend
+  /// authorizes that the caller's entity is the product's current owner.
+  Future<Product> sendForPrinting(String id) async {
+    final response =
+        await _api.post(Endpoints.productSendForPrinting, params: {'id': id});
+    return _api.unwrap(
+        response, (d) => Product.fromJson(d as Map<String, dynamic>));
+  }
+
+  /// Resolves an in-flight print: PRINTED when [printed] is true, else
+  /// FAILED_PRINTING. Never returns a PIN.
+  Future<void> confirmPrint(String id, {required bool printed}) async {
+    await _api.post(Endpoints.productConfirmPrint,
+        params: {'id': id, 'printed': printed});
   }
 
   Future<List<Product>> readAll() async {

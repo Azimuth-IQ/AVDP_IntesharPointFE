@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/inventory/data/definition_repository.dart';
 import 'package:inteshar/features/inventory/domain/product_definition.dart';
+import 'package:inteshar/l10n/app_localizations.dart';
+import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
+import 'package:inteshar/shared/widgets/responsive.dart';
 
 class DefinitionsPage extends ConsumerStatefulWidget {
   const DefinitionsPage({super.key});
@@ -18,6 +22,7 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
   List<ProductDefinition>? _defs;
   Object? _error;
   bool _loading = true;
+  String _search = '';
 
   @override
   void initState() {
@@ -43,21 +48,19 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
   }
 
   Future<void> _showForm({ProductDefinition? existing}) async {
+    final l = AppLocalizations.of(context)!;
     final idCtrl = TextEditingController(
-        text: existing?.id ??
-            'def-${DateTime.now().millisecondsSinceEpoch}');
+        text: existing?.id ?? 'def-${DateTime.now().millisecondsSinceEpoch}');
     final nameCtrl = TextEditingController(text: existing?.name ?? '');
     final skuCtrl = TextEditingController(text: existing?.sku ?? '');
-    final priceCtrl =
-        TextEditingController(text: existing?.defaultPrice ?? '');
-    final descCtrl =
-        TextEditingController(text: existing?.description ?? '');
+    final priceCtrl = TextEditingController(text: existing?.defaultPrice ?? '');
+    final descCtrl = TextEditingController(text: existing?.description ?? '');
 
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       builder: (ctx) => _DefinitionFormSheet(
-        title: existing == null ? 'New Definition' : 'Edit Definition',
+        title: existing == null ? l.defsFormTitleNew : l.defsFormTitleEdit,
         idCtrl: idCtrl,
         nameCtrl: nameCtrl,
         skuCtrl: skuCtrl,
@@ -87,19 +90,21 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
   }
 
   Future<void> _delete(ProductDefinition def) async {
+    final l = AppLocalizations.of(context)!;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete Definition'),
-        content: Text('Delete "${def.name}"? This may break existing products.'),
+        title: Text(l.defsDeleteTitle),
+        content: Text(l.defsDeleteConfirm(def.name)),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(l.defsCancel)),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete'),
+            style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(ctx).colorScheme.error),
+            child: Text(l.defsDelete),
           ),
         ],
       ),
@@ -113,7 +118,7 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Delete failed: $e')),
+          SnackBar(content: Text(AppLocalizations.of(context)!.commonDeleteFailed('$e'))),
         );
       }
     }
@@ -121,6 +126,8 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context)!;
+
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -129,79 +136,297 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
     }
 
     final defs = _defs ?? [];
+    final filtered = _search.isEmpty
+        ? defs
+        : defs.where((d) {
+            final q = _search.toLowerCase();
+            return d.name.toLowerCase().contains(q) ||
+                d.sku.toLowerCase().contains(q) ||
+                d.description.toLowerCase().contains(q);
+          }).toList();
 
     return Scaffold(
-      body: defs.isEmpty
-          ? EmptyState(
-              message: 'No product definitions yet',
-              actionLabel: 'Add First',
-              onAction: () => _showForm(),
-            )
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView.builder(
-                padding: const EdgeInsets.all(8),
-                itemCount: defs.length,
-                itemBuilder: (context, i) {
-                  final def = defs[i];
-                  return Dismissible(
-                    key: ValueKey(def.id),
-                    direction: DismissDirection.endToStart,
-                    background: Container(
-                      alignment: Alignment.centerRight,
-                      padding: const EdgeInsets.only(right: 16),
-                      color: Theme.of(context).colorScheme.errorContainer,
-                      child: Icon(
-                        Icons.delete,
-                        color: Theme.of(context).colorScheme.onErrorContainer,
-                      ),
+      body: MaxWidthBox(
+        child: Column(
+          children: [
+            PageHeader(
+              eyebrow: l.navCatalog,
+              title: l.navCatalog,
+              subtitle: l.defsSubtitle,
+              trailing: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: IntesharColors.saffron.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      defs.length.toString(),
+                      style: IntesharType.display(20,
+                          color: IntesharColors.saffronDeep, w: FontWeight.w900),
                     ),
-                    confirmDismiss: (_) async {
-                      await _delete(def);
-                      return false; // We reload instead of removing from list
-                    },
-                    child: Card(
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor:
-                              Theme.of(context).colorScheme.primaryContainer,
-                          child: Text(
-                            def.sku.isNotEmpty
-                                ? def.sku.substring(0, 2)
-                                : '?',
-                            style: TextStyle(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onPrimaryContainer,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        title: Text(def.name,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w600)),
-                        subtitle: Text(
-                          'SKU: ${def.sku}  •  ${Formatters.iqd(def.defaultPrice)}',
-                        ),
-                        onTap: () => _showForm(existing: def),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.edit_outlined),
-                          onPressed: () => _showForm(existing: def),
-                        ),
-                      ),
+                    const SizedBox(width: 8),
+                    Text(
+                      l.defsTitlesLabel,
+                      style: IntesharType.sans(13,
+                          color: IntesharColors.saffronDeep, w: FontWeight.w700),
                     ),
-                  );
-                },
+                  ],
+                ),
               ),
             ),
-      floatingActionButton: FloatingActionButton(
+            Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(16, 6, 16, 12),
+              child: TextField(
+                decoration: InputDecoration(
+                  hintText: l.defsSearchHint,
+                  prefixIcon: const Icon(Icons.search, size: 18),
+                ),
+                onChanged: (v) => setState(() => _search = v),
+              ),
+            ),
+            Expanded(
+              child: filtered.isEmpty
+                  ? EmptyState(
+                      message: defs.isEmpty
+                          ? l.defsEmptyFirst
+                          : l.defsEmptySearch(_search),
+                      actionLabel: defs.isEmpty ? l.defsAddFirst : null,
+                      onAction: defs.isEmpty ? () => _showForm() : null,
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _load,
+                      child: CustomScrollView(
+                        slivers: [
+                          SliverPadding(
+                            padding: const EdgeInsetsDirectional.fromSTEB(
+                                16, 0, 16, 24),
+                            sliver: SliverToBoxAdapter(
+                              child: InkCard(
+                                padding: EdgeInsets.zero,
+                                child: Column(
+                                  children: [
+                                    // Column header
+                                    Padding(
+                                      padding: const EdgeInsetsDirectional
+                                          .fromSTEB(16, 10, 12, 10),
+                                      child: _DefsTableHeader(l: l),
+                                    ),
+                                    const Hairline(),
+                                    // Rows
+                                    ...filtered.asMap().entries.map((entry) {
+                                      final i = entry.key;
+                                      final def = entry.value;
+                                      return Column(
+                                        children: [
+                                          Dismissible(
+                                            key: ValueKey(def.id),
+                                            direction:
+                                                DismissDirection.endToStart,
+                                            background: Container(
+                                              alignment: AlignmentDirectional
+                                                  .centerEnd,
+                                              padding:
+                                                  const EdgeInsetsDirectional
+                                                      .only(end: 22),
+                                              decoration: BoxDecoration(
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .error
+                                                    .withValues(alpha: 0.10),
+                                              ),
+                                              child: StampPill(
+                                                label: l.defsDelete,
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .error,
+                                                icon: Icons.delete_outline,
+                                              ),
+                                            ),
+                                            confirmDismiss: (_) async {
+                                              await _delete(def);
+                                              return false;
+                                            },
+                                            child: _DefinitionRow(
+                                              def: def,
+                                              onEdit: () =>
+                                                  _showForm(existing: def),
+                                              onDelete: () => _delete(def),
+                                            ),
+                                          ),
+                                          if (i < filtered.length - 1)
+                                            const Hairline(),
+                                        ],
+                                      );
+                                    }),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showForm(),
-        child: const Icon(Icons.add),
+        icon: const Icon(Icons.add),
+        label: Text(l.defsNewDenomination),
       ),
     );
   }
 }
+
+// ── Table header ─────────────────────────────────────────────────────────────
+
+class _DefsTableHeader extends StatelessWidget {
+  final AppLocalizations l;
+  const _DefsTableHeader({required this.l});
+
+  @override
+  Widget build(BuildContext context) {
+    final style =
+        IntesharType.sans(11, color: IntesharColors.lichen, w: FontWeight.w700);
+    return Row(
+      children: [
+        // SKU avatar placeholder width
+        const SizedBox(width: 52),
+        Expanded(child: Text(l.defsFieldName, style: style)),
+        SizedBox(
+          width: 120,
+          child: Text(l.defsPrice, textAlign: TextAlign.end, style: style),
+        ),
+        // Edit button placeholder
+        const SizedBox(width: 40),
+      ],
+    );
+  }
+}
+
+// ── Definition row ────────────────────────────────────────────────────────────
+
+class _DefinitionRow extends StatefulWidget {
+  final ProductDefinition def;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  const _DefinitionRow(
+      {required this.def, required this.onEdit, required this.onDelete});
+
+  @override
+  State<_DefinitionRow> createState() => _DefinitionRowState();
+}
+
+class _DefinitionRowState extends State<_DefinitionRow> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l = AppLocalizations.of(context)!;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: InkWell(
+        onTap: widget.onEdit,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 4, 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // SKU tile — saffron on hover, recessed otherwise
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: _hover
+                      ? IntesharColors.saffron
+                      : cs.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(IntesharRadii.sm),
+                ),
+                alignment: Alignment.center,
+                child: monoText(
+                  widget.def.sku,
+                  size: 13,
+                  color: _hover ? IntesharColors.ink : cs.onSurface,
+                  w: FontWeight.w900,
+                  letterSpacing: 0.6,
+                ),
+              ),
+              const SizedBox(width: 14),
+              // Name + description
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.def.name,
+                      style: IntesharType.sans(
+                        15,
+                        color: cs.onSurface,
+                        w: FontWeight.w700,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (widget.def.description.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        widget.def.description,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: IntesharType.sans(12, color: IntesharColors.lichen),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Price (right-aligned, monospace)
+              SizedBox(
+                width: 120,
+                child: Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        l.defsPrice,
+                        style: IntesharType.sans(10,
+                            color: IntesharColors.lichen, w: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 2),
+                      monoText(
+                        Formatters.iqd(widget.def.defaultPrice),
+                        size: 13,
+                        color: cs.onSurface,
+                        w: FontWeight.w700,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Edit icon
+              IconButton(
+                icon: const Icon(Icons.edit_outlined, size: 16),
+                onPressed: widget.onEdit,
+                tooltip: l.defsEdit,
+                color: cs.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Definition form sheet ────────────────────────────────────────────────────
 
 class _DefinitionFormSheet extends StatefulWidget {
   final String title;
@@ -233,82 +458,104 @@ class _DefinitionFormSheetState extends State<_DefinitionFormSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
-        left: 16,
-        right: 16,
-        top: 24,
+        left: 24,
+        right: 24,
+        top: 20,
       ),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.title,
-                style: Theme.of(context).textTheme.titleMedium),
+            // Drag handle
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                    color: cs.outline,
+                    borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
             const SizedBox(height: 16),
+            SectionLabel(widget.isNew ? l.defsMintLabel : l.defsAmendLabel),
+            Text(
+              widget.title,
+              style: IntesharType.display(28, color: cs.onSurface),
+            ),
+            const SizedBox(height: 24),
             TextField(
               controller: widget.nameCtrl,
-              decoration: const InputDecoration(labelText: 'Name *'),
+              decoration: InputDecoration(labelText: l.defsFieldName),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: widget.skuCtrl,
               textCapitalization: TextCapitalization.characters,
-              decoration:
-                  const InputDecoration(labelText: 'SKU * (e.g. AC5)'),
+              decoration: InputDecoration(labelText: l.defsFieldSku),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: widget.priceCtrl,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                  labelText: 'Default Price (IQD) *'),
+              decoration: InputDecoration(labelText: l.defsFieldPrice),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: widget.descCtrl,
               maxLines: 2,
-              decoration: const InputDecoration(labelText: 'Description'),
+              decoration: InputDecoration(labelText: l.defsFieldDescription),
             ),
             if (widget.isNew) ...[
               const SizedBox(height: 12),
               TextField(
                 controller: widget.idCtrl,
-                decoration:
-                    const InputDecoration(labelText: 'ID (auto-generated)'),
+                decoration: InputDecoration(labelText: l.defsFieldId),
               ),
             ],
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: _saving
-                    ? null
-                    : () async {
-                        setState(() => _saving = true);
-                        try {
-                          await widget.onSave();
-                        } catch (e) {
-                          if (mounted) {
-                            // ignore: use_build_context_synchronously
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Error: $e')),
-                            );
-                          }
-                        } finally {
-                          if (mounted) setState(() => _saving = false);
-                        }
-                      },
-                child: _saving
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Save'),
-              ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed:
+                        _saving ? null : () => Navigator.pop(context),
+                    child: Text(l.defsCancel),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: _saving
+                        ? null
+                        : () async {
+                            setState(() => _saving = true);
+                            try {
+                              await widget.onSave();
+                            } catch (e) {
+                              if (mounted) {
+                                // ignore: use_build_context_synchronously
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Error: $e')));
+                              }
+                            } finally {
+                              if (mounted) setState(() => _saving = false);
+                            }
+                          },
+                    child: _saving
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : Text(l.defsSave),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
           ],

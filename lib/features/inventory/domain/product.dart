@@ -1,7 +1,7 @@
 // ignore_for_file: constant_identifier_names
 import 'package:inteshar/features/inventory/domain/product_definition.dart';
 
-enum ProductStatus { AVAILABLE, PRINTED, DAMAGED }
+enum ProductStatus { AVAILABLE, SENT_FOR_PRINTING, PRINTED, FAILED_PRINTING, DAMAGED }
 
 class Product {
   final String id;

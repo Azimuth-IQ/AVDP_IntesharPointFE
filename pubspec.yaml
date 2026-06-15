@@ -29,6 +29,7 @@ dependencies:
   # Files / Excel
   file_picker: ^8.1.2
   excel: ^4.0.6
+  web: ^1.1.0
 
   # Bluetooth thermal printing
   flutter_blue_plus: ^1.32.12
@@ -38,6 +39,7 @@ dependencies:
   # UX
   google_fonts: ^6.2.1
   intl: ^0.20.2
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:
@@ -52,3 +54,36 @@ flutter:
   generate: true
   assets:
     - assets/images/
+  fonts:
+    - family: CodecPro
+      fonts:
+        - asset: assets/fonts/CodecPro-Light.ttf
+          weight: 300
+        - asset: assets/fonts/CodecPro-LightItalic.ttf
+          weight: 300
+          style: italic
+        - asset: assets/fonts/CodecPro-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/CodecPro-Italic.ttf
+          weight: 400
+          style: italic
+        - asset: assets/fonts/CodecPro-News.ttf
+          weight: 500
+        - asset: assets/fonts/CodecPro-NewsItalic.ttf
+          weight: 500
+          style: italic
+        - asset: assets/fonts/CodecPro-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/CodecPro-BoldItalic.ttf
+          weight: 700
+          style: italic
+        - asset: assets/fonts/CodecPro-ExtraBold.ttf
+          weight: 800
+        - asset: assets/fonts/CodecPro-ExtraBoldItalic.ttf
+          weight: 800
+          style: italic
+        - asset: assets/fonts/CodecPro-Heavy.ttf
+          weight: 900
+        - asset: assets/fonts/CodecPro-HeavyItalic.ttf
+          weight: 900
+          style: italic

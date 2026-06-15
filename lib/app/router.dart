@@ -4,11 +4,14 @@ import 'package:go_router/go_router.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/auth/presentation/login_page.dart';
 import 'package:inteshar/features/auth/presentation/splash_page.dart';
+import 'package:inteshar/features/dashboard/presentation/dashboard_page.dart';
 import 'package:inteshar/features/diagnostics/presentation/health_page.dart';
 import 'package:inteshar/features/entities/presentation/entity_tree_page.dart';
 import 'package:inteshar/features/inventory/presentation/batch_add_page.dart';
 import 'package:inteshar/features/inventory/presentation/definitions_page.dart';
+import 'package:inteshar/features/inventory/presentation/voucher_templates_page.dart';
 import 'package:inteshar/features/inventory/presentation/inventory_page.dart';
+import 'package:inteshar/features/inventory/presentation/child_inventory_page.dart';
 import 'package:inteshar/features/pos/presentation/pos_home_page.dart';
 import 'package:inteshar/features/transactions/presentation/new_transaction_page.dart';
 import 'package:inteshar/features/transactions/presentation/transactions_page.dart';
@@ -48,49 +51,64 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/login', builder: (_, _) => const LoginPage()),
       GoRoute(path: '/diagnostics', builder: (_, _) => const HealthPage()),
 
-      // HQ routes
-      GoRoute(
-        path: '/hq/home',
-        builder: (_, _) => const AppScaffold(role: 'INTESHAR'),
-      ),
-      GoRoute(path: '/hq/entities', builder: (_, _) => const EntityTreePage()),
-      GoRoute(path: '/hq/inventory', builder: (_, _) => const InventoryPage()),
-      GoRoute(path: '/hq/definitions', builder: (_, _) => const DefinitionsPage()),
-      GoRoute(path: '/hq/batch', builder: (_, _) => const BatchAddPage()),
-      GoRoute(path: '/hq/transactions', builder: (_, _) => const TransactionsPage()),
+      // POS sits outside the shell — full screen on the device.
+      GoRoute(path: '/pos/home', builder: (_, _) => const PosHomePage()),
+
+      // Detail routes (pushed on top, outside the shell) — keep their own
+      // back-aware AppBars.
       GoRoute(path: '/hq/transactions/new', builder: (_, _) => const NewTransactionPage()),
-
-      // Agent1 routes
-      GoRoute(
-        path: '/agent1/home',
-        builder: (_, _) => const AppScaffold(role: 'AGENT1'),
-      ),
-      GoRoute(path: '/agent1/entities', builder: (_, _) => const EntityTreePage()),
-      GoRoute(path: '/agent1/inventory', builder: (_, _) => const InventoryPage()),
-      GoRoute(path: '/agent1/transactions', builder: (_, _) => const TransactionsPage()),
       GoRoute(path: '/agent1/transactions/new', builder: (_, _) => const NewTransactionPage()),
-
-      // Agent2 routes
-      GoRoute(
-        path: '/agent2/home',
-        builder: (_, _) => const AppScaffold(role: 'AGENT2'),
-      ),
-      GoRoute(path: '/agent2/entities', builder: (_, _) => const EntityTreePage()),
-      GoRoute(path: '/agent2/inventory', builder: (_, _) => const InventoryPage()),
-      GoRoute(path: '/agent2/transactions', builder: (_, _) => const TransactionsPage()),
       GoRoute(path: '/agent2/transactions/new', builder: (_, _) => const NewTransactionPage()),
-
-      // Store routes
-      GoRoute(
-        path: '/store/home',
-        builder: (_, _) => const AppScaffold(role: 'STORE'),
-      ),
-      GoRoute(path: '/store/inventory', builder: (_, _) => const InventoryPage()),
-      GoRoute(path: '/store/transactions', builder: (_, _) => const TransactionsPage()),
       GoRoute(path: '/store/transactions/new', builder: (_, _) => const NewTransactionPage()),
 
-      // POS
-      GoRoute(path: '/pos/home', builder: (_, _) => const PosHomePage()),
+      // Child-inventory drill-in (read-only). HQ + Distributor browse a
+      // downstream entity's stock; pushed outside the shell with its own AppBar.
+      GoRoute(
+        path: '/hq/entities/:id/inventory',
+        builder: (_, s) => ChildInventoryPage(
+          entityId: s.pathParameters['id']!,
+          entityName: s.uri.queryParameters['name'] ?? '',
+        ),
+      ),
+      GoRoute(
+        path: '/agent2/entities/:id/inventory',
+        builder: (_, s) => ChildInventoryPage(
+          entityId: s.pathParameters['id']!,
+          entityName: s.uri.queryParameters['name'] ?? '',
+        ),
+      ),
+
+      // All signed-in sections share the responsive [AppShell] (nav + URL).
+      ShellRoute(
+        builder: (context, state, child) => AppShell(child: child),
+        routes: [
+          // HQ
+          GoRoute(path: '/hq/home', builder: (_, _) => const DashboardPage()),
+          GoRoute(path: '/hq/entities', builder: (_, _) => const EntityTreePage()),
+          GoRoute(path: '/hq/definitions', builder: (_, _) => const DefinitionsPage()),
+          GoRoute(path: '/hq/templates', builder: (_, _) => const VoucherTemplatesPage()),
+          GoRoute(path: '/hq/inventory', builder: (_, _) => const InventoryPage()),
+          GoRoute(path: '/hq/batch', builder: (_, _) => const BatchAddPage()),
+          GoRoute(path: '/hq/transactions', builder: (_, _) => const TransactionsPage()),
+
+          // Agent1
+          GoRoute(path: '/agent1/home', builder: (_, _) => const DashboardPage()),
+          GoRoute(path: '/agent1/entities', builder: (_, _) => const EntityTreePage()),
+          GoRoute(path: '/agent1/inventory', builder: (_, _) => const InventoryPage()),
+          GoRoute(path: '/agent1/transactions', builder: (_, _) => const TransactionsPage()),
+
+          // Agent2
+          GoRoute(path: '/agent2/home', builder: (_, _) => const DashboardPage()),
+          GoRoute(path: '/agent2/entities', builder: (_, _) => const EntityTreePage()),
+          GoRoute(path: '/agent2/inventory', builder: (_, _) => const InventoryPage()),
+          GoRoute(path: '/agent2/transactions', builder: (_, _) => const TransactionsPage()),
+
+          // Store
+          GoRoute(path: '/store/home', builder: (_, _) => const DashboardPage()),
+          GoRoute(path: '/store/inventory', builder: (_, _) => const InventoryPage()),
+          GoRoute(path: '/store/transactions', builder: (_, _) => const TransactionsPage()),
+        ],
+      ),
     ],
   );
 });

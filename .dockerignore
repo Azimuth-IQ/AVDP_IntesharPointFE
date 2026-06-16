@@ -1,0 +1,14 @@
+# Keep the build context small; the image only needs build/web + nginx.conf.
+.dart_tool
+.git
+.github
+android
+ios
+linux
+macos
+windows
+test
+.idea
+*.iml
+build/*
+!build/web

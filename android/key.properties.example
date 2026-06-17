@@ -1,0 +1,12 @@
+# Copy to android/key.properties and fill in. CI writes this file from secrets.
+# NEVER commit the real key.properties or the .jks keystore.
+#
+# Generate the keystore ONCE and reuse it for every release (the signing key is
+# the app's identity — a different key makes Android reject the update):
+#   keytool -genkey -v -keystore inteshar-release.jks \
+#       -keyalg RSA -keysize 2048 -validity 10000 -alias inteshar
+#
+storePassword=CHANGE_ME
+keyPassword=CHANGE_ME
+keyAlias=inteshar
+storeFile=inteshar-release.jks

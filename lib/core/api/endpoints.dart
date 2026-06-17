@@ -38,4 +38,8 @@ class Endpoints {
 
   static const logClient = '/api/logs/client';
   static const logQuery = '/api/logs';
+
+  // App self-update (public GETs)
+  static const appLatest = '/api/app/latest';
+  static const appCheck = '/api/app/check';
 }

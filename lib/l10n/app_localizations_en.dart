@@ -42,6 +42,50 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navMore => 'More';
 
   @override
+  String get updateAvailableTitle => 'Update available';
+
+  @override
+  String get updateBody =>
+      'A newer version of Inteshar Point is ready to install.';
+
+  @override
+  String get updateRequiredTitle => 'Update required';
+
+  @override
+  String get updateRequiredBody =>
+      'A required update must be installed before you can continue.';
+
+  @override
+  String get updateWhatsNew => 'What\'s new';
+
+  @override
+  String get updateNow => 'Update now';
+
+  @override
+  String get updateLater => 'Later';
+
+  @override
+  String get updateDownloading => 'Downloading…';
+
+  @override
+  String get updateOpenInstaller => 'Opening installer…';
+
+  @override
+  String get updateRetry => 'Retry';
+
+  @override
+  String get updatePermissionBody =>
+      'Enable “Install unknown apps” for Inteshar Point, then tap Update again.';
+
+  @override
+  String get updatePermissionOpenSettings => 'Open settings';
+
+  @override
+  String updateVersion(String version) {
+    return 'Version $version';
+  }
+
+  @override
   String get loginTitle => 'Sign In';
 
   @override

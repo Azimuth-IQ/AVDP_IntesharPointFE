@@ -42,6 +42,48 @@ class AppLocalizationsAr extends AppLocalizations {
   String get navMore => 'المزيد';
 
   @override
+  String get updateAvailableTitle => 'تحديث متوفّر';
+
+  @override
+  String get updateBody => 'إصدار أحدث من إنتشار بوينت جاهز للتثبيت.';
+
+  @override
+  String get updateRequiredTitle => 'التحديث مطلوب';
+
+  @override
+  String get updateRequiredBody => 'يجب تثبيت التحديث المطلوب قبل المتابعة.';
+
+  @override
+  String get updateWhatsNew => 'الجديد في هذا الإصدار';
+
+  @override
+  String get updateNow => 'تحديث الآن';
+
+  @override
+  String get updateLater => 'لاحقاً';
+
+  @override
+  String get updateDownloading => 'جارٍ التنزيل…';
+
+  @override
+  String get updateOpenInstaller => 'فتح المُثبِّت…';
+
+  @override
+  String get updateRetry => 'إعادة المحاولة';
+
+  @override
+  String get updatePermissionBody =>
+      'فعّل «تثبيت تطبيقات غير معروفة» لإنتشار بوينت، ثم اضغط تحديث مرة أخرى.';
+
+  @override
+  String get updatePermissionOpenSettings => 'فتح الإعدادات';
+
+  @override
+  String updateVersion(String version) {
+    return 'الإصدار $version';
+  }
+
+  @override
   String get loginTitle => 'تسجيل الدخول';
 
   @override

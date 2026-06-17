@@ -30,6 +30,12 @@ dependencies:
   device_info_plus: ^11.0.0
   package_info_plus: ^8.0.0
 
+  # In-app APK self-update (Android sideload)
+  open_filex: ^4.5.0          # opens the downloaded APK → system installer
+  permission_handler: ^11.3.1 # REQUEST_INSTALL_PACKAGES grant flow
+  path_provider: ^2.1.4       # app-specific external dir to save the APK
+  crypto: ^3.0.5              # sha256 integrity check before install
+
   # Files / Excel
   file_picker: ^8.1.2
   excel: ^4.0.6

@@ -1,0 +1,113 @@
+name: UAT — Android APK
+
+on:
+  push:
+    branches: [uat]
+  workflow_dispatch:
+
+concurrency:
+  group: uat-apk
+  cancel-in-progress: true
+
+env:
+  API_BASE: http://34.185.153.95
+  CHANNEL: uat
+  PLATFORM: android
+
+jobs:
+  build-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+      # Release signing — same key on every build, or Android rejects the update.
+      - name: Write signing config
+        working-directory: android
+        run: |
+          # Gradle's file("inteshar-release.jks") resolves relative to android/app,
+          # so the keystore must live there; key.properties stays at android/.
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > app/inteshar-release.jks
+          cat > key.properties <<EOF
+          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          storeFile=inteshar-release.jks
+          EOF
+
+      - name: Build signed APK
+        id: build
+        run: |
+          VERSION_NAME=$(grep '^version:' pubspec.yaml | sed -E 's/version:[[:space:]]*([0-9.]+).*/\1/')
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          # run_number = monotonic Android versionCode (strictly increasing).
+          flutter build apk --release \
+            --dart-define=API_BASE=${API_BASE} \
+            --build-number=${{ github.run_number }} \
+            --build-name="$VERSION_NAME"
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          echo "sha256=$(sha256sum "$APK" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "size=$(stat -c%s "$APK")" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Upload APK to the VM
+        env:
+          INSTANCE: ${{ secrets.GCE_INSTANCE }}
+          ZONE: ${{ secrets.GCP_ZONE }}
+          VC: ${{ github.run_number }}
+        run: |
+          SSH="gcloud compute ssh $INSTANCE --zone $ZONE --tunnel-through-iap --quiet --command"
+          $SSH "sudo mkdir -p /opt/inteshar/apk"
+          gcloud compute scp build/app/outputs/flutter-apk/app-release.apk \
+            "$INSTANCE:/tmp/inteshar-$VC.apk" --zone "$ZONE" --tunnel-through-iap --quiet
+          $SSH "sudo mv /tmp/inteshar-$VC.apk /opt/inteshar/apk/inteshar-$VC.apk && sudo chmod 644 /opt/inteshar/apk/inteshar-$VC.apk"
+
+      - name: Publish release to backend
+        env:
+          ADMIN_PHONE: ${{ secrets.RELEASE_ADMIN_PHONE }}
+          ADMIN_PASSWORD: ${{ secrets.RELEASE_ADMIN_PASSWORD }}
+          VC: ${{ github.run_number }}
+        run: |
+          # Log in as an admin to publish (POST /api/app/release is ADMIN-only).
+          TOKEN=$(curl -sf -X POST "$API_BASE/api/auth/login" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg p "$ADMIN_PHONE" --arg pw "$ADMIN_PASSWORD" '{phone:$p, password:$pw}')" \
+            | jq -r '.token')
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then echo "Login failed"; exit 1; fi
+
+          CHANGELOG=$(git log -1 --pretty=%B)
+          BODY=$(jq -n \
+            --arg channel "$CHANNEL" \
+            --arg platform "$PLATFORM" \
+            --argjson versionCode "$VC" \
+            --arg versionName "${{ steps.build.outputs.version_name }}" \
+            --arg apkUrl "$API_BASE/downloads/inteshar-$VC.apk" \
+            --argjson sizeBytes "${{ steps.build.outputs.size }}" \
+            --arg sha256 "${{ steps.build.outputs.sha256 }}" \
+            --argjson mandatory false \
+            --argjson minSupportedVersionCode 0 \
+            --arg changelog "$CHANGELOG" \
+            '{channel:$channel, platform:$platform, versionCode:$versionCode, versionName:$versionName, apkUrl:$apkUrl, sizeBytes:$sizeBytes, sha256:$sha256, mandatory:$mandatory, minSupportedVersionCode:$minSupportedVersionCode, changelog:$changelog}')
+
+          curl -sf -X POST "$API_BASE/api/app/release" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$BODY"

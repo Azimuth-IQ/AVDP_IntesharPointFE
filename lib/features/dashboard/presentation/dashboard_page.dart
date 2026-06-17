@@ -297,7 +297,11 @@ class _KpiRow extends StatelessWidget {
       builder: (ctx, c) {
         final cols = c.maxWidth >= 980 ? 4 : c.maxWidth >= 560 ? 2 : 1;
         if (cols == 1) {
+          // Stretch each card to the full column width. Without this the Column
+          // centers cards at their own content width, so on phones they render
+          // ragged — different widths and heights per card.
           return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: tiles.map((t) => Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: t,

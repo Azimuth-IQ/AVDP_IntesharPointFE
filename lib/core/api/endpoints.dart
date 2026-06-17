@@ -35,4 +35,7 @@ class Endpoints {
   static const transactionReadAll = '/api/transactions/readall';
   static const transactionUpdate = '/api/transactions/update';
   static const transactionDelete = '/api/transactions/delete';
+
+  static const logClient = '/api/logs/client';
+  static const logQuery = '/api/logs';
 }

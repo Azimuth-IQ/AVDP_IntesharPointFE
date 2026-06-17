@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/core/api/api_exception.dart';
+import 'package:inteshar/core/logging/client_log_reporter.dart';
+import 'package:inteshar/core/logging/device_context.dart';
 import 'package:inteshar/core/storage/session_storage.dart';
 
 final dioProvider = Provider<Dio>((ref) {
@@ -16,6 +20,14 @@ class _AuthInterceptor extends Interceptor {
     if (token != null) {
       options.headers['Authorization'] = 'Bearer $token';
     }
+    // Operational-logging context — recorded by the server request log.
+    options.headers.addAll(DeviceContext.headers);
+    final entityId = await sessionStorage.getCurrentEntityId();
+    if (entityId != null) options.headers['X-Entity-Id'] = entityId;
+    final entityType = await sessionStorage.getCurrentEntityType();
+    if (entityType != null) {
+      options.headers['X-Client-Surface'] = surfaceForEntityType(entityType);
+    }
     handler.next(options);
   }
 
@@ -23,6 +35,19 @@ class _AuthInterceptor extends Interceptor {
   void onError(DioException err, ErrorInterceptorHandler handler) async {
     if (err.response?.statusCode == 401) {
       await sessionStorage.clear();
+    }
+    // A null response = the request never reached the server (timeout, refused,
+    // offline). The server log can't see these, so report from the client.
+    // Guard the log path so a failing report can't loop.
+    final path = err.requestOptions.path;
+    if (err.response == null && !path.contains('/api/logs/')) {
+      unawaited(ClientLogReporter.report(
+        level: 'ERROR',
+        errorType: err.type.toString(),
+        message: err.message ?? 'Network error',
+        path: path,
+        action: 'networkFailure',
+      ));
     }
     final msg = _extractMessage(err);
     handler.reject(

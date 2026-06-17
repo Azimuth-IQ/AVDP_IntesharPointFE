@@ -311,18 +311,25 @@ class _KpiRow extends StatelessWidget {
           rows.add(
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: Row(
-                children: [
-                  for (var j = 0; j < rowTiles.length; j++) ...[
-                    if (j > 0) const SizedBox(width: 12),
-                    Expanded(child: rowTiles[j]),
+              // IntrinsicHeight + stretch makes every tile in the row adopt the
+              // tallest tile's height. Labels (maxLines: 2) and captions wrap to
+              // different line counts per tile — especially in Arabic — which
+              // otherwise leaves the cards visibly uneven.
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var j = 0; j < rowTiles.length; j++) ...[
+                      if (j > 0) const SizedBox(width: 12),
+                      Expanded(child: rowTiles[j]),
+                    ],
+                    // Fill remaining cols with invisible spacers so row is uniform
+                    for (var k = rowTiles.length; k < cols; k++) ...[
+                      const SizedBox(width: 12),
+                      const Expanded(child: SizedBox()),
+                    ],
                   ],
-                  // Fill remaining cols with invisible spacers so row is uniform
-                  for (var k = rowTiles.length; k < cols; k++) ...[
-                    const SizedBox(width: 12),
-                    const Expanded(child: SizedBox()),
-                  ],
-                ],
+                ),
               ),
             ),
           );

@@ -11,8 +11,10 @@ concurrency:
 
 env:
   API_BASE: http://34.185.153.95
-  CHANNEL: uat
-  PLATFORM: android
+  # NOT named CHANNEL — subosito/flutter-action reads $CHANNEL and would treat
+  # it as the Flutter channel.
+  RELEASE_CHANNEL: uat
+  RELEASE_PLATFORM: android
 
 jobs:
   build-publish:
@@ -95,8 +97,8 @@ jobs:
 
           CHANGELOG=$(git log -1 --pretty=%B)
           BODY=$(jq -n \
-            --arg channel "$CHANNEL" \
-            --arg platform "$PLATFORM" \
+            --arg channel "$RELEASE_CHANNEL" \
+            --arg platform "$RELEASE_PLATFORM" \
             --argjson versionCode "$VC" \
             --arg versionName "${{ steps.build.outputs.version_name }}" \
             --arg apkUrl "$API_BASE/downloads/inteshar-$VC.apk" \

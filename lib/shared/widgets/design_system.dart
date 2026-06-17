@@ -373,12 +373,15 @@ class IntesharLockup extends StatelessWidget {
   /// When `true`, render the lockup on a yellow surface (ink-on-yellow).
   /// When `false`, render on a paper surface (ink-on-paper).
   final bool onBrandSurface;
+  /// Hide the tagline line — useful in tight slots like a phone app bar.
+  final bool showTagline;
   const IntesharLockup({
     super.key,
     required this.title,
     required this.tagline,
     this.compact = false,
     this.onBrandSurface = false,
+    this.showTagline = true,
   });
 
   @override
@@ -393,33 +396,43 @@ class IntesharLockup extends StatelessWidget {
       children: [
         IntesharStar(size: compact ? 28 : 36, color: fg),
         const SizedBox(width: 12),
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: TextStyle(
-                fontFamily: 'CodecPro',
-                fontSize: compact ? 18 : 22,
-                fontWeight: FontWeight.w900,
-                color: fg,
-                letterSpacing: -0.4,
-                height: 1.0,
+        // Flexible + ellipsis so the wordmark degrades gracefully in tight
+        // slots (e.g. a phone app bar) instead of overflowing the row.
+        Flexible(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'CodecPro',
+                  fontSize: compact ? 18 : 22,
+                  fontWeight: FontWeight.w900,
+                  color: fg,
+                  letterSpacing: -0.4,
+                  height: 1.0,
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              tagline,
-              style: TextStyle(
-                fontFamily: 'CodecPro',
-                fontSize: compact ? 10.5 : 11.5,
-                color: fgSoft,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.2,
-              ),
-            ),
-          ],
+              if (showTagline) ...[
+                const SizedBox(height: 4),
+                Text(
+                  tagline,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'CodecPro',
+                    fontSize: compact ? 10.5 : 11.5,
+                    color: fgSoft,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ],
     );

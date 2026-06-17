@@ -39,6 +39,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navTemplates => 'Templates';
 
   @override
+  String get navMore => 'More';
+
+  @override
   String get loginTitle => 'Sign In';
 
   @override

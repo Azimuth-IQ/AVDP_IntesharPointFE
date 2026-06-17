@@ -158,6 +158,12 @@ abstract class AppLocalizations {
   /// **'Templates'**
   String get navTemplates;
 
+  /// Mobile bottom-nav overflow tab opening the secondary destinations sheet
+  ///
+  /// In en, this message translates to:
+  /// **'More'**
+  String get navMore;
+
   /// No description provided for @loginTitle.
   ///
   /// In en, this message translates to:

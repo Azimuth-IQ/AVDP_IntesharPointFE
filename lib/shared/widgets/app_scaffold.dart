@@ -15,6 +15,10 @@ import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 import 'package:inteshar/shared/widgets/role_badge.dart';
 
+/// Material's bottom navigation bar stays legible and tappable up to five
+/// destinations on a phone. Roles with more spill the overflow into a sheet.
+const int _kMaxBottomTabs = 5;
+
 class _NavItem {
   final IconData icon;
   final IconData selectedIcon;
@@ -31,14 +35,17 @@ class AppShell extends ConsumerWidget {
   List<_NavItem> _navFor(AppLocalizations l, EntityType type) {
     switch (type) {
       case EntityType.INTESHAR:
+        // Ordered by daily-use frequency. The first four are the mobile
+        // bottom-bar primaries; Catalog / Templates / Batch Add are lower-cadence
+        // setup tasks that move into the "More" sheet on phones.
         return [
-          _NavItem(Icons.dashboard_outlined,      Icons.dashboard,      l.navDashboard,    '/hq/home'),
-          _NavItem(Icons.account_tree_outlined,   Icons.account_tree,   l.navHierarchy,    '/hq/entities'),
-          _NavItem(Icons.inventory_2_outlined,    Icons.inventory_2,    l.navCatalog,      '/hq/definitions'),
-          _NavItem(Icons.receipt_long_outlined,   Icons.receipt_long,   l.navTemplates,    '/hq/templates'),
-          _NavItem(Icons.warehouse_outlined,      Icons.warehouse,      l.navInventory,    '/hq/inventory'),
-          _NavItem(Icons.upload_file_outlined,    Icons.upload_file,    l.navBatchAdd,     '/hq/batch'),
-          _NavItem(Icons.swap_horiz_outlined,     Icons.swap_horiz,     l.navTransactions, '/hq/transactions'),
+          _NavItem(Icons.dashboard_outlined,    Icons.dashboard,    l.navDashboard,    '/hq/home'),
+          _NavItem(Icons.account_tree_outlined, Icons.account_tree, l.navHierarchy,    '/hq/entities'),
+          _NavItem(Icons.warehouse_outlined,    Icons.warehouse,    l.navInventory,    '/hq/inventory'),
+          _NavItem(Icons.swap_horiz_outlined,   Icons.swap_horiz,   l.navTransactions, '/hq/transactions'),
+          _NavItem(Icons.inventory_2_outlined,  Icons.inventory_2,  l.navCatalog,      '/hq/definitions'),
+          _NavItem(Icons.receipt_long_outlined, Icons.receipt_long, l.navTemplates,    '/hq/templates'),
+          _NavItem(Icons.upload_file_outlined,  Icons.upload_file,  l.navBatchAdd,     '/hq/batch'),
         ];
       case EntityType.AGENT1:
         return [
@@ -165,13 +172,17 @@ class _MobileLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 16,
         title: GestureDetector(
           onLongPress: () => context.go('/diagnostics'),
-          child: IntesharLockup(title: title, tagline: 'Inteshar Store', compact: true),
+          child: IntesharLockup(
+            title: title,
+            tagline: 'Inteshar Store',
+            compact: true,
+            showTagline: false,
+          ),
         ),
         actions: [
           if (entity != null)
@@ -188,25 +199,169 @@ class _MobileLayout extends StatelessWidget {
       ),
       drawer: const _AboutDrawer(),
       body: body,
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: cs.surfaceContainer,
-          boxShadow: const [
-            BoxShadow(blurRadius: 24, offset: Offset(0, -6), color: Color(0x14000000)),
-          ],
+      bottomNavigationBar: _buildBottomBar(context),
+    );
+  }
+
+  /// Builds the bottom navigation. When a role has more destinations than a
+  /// phone bar can hold ([_kMaxBottomTabs]), the four most-used stay on the bar
+  /// and the rest collapse behind a "More" tab that opens a sheet — rather than
+  /// crushing seven labels into a width where none are legible or tappable.
+  Widget _buildBottomBar(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l = AppLocalizations.of(context)!;
+
+    final overflow = items.length > _kMaxBottomTabs;
+    final primaryCount = overflow ? _kMaxBottomTabs - 1 : items.length;
+    final primary = items.take(primaryCount).toList();
+    final extras = overflow ? items.skip(primaryCount).toList() : const <_NavItem>[];
+    final activeInExtras = activeIndex >= primaryCount;
+
+    final destinations = <NavigationDestination>[
+      for (final item in primary)
+        NavigationDestination(
+          icon: Icon(item.icon),
+          selectedIcon: Icon(item.selectedIcon),
+          label: item.label,
+          tooltip: item.label,
         ),
-        child: NavigationBar(
-          selectedIndex: activeIndex,
-          onDestinationSelected: onSelect,
-          destinations: items
-              .map(
-                (e) => NavigationDestination(
-                  icon: Icon(e.icon),
-                  selectedIcon: Icon(e.selectedIcon),
-                  label: e.label,
+      if (overflow)
+        NavigationDestination(
+          icon: const Icon(Icons.more_horiz),
+          selectedIcon: const Icon(Icons.more_horiz),
+          label: l.navMore,
+          tooltip: l.navMore,
+        ),
+    ];
+
+    final selectedIndex =
+        (overflow && activeInExtras ? primaryCount : activeIndex)
+            .clamp(0, destinations.length - 1);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cs.surfaceContainer,
+        boxShadow: const [
+          BoxShadow(blurRadius: 24, offset: Offset(0, -6), color: Color(0x14000000)),
+        ],
+      ),
+      child: NavigationBar(
+        selectedIndex: selectedIndex,
+        onDestinationSelected: (i) {
+          if (overflow && i == primaryCount) {
+            _openMoreSheet(context, extras, primaryCount);
+          } else {
+            onSelect(i);
+          }
+        },
+        destinations: destinations,
+      ),
+    );
+  }
+
+  void _openMoreSheet(BuildContext context, List<_NavItem> extras, int primaryCount) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetCtx) => _MoreSheet(
+        items: extras,
+        // Index of the active route within [extras]; negative when a primary
+        // tab is active (nothing in the sheet is highlighted then).
+        activeIndex: activeIndex - primaryCount,
+        onSelect: (extraIndex) {
+          Navigator.pop(sheetCtx);
+          onSelect(primaryCount + extraIndex);
+        },
+      ),
+    );
+  }
+}
+
+/// Overflow destinations for the mobile bottom bar, presented as a sheet of
+/// full-width rows — the same active treatment as the desktop sidebar.
+class _MoreSheet extends StatelessWidget {
+  final List<_NavItem> items;
+  final int activeIndex;
+  final ValueChanged<int> onSelect;
+  const _MoreSheet({
+    required this.items,
+    required this.activeIndex,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    return SafeArea(
+      top: false,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
+            child: Text(
+              l.navMore,
+              style: TextStyle(
+                fontFamily: 'CodecPro',
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: cs.onSurface,
+                letterSpacing: -0.2,
+              ),
+            ),
+          ),
+          for (var i = 0; i < items.length; i++)
+            _MoreRow(
+              item: items[i],
+              active: i == activeIndex,
+              onTap: () => onSelect(i),
+            ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+}
+
+class _MoreRow extends StatelessWidget {
+  final _NavItem item;
+  final bool active;
+  final VoidCallback onTap;
+  const _MoreRow({required this.item, required this.active, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    // onSurface (ink) on a brand tint keeps the active row legible; gold-on-gold
+    // fails contrast. Mirrors the sidebar's active _NavRow.
+    final fg = active ? cs.onSurface : cs.onSurfaceVariant;
+    return Material(
+      color: active ? cs.primary.withValues(alpha: 0.16) : Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          child: Row(
+            children: [
+              Icon(active ? item.selectedIcon : item.icon, size: 22, color: fg),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  item.label,
+                  style: TextStyle(
+                    fontFamily: 'CodecPro',
+                    fontSize: 15,
+                    fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                    color: fg,
+                    letterSpacing: 0.1,
+                  ),
                 ),
-              )
-              .toList(),
+              ),
+              if (active) IntesharStar(size: 14, color: cs.onSurface, filled: true),
+            ],
+          ),
         ),
       ),
     );
@@ -271,22 +426,35 @@ class _TabletLayout extends StatelessWidget {
                 BoxShadow(blurRadius: 20, offset: Offset(2, 0), color: Color(0x0F000000)),
               ],
             ),
-            child: NavigationRail(
-              selectedIndex: activeIndex,
-              onDestinationSelected: onSelect,
-              labelType: NavigationRailLabelType.all,
-              backgroundColor: Colors.transparent,
-              indicatorColor: cs.primary.withValues(alpha: 0.22),
-              indicatorShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(IntesharRadii.md)),
-              destinations: items
-                  .map(
-                    (e) => NavigationRailDestination(
-                      icon: Icon(e.icon),
-                      selectedIcon: Icon(e.selectedIcon),
-                      label: Text(e.label),
+            // A rail listing every destination can exceed a short or landscape
+            // viewport; let it scroll rather than overflow.
+            child: LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: IntrinsicHeight(
+                    child: NavigationRail(
+                      selectedIndex: activeIndex,
+                      onDestinationSelected: onSelect,
+                      labelType: NavigationRailLabelType.all,
+                      backgroundColor: Colors.transparent,
+                      indicatorColor: cs.primary.withValues(alpha: 0.22),
+                      indicatorShape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(IntesharRadii.md),
+                      ),
+                      destinations: items
+                          .map(
+                            (e) => NavigationRailDestination(
+                              icon: Icon(e.icon),
+                              selectedIcon: Icon(e.selectedIcon),
+                              label: Text(e.label),
+                            ),
+                          )
+                          .toList(),
                     ),
-                  )
-                  .toList(),
+                  ),
+                ),
+              ),
             ),
           ),
           Expanded(child: body),

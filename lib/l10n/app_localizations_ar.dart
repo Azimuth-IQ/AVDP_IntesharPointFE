@@ -39,6 +39,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get navTemplates => 'القوالب';
 
   @override
+  String get navMore => 'المزيد';
+
+  @override
   String get loginTitle => 'تسجيل الدخول';
 
   @override

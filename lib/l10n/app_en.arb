@@ -22,6 +22,8 @@
   "@navPos": {},
   "navTemplates": "Templates",
   "@navTemplates": {},
+  "navMore": "More",
+  "@navMore": { "description": "Mobile bottom-nav overflow tab opening the secondary destinations sheet" },
 
   "loginTitle": "Sign In",
   "@loginTitle": {},

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
+import 'package:inteshar/core/api/api_exception.dart';
 import 'package:inteshar/core/printing/bluetooth_service.dart';
 import 'package:inteshar/core/printing/escpos_builder.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -50,9 +51,10 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
       final api = ref.read(apiClientProvider);
       final repo = ProductRepository(api);
       final all = await repo.readByEntity(auth.entity.id);
-      // Sellable / retryable = anything not already PRINTED or DAMAGED
-      // (AVAILABLE, in-flight SENT_FOR_PRINTING, and FAILED_PRINTING).
-      final available = all.where((p) => p.status != ProductStatus.PRINTED && p.status != ProductStatus.DAMAGED).toList();
+      // Sellable = strictly AVAILABLE. Revealing a code consumes it (the backend
+      // flips it to PRINTED on decrypt), so anything not AVAILABLE has already
+      // been used and must never reappear on the counter.
+      final available = all.where((p) => p.status == ProductStatus.AVAILABLE).toList();
       if (mounted) setState(() => _products = available);
     } catch (e) {
       if (mounted) setState(() => _error = e);
@@ -271,8 +273,8 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
       isScrollControlled: true,
       builder: (ctx) => _VoucherSheet(
         product: product,
-        // The sheet resolves the voucher's print status itself (confirmPrint);
-        // here we just close and refresh the list.
+        // The PIN stays hidden until the operator taps Reveal inside the sheet.
+        // This callback closes and refreshes the list once a code is consumed.
         onPrinted: () {
           Navigator.pop(ctx);
           _load();
@@ -438,53 +440,43 @@ class _VoucherSheet extends ConsumerStatefulWidget {
 }
 
 class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
-  bool _printing = false;
-  // The list product arrives with its PIN stripped (encrypted at rest). Opening
-  // the sheet "sends for printing": the backend flips the voucher to
-  // SENT_FOR_PRINTING and returns the decrypted code — the only channel that
-  // ever exposes a working PIN.
+  // The list product arrives with its PIN stripped (encrypted at rest). The code
+  // stays hidden until the operator EXPLICITLY taps "Reveal" — that single tap
+  // calls sendForPrinting, which on the backend atomically marks the voucher used
+  // (status PRINTED) and returns the decrypted code. Revealing is the point of
+  // sale; it consumes the voucher and cannot be undone.
   Product? _sent;
-  Object? _sendError;
-  bool _sending = true;
+  bool _revealing = false;
+  bool _printing = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _sendForPrinting();
-  }
+  bool get _revealed => _sent != null;
 
-  Future<void> _sendForPrinting() async {
-    setState(() {
-      _sending = true;
-      _sendError = null;
-    });
+  Future<void> _reveal() async {
+    setState(() => _revealing = true);
     try {
       final api = ref.read(apiClientProvider);
-      final repo = ProductRepository(api);
-      final full = await repo.sendForPrinting(widget.product.id);
+      final full = await ProductRepository(api).sendForPrinting(widget.product.id);
       if (mounted) setState(() => _sent = full);
     } catch (e) {
-      if (mounted) setState(() => _sendError = e);
+      if (!mounted) return;
+      final l = AppLocalizations.of(context)!;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l.posHomePrintFailed(e.toString())), backgroundColor: Theme.of(context).colorScheme.error),
+      );
+      // Already used / no longer available → drop it from the counter.
+      if (e is ApiException && e.statusCode == 409) widget.onPrinted();
     } finally {
-      if (mounted) setState(() => _sending = false);
+      if (mounted) setState(() => _revealing = false);
     }
   }
 
-  // Resolve the in-flight voucher: PRINTED on success, FAILED_PRINTING otherwise.
-  // Best-effort — the status reconciles on the next inventory load if it fails.
-  Future<void> _confirm(bool printed) async {
-    try {
-      final api = ref.read(apiClientProvider);
-      await ProductRepository(api).confirmPrint(widget.product.id, printed: printed);
-    } catch (_) {}
-  }
-
   Future<void> _print() async {
+    final revealed = _sent;
+    if (revealed == null) return; // print is only reachable after reveal
     setState(() => _printing = true);
     try {
       final auth = ref.read(authStateProvider).valueOrNull as AuthAuthenticated?;
-      final src = _sent ?? widget.product;
-      final def = src.productDefinition;
+      final def = revealed.productDefinition;
       final bytes = await buildVoucherReceipt(
         template: def.template,
         companyName: 'Inteshar Point',
@@ -493,15 +485,13 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
         operatorPhone: auth?.entity.users.firstOrNull?.phone ?? '',
         productName: def.name,
         price: Formatters.iqd(def.defaultPrice),
-        serial: src.serialNumber,
-        pin: src.pin,
+        serial: revealed.serialNumber,
+        pin: revealed.pin,
         timestamp: DateTime.now(),
       );
       await ref.read(bluetoothServiceProvider.notifier).send(bytes);
-      await _confirm(true); // → PRINTED
       if (mounted) widget.onPrinted();
     } catch (e) {
-      await _confirm(false); // → FAILED_PRINTING (stays sellable for retry)
       if (mounted) {
         final l = AppLocalizations.of(context)!;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -513,42 +503,20 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
     }
   }
 
-  // Closing without printing: the code was revealed but not printed → mark
-  // FAILED_PRINTING so the voucher stays sellable for a later retry.
-  Future<void> _cancel() async {
-    if (_sent != null) await _confirm(false);
-    if (mounted) widget.onPrinted();
-  }
-
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l = AppLocalizations.of(context)!;
 
-    if (_sending) {
-      return const SafeArea(
-        child: Padding(
-          padding: EdgeInsets.symmetric(vertical: 56),
-          child: Center(child: CircularProgressIndicator()),
-        ),
-      );
-    }
-    if (_sendError != null) {
-      return SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: ErrorState(error: _sendError!, onRetry: _sendForPrinting),
-        ),
-      );
-    }
-    final p = _sent!;
+    final revealed = _revealed;
+    final p = _sent ?? widget.product;
     final def = p.productDefinition;
     final t = def.template;
 
     return SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
+          bottom: 24 + MediaQuery.of(context).viewInsets.bottom,
           left: 24,
           right: 24,
           top: 20,
@@ -618,38 +586,48 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                       const SizedBox(height: 12),
                     ],
                     if (t.showPin)
-                      _ReceiptRow(label: l.posPin, value: p.pin, monoSize: 20, monoSpacing: 5),
+                      _ReceiptRow(
+                        label: l.posPin,
+                        value: revealed ? p.pin : '•••• •••• ••••',
+                        monoSize: 20,
+                        monoSpacing: 5,
+                      ),
                     if (t.qrEnabled) ...[
                       const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(IntesharRadii.sm),
-                        ),
-                        child: QrImageView(
-                          data: t.qrPayload(pin: p.pin, serial: p.serialNumber),
-                          version: QrVersions.auto,
-                          size: 128,
-                          backgroundColor: Colors.white,
-                          eyeStyle: const QrEyeStyle(
-                            eyeShape: QrEyeShape.square,
-                            color: IntesharColors.ink,
+                      if (revealed)
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(IntesharRadii.sm),
                           ),
-                          dataModuleStyle: const QrDataModuleStyle(
-                            dataModuleShape: QrDataModuleShape.square,
-                            color: IntesharColors.ink,
+                          child: QrImageView(
+                            data: t.qrPayload(pin: p.pin, serial: p.serialNumber),
+                            version: QrVersions.auto,
+                            size: 128,
+                            backgroundColor: Colors.white,
+                            eyeStyle: const QrEyeStyle(
+                              eyeShape: QrEyeShape.square,
+                              color: IntesharColors.ink,
+                            ),
+                            dataModuleStyle: const QrDataModuleStyle(
+                              dataModuleShape: QrDataModuleShape.square,
+                              color: IntesharColors.ink,
+                            ),
                           ),
+                        )
+                      else
+                        _LockedQr(label: l.posPinHidden),
+                      if (revealed) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          t.redeemInstructions.trim().isNotEmpty
+                              ? t.redeemInstructions.trim()
+                              : t.qrPayload(pin: p.pin, serial: p.serialNumber),
+                          textAlign: TextAlign.center,
+                          style: IntesharType.mono(12, color: cs.onSurface, w: FontWeight.w700),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        t.redeemInstructions.trim().isNotEmpty
-                            ? t.redeemInstructions.trim()
-                            : t.qrPayload(pin: p.pin, serial: p.serialNumber),
-                        textAlign: TextAlign.center,
-                        style: IntesharType.mono(12, color: cs.onSurface, w: FontWeight.w700),
-                      ),
+                      ],
                     ],
                     const SizedBox(height: 14),
                     const _ReceiptDivider(),
@@ -671,84 +649,188 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
               ),
             ),
             const SizedBox(height: 20),
-            Consumer(
-              builder: (ctx, ref, _) {
-                final ps = ref.watch(bluetoothServiceProvider);
-                final isConnected = ps.status == PrinterStatus.connected;
-                return Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: isConnected
-                            ? IntesharColors.sage.withValues(alpha: 0.10)
-                            : cs.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: isConnected ? IntesharColors.sage.withValues(alpha: 0.4) : cs.outline,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            isConnected ? Icons.bluetooth_connected : Icons.bluetooth_disabled,
-                            size: 14,
-                            color: isConnected ? IntesharColors.sage : cs.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            isConnected
-                                ? (ps.deviceName ?? l.posPrinterConnected)
-                                : l.posHomePrinterNotConnected,
-                            style: TextStyle(
-                              fontFamily: 'CodecPro',
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: isConnected ? IntesharColors.sage : cs.onSurfaceVariant,
-                              letterSpacing: 0.2,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (!isConnected)
-                      BrandCTAButton(
-                        label: l.posConnectPrinter,
-                        leading: Icons.bluetooth,
-                        variant: BrandCTAVariant.outline,
-                        onPressed: () => Navigator.push<void>(
-                            ctx, MaterialPageRoute(builder: (_) => const PrinterPickerPage())),
-                      ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: BrandCTAButton(
-                            label: l.posHomeCancel,
-                            variant: BrandCTAVariant.outline,
-                            onPressed: _printing ? null : () => _cancel(),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: BrandCTAButton(
-                            label: _printing ? l.posHomePrinting : l.posPrintVoucher,
-                            leading: _printing ? null : Icons.print_outlined,
-                            loading: _printing,
-                            onPressed: (_printing || !isConnected) ? null : _print,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 24),
+            if (!revealed) _buildRevealActions(l, cs) else _buildPrintActions(l, cs),
           ],
         ),
+      ),
+    );
+  }
+
+  // Pre-reveal: the PIN/QR are masked. The operator must explicitly tap Reveal,
+  // which consumes the voucher (decrypt == used) — so we surface that warning.
+  Widget _buildRevealActions(AppLocalizations l, ColorScheme cs) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 360),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: IntesharColors.saffron.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(IntesharRadii.md),
+              border: Border.all(color: IntesharColors.saffron.withValues(alpha: 0.4)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, size: 18, color: IntesharColors.saffronDeep),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    l.posRevealWarning,
+                    style: TextStyle(
+                      fontFamily: 'CodecPro',
+                      fontSize: 12,
+                      height: 1.35,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurface,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: BrandCTAButton(
+                  label: l.posHomeCancel,
+                  variant: BrandCTAVariant.outline,
+                  onPressed: _revealing ? null : () => Navigator.pop(context),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: BrandCTAButton(
+                  label: _revealing ? l.posRevealing : l.posReveal,
+                  leading: _revealing ? null : Icons.lock_open_outlined,
+                  loading: _revealing,
+                  onPressed: _revealing ? null : _reveal,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Post-reveal: the code is shown and already consumed. Printing is optional;
+  // Done just closes (the voucher has already dropped off the counter).
+  Widget _buildPrintActions(AppLocalizations l, ColorScheme cs) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 360),
+      child: Consumer(
+        builder: (ctx, ref, _) {
+          final ps = ref.watch(bluetoothServiceProvider);
+          final isConnected = ps.status == PrinterStatus.connected;
+          return Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isConnected
+                      ? IntesharColors.sage.withValues(alpha: 0.10)
+                      : cs.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: isConnected ? IntesharColors.sage.withValues(alpha: 0.4) : cs.outline,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isConnected ? Icons.bluetooth_connected : Icons.bluetooth_disabled,
+                      size: 14,
+                      color: isConnected ? IntesharColors.sage : cs.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      isConnected
+                          ? (ps.deviceName ?? l.posPrinterConnected)
+                          : l.posHomePrinterNotConnected,
+                      style: TextStyle(
+                        fontFamily: 'CodecPro',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: isConnected ? IntesharColors.sage : cs.onSurfaceVariant,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (!isConnected)
+                BrandCTAButton(
+                  label: l.posConnectPrinter,
+                  leading: Icons.bluetooth,
+                  variant: BrandCTAVariant.outline,
+                  onPressed: () => Navigator.push<void>(
+                      ctx, MaterialPageRoute(builder: (_) => const PrinterPickerPage())),
+                ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: BrandCTAButton(
+                      label: l.posDone,
+                      variant: BrandCTAVariant.outline,
+                      onPressed: _printing ? null : () => widget.onPrinted(),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: BrandCTAButton(
+                      label: _printing ? l.posHomePrinting : l.posPrintVoucher,
+                      leading: _printing ? null : Icons.print_outlined,
+                      loading: _printing,
+                      onPressed: (_printing || !isConnected) ? null : _print,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+// Placeholder shown in place of the QR before the code is revealed.
+class _LockedQr extends StatelessWidget {
+  final String label;
+  const _LockedQr({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      width: 128,
+      height: 128,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(IntesharRadii.sm),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.lock_outline, size: 30, color: cs.onSurfaceVariant),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'CodecPro',
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+        ],
       ),
     );
   }

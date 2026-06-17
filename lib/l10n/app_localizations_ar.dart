@@ -87,6 +87,22 @@ class AppLocalizationsAr extends AppLocalizations {
   String get posPin => 'الرقم السري';
 
   @override
+  String get posReveal => 'إظهار الرمز';
+
+  @override
+  String get posRevealing => 'جارٍ الإظهار…';
+
+  @override
+  String get posRevealWarning =>
+      'إظهار الرمز يكشف الكود ويحدّد القسيمة كمُستخدَمة — لا يمكن التراجع.';
+
+  @override
+  String get posPinHidden => 'مخفي حتى الإظهار';
+
+  @override
+  String get posDone => 'تم';
+
+  @override
   String get signOut => 'تسجيل الخروج';
 
   @override
@@ -681,7 +697,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get inventoryStatusAvailable => 'متاح';
 
   @override
-  String get inventoryStatusPrinted => 'مطبوع';
+  String get inventoryStatusPrinted => 'مُستخدَم';
 
   @override
   String get inventoryStatusDamaged => 'تالف';
@@ -729,7 +745,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String inventoryPrintedCount(int count) {
-    return '$count مطبوع';
+    return '$count مُستخدَم';
   }
 
   @override

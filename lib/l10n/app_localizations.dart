@@ -248,6 +248,36 @@ abstract class AppLocalizations {
   /// **'PIN'**
   String get posPin;
 
+  /// No description provided for @posReveal.
+  ///
+  /// In en, this message translates to:
+  /// **'Reveal PIN'**
+  String get posReveal;
+
+  /// No description provided for @posRevealing.
+  ///
+  /// In en, this message translates to:
+  /// **'Revealing…'**
+  String get posRevealing;
+
+  /// No description provided for @posRevealWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Revealing shows the code and marks this voucher as used — this can\'t be undone.'**
+  String get posRevealWarning;
+
+  /// No description provided for @posPinHidden.
+  ///
+  /// In en, this message translates to:
+  /// **'Hidden until revealed'**
+  String get posPinHidden;
+
+  /// No description provided for @posDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get posDone;
+
   /// No description provided for @signOut.
   ///
   /// In en, this message translates to:
@@ -1307,7 +1337,7 @@ abstract class AppLocalizations {
   /// No description provided for @inventoryStatusPrinted.
   ///
   /// In en, this message translates to:
-  /// **'Printed'**
+  /// **'Used'**
   String get inventoryStatusPrinted;
 
   /// No description provided for @inventoryStatusDamaged.
@@ -1373,7 +1403,7 @@ abstract class AppLocalizations {
   /// No description provided for @inventoryPrintedCount.
   ///
   /// In en, this message translates to:
-  /// **'{count} printed'**
+  /// **'{count} used'**
   String inventoryPrintedCount(int count);
 
   /// No description provided for @inventoryDamagedCount.

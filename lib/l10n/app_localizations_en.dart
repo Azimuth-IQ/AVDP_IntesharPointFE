@@ -87,6 +87,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get posPin => 'PIN';
 
   @override
+  String get posReveal => 'Reveal PIN';
+
+  @override
+  String get posRevealing => 'Revealing…';
+
+  @override
+  String get posRevealWarning =>
+      'Revealing shows the code and marks this voucher as used — this can\'t be undone.';
+
+  @override
+  String get posPinHidden => 'Hidden until revealed';
+
+  @override
+  String get posDone => 'Done';
+
+  @override
   String get signOut => 'Sign out';
 
   @override
@@ -681,7 +697,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get inventoryStatusAvailable => 'Available';
 
   @override
-  String get inventoryStatusPrinted => 'Printed';
+  String get inventoryStatusPrinted => 'Used';
 
   @override
   String get inventoryStatusDamaged => 'Damaged';
@@ -725,7 +741,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String inventoryPrintedCount(int count) {
-    return '$count printed';
+    return '$count used';
   }
 
   @override

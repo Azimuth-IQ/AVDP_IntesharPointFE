@@ -31,6 +31,11 @@
   },
   "posSerial": "الرقم التسلسلي",
   "posPin": "الرقم السري",
+  "posReveal": "إظهار الرمز",
+  "posRevealing": "جارٍ الإظهار…",
+  "posRevealWarning": "إظهار الرمز يكشف الكود ويحدّد القسيمة كمُستخدَمة — لا يمكن التراجع.",
+  "posPinHidden": "مخفي حتى الإظهار",
+  "posDone": "تم",
 
   "signOut": "تسجيل الخروج",
 
@@ -290,7 +295,7 @@
   "inventoryEyebrow": "العداد",
   "inventorySubtitle": "القسائم المملوكة حالياً لهذه الجهة — ابحث بالاسم أو رمز المنتج أو الرقم التسلسلي.",
   "inventoryStatusAvailable": "متاح",
-  "inventoryStatusPrinted": "مطبوع",
+  "inventoryStatusPrinted": "مُستخدَم",
   "inventoryStatusDamaged": "تالف",
   "inventoryStatusSentForPrinting": "قيد الطباعة",
   "inventoryStatusFailedPrinting": "فشلت الطباعة",
@@ -307,7 +312,7 @@
   "@inventoryAvailableCount": {
     "placeholders": { "count": { "type": "int" } }
   },
-  "inventoryPrintedCount": "{count} مطبوع",
+  "inventoryPrintedCount": "{count} مُستخدَم",
   "@inventoryPrintedCount": {
     "placeholders": { "count": { "type": "int" } }
   },

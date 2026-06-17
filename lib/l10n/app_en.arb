@@ -56,6 +56,16 @@
   "@posSerial": {},
   "posPin": "PIN",
   "@posPin": {},
+  "posReveal": "Reveal PIN",
+  "@posReveal": {},
+  "posRevealing": "Revealing…",
+  "@posRevealing": {},
+  "posRevealWarning": "Revealing shows the code and marks this voucher as used — this can't be undone.",
+  "@posRevealWarning": {},
+  "posPinHidden": "Hidden until revealed",
+  "@posPinHidden": {},
+  "posDone": "Done",
+  "@posDone": {},
 
   "signOut": "Sign out",
   "@signOut": {},
@@ -472,7 +482,7 @@
   "@inventorySubtitle": {},
   "inventoryStatusAvailable": "Available",
   "@inventoryStatusAvailable": {},
-  "inventoryStatusPrinted": "Printed",
+  "inventoryStatusPrinted": "Used",
   "@inventoryStatusPrinted": {},
   "inventoryStatusDamaged": "Damaged",
   "@inventoryStatusDamaged": {},
@@ -498,7 +508,7 @@
   "@inventoryAvailableCount": {
     "placeholders": { "count": { "type": "int" } }
   },
-  "inventoryPrintedCount": "{count} printed",
+  "inventoryPrintedCount": "{count} used",
   "@inventoryPrintedCount": {
     "placeholders": { "count": { "type": "int" } }
   },

@@ -61,7 +61,8 @@ void main() {
     expect(bar.destinations.length, 5, reason: 'HQ has 7 routes → 4 primary + More');
 
     // Primary four are present; the three setup routes are NOT on the bar.
-    for (final label in ['Dashboard', 'Hierarchy', 'Inventory', 'Transactions', 'More']) {
+    // (HQ home/index-0 is the System Activity oversight screen, not a dashboard.)
+    for (final label in ['System Activity', 'Hierarchy', 'Inventory', 'Transactions', 'More']) {
       expect(find.text(label), findsWidgets, reason: '$label should be on the bar');
     }
     for (final hidden in ['Catalog', 'Templates', 'Batch Add']) {

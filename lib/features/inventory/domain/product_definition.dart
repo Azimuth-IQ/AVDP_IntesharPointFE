@@ -7,6 +7,7 @@ class ProductDefinition {
   final String imageUrl;
   final String defaultPrice;
   final String sku;
+  final String companyId; // owning Company; '' when uncategorized
 
   /// Print/redeem template applied by the Store/POS. Defaults to a sensible
   /// template when the backend hasn't stored one yet.
@@ -19,6 +20,7 @@ class ProductDefinition {
     this.imageUrl = '',
     required this.defaultPrice,
     required this.sku,
+    this.companyId = '',
     this.template = const VoucherTemplate(),
   });
 
@@ -32,6 +34,7 @@ class ProductDefinition {
             ? (j['defaultPrice'] as num).toInt().toString()
             : (j['defaultPrice']?.toString() ?? '0'),
         sku: j['sku'] as String? ?? '',
+        companyId: j['companyId'] as String? ?? '',
         template: VoucherTemplate.fromJson(j['voucherTemplate'] as Map<String, dynamic>?),
       );
 
@@ -42,6 +45,7 @@ class ProductDefinition {
         'imageUrl': imageUrl,
         'defaultPrice': defaultPrice,
         'sku': sku,
+        if (companyId.isNotEmpty) 'companyId': companyId,
         'voucherTemplate': template.toJson(),
       };
 
@@ -52,6 +56,7 @@ class ProductDefinition {
     String? imageUrl,
     String? defaultPrice,
     String? sku,
+    String? companyId,
     VoucherTemplate? template,
   }) =>
       ProductDefinition(
@@ -61,6 +66,7 @@ class ProductDefinition {
         imageUrl: imageUrl ?? this.imageUrl,
         defaultPrice: defaultPrice ?? this.defaultPrice,
         sku: sku ?? this.sku,
+        companyId: companyId ?? this.companyId,
         template: template ?? this.template,
       );
 }

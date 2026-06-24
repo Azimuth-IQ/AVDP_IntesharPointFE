@@ -731,13 +731,13 @@ abstract class AppLocalizations {
   /// No description provided for @entityTypeAgent1.
   ///
   /// In en, this message translates to:
-  /// **'Agent 1'**
+  /// **'Main Agent'**
   String get entityTypeAgent1;
 
   /// No description provided for @entityTypeAgent2.
   ///
   /// In en, this message translates to:
-  /// **'Agent 2'**
+  /// **'Sub Agent'**
   String get entityTypeAgent2;
 
   /// No description provided for @entityTypeStore.
@@ -2581,6 +2581,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{ms} ms'**
   String sysActDurationMs(int ms);
+
+  /// No description provided for @navMainAgents.
+  ///
+  /// In en, this message translates to:
+  /// **'Main Agents'**
+  String get navMainAgents;
+
+  /// No description provided for @navSubAgents.
+  ///
+  /// In en, this message translates to:
+  /// **'Sub Agents'**
+  String get navSubAgents;
+
+  /// No description provided for @navCompanies.
+  ///
+  /// In en, this message translates to:
+  /// **'Companies'**
+  String get navCompanies;
+
+  /// No description provided for @navPrices.
+  ///
+  /// In en, this message translates to:
+  /// **'Prices'**
+  String get navPrices;
+
+  /// No description provided for @batchAddGovernorate.
+  ///
+  /// In en, this message translates to:
+  /// **'Governorate (region lock)'**
+  String get batchAddGovernorate;
+
+  /// No description provided for @batchAddNotGeoLocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Not region-locked'**
+  String get batchAddNotGeoLocked;
+
+  /// No description provided for @newTxnNoRegionRestriction.
+  ///
+  /// In en, this message translates to:
+  /// **'no region restriction'**
+  String get newTxnNoRegionRestriction;
+
+  /// No description provided for @newTxnDeliverableHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Only vouchers for {coverage} (plus non-region-locked stock) will be delivered.'**
+  String newTxnDeliverableHint(String coverage);
 }
 
 class _AppLocalizationsDelegate

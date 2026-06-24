@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
+import 'package:inteshar/core/geo/governorates.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
@@ -200,6 +201,8 @@ class _NewTransactionPageState extends ConsumerState<NewTransactionPage> {
               destination: _destination,
               onDestinationChanged: (v) => setState(() => _destination = v),
             ),
+            const SizedBox(height: 10),
+            _DeliveryHint(destination: _destination),
             const SizedBox(height: 24),
             // Lines header
             SectionLabel(
@@ -684,6 +687,45 @@ class _ResultView extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ── Delivery (geo-lock) hint ─────────────────────────────────────────────────
+
+class _DeliveryHint extends StatelessWidget {
+  final Entity? destination;
+  const _DeliveryHint({required this.destination});
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final d = destination;
+    if (d == null) return const SizedBox.shrink();
+    final loc = Localizations.localeOf(context).languageCode;
+    final govs = d.meta.governorates;
+    final coverage = govs.isEmpty
+        ? l.newTxnNoRegionRestriction
+        : govs.map((c) => governorateLabel(c, loc)).join('، ');
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(IntesharRadii.sm),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.public, size: 16, color: cs.onSurfaceVariant),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              l.newTxnDeliverableHint(coverage),
+              style: IntesharType.sans(12.5, color: cs.onSurfaceVariant),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -30,6 +30,14 @@ String? _inventoryRoutePrefix(WidgetRef ref) {
   };
 }
 
+/// Whether the signed-in viewer is HQ (INTESHAR). Creating and deleting entities
+/// is HQ-only per the BRD (enforced server-side too), so non-HQ viewers don't see
+/// those actions.
+bool _viewerIsHq(WidgetRef ref) {
+  final viewer = ref.read(authStateProvider).valueOrNull;
+  return viewer is AuthAuthenticated && viewer.entity.type == EntityType.INTESHAR;
+}
+
 String _localizedEntityTypeLabel(EntityType t, AppLocalizations l) {
   switch (t) {
     case EntityType.INTESHAR:
@@ -478,7 +486,9 @@ class _TreeNode extends ConsumerWidget {
                       contentPadding: EdgeInsets.zero,
                     ),
                   ),
-                if (entity.type != EntityType.STORE)
+                // Creating accounts / assigning agents is HQ-only (BRD); enforced
+                // server-side, mirrored here so non-HQ viewers don't see dead actions.
+                if (_viewerIsHq(ref) && entity.type != EntityType.STORE)
                   PopupMenuItem(
                     value: 'add_child',
                     child: ListTile(
@@ -487,16 +497,17 @@ class _TreeNode extends ConsumerWidget {
                       contentPadding: EdgeInsets.zero,
                     ),
                   ),
-                PopupMenuItem(
-                  value: 'delete',
-                  child: ListTile(
-                    leading: const Icon(Icons.delete_outline,
-                        color: Colors.red),
-                    title: Text(l.entityTreeDelete,
-                        style: const TextStyle(color: Colors.red)),
-                    contentPadding: EdgeInsets.zero,
+                if (_viewerIsHq(ref))
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: ListTile(
+                      leading: const Icon(Icons.delete_outline,
+                          color: Colors.red),
+                      title: Text(l.entityTreeDelete,
+                          style: const TextStyle(color: Colors.red)),
+                      contentPadding: EdgeInsets.zero,
+                    ),
                   ),
-                ),
               ],
             ),
           ],

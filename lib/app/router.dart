@@ -12,7 +12,11 @@ import 'package:inteshar/features/inventory/presentation/definitions_page.dart';
 import 'package:inteshar/features/inventory/presentation/voucher_templates_page.dart';
 import 'package:inteshar/features/inventory/presentation/inventory_page.dart';
 import 'package:inteshar/features/inventory/presentation/child_inventory_page.dart';
+import 'package:inteshar/features/agents/presentation/main_agents_page.dart';
+import 'package:inteshar/features/agents/presentation/sub_agents_page.dart';
+import 'package:inteshar/features/companies/presentation/companies_page.dart';
 import 'package:inteshar/features/pos/presentation/pos_home_page.dart';
+import 'package:inteshar/features/pricing/presentation/pricing_page.dart';
 import 'package:inteshar/features/system_activity/presentation/system_activity_page.dart';
 import 'package:inteshar/features/transactions/presentation/new_transaction_page.dart';
 import 'package:inteshar/features/transactions/presentation/transactions_page.dart';
@@ -85,6 +89,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         routes: [
           // HQ — the home/landing IS the System Activity oversight screen.
           GoRoute(path: '/hq/home', builder: (_, _) => const SystemActivityPage()),
+          GoRoute(path: '/hq/main-agents', builder: (_, _) => const MainAgentsPage()),
+          GoRoute(path: '/hq/sub-agents', builder: (_, _) => const SubAgentsPage()),
+          GoRoute(path: '/hq/companies', builder: (_, _) => const CompaniesPage()),
           GoRoute(path: '/hq/entities', builder: (_, _) => const EntityTreePage()),
           GoRoute(path: '/hq/definitions', builder: (_, _) => const DefinitionsPage()),
           GoRoute(path: '/hq/templates', builder: (_, _) => const VoucherTemplatesPage()),
@@ -97,6 +104,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/agent1/entities', builder: (_, _) => const EntityTreePage()),
           GoRoute(path: '/agent1/inventory', builder: (_, _) => const InventoryPage()),
           GoRoute(path: '/agent1/transactions', builder: (_, _) => const TransactionsPage()),
+          GoRoute(path: '/agent1/pricing', builder: (_, _) => const PricingPage()),
 
           // Agent2
           GoRoute(path: '/agent2/home', builder: (_, _) => const DashboardPage()),

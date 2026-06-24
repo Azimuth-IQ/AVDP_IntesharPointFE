@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
+import 'package:inteshar/core/auth/capabilities.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
@@ -10,6 +11,8 @@ import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/inventory/data/product_repository.dart';
 import 'package:inteshar/features/inventory/domain/product.dart';
+import 'package:inteshar/features/pricing/data/pricing_repository.dart';
+import 'package:inteshar/features/pricing/domain/pricing_models.dart';
 import 'package:inteshar/features/transactions/data/transaction_repository.dart';
 import 'package:inteshar/features/transactions/domain/transaction.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
@@ -25,12 +28,16 @@ class _DashData {
   final List<AppTransaction> allTxns;
   final Map<String, String> entityNames; // id → meta.name
   final int childCount; // direct children, counted via parent links
+  final List<Entity> children; // direct children (for the balance transfer picker)
+  final AgentBalance balance;
 
   const _DashData({
     required this.products,
     required this.allTxns,
     required this.entityNames,
     required this.childCount,
+    required this.children,
+    required this.balance,
   });
 }
 
@@ -78,9 +85,21 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       final entityNames = <String, String>{
         for (final e in allEntities) e.id: e.meta.name,
       };
-      final childCount = allEntities.where((e) => e.parent == entity.id).length;
+      final children = allEntities.where((e) => e.parent == entity.id).toList();
+      // Balance is best-effort: a failure here must not blank the dashboard.
+      AgentBalance balance = const AgentBalance();
+      try {
+        balance = await PricingRepository(api).balance();
+      } catch (_) {}
       setState(() {
-        _data = _DashData(products: products, allTxns: allTxns, entityNames: entityNames, childCount: childCount);
+        _data = _DashData(
+          products: products,
+          allTxns: allTxns,
+          entityNames: entityNames,
+          childCount: children.length,
+          children: children,
+          balance: balance,
+        );
         _loading = false;
       });
     } catch (e) {
@@ -98,6 +117,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
     if (entity == null) return const SizedBox.shrink();
 
+    final canTransfer = auth is AuthAuthenticated &&
+        auth.can({Capability.CREATE_TRANSACTIONS, Capability.MANAGE_POS});
+
     return MaxWidthBox(
       child: RefreshIndicator(
         onRefresh: _load,
@@ -109,7 +131,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                       ErrorState(error: _error!, onRetry: _load),
                     ],
                   )
-                : _DashContent(entity: entity, data: _data!, onRefresh: _load),
+                : _DashContent(entity: entity, data: _data!, onRefresh: _load, canTransfer: canTransfer),
       ),
     );
   }
@@ -121,8 +143,9 @@ class _DashContent extends StatelessWidget {
   final Entity entity;
   final _DashData data;
   final VoidCallback onRefresh;
+  final bool canTransfer;
 
-  const _DashContent({required this.entity, required this.data, required this.onRefresh});
+  const _DashContent({required this.entity, required this.data, required this.onRefresh, required this.canTransfer});
 
   @override
   Widget build(BuildContext context) {
@@ -170,6 +193,18 @@ class _DashContent extends StatelessWidget {
         Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(24, 28, 24, 0),
           child: _SlimHeader(entity: entity),
+        ),
+
+        // ── Virtual balance ──────────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(24, 20, 24, 0),
+          child: _BalanceCard(
+            entity: entity,
+            balance: data.balance,
+            children: data.children,
+            canTransfer: canTransfer,
+            onGranted: onRefresh,
+          ),
         ),
 
         // ── KPI tiles ────────────────────────────────────────────────────
@@ -834,6 +869,194 @@ class _TxnHeaderRow extends StatelessWidget {
           child: Text(l.dashColAmount, textAlign: TextAlign.end, style: style),
         ),
       ],
+    );
+  }
+}
+
+// ─── Virtual balance card ─────────────────────────────────────────────────────
+
+class _BalanceCard extends StatelessWidget {
+  final Entity entity;
+  final AgentBalance balance;
+  final List<Entity> children;
+  final bool canTransfer;
+  final VoidCallback onGranted;
+  const _BalanceCard({
+    required this.entity,
+    required this.balance,
+    required this.children,
+    required this.canTransfer,
+    required this.onGranted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    final label = balance.inventoryBacked
+        ? (ar ? 'الرصيد المتاح للتحويل' : 'Balance available to transfer')
+        : (ar ? 'رصيد المحفظة' : 'Wallet balance');
+    final showTransfer = canTransfer && children.isNotEmpty;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+      decoration: BoxDecoration(
+        color: IntesharColors.saffron,
+        borderRadius: BorderRadius.circular(IntesharRadii.lg),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: IntesharType.overline(color: IntesharColors.ink.withValues(alpha: 0.75))),
+                const SizedBox(height: 4),
+                Text(
+                  Formatters.iqd(balance.available.round()),
+                  style: const TextStyle(
+                      fontFamily: 'CodecPro', fontSize: 30, fontWeight: FontWeight.w900, color: IntesharColors.ink, height: 1),
+                ),
+              ],
+            ),
+          ),
+          if (showTransfer)
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: IntesharColors.ink,
+                foregroundColor: IntesharColors.saffron,
+              ),
+              onPressed: () => showModalBottomSheet<void>(
+                context: context,
+                isScrollControlled: true,
+                builder: (_) => _TransferSheet(children: children, onGranted: onGranted),
+              ),
+              icon: const Icon(Icons.north_east, size: 16),
+              label: Text(ar ? 'تحويل رصيد' : 'Transfer'),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TransferSheet extends ConsumerStatefulWidget {
+  final List<Entity> children;
+  final VoidCallback onGranted;
+  const _TransferSheet({required this.children, required this.onGranted});
+
+  @override
+  ConsumerState<_TransferSheet> createState() => _TransferSheetState();
+}
+
+class _TransferSheetState extends ConsumerState<_TransferSheet> {
+  Entity? _dest;
+  final _amount = TextEditingController();
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.children.isNotEmpty) _dest = widget.children.first;
+  }
+
+  @override
+  void dispose() {
+    _amount.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    final dest = _dest;
+    final amount = num.tryParse(_amount.text.trim());
+    if (dest == null) return;
+    if (amount == null || amount <= 0) {
+      setState(() => _error = ar ? 'أدخل مبلغاً صحيحاً' : 'Enter a valid amount');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await PricingRepository(ref.read(apiClientProvider)).grant(destId: dest.id, amount: amount);
+      if (mounted) {
+        Navigator.pop(context);
+        widget.onGranted();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ar ? 'تم تحويل الرصيد' : 'Balance transferred')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _error = e.toString();
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+        left: 24,
+        right: 24,
+        top: 20,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(color: cs.outline, borderRadius: BorderRadius.circular(2)),
+            ),
+          ),
+          const SizedBox(height: 16),
+          SectionLabel(ar ? 'تحويل رصيد' : 'Transfer balance'),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<Entity>(
+            initialValue: _dest,
+            isExpanded: true,
+            decoration: InputDecoration(labelText: ar ? 'إلى' : 'To'),
+            items: widget.children
+                .map((e) => DropdownMenuItem(
+                      value: e,
+                      child: Text('${e.meta.name} (${e.type.label})'),
+                    ))
+                .toList(),
+            onChanged: (v) => setState(() => _dest = v),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _amount,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(labelText: ar ? 'المبلغ' : 'Amount', suffixText: 'IQD'),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 10),
+            Text(_error!, style: TextStyle(color: cs.error, fontSize: 12.5)),
+          ],
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _saving ? null : _submit,
+              child: _saving
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : Text(ar ? 'تحويل' : 'Transfer'),
+            ),
+          ),
+          const SizedBox(height: 24),
+        ],
+      ),
     );
   }
 }

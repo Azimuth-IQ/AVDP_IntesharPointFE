@@ -230,9 +230,9 @@
 
   "entityTypeInteshar": "Inteshar",
   "@entityTypeInteshar": {},
-  "entityTypeAgent1": "Agent 1",
+  "entityTypeAgent1": "Main Agent",
   "@entityTypeAgent1": {},
-  "entityTypeAgent2": "Agent 2",
+  "entityTypeAgent2": "Sub Agent",
   "@entityTypeAgent2": {},
   "entityTypeStore": "Store",
   "@entityTypeStore": {},
@@ -946,5 +946,23 @@
   "sysActDurationMs": "{ms} ms",
   "@sysActDurationMs": {
     "placeholders": { "ms": { "type": "int" } }
+  },
+  "navMainAgents": "Main Agents",
+  "@navMainAgents": {},
+  "navSubAgents": "Sub Agents",
+  "@navSubAgents": {},
+  "navCompanies": "Companies",
+  "@navCompanies": {},
+  "navPrices": "Prices",
+  "@navPrices": {},
+  "batchAddGovernorate": "Governorate (region lock)",
+  "@batchAddGovernorate": {},
+  "batchAddNotGeoLocked": "Not region-locked",
+  "@batchAddNotGeoLocked": {},
+  "newTxnNoRegionRestriction": "no region restriction",
+  "@newTxnNoRegionRestriction": {},
+  "newTxnDeliverableHint": "Only vouchers for {coverage} (plus non-region-locked stock) will be delivered.",
+  "@newTxnDeliverableHint": {
+    "placeholders": { "coverage": { "type": "String" } }
   }
 }

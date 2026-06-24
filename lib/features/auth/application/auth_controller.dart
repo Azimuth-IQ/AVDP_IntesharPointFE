@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/api_exception.dart';
+import 'package:inteshar/core/auth/capabilities.dart';
 import 'package:inteshar/core/storage/session_storage.dart';
 import 'package:inteshar/features/auth/data/auth_repository.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
@@ -18,13 +19,19 @@ class AuthAuthenticated extends AuthState {
   final Entity entity;
   final UserRole role;
   final bool isPosUser;
+  final Set<Capability> capabilities;
 
-  AuthAuthenticated({required this.entity, required this.role, this.isPosUser = false});
+  AuthAuthenticated({required this.entity, required this.role, this.isPosUser = false, this.capabilities = const {}});
 
   String get homeRoute {
     if (isPosUser) return '/pos/home';
     return entity.type.homeRoute;
   }
+
+  /// Whether the signed-in user may perform an action requiring any of [required].
+  /// ADMIN role and the AGENT_ADMIN capability satisfy everything. UI gating only —
+  /// the backend re-checks every protected request.
+  bool can(Set<Capability> required) => hasAnyCapability(role, capabilities, required);
 }
 
 final authStateProvider = AsyncNotifierProvider<AuthController, AuthState>(AuthController.new);
@@ -58,7 +65,7 @@ class AuthController extends AsyncNotifier<AuthState> {
       final user = entity.users.where((u) => u.phone == phone).firstOrNull;
       final role = user?.role ?? UserRole.ADMIN;
       final isPosUser = role == UserRole.USER && entity.type == EntityType.STORE;
-      return AuthAuthenticated(entity: entity, role: role, isPosUser: isPosUser);
+      return AuthAuthenticated(entity: entity, role: role, isPosUser: isPosUser, capabilities: user?.capabilities ?? const {});
     } catch (e) {
       debugPrint('[AUTH] error: $e');
       await sessionStorage.clear();
@@ -79,11 +86,13 @@ class AuthController extends AsyncNotifier<AuthState> {
       final entities = await entityRepo.readAll();
       Entity? found;
       UserRole foundRole = UserRole.USER;
+      Set<Capability> foundCaps = const {};
       for (final e in entities) {
         final user = e.users.where((u) => u.phone == phone).firstOrNull;
         if (user != null) {
           found = e;
           foundRole = user.role;
+          foundCaps = user.capabilities;
           break;
         }
       }
@@ -96,7 +105,7 @@ class AuthController extends AsyncNotifier<AuthState> {
       await sessionStorage.setCurrentEntityType(found.type.name);
 
       final isPosUser = foundRole == UserRole.USER && found.type == EntityType.STORE;
-      state = AsyncValue.data(AuthAuthenticated(entity: found, role: foundRole, isPosUser: isPosUser));
+      state = AsyncValue.data(AuthAuthenticated(entity: found, role: foundRole, isPosUser: isPosUser, capabilities: foundCaps));
     } on ApiException catch (e) {
       state = AsyncValue.error(e, StackTrace.current);
     } catch (e, st) {

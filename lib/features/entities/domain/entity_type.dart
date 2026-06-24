@@ -12,9 +12,9 @@ extension EntityTypeX on EntityType {
       case EntityType.INTESHAR:
         return 'HQ';
       case EntityType.AGENT1:
-        return 'Governorate';
+        return 'Main Agent';
       case EntityType.AGENT2:
-        return 'Distributor';
+        return 'Sub Agent';
       case EntityType.STORE:
         return 'Store';
     }

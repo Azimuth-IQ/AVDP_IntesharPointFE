@@ -128,8 +128,8 @@
   "healthFailed": "فشل",
 
   "entityTypeInteshar": "انتشار",
-  "entityTypeAgent1": "وكيل أول",
-  "entityTypeAgent2": "وكيل ثاني",
+  "entityTypeAgent1": "الوكيل الرئيسي",
+  "entityTypeAgent2": "الوكيل الفرعي",
   "entityTypeStore": "متجر",
   "entityTypeUser": "مستخدم",
 
@@ -570,5 +570,13 @@
   "sysActDurationMs": "{ms} مللي ثانية",
   "@sysActDurationMs": {
     "placeholders": { "ms": { "type": "int" } }
-  }
+  },
+  "navMainAgents": "الوكلاء الرئيسيون",
+  "navSubAgents": "الوكلاء الفرعيون",
+  "navCompanies": "الشركات",
+  "navPrices": "الأسعار",
+  "batchAddGovernorate": "المحافظة (تقييد المنطقة)",
+  "batchAddNotGeoLocked": "غير مقيّد بمحافظة",
+  "newTxnNoRegionRestriction": "بدون تقييد محافظة",
+  "newTxnDeliverableHint": "سيتم تسليم الكروت الخاصة بـ {coverage} فقط (بالإضافة إلى الكروت غير المقيّدة بمحافظة)."
 }

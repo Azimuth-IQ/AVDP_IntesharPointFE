@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/files/web_download.dart';
+import 'package:inteshar/core/geo/governorate_picker.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/inventory/data/definition_repository.dart';
 import 'package:inteshar/features/inventory/data/product_repository.dart';
@@ -121,6 +122,7 @@ class _ManualTabState extends ConsumerState<_ManualTab> {
   bool _loading = true;
 
   ProductDefinition? _selectedDef;
+  String? _selectedGovernorate; // null = not geo-locked
   final _serialCtrl = TextEditingController();
   final _pinCtrl = TextEditingController();
   final _serialFocus = FocusNode();
@@ -220,6 +222,7 @@ class _ManualTabState extends ConsumerState<_ManualTab> {
         pin: pin,
         owners: [entityId],
         currentOwner: entityId,
+        governorate: _selectedGovernorate,
       ));
 
       if (mounted) {
@@ -272,6 +275,14 @@ class _ManualTabState extends ConsumerState<_ManualTab> {
                       ))
                   .toList(),
               onChanged: (v) => setState(() => _selectedDef = v),
+            ),
+            const SizedBox(height: 22),
+            SectionLabel(l.batchAddGovernorate),
+            GovernorateDropdown(
+              value: _selectedGovernorate,
+              noneLabel: l.batchAddNotGeoLocked,
+              labelText: l.batchAddGovernorate,
+              onChanged: (v) => setState(() => _selectedGovernorate = v),
             ),
             const SizedBox(height: 22),
             SectionLabel(l.addVoucherSerial),
@@ -341,6 +352,7 @@ class _ExcelTabState extends ConsumerState<_ExcelTab> {
   List<_ExcelRow>? _preview;
   List<ProductDefinition> _defs = [];
   ProductDefinition? _selectedDef;
+  String? _selectedGovernorate; // null = not geo-locked (applied to all rows)
   bool _loadingDefs = true;
   bool _importing = false;
   double _progress = 0;
@@ -587,6 +599,7 @@ class _ExcelTabState extends ConsumerState<_ExcelTab> {
           pin: rows[i].pin,
           owners: [entityId],
           currentOwner: entityId,
+          governorate: _selectedGovernorate,
         ));
         existingSerials.add(key);
         if (mounted) {
@@ -689,6 +702,14 @@ class _ExcelTabState extends ConsumerState<_ExcelTab> {
                     .toList(),
                 onChanged: (v) => setState(() => _selectedDef = v),
               ),
+            const SizedBox(height: 16),
+            SectionLabel(l.batchAddGovernorate),
+            GovernorateDropdown(
+              value: _selectedGovernorate,
+              noneLabel: l.batchAddNotGeoLocked,
+              labelText: l.batchAddGovernorate,
+              onChanged: (v) => setState(() => _selectedGovernorate = v),
+            ),
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,

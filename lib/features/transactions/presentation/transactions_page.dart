@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
+import 'package:inteshar/core/auth/capabilities.dart';
 import 'package:inteshar/core/storage/session_storage.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
@@ -102,6 +103,11 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
+    // RBAC: only users who may create transfers see the create affordances. The
+    // backend independently enforces this on POST /api/transactions/create.
+    final auth = ref.watch(authStateProvider).valueOrNull;
+    final canCreate = auth is! AuthAuthenticated ||
+        auth.can({Capability.CREATE_TRANSACTIONS});
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -136,8 +142,10 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
               child: txns.isEmpty
                   ? EmptyState(
                       message: l.txnsEmpty,
-                      actionLabel: l.txnsCreateAction,
-                      onAction: () => context.push('${_rolePath()}/transactions/new'),
+                      actionLabel: canCreate ? l.txnsCreateAction : null,
+                      onAction: canCreate
+                          ? () => context.push('${_rolePath()}/transactions/new')
+                          : null,
                     )
                   : RefreshIndicator(
                       onRefresh: _load,
@@ -162,11 +170,13 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('${_rolePath()}/transactions/new'),
-        icon: const Icon(Icons.add),
-        label: Text(l.newTxnTitle),
-      ),
+      floatingActionButton: canCreate
+          ? FloatingActionButton.extended(
+              onPressed: () => context.push('${_rolePath()}/transactions/new'),
+              icon: const Icon(Icons.add),
+              label: Text(l.newTxnTitle),
+            )
+          : null,
     );
   }
 

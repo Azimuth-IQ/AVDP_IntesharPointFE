@@ -49,4 +49,15 @@ class Endpoints {
   // App self-update (public GETs)
   static const appLatest = '/api/app/latest';
   static const appCheck = '/api/app/check';
+
+  // Pricing / virtual balance
+  static const companyCreate = '/api/company/create';
+  static const companyReadAll = '/api/company/readall';
+  static const companyUpdate = '/api/company/update';
+  static const companyDelete = '/api/company/delete';
+  static const pricingCatalog = '/api/pricing/catalog';
+  static const pricingSet = '/api/pricing/set';
+  static const balance = '/api/balance';
+  static const balanceGrant = '/api/balance/grant';
+  static const balanceGrants = '/api/balance/grants';
 }

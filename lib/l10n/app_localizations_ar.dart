@@ -349,10 +349,10 @@ class AppLocalizationsAr extends AppLocalizations {
   String get entityTypeInteshar => 'انتشار';
 
   @override
-  String get entityTypeAgent1 => 'وكيل أول';
+  String get entityTypeAgent1 => 'الوكيل الرئيسي';
 
   @override
-  String get entityTypeAgent2 => 'وكيل ثاني';
+  String get entityTypeAgent2 => 'الوكيل الفرعي';
 
   @override
   String get entityTypeStore => 'متجر';
@@ -1376,5 +1376,31 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String sysActDurationMs(int ms) {
     return '$ms مللي ثانية';
+  }
+
+  @override
+  String get navMainAgents => 'الوكلاء الرئيسيون';
+
+  @override
+  String get navSubAgents => 'الوكلاء الفرعيون';
+
+  @override
+  String get navCompanies => 'الشركات';
+
+  @override
+  String get navPrices => 'الأسعار';
+
+  @override
+  String get batchAddGovernorate => 'المحافظة (تقييد المنطقة)';
+
+  @override
+  String get batchAddNotGeoLocked => 'غير مقيّد بمحافظة';
+
+  @override
+  String get newTxnNoRegionRestriction => 'بدون تقييد محافظة';
+
+  @override
+  String newTxnDeliverableHint(String coverage) {
+    return 'سيتم تسليم الكروت الخاصة بـ $coverage فقط (بالإضافة إلى الكروت غير المقيّدة بمحافظة).';
   }
 }

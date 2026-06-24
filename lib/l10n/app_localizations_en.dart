@@ -351,10 +351,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get entityTypeInteshar => 'Inteshar';
 
   @override
-  String get entityTypeAgent1 => 'Agent 1';
+  String get entityTypeAgent1 => 'Main Agent';
 
   @override
-  String get entityTypeAgent2 => 'Agent 2';
+  String get entityTypeAgent2 => 'Sub Agent';
 
   @override
   String get entityTypeStore => 'Store';
@@ -1385,5 +1385,31 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String sysActDurationMs(int ms) {
     return '$ms ms';
+  }
+
+  @override
+  String get navMainAgents => 'Main Agents';
+
+  @override
+  String get navSubAgents => 'Sub Agents';
+
+  @override
+  String get navCompanies => 'Companies';
+
+  @override
+  String get navPrices => 'Prices';
+
+  @override
+  String get batchAddGovernorate => 'Governorate (region lock)';
+
+  @override
+  String get batchAddNotGeoLocked => 'Not region-locked';
+
+  @override
+  String get newTxnNoRegionRestriction => 'no region restriction';
+
+  @override
+  String newTxnDeliverableHint(String coverage) {
+    return 'Only vouchers for $coverage (plus non-region-locked stock) will be delivered.';
   }
 }

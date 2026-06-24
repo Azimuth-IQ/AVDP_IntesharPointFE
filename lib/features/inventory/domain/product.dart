@@ -13,6 +13,9 @@ class Product {
   final List<String> owners;
   final String currentOwner;
 
+  /// Region-lock tag (governorate code). Null = not geo-locked (movable anywhere).
+  final String? governorate;
+
   const Product({
     required this.id,
     this.version,
@@ -22,6 +25,7 @@ class Product {
     required this.pin,
     this.owners = const [],
     required this.currentOwner,
+    this.governorate,
   });
 
   factory Product.fromJson(Map<String, dynamic> j) => Product(
@@ -37,6 +41,7 @@ class Product {
         pin: j['pin'] as String? ?? '',
         owners: (j['owners'] as List<dynamic>?)?.cast<String>() ?? [],
         currentOwner: j['currentOwner'] as String? ?? '',
+        governorate: j['governorate'] as String?,
       );
 
   Map<String, dynamic> toJson() {
@@ -50,6 +55,7 @@ class Product {
       'currentOwner': currentOwner,
     };
     if (version != null) m['version'] = version;
+    if (governorate != null) m['governorate'] = governorate;
     return m;
   }
 
@@ -62,6 +68,7 @@ class Product {
     String? pin,
     List<String>? owners,
     String? currentOwner,
+    String? governorate,
   }) =>
       Product(
         id: id ?? this.id,
@@ -72,5 +79,6 @@ class Product {
         pin: pin ?? this.pin,
         owners: owners ?? this.owners,
         currentOwner: currentOwner ?? this.currentOwner,
+        governorate: governorate ?? this.governorate,
       );
 }

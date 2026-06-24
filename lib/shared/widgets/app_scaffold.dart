@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:inteshar/app/theme.dart';
+import 'package:inteshar/core/auth/capabilities.dart';
 import 'package:inteshar/core/locale/locale_controller.dart';
 import 'package:inteshar/core/printing/printer_registry.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
@@ -44,6 +45,9 @@ class AppShell extends ConsumerWidget {
           _NavItem(Icons.account_tree_outlined, Icons.account_tree, l.navHierarchy,    '/hq/entities'),
           _NavItem(Icons.warehouse_outlined,    Icons.warehouse,    l.navInventory,    '/hq/inventory'),
           _NavItem(Icons.swap_horiz_outlined,   Icons.swap_horiz,   l.navTransactions, '/hq/transactions'),
+          _NavItem(Icons.badge_outlined,        Icons.badge,        l.navMainAgents,   '/hq/main-agents'),
+          _NavItem(Icons.store_outlined,        Icons.store,        l.navSubAgents,    '/hq/sub-agents'),
+          _NavItem(Icons.business_outlined,     Icons.business,     l.navCompanies,    '/hq/companies'),
           _NavItem(Icons.inventory_2_outlined,  Icons.inventory_2,  l.navCatalog,      '/hq/definitions'),
           _NavItem(Icons.receipt_long_outlined, Icons.receipt_long, l.navTemplates,    '/hq/templates'),
           _NavItem(Icons.upload_file_outlined,  Icons.upload_file,  l.navBatchAdd,     '/hq/batch'),
@@ -99,7 +103,12 @@ class AppShell extends ConsumerWidget {
     final entity = (auth is AuthAuthenticated) ? auth.entity : null;
     final type = entity?.type ?? EntityType.STORE;
 
-    final items = _navFor(l, type);
+    // Capability-gated extras layered onto the base per-tier nav. Pricing is a
+    // Main-Agent feature behind MANAGE_PRICING (sub-agents can't hold it).
+    final items = [..._navFor(l, type)];
+    if (type == EntityType.AGENT1 && auth is AuthAuthenticated && auth.can({Capability.MANAGE_PRICING})) {
+      items.add(_NavItem(Icons.sell_outlined, Icons.sell, l.navPrices, '/agent1/pricing'));
+    }
     final location = GoRouterState.of(context).matchedLocation;
     final activeIndex = _activeIndex(items, location);
 

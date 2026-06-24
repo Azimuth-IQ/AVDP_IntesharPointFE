@@ -3,8 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/utils/formatters.dart';
+import 'package:inteshar/features/companies/data/company_repository.dart';
+import 'package:inteshar/features/companies/domain/company.dart';
 import 'package:inteshar/features/inventory/data/definition_repository.dart';
 import 'package:inteshar/features/inventory/domain/product_definition.dart';
+import 'package:inteshar/features/inventory/domain/voucher_template.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
@@ -49,6 +52,16 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
 
   Future<void> _showForm({ProductDefinition? existing}) async {
     final l = AppLocalizations.of(context)!;
+    final api = ref.read(apiClientProvider);
+    List<Company> companies = [];
+    try {
+      companies = await CompanyRepository(api).readAll();
+    } catch (_) {
+      // Non-fatal: the category can be saved without a company.
+    }
+    if (!mounted) return;
+    String? selectedCompanyId =
+        (existing != null && existing.companyId.isNotEmpty) ? existing.companyId : null;
     final idCtrl = TextEditingController(
         text: existing?.id ?? 'def-${DateTime.now().millisecondsSinceEpoch}');
     final nameCtrl = TextEditingController(text: existing?.name ?? '');
@@ -67,8 +80,10 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
         priceCtrl: priceCtrl,
         descCtrl: descCtrl,
         isNew: existing == null,
+        companies: companies,
+        initialCompanyId: selectedCompanyId,
+        onCompanyChanged: (v) => selectedCompanyId = v,
         onSave: () async {
-          final api = ref.read(apiClientProvider);
           final repo = DefinitionRepository(api);
           final def = ProductDefinition(
             id: idCtrl.text.trim(),
@@ -76,6 +91,8 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
             sku: skuCtrl.text.trim().toUpperCase(),
             defaultPrice: priceCtrl.text.trim(),
             description: descCtrl.text.trim(),
+            companyId: selectedCompanyId ?? '',
+            template: existing?.template ?? const VoucherTemplate(),
           );
           if (existing == null) {
             await repo.create(def);
@@ -436,6 +453,9 @@ class _DefinitionFormSheet extends StatefulWidget {
   final TextEditingController priceCtrl;
   final TextEditingController descCtrl;
   final bool isNew;
+  final List<Company> companies;
+  final String? initialCompanyId;
+  final ValueChanged<String?> onCompanyChanged;
   final Future<void> Function() onSave;
 
   const _DefinitionFormSheet({
@@ -446,6 +466,9 @@ class _DefinitionFormSheet extends StatefulWidget {
     required this.priceCtrl,
     required this.descCtrl,
     required this.isNew,
+    required this.companies,
+    required this.initialCompanyId,
+    required this.onCompanyChanged,
     required this.onSave,
   });
 
@@ -455,6 +478,7 @@ class _DefinitionFormSheet extends StatefulWidget {
 
 class _DefinitionFormSheetState extends State<_DefinitionFormSheet> {
   bool _saving = false;
+  late String? _companyId = widget.initialCompanyId;
 
   @override
   Widget build(BuildContext context) {
@@ -511,6 +535,27 @@ class _DefinitionFormSheetState extends State<_DefinitionFormSheet> {
               maxLines: 2,
               decoration: InputDecoration(labelText: l.defsFieldDescription),
             ),
+            if (widget.companies.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Builder(builder: (context) {
+                final ar = Localizations.localeOf(context).languageCode == 'ar';
+                return DropdownButtonFormField<String?>(
+                  initialValue: _companyId,
+                  isExpanded: true,
+                  decoration: InputDecoration(labelText: ar ? 'الشركة' : 'Company'),
+                  items: [
+                    DropdownMenuItem<String?>(value: null, child: Text(ar ? 'بدون شركة' : 'No company')),
+                    ...widget.companies.map(
+                      (c) => DropdownMenuItem<String?>(value: c.id, child: Text(c.name)),
+                    ),
+                  ],
+                  onChanged: (v) {
+                    setState(() => _companyId = v);
+                    widget.onCompanyChanged(v);
+                  },
+                );
+              }),
+            ],
             if (widget.isNew) ...[
               const SizedBox(height: 12),
               TextField(

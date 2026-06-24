@@ -69,6 +69,7 @@ class EntitySummaryRow {
   final int productsCount;
   final int userCount;
   final String slogan;
+  final List<String> governorates; // governorate codes the entity operates in
 
   const EntitySummaryRow({
     this.id = '',
@@ -80,6 +81,7 @@ class EntitySummaryRow {
     this.productsCount = 0,
     this.userCount = 0,
     this.slogan = '',
+    this.governorates = const [],
   });
 
   String get label => name.isNotEmpty ? name : id;
@@ -97,6 +99,7 @@ class EntitySummaryRow {
         productsCount: (j['productsCount'] as num?)?.toInt() ?? 0,
         userCount: (j['userCount'] as num?)?.toInt() ?? 0,
         slogan: j['slogan'] as String? ?? '',
+        governorates: (j['governorates'] as List<dynamic>?)?.cast<String>() ?? const [],
       );
 }
 

@@ -2329,6 +2329,258 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No transactions yet'**
   String get dashNoTransactions;
+
+  /// HQ oversight screen: live events, transactions, entities and users
+  ///
+  /// In en, this message translates to:
+  /// **'System Activity'**
+  String get navSystemActivity;
+
+  /// No description provided for @sysActSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'A live operational feed across the platform — events, transactions, entities and users.'**
+  String get sysActSubtitle;
+
+  /// No description provided for @sysActActivity.
+  ///
+  /// In en, this message translates to:
+  /// **'Activity'**
+  String get sysActActivity;
+
+  /// No description provided for @sysActEntities.
+  ///
+  /// In en, this message translates to:
+  /// **'Entities'**
+  String get sysActEntities;
+
+  /// No description provided for @sysActUsers.
+  ///
+  /// In en, this message translates to:
+  /// **'Users'**
+  String get sysActUsers;
+
+  /// No description provided for @sysActStores.
+  ///
+  /// In en, this message translates to:
+  /// **'Stores'**
+  String get sysActStores;
+
+  /// No description provided for @sysActFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed'**
+  String get sysActFailed;
+
+  /// No description provided for @sysActLevelInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Info'**
+  String get sysActLevelInfo;
+
+  /// No description provided for @sysActLevelWarn.
+  ///
+  /// In en, this message translates to:
+  /// **'Warnings'**
+  String get sysActLevelWarn;
+
+  /// No description provided for @sysActLevelError.
+  ///
+  /// In en, this message translates to:
+  /// **'Errors'**
+  String get sysActLevelError;
+
+  /// No description provided for @sysActFailuresOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Failures only'**
+  String get sysActFailuresOnly;
+
+  /// No description provided for @sysActSearchPath.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter by path…'**
+  String get sysActSearchPath;
+
+  /// No description provided for @sysActSearchEntities.
+  ///
+  /// In en, this message translates to:
+  /// **'Search entities…'**
+  String get sysActSearchEntities;
+
+  /// No description provided for @sysActSearchUsers.
+  ///
+  /// In en, this message translates to:
+  /// **'Search by phone…'**
+  String get sysActSearchUsers;
+
+  /// No description provided for @sysActNoEvents.
+  ///
+  /// In en, this message translates to:
+  /// **'No activity events match these filters.'**
+  String get sysActNoEvents;
+
+  /// No description provided for @sysActNoEntities.
+  ///
+  /// In en, this message translates to:
+  /// **'No entities found.'**
+  String get sysActNoEntities;
+
+  /// No description provided for @sysActNoUsers.
+  ///
+  /// In en, this message translates to:
+  /// **'No users found.'**
+  String get sysActNoUsers;
+
+  /// No description provided for @sysActAdminOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t authorize this request. Your session may have expired, or this account lacks administrator access.'**
+  String get sysActAdminOnly;
+
+  /// No description provided for @sysActReauth.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in again'**
+  String get sysActReauth;
+
+  /// No description provided for @sysActUsersCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} users'**
+  String sysActUsersCount(int count);
+
+  /// No description provided for @sysActRoleAdmin.
+  ///
+  /// In en, this message translates to:
+  /// **'Admin'**
+  String get sysActRoleAdmin;
+
+  /// No description provided for @sysActSourceServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Server'**
+  String get sysActSourceServer;
+
+  /// No description provided for @sysActSourceClient.
+  ///
+  /// In en, this message translates to:
+  /// **'Client'**
+  String get sysActSourceClient;
+
+  /// No description provided for @sysActDetailTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Event details'**
+  String get sysActDetailTitle;
+
+  /// No description provided for @sysActFieldTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Time'**
+  String get sysActFieldTime;
+
+  /// No description provided for @sysActFieldSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Source'**
+  String get sysActFieldSource;
+
+  /// No description provided for @sysActFieldLevel.
+  ///
+  /// In en, this message translates to:
+  /// **'Level'**
+  String get sysActFieldLevel;
+
+  /// No description provided for @sysActFieldMethod.
+  ///
+  /// In en, this message translates to:
+  /// **'Method'**
+  String get sysActFieldMethod;
+
+  /// No description provided for @sysActFieldPath.
+  ///
+  /// In en, this message translates to:
+  /// **'Path'**
+  String get sysActFieldPath;
+
+  /// No description provided for @sysActFieldAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Action'**
+  String get sysActFieldAction;
+
+  /// No description provided for @sysActFieldUser.
+  ///
+  /// In en, this message translates to:
+  /// **'User'**
+  String get sysActFieldUser;
+
+  /// No description provided for @sysActFieldEntity.
+  ///
+  /// In en, this message translates to:
+  /// **'Entity'**
+  String get sysActFieldEntity;
+
+  /// No description provided for @sysActFieldPlatform.
+  ///
+  /// In en, this message translates to:
+  /// **'Platform'**
+  String get sysActFieldPlatform;
+
+  /// No description provided for @sysActFieldSurface.
+  ///
+  /// In en, this message translates to:
+  /// **'Surface'**
+  String get sysActFieldSurface;
+
+  /// No description provided for @sysActFieldDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Device'**
+  String get sysActFieldDevice;
+
+  /// No description provided for @sysActFieldAppVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'App version'**
+  String get sysActFieldAppVersion;
+
+  /// No description provided for @sysActFieldDuration.
+  ///
+  /// In en, this message translates to:
+  /// **'Duration'**
+  String get sysActFieldDuration;
+
+  /// No description provided for @sysActFieldIp.
+  ///
+  /// In en, this message translates to:
+  /// **'IP address'**
+  String get sysActFieldIp;
+
+  /// No description provided for @sysActFieldCorrelation.
+  ///
+  /// In en, this message translates to:
+  /// **'Correlation ID'**
+  String get sysActFieldCorrelation;
+
+  /// No description provided for @sysActFieldError.
+  ///
+  /// In en, this message translates to:
+  /// **'Error'**
+  String get sysActFieldError;
+
+  /// No description provided for @sysActFieldStack.
+  ///
+  /// In en, this message translates to:
+  /// **'Stack trace'**
+  String get sysActFieldStack;
+
+  /// No description provided for @sysActDurationMs.
+  ///
+  /// In en, this message translates to:
+  /// **'{ms} ms'**
+  String sysActDurationMs(int ms);
 }
 
 class _AppLocalizationsDelegate

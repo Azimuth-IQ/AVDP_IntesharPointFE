@@ -1245,4 +1245,136 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get dashNoTransactions => 'لا توجد معاملات بعد';
+
+  @override
+  String get navSystemActivity => 'نشاط النظام';
+
+  @override
+  String get sysActSubtitle =>
+      'تدفّق تشغيلي مباشر عبر المنصة — الأحداث والمعاملات والكيانات والمستخدمون.';
+
+  @override
+  String get sysActActivity => 'النشاط';
+
+  @override
+  String get sysActEntities => 'الكيانات';
+
+  @override
+  String get sysActUsers => 'المستخدمون';
+
+  @override
+  String get sysActStores => 'المتاجر';
+
+  @override
+  String get sysActFailed => 'فاشلة';
+
+  @override
+  String get sysActLevelInfo => 'معلومات';
+
+  @override
+  String get sysActLevelWarn => 'تحذيرات';
+
+  @override
+  String get sysActLevelError => 'أخطاء';
+
+  @override
+  String get sysActFailuresOnly => 'الإخفاقات فقط';
+
+  @override
+  String get sysActSearchPath => 'تصفية حسب المسار…';
+
+  @override
+  String get sysActSearchEntities => 'ابحث في الكيانات…';
+
+  @override
+  String get sysActSearchUsers => 'ابحث برقم الهاتف…';
+
+  @override
+  String get sysActNoEvents => 'لا توجد أحداث نشاط تطابق هذه المرشّحات.';
+
+  @override
+  String get sysActNoEntities => 'لا توجد كيانات.';
+
+  @override
+  String get sysActNoUsers => 'لا يوجد مستخدمون.';
+
+  @override
+  String get sysActAdminOnly =>
+      'تعذّر تفويض هذا الطلب. قد تكون جلستك قد انتهت، أو لا يملك هذا الحساب صلاحية المسؤول.';
+
+  @override
+  String get sysActReauth => 'تسجيل الدخول من جديد';
+
+  @override
+  String sysActUsersCount(int count) {
+    return '$count مستخدم';
+  }
+
+  @override
+  String get sysActRoleAdmin => 'مسؤول';
+
+  @override
+  String get sysActSourceServer => 'الخادم';
+
+  @override
+  String get sysActSourceClient => 'العميل';
+
+  @override
+  String get sysActDetailTitle => 'تفاصيل الحدث';
+
+  @override
+  String get sysActFieldTime => 'الوقت';
+
+  @override
+  String get sysActFieldSource => 'المصدر';
+
+  @override
+  String get sysActFieldLevel => 'المستوى';
+
+  @override
+  String get sysActFieldMethod => 'الطريقة';
+
+  @override
+  String get sysActFieldPath => 'المسار';
+
+  @override
+  String get sysActFieldAction => 'الإجراء';
+
+  @override
+  String get sysActFieldUser => 'المستخدم';
+
+  @override
+  String get sysActFieldEntity => 'الكيان';
+
+  @override
+  String get sysActFieldPlatform => 'المنصة';
+
+  @override
+  String get sysActFieldSurface => 'الواجهة';
+
+  @override
+  String get sysActFieldDevice => 'الجهاز';
+
+  @override
+  String get sysActFieldAppVersion => 'إصدار التطبيق';
+
+  @override
+  String get sysActFieldDuration => 'المدة';
+
+  @override
+  String get sysActFieldIp => 'عنوان IP';
+
+  @override
+  String get sysActFieldCorrelation => 'معرّف الارتباط';
+
+  @override
+  String get sysActFieldError => 'الخطأ';
+
+  @override
+  String get sysActFieldStack => 'أثر التتبع';
+
+  @override
+  String sysActDurationMs(int ms) {
+    return '$ms مللي ثانية';
+  }
 }

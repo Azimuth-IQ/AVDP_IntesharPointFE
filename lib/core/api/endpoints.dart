@@ -33,11 +33,18 @@ class Endpoints {
   static const transactionCreate = '/api/transactions/create';
   static const transactionRead = '/api/transactions/read';
   static const transactionReadAll = '/api/transactions/readall';
+  static const transactionFeed = '/api/transactions/feed';
   static const transactionUpdate = '/api/transactions/update';
   static const transactionDelete = '/api/transactions/delete';
 
   static const logClient = '/api/logs/client';
   static const logQuery = '/api/logs';
+  static const logRead = '/api/logs/read';
+
+  // System Activity (HQ BFF, admin-only)
+  static const entitySummary = '/api/entity/summary';
+  static const adminOverview = '/api/admin/overview';
+  static const adminUsers = '/api/admin/users';
 
   // App self-update (public GETs)
   static const appLatest = '/api/app/latest';

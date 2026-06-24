@@ -35,11 +35,12 @@ class AppShell extends ConsumerWidget {
   List<_NavItem> _navFor(AppLocalizations l, EntityType type) {
     switch (type) {
       case EntityType.INTESHAR:
-        // Ordered by daily-use frequency. The first four are the mobile
-        // bottom-bar primaries; Catalog / Templates / Batch Add are lower-cadence
-        // setup tasks that move into the "More" sheet on phones.
+        // Ordered by daily-use frequency. System Activity is the HQ home/landing
+        // (index 0). The first four are the mobile bottom-bar primaries; Catalog /
+        // Templates / Batch Add are lower-cadence setup tasks that move into the
+        // "More" sheet on phones.
         return [
-          _NavItem(Icons.dashboard_outlined,    Icons.dashboard,    l.navDashboard,    '/hq/home'),
+          _NavItem(Icons.monitor_heart_outlined,Icons.monitor_heart,l.navSystemActivity,'/hq/home'),
           _NavItem(Icons.account_tree_outlined, Icons.account_tree, l.navHierarchy,    '/hq/entities'),
           _NavItem(Icons.warehouse_outlined,    Icons.warehouse,    l.navInventory,    '/hq/inventory'),
           _NavItem(Icons.swap_horiz_outlined,   Icons.swap_horiz,   l.navTransactions, '/hq/transactions'),

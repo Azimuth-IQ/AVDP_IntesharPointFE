@@ -13,6 +13,7 @@ import 'package:inteshar/features/inventory/presentation/voucher_templates_page.
 import 'package:inteshar/features/inventory/presentation/inventory_page.dart';
 import 'package:inteshar/features/inventory/presentation/child_inventory_page.dart';
 import 'package:inteshar/features/pos/presentation/pos_home_page.dart';
+import 'package:inteshar/features/system_activity/presentation/system_activity_page.dart';
 import 'package:inteshar/features/transactions/presentation/new_transaction_page.dart';
 import 'package:inteshar/features/transactions/presentation/transactions_page.dart';
 import 'package:inteshar/shared/widgets/app_scaffold.dart';
@@ -82,8 +83,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       ShellRoute(
         builder: (context, state, child) => AppShell(child: child),
         routes: [
-          // HQ
-          GoRoute(path: '/hq/home', builder: (_, _) => const DashboardPage()),
+          // HQ — the home/landing IS the System Activity oversight screen.
+          GoRoute(path: '/hq/home', builder: (_, _) => const SystemActivityPage()),
           GoRoute(path: '/hq/entities', builder: (_, _) => const EntityTreePage()),
           GoRoute(path: '/hq/definitions', builder: (_, _) => const DefinitionsPage()),
           GoRoute(path: '/hq/templates', builder: (_, _) => const VoucherTemplatesPage()),

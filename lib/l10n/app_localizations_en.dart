@@ -1254,4 +1254,136 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dashNoTransactions => 'No transactions yet';
+
+  @override
+  String get navSystemActivity => 'System Activity';
+
+  @override
+  String get sysActSubtitle =>
+      'A live operational feed across the platform — events, transactions, entities and users.';
+
+  @override
+  String get sysActActivity => 'Activity';
+
+  @override
+  String get sysActEntities => 'Entities';
+
+  @override
+  String get sysActUsers => 'Users';
+
+  @override
+  String get sysActStores => 'Stores';
+
+  @override
+  String get sysActFailed => 'Failed';
+
+  @override
+  String get sysActLevelInfo => 'Info';
+
+  @override
+  String get sysActLevelWarn => 'Warnings';
+
+  @override
+  String get sysActLevelError => 'Errors';
+
+  @override
+  String get sysActFailuresOnly => 'Failures only';
+
+  @override
+  String get sysActSearchPath => 'Filter by path…';
+
+  @override
+  String get sysActSearchEntities => 'Search entities…';
+
+  @override
+  String get sysActSearchUsers => 'Search by phone…';
+
+  @override
+  String get sysActNoEvents => 'No activity events match these filters.';
+
+  @override
+  String get sysActNoEntities => 'No entities found.';
+
+  @override
+  String get sysActNoUsers => 'No users found.';
+
+  @override
+  String get sysActAdminOnly =>
+      'Couldn\'t authorize this request. Your session may have expired, or this account lacks administrator access.';
+
+  @override
+  String get sysActReauth => 'Sign in again';
+
+  @override
+  String sysActUsersCount(int count) {
+    return '$count users';
+  }
+
+  @override
+  String get sysActRoleAdmin => 'Admin';
+
+  @override
+  String get sysActSourceServer => 'Server';
+
+  @override
+  String get sysActSourceClient => 'Client';
+
+  @override
+  String get sysActDetailTitle => 'Event details';
+
+  @override
+  String get sysActFieldTime => 'Time';
+
+  @override
+  String get sysActFieldSource => 'Source';
+
+  @override
+  String get sysActFieldLevel => 'Level';
+
+  @override
+  String get sysActFieldMethod => 'Method';
+
+  @override
+  String get sysActFieldPath => 'Path';
+
+  @override
+  String get sysActFieldAction => 'Action';
+
+  @override
+  String get sysActFieldUser => 'User';
+
+  @override
+  String get sysActFieldEntity => 'Entity';
+
+  @override
+  String get sysActFieldPlatform => 'Platform';
+
+  @override
+  String get sysActFieldSurface => 'Surface';
+
+  @override
+  String get sysActFieldDevice => 'Device';
+
+  @override
+  String get sysActFieldAppVersion => 'App version';
+
+  @override
+  String get sysActFieldDuration => 'Duration';
+
+  @override
+  String get sysActFieldIp => 'IP address';
+
+  @override
+  String get sysActFieldCorrelation => 'Correlation ID';
+
+  @override
+  String get sysActFieldError => 'Error';
+
+  @override
+  String get sysActFieldStack => 'Stack trace';
+
+  @override
+  String sysActDurationMs(int ms) {
+    return '$ms ms';
+  }
 }

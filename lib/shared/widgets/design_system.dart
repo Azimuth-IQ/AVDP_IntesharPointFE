@@ -15,7 +15,13 @@ class Hairline extends StatelessWidget {
   final double indent;
   final double endIndent;
   final Color? color;
-  const Hairline({super.key, this.axis = Axis.horizontal, this.indent = 0, this.endIndent = 0, this.color});
+  const Hairline({
+    super.key,
+    this.axis = Axis.horizontal,
+    this.indent = 0,
+    this.endIndent = 0,
+    this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +47,7 @@ class SectionLabel extends StatelessWidget {
   final String text;
   final Widget? trailing;
   final EdgeInsetsGeometry padding;
+
   /// When true (default), paint a 6px yellow dot before the label.
   final bool dot;
   const SectionLabel(
@@ -49,7 +56,8 @@ class SectionLabel extends StatelessWidget {
     this.trailing,
     this.padding = const EdgeInsets.fromLTRB(0, 0, 0, 12),
     this.dot = true,
-    @Deprecated('Editorial rule is removed; parameter ignored.') bool withRule = true,
+    @Deprecated('Editorial rule is removed; parameter ignored.')
+    bool withRule = true,
   });
 
   @override
@@ -194,11 +202,16 @@ class StampPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: icon != null ? 8 : 10, vertical: 5),
+      padding: EdgeInsets.symmetric(
+        horizontal: icon != null ? 8 : 10,
+        vertical: 5,
+      ),
       decoration: BoxDecoration(
         color: filled ? color.withValues(alpha: 0.14) : Colors.transparent,
         borderRadius: BorderRadius.circular(999),
-        border: filled ? null : Border.all(color: color.withValues(alpha: 0.5), width: 1),
+        border: filled
+            ? null
+            : Border.all(color: color.withValues(alpha: 0.5), width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -278,7 +291,11 @@ class FigureBlock extends StatelessWidget {
           value,
           style: monoValue
               ? IntesharType.mono(28, color: cs.onSurface, w: FontWeight.w700)
-              : IntesharType.display(34, color: cs.onSurface, w: FontWeight.w900),
+              : IntesharType.display(
+                  34,
+                  color: cs.onSurface,
+                  w: FontWeight.w900,
+                ),
         ),
         if (note != null) ...[
           const SizedBox(height: 4),
@@ -339,22 +356,32 @@ class PageHeader extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: IntesharType.display(32, color: cs.onSurface, w: FontWeight.w900),
+                  style: IntesharType.display(
+                    32,
+                    color: cs.onSurface,
+                    w: FontWeight.w900,
+                  ),
                 ),
               ),
               if (trailing != null) ...[const SizedBox(width: 12), trailing!],
             ],
           ),
           const SizedBox(height: 6),
-          Container(width: 38, height: 3, decoration: BoxDecoration(
-            color: IntesharColors.saffron,
-            borderRadius: BorderRadius.circular(2),
-          )),
+          Container(
+            width: 38,
+            height: 3,
+            decoration: BoxDecoration(
+              color: IntesharColors.saffron,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
           if (subtitle != null) ...[
             const SizedBox(height: 12),
             Text(
               subtitle!,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
             ),
           ],
         ],
@@ -370,9 +397,11 @@ class IntesharLockup extends StatelessWidget {
   final String title;
   final String tagline;
   final bool compact;
+
   /// When `true`, render the lockup on a yellow surface (ink-on-yellow).
   /// When `false`, render on a paper surface (ink-on-paper).
   final bool onBrandSurface;
+
   /// Hide the tagline line — useful in tight slots like a phone app bar.
   final bool showTagline;
   const IntesharLockup({
@@ -391,15 +420,19 @@ class IntesharLockup extends StatelessWidget {
     final fgSoft = onBrandSurface
         ? IntesharColors.ink.withValues(alpha: 0.65)
         : cs.onSurfaceVariant;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IntesharStar(size: compact ? 28 : 36, color: fg),
-        const SizedBox(width: 12),
-        // Flexible + ellipsis so the wordmark degrades gracefully in tight
-        // slots (e.g. a phone app bar) instead of overflowing the row.
-        Flexible(
-          child: Column(
+    // FittedBox(scaleDown) shrinks the whole lockup — including the fixed-size
+    // star — to fit tight slots (e.g. a phone app-bar title) instead of
+    // overflowing. A Flexible can't help here because the star is a fixed size,
+    // and a flex child under FittedBox's unbounded width would throw.
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: AlignmentDirectional.centerStart,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IntesharStar(size: compact ? 28 : 36, color: fg),
+          const SizedBox(width: 12),
+          Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -433,8 +466,8 @@ class IntesharLockup extends StatelessWidget {
               ],
             ],
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -443,10 +476,21 @@ class IntesharLockup extends StatelessWidget {
 
 /// SelectableText preconfigured with JetBrainsMono — used for ids, serials,
 /// pins, MACs, JWTs.
-SelectableText monoText(String value, {double size = 13, Color? color, FontWeight w = FontWeight.w500, double letterSpacing = 0.4}) {
+SelectableText monoText(
+  String value, {
+  double size = 13,
+  Color? color,
+  FontWeight w = FontWeight.w500,
+  double letterSpacing = 0.4,
+}) {
   return SelectableText(
     value,
-    style: IntesharType.mono(size, color: color, w: w, letterSpacing: letterSpacing),
+    style: IntesharType.mono(
+      size,
+      color: color,
+      w: w,
+      letterSpacing: letterSpacing,
+    ),
   );
 }
 
@@ -458,7 +502,12 @@ class PressableScale extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
   final double scale;
-  const PressableScale({super.key, required this.child, this.onTap, this.scale = 0.97});
+  const PressableScale({
+    super.key,
+    required this.child,
+    this.onTap,
+    this.scale = 0.97,
+  });
 
   @override
   State<PressableScale> createState() => _PressableScaleState();

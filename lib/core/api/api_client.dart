@@ -3,17 +3,21 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/core/api/api_exception.dart';
+import 'package:inteshar/core/api/session_invalidation.dart';
 import 'package:inteshar/core/logging/client_log_reporter.dart';
 import 'package:inteshar/core/logging/device_context.dart';
 import 'package:inteshar/core/storage/session_storage.dart';
 
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(BaseOptions(connectTimeout: const Duration(seconds: 10), receiveTimeout: const Duration(seconds: 15), sendTimeout: const Duration(seconds: 10)));
-  dio.interceptors.add(_AuthInterceptor());
+  dio.interceptors.add(_AuthInterceptor(ref));
   return dio;
 });
 
 class _AuthInterceptor extends Interceptor {
+  final Ref _ref;
+  _AuthInterceptor(this._ref);
+
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
     final token = await sessionStorage.getToken();
@@ -34,7 +38,11 @@ class _AuthInterceptor extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
     if (err.response?.statusCode == 401) {
+      // Token rejected (expired, or the backend's SESSION_SUPERSEDED — signed in
+      // elsewhere / logged out). Clear the dead session and tick the invalidation
+      // signal so AuthController rebuilds and the router bounces to /login.
       await sessionStorage.clear();
+      _ref.read(sessionInvalidationProvider.notifier).state++;
     }
     // A null response = the request never reached the server (timeout, refused,
     // offline). The server log can't see these, so report from the client.

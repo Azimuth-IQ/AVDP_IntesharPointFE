@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/api_exception.dart';
+import 'package:inteshar/core/api/session_invalidation.dart';
 import 'package:inteshar/core/auth/capabilities.dart';
 import 'package:inteshar/core/storage/session_storage.dart';
 import 'package:inteshar/features/auth/data/auth_repository.dart';
@@ -39,6 +40,10 @@ final authStateProvider = AsyncNotifierProvider<AuthController, AuthState>(AuthC
 class AuthController extends AsyncNotifier<AuthState> {
   @override
   Future<AuthState> build() async {
+    // Rebuild when the API layer signals the session was invalidated (a 401 /
+    // SESSION_SUPERSEDED): the token will have been cleared, so we resolve to
+    // unauthenticated and the router redirects to /login.
+    ref.watch(sessionInvalidationProvider);
     debugPrint('[AUTH] build() started');
     final token = await sessionStorage.getToken();
     debugPrint('[AUTH] token=${token != null ? "found" : "null"}');
@@ -114,6 +119,9 @@ class AuthController extends AsyncNotifier<AuthState> {
   }
 
   Future<void> logout() async {
+    // Revoke the token server-side first (best-effort), then clear locally.
+    final api = ref.read(apiClientProvider);
+    await AuthRepository(api).logout();
     await sessionStorage.clear();
     state = AsyncValue.data(AuthUnauthenticated());
   }

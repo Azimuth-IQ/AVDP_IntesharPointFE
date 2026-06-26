@@ -23,4 +23,15 @@ class AuthRepository {
       throw ApiException(e.toString());
     }
   }
+
+  /// Best-effort server-side logout: bumps the user's tokenVersion so the current
+  /// token is revoked server-side. Swallows errors — local sign-out proceeds
+  /// regardless (the token expires in 24h even if this call fails offline).
+  Future<void> logout() async {
+    try {
+      await _api.post(Endpoints.logout);
+    } catch (_) {
+      // ignore — local clear in AuthController still signs the user out
+    }
+  }
 }

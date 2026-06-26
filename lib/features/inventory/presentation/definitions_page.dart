@@ -479,11 +479,36 @@ class _DefinitionFormSheet extends StatefulWidget {
 class _DefinitionFormSheetState extends State<_DefinitionFormSheet> {
   bool _saving = false;
   late String? _companyId = widget.initialCompanyId;
+  String? _nameError;
+  String? _skuError;
+  String? _priceError;
+
+  // Validates the category (denomination) form before saving: requires a
+  // non-empty name and SKU and a numeric default price > 0, and trims +
+  // uppercases the SKU. Returns true when valid; otherwise sets inline error
+  // texts and returns false so the save is blocked.
+  bool _validate({required bool ar}) {
+    final name = widget.nameCtrl.text.trim();
+    final sku = widget.skuCtrl.text.trim().toUpperCase();
+    if (widget.skuCtrl.text != sku) widget.skuCtrl.text = sku;
+    final price = num.tryParse(widget.priceCtrl.text.trim());
+    setState(() {
+      _nameError =
+          name.isEmpty ? (ar ? 'الاسم مطلوب' : 'Name is required') : null;
+      _skuError =
+          sku.isEmpty ? (ar ? 'رمز المنتج مطلوب' : 'SKU is required') : null;
+      _priceError = (price == null || price <= 0)
+          ? (ar ? 'أدخل سعراً أكبر من صفر' : 'Enter a price greater than 0')
+          : null;
+    });
+    return _nameError == null && _skuError == null && _priceError == null;
+  }
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -515,19 +540,31 @@ class _DefinitionFormSheetState extends State<_DefinitionFormSheet> {
             const SizedBox(height: 24),
             TextField(
               controller: widget.nameCtrl,
-              decoration: InputDecoration(labelText: l.defsFieldName),
+              decoration: InputDecoration(
+                  labelText: l.defsFieldName, errorText: _nameError),
+              onChanged: _nameError == null
+                  ? null
+                  : (_) => setState(() => _nameError = null),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: widget.skuCtrl,
               textCapitalization: TextCapitalization.characters,
-              decoration: InputDecoration(labelText: l.defsFieldSku),
+              decoration: InputDecoration(
+                  labelText: l.defsFieldSku, errorText: _skuError),
+              onChanged: _skuError == null
+                  ? null
+                  : (_) => setState(() => _skuError = null),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: widget.priceCtrl,
               keyboardType: TextInputType.number,
-              decoration: InputDecoration(labelText: l.defsFieldPrice),
+              decoration: InputDecoration(
+                  labelText: l.defsFieldPrice, errorText: _priceError),
+              onChanged: _priceError == null
+                  ? null
+                  : (_) => setState(() => _priceError = null),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -579,6 +616,7 @@ class _DefinitionFormSheetState extends State<_DefinitionFormSheet> {
                     onPressed: _saving
                         ? null
                         : () async {
+                            if (!_validate(ar: ar)) return;
                             setState(() => _saving = true);
                             try {
                               await widget.onSave();

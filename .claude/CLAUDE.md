@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-**Inteshar Point** is a Flutter demo app for an Iraqi voucher distribution company. It talks to a Spring Boot + MongoDB backend (AVDP). The backend source lives at `/Users/ahmed/Desktop/ARP-Offline-Core/avdp_inteshar/src/main/java/...` and is the authoritative reference when the API behaves unexpectedly. The Postman collection is a sketch — trust the Java source over Postman.
+**Inteshar Point** is the Flutter client (UAT/production-targeted) for an Iraqi voucher distribution company. It talks to a Spring Boot + MongoDB backend. The backend source lives at the monorepo sibling `Dev/Inteshar Project/avdp_inteshar_be/src/main/java/...` and is the authoritative reference when the API behaves unexpectedly. The Postman collection is a sketch — trust the Java source over Postman.
 
 ---
 
@@ -26,7 +26,7 @@ flutter test
 # Run a single test file
 flutter test test/widget_test.dart
 
-# Code generation (freezed + json_serializable — run after editing any model)
+# Code generation — NOT USED here (models are hand-written; freezed is in pubspec but unused — see Models below). Kept for reference only:
 dart run build_runner build -d
 
 # Watch mode for code generation
@@ -85,15 +85,15 @@ Key model conventions:
 
 4. **`GET /api/entity/readwithchildren` returns `Map<Integer, List<Entity>>`** keyed by BFS depth as string integers (`"0"` = root, `"1"` = direct children, `"2"` = grandchildren). Do not assume the keys are parent IDs.
 
-5. **`GET /api/inventory/product/readByEntity?entityId=`** filters on `currentOwner == entityId` only — not the historical `owners` list. No `/readBySku` or `/readByStatus` endpoint exists; filter client-side.
+5. **`GET /api/inventory/product/readByEntity?entityId=`** filters on `currentOwner == entityId` only — not the historical `owners` list. Inventory now exposes `/product/readByEntityAndSku`, `/product/summaryByEntity`, `/product/readByEntityValue`, `/product/readFullInventoryValue` — page/aggregate server-side rather than bulk-filtering client-side.
 
 6. **`TransactionProcessor` does not filter by `ProductStatus`** when picking products to move. Always pre-flight check client-side that the source has ≥ `amount` `AVAILABLE` units of each SKU before submitting a transaction.
 
-7. **`ProductStatus` is never changed by the backend** during a transaction. Only the POS flow changes it by calling `PUT /api/inventory/product/update` after a successful print.
+7. **`POST /api/inventory/product/sendForPrinting` atomically flips `AVAILABLE→PRINTED`** server-side (claim-for-printing; `409` if already used) and is the SOLE channel that decrypts a PIN. The legacy `PUT /api/inventory/product/update` print-update path is disabled in the controller; reveal == consumption (one tap, no resell).
 
 8. **JWT expires after 24 h.** On a 401, clear session and redirect to `/login` — no silent re-login needed for this demo.
 
-9. **Only `/api/auth/login` is unauthenticated.** Health endpoints, entity-create, everything else requires a JWT. A clean MongoDB has no users, so the app cannot bootstrap itself — see "Seeding a fresh backend" below.
+9. **Public (no JWT): `/api/auth/login`, `POST /api/logs/client`, `GET /api/app/latest`, `GET /api/app/check`.** Health endpoints, entity-create, everything else requires a JWT. A clean MongoDB has no users, so the app cannot bootstrap itself — see "Seeding a fresh backend" below.
 
 10. **Transaction processor polls every 1 s.** Poll `GET /transactions/read?id=` every 1.5–2 s, cap at 30 s. Show `processMessage` verbatim on `FAILED` rows.
 
@@ -118,7 +118,7 @@ db.entities.replaceOne(
 );
 ```
 
-Login: `07701234567` / `password`. Everything else can be built from inside the app using the "Seed demo" button (visible on the HQ dashboard when fewer than two entities exist).
+Login (this local-seed example): `07701234567` / `password`. (The canonical UAT/seeded HQ admin is `07705371953` / `root` — see the root CLAUDE.md.) Everything else can be built from inside the app using the "Seed demo" button (visible on the HQ dashboard when fewer than two entities exist).
 
 MongoDB dev URI: `mongodb://admin:password@localhost:27017/avdp?authSource=admin`
 
@@ -128,8 +128,8 @@ MongoDB dev URI: `mongodb://admin:password@localhost:27017/avdp?authSource=admin
 
 | `EntityType` | Home route | Available sections |
 |---|---|---|
-| `INTESHAR` | `/hq/home` | Hierarchy, Catalog (definitions), Inventory, Batch add, Transactions |
-| `AGENT1` | `/agent1/home` | Hierarchy, Inventory, Transactions |
+| `INTESHAR` | `/hq/home` | System Activity (`/hq/home` landing), Hierarchy, Catalog/Templates, Companies, Main/Sub agents, Inventory, Batch add, Transactions |
+| `AGENT1` | `/agent1/home` | Hierarchy, Inventory, Transactions, Pricing (`/agent1/pricing`) |
 | `AGENT2` | `/agent2/home` | Hierarchy, Inventory, Transactions |
 | `STORE` | `/store/home` | Inventory, Transactions, POS terminals |
 | `USER` on `STORE` | `/pos/home` | POS voucher picker, Printer |
@@ -142,7 +142,7 @@ A `USER`-role login on a `STORE` entity is treated as a POS session (`isPosUser 
 
 - `BluetoothService` (`lib/core/printing/bluetooth_service.dart`) wraps `flutter_blue_plus` for scan/connect/write.
 - `EscPosBuilder` (`lib/core/printing/escpos_builder.dart`) builds 58 mm ESC/POS byte arrays using `esc_pos_utils_plus`.
-- All supported printer models are 58 mm ESC/POS over Bluetooth — a single pipeline serves all of them.
+- Printing is DUAL 58 mm ESC/POS: the native **Sunmi inner printer** (`IWoyouService` AIDL via a `MethodChannel`, `lib/core/printing/sunmi_printer.dart`) AND **Bluetooth** (`flutter_blue_plus`); the POS auto-picks the inner printer when `SunmiPrinter.isAvailable()`. Confirmed on a real Sunmi V2 (Android 7.1).
 - Target Android first; iOS Bluetooth Classic to non-MFi printers is unreliable.
 - Android 12+ requires runtime `BLUETOOTH_SCAN` and `BLUETOOTH_CONNECT` permissions before scanning.
 - Persist the last-connected device ID to `SharedPreferences` for auto-reconnect on the next POS session.

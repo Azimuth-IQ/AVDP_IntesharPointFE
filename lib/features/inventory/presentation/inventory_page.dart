@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
+import 'package:inteshar/core/geo/governorates.dart';
 import 'package:inteshar/core/storage/session_storage.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
@@ -77,6 +78,14 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
         ProductStatus.FAILED_PRINTING => s.failedPrinting,
       };
 
+  /// Low-stock threshold applied per (SKU × governorate) bucket — the viewer's
+  /// per-account threshold (default 50 when unavailable).
+  int _lowStockThreshold() {
+    final auth = ref.read(authStateProvider).valueOrNull;
+    if (auth is AuthAuthenticated) return auth.entity.meta.effectiveLowStockThreshold;
+    return 50;
+  }
+
   List<SkuSummary> get _filtered {
     final all = _summary ?? [];
     final q = _search.toLowerCase();
@@ -102,6 +111,7 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
 
     final all = _summary ?? [];
     final filtered = _filtered;
+    final lowStock = _lowStockThreshold();
 
     final availableTotal = all.fold(0, (s, e) => s + e.available);
     final printedTotal = all.fold(0, (s, e) => s + e.printed);
@@ -159,6 +169,7 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
                             summary: s,
                             entityId: _entityId!,
                             readOnly: widget.readOnly,
+                            lowStock: lowStock,
                             onChanged: _load,
                           ),
                         );
@@ -394,12 +405,14 @@ class _SkuGroupCard extends ConsumerStatefulWidget {
   final SkuSummary summary;
   final String entityId;
   final bool readOnly;
+  final int lowStock;
   final VoidCallback onChanged;
   const _SkuGroupCard({
     super.key,
     required this.summary,
     required this.entityId,
     required this.readOnly,
+    required this.lowStock,
     required this.onChanged,
   });
 
@@ -573,6 +586,7 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
               ),
             ),
           ),
+          _GovBreakdown(summary: s, lowStock: widget.lowStock),
           AnimatedCrossFade(
             duration: const Duration(milliseconds: 200),
             crossFadeState: _open ? CrossFadeState.showSecond : CrossFadeState.showFirst,
@@ -644,6 +658,73 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
           ),
         ],
       ],
+    );
+  }
+}
+
+// ── Governorate subcategory breakdown ─────────────────────────────────────────
+
+class _GovBreakdown extends StatelessWidget {
+  final SkuSummary summary;
+  final int lowStock;
+  const _GovBreakdown({required this.summary, required this.lowStock});
+
+  @override
+  Widget build(BuildContext context) {
+    final buckets = summary.governorates;
+    // Only show the subcategory strip when there is a real governorate breakdown.
+    if (buckets.isEmpty) return const SizedBox.shrink();
+    if (buckets.length == 1 && buckets.first.isUntagged) return const SizedBox.shrink();
+
+    final cs = Theme.of(context).colorScheme;
+    final l = AppLocalizations.of(context)!;
+    final loc = Localizations.localeOf(context).languageCode;
+
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 14, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(l.inventoryByGovernorate, style: IntesharType.overline(color: cs.onSurfaceVariant)),
+          const SizedBox(height: 6),
+          ...buckets.map((b) {
+            final label = b.isUntagged ? l.inventoryUntagged : governorateLabel(b.governorate, loc);
+            final low = b.available < lowStock;
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: b.available > 0 ? IntesharColors.sage : cs.outline,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w600),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (low) ...[
+                    StampPill(label: l.inventoryLow, color: cs.error, fontSize: 10),
+                    const SizedBox(width: 8),
+                  ],
+                  Text(
+                    '${b.available} / ${b.total}',
+                    style: IntesharType.mono(12, color: low ? cs.error : cs.onSurfaceVariant, w: FontWeight.w600),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
     );
   }
 }

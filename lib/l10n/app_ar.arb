@@ -127,7 +127,7 @@
   "healthNoResults": "لا توجد نتائج بعد.",
   "healthFailed": "فشل",
 
-  "entityTypeInteshar": "انتشار",
+  "entityTypeInteshar": "منصة انتشار",
   "entityTypeAgent1": "الوكيل الرئيسي",
   "entityTypeAgent2": "الوكيل الفرعي",
   "entityTypeStore": "متجر",
@@ -309,6 +309,9 @@
 
   "inventoryEyebrow": "العداد",
   "inventorySubtitle": "القسائم المملوكة حالياً لهذه الجهة — ابحث بالاسم أو رمز المنتج أو الرقم التسلسلي.",
+  "inventoryByGovernorate": "حسب المحافظة",
+  "inventoryUntagged": "بدون محافظة",
+  "inventoryLow": "منخفض",
   "inventoryStatusAvailable": "متاح",
   "inventoryStatusPrinted": "مُستخدَم",
   "inventoryStatusDamaged": "تالف",
@@ -363,6 +366,7 @@
     "placeholders": { "query": { "type": "String" } }
   },
   "posHomePrint": "طباعة",
+  "posHomeSell": "بيع",
   "posHomeScratchNote": "اكشط الرمز عند نقطة الاستبدال فقط.",
   "posHomePrinterNotConnected": "الطابعة غير متصلة",
   "posHomeCancel": "إلغاء",
@@ -574,6 +578,7 @@
   "navMainAgents": "الوكلاء الرئيسيون",
   "navSubAgents": "الوكلاء الفرعيون",
   "navCompanies": "الشركات",
+  "navStores": "نقاط البيع",
   "navPrices": "الأسعار",
   "batchAddGovernorate": "المحافظة (تقييد المنطقة)",
   "batchAddNotGeoLocked": "غير مقيّد بمحافظة",

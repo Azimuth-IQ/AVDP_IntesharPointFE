@@ -885,7 +885,7 @@ class _TemplateEditor extends StatelessWidget {
           onChanged: onFooterChanged,
           decoration: InputDecoration(
             labelText: l.vtFooterText,
-            hintText: 'Inteshar Store · www.inteshar.iq',
+            hintText: 'Inteshar Platform · www.inteshar.iq',
           ),
         ),
         const SizedBox(height: 24),

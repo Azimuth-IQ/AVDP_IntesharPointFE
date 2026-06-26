@@ -17,6 +17,7 @@ import 'package:inteshar/features/agents/presentation/sub_agents_page.dart';
 import 'package:inteshar/features/companies/presentation/companies_page.dart';
 import 'package:inteshar/features/pos/presentation/pos_home_page.dart';
 import 'package:inteshar/features/pricing/presentation/pricing_page.dart';
+import 'package:inteshar/features/stores/presentation/stores_page.dart';
 import 'package:inteshar/features/system_activity/presentation/system_activity_page.dart';
 import 'package:inteshar/features/transactions/presentation/new_transaction_page.dart';
 import 'package:inteshar/features/transactions/presentation/transactions_page.dart';
@@ -47,6 +48,17 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       if (authState is AuthAuthenticated) {
         if (isPublic) return authState.homeRoute;
+
+        // Role guard: confine each session to its own route prefix. If the
+        // matched location lives under a different role's prefix than the
+        // signed-in session's home, bounce to the session home. homeRoute is
+        // entity.type.homeRoute for HQ/agents/store and /pos/home for POS
+        // users, so POS sessions are correctly kept inside /pos.
+        final locPrefix = _rolePrefixOf(loc);
+        final homePrefix = _rolePrefixOf(authState.homeRoute);
+        if (locPrefix != null && homePrefix != null && locPrefix != homePrefix) {
+          return authState.homeRoute;
+        }
       }
 
       return null;
@@ -92,6 +104,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/hq/main-agents', builder: (_, _) => const MainAgentsPage()),
           GoRoute(path: '/hq/sub-agents', builder: (_, _) => const SubAgentsPage()),
           GoRoute(path: '/hq/companies', builder: (_, _) => const CompaniesPage()),
+          GoRoute(path: '/hq/stores', builder: (_, _) => const StoresPage()),
           GoRoute(path: '/hq/entities', builder: (_, _) => const EntityTreePage()),
           GoRoute(path: '/hq/definitions', builder: (_, _) => const DefinitionsPage()),
           GoRoute(path: '/hq/templates', builder: (_, _) => const VoucherTemplatesPage()),
@@ -105,12 +118,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/agent1/inventory', builder: (_, _) => const InventoryPage()),
           GoRoute(path: '/agent1/transactions', builder: (_, _) => const TransactionsPage()),
           GoRoute(path: '/agent1/pricing', builder: (_, _) => const PricingPage()),
+          GoRoute(path: '/agent1/stores', builder: (_, _) => const StoresPage()),
 
           // Agent2
           GoRoute(path: '/agent2/home', builder: (_, _) => const DashboardPage()),
           GoRoute(path: '/agent2/entities', builder: (_, _) => const EntityTreePage()),
           GoRoute(path: '/agent2/inventory', builder: (_, _) => const InventoryPage()),
           GoRoute(path: '/agent2/transactions', builder: (_, _) => const TransactionsPage()),
+          GoRoute(path: '/agent2/stores', builder: (_, _) => const StoresPage()),
 
           // Store
           GoRoute(path: '/store/home', builder: (_, _) => const DashboardPage()),
@@ -121,6 +136,17 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+/// The role route prefix a [location] belongs to, or `null` if it is not a
+/// role-scoped route (e.g. `/splash`, `/login`, `/diagnostics`). Used by the
+/// router redirect to keep a signed-in session inside its own section.
+String? _rolePrefixOf(String location) {
+  const prefixes = ['/hq', '/agent1', '/agent2', '/store', '/pos'];
+  for (final p in prefixes) {
+    if (location == p || location.startsWith('$p/')) return p;
+  }
+  return null;
+}
 
 /// Bridges Riverpod auth state changes into a [Listenable] that GoRouter
 /// can use as [refreshListenable].

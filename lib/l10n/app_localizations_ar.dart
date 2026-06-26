@@ -346,7 +346,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get healthFailed => 'فشل';
 
   @override
-  String get entityTypeInteshar => 'انتشار';
+  String get entityTypeInteshar => 'منصة انتشار';
 
   @override
   String get entityTypeAgent1 => 'الوكيل الرئيسي';
@@ -736,6 +736,15 @@ class AppLocalizationsAr extends AppLocalizations {
       'القسائم المملوكة حالياً لهذه الجهة — ابحث بالاسم أو رمز المنتج أو الرقم التسلسلي.';
 
   @override
+  String get inventoryByGovernorate => 'حسب المحافظة';
+
+  @override
+  String get inventoryUntagged => 'بدون محافظة';
+
+  @override
+  String get inventoryLow => 'منخفض';
+
+  @override
   String get inventoryStatusAvailable => 'متاح';
 
   @override
@@ -854,6 +863,9 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get posHomePrint => 'طباعة';
+
+  @override
+  String get posHomeSell => 'بيع';
 
   @override
   String get posHomeScratchNote => 'اكشط الرمز عند نقطة الاستبدال فقط.';
@@ -1386,6 +1398,9 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get navCompanies => 'الشركات';
+
+  @override
+  String get navStores => 'نقاط البيع';
 
   @override
   String get navPrices => 'الأسعار';

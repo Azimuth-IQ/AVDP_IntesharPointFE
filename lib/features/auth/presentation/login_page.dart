@@ -224,7 +224,7 @@ class _BrandPanel extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    'Store.',
+                    'Platform.',
                     style: TextStyle(
                       fontFamily: 'CodecPro',
                       color: IntesharColors.ink,
@@ -278,7 +278,7 @@ class _MobileBrandHeader extends StatelessWidget {
             fit: BoxFit.scaleDown,
             alignment: AlignmentDirectional.centerStart,
             child: const Text(
-              'Inteshar Store.',
+              'Inteshar Platform.',
               style: TextStyle(
                 fontFamily: 'CodecPro',
                 color: IntesharColors.ink,

@@ -12,6 +12,10 @@ class Endpoints {
   static const entityReadWithChildren = '/api/entity/readwithchildren';
   static const entityUpdate = '/api/entity/update';
   static const entityDelete = '/api/entity/delete';
+  // Point (STORE/POS) management
+  static const entitySetActive = '/api/entity/setActive';
+  static const entityResetPassword = '/api/entity/resetPassword';
+  static const entityPosStats = '/api/entity/posStats';
 
   static const definitionCreate = '/api/inventory/definition/create';
   static const definitionRead = '/api/inventory/definition/read';

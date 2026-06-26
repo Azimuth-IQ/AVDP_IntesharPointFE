@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
+import 'package:inteshar/core/geo/governorates.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/pricing/data/pricing_repository.dart';
 import 'package:inteshar/features/pricing/domain/pricing_models.dart';
@@ -28,6 +29,9 @@ class _S {
   String get saved => p('Prices saved', 'تم حفظ الأسعار');
   String get uncategorized => p('Uncategorized', 'بدون شركة');
   String get empty => p('No categories in the catalog yet.', 'لا توجد فئات في الكتالوج بعد.');
+  String get byGovernorate => p('By governorate', 'حسب المحافظة');
+  String get untagged => p('No region', 'بدون محافظة');
+  String get allRegions => p('All regions', 'كل المحافظات');
 }
 
 class PricingPage extends ConsumerStatefulWidget {
@@ -73,7 +77,11 @@ class _PricingPageState extends ConsumerState<PricingPage> {
       }
       _ctrls.clear();
       for (final row in catalog.rows) {
-        _ctrls[row.sku] = TextEditingController(text: _fmt(row.effectivePrice));
+        // Base (SKU-wide) field keyed "sku::"; one field per governorate keyed "sku::gov".
+        _ctrls['${row.sku}::'] = TextEditingController(text: _fmt(row.effectivePrice));
+        for (final g in row.governorates) {
+          _ctrls['${row.sku}::${g.governorate}'] = TextEditingController(text: _fmt(g.effectivePrice));
+        }
       }
       setState(() {
         _catalog = catalog;
@@ -98,12 +106,18 @@ class _PricingPageState extends ConsumerState<PricingPage> {
     setState(() => _saving = true);
     try {
       for (final row in catalog.rows) {
-        final raw = _ctrls[row.sku]?.text.trim() ?? '';
-        final value = num.tryParse(raw);
-        if (value == null) continue;
-        final current = row.agentPrice;
-        if (current == null || current != value) {
-          await _repo.setPrice(entityId: '', sku: row.sku, price: value);
+        // SKU-wide base price.
+        final baseVal = num.tryParse(_ctrls['${row.sku}::']?.text.trim() ?? '');
+        if (baseVal != null && (row.agentPrice == null || row.agentPrice != baseVal)) {
+          await _repo.setPrice(entityId: '', sku: row.sku, price: baseVal);
+        }
+        // Per-governorate (subcategory) overrides.
+        for (final g in row.governorates) {
+          final value = num.tryParse(_ctrls['${row.sku}::${g.governorate}']?.text.trim() ?? '');
+          if (value == null) continue;
+          if (g.agentPrice == null || g.agentPrice != value) {
+            await _repo.setPrice(entityId: '', sku: row.sku, governorate: g.governorate, price: value);
+          }
         }
       }
       if (mounted) {
@@ -159,7 +173,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                 SectionLabel(entry.key),
                 ...entry.value.map((row) => Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: _PriceRow(row: row, ctrl: _ctrls[row.sku]!, s: s),
+                      child: _PriceRow(row: row, ctrls: _ctrls, s: s),
                     )),
                 const SizedBox(height: 8),
               ],
@@ -227,13 +241,20 @@ class _BalanceHeader extends StatelessWidget {
 
 class _PriceRow extends StatelessWidget {
   final CategoryPriceRow row;
-  final TextEditingController ctrl;
+  final Map<String, TextEditingController> ctrls;
   final _S s;
-  const _PriceRow({required this.row, required this.ctrl, required this.s});
+  const _PriceRow({required this.row, required this.ctrls, required this.s});
+
+  /// Whether to show the per-governorate subcategory fields (more than just an
+  /// untagged bucket).
+  bool get _hasGovBreakdown =>
+      row.governorates.length > 1 ||
+      (row.governorates.length == 1 && row.governorates.first.governorate.isNotEmpty);
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final loc = Localizations.localeOf(context).languageCode;
     return InkCard(
       padding: const EdgeInsets.all(14),
       ruleColor: row.priced ? IntesharColors.sage : cs.outline,
@@ -250,35 +271,81 @@ class _PriceRow extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              SizedBox(
-                width: 130,
-                child: TextField(
-                  controller: ctrl,
-                  keyboardType: TextInputType.number,
-                  style: IntesharType.mono(14, color: cs.onSurface),
-                  decoration: InputDecoration(labelText: s.yourPrice, isDense: true),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text('${s.available}: ${row.available}',
-                        style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
-                    const SizedBox(height: 2),
-                    Text('${s.lineValue}: ${Formatters.iqd(row.lineValue.round())}',
-                        style: IntesharType.mono(12.5, color: cs.onSurface, w: FontWeight.w700)),
-                  ],
-                ),
-              ),
-            ],
+          // SKU-wide base price ("" governorate) — the fallback for any region without its own.
+          _PriceField(
+            label: _hasGovBreakdown ? s.allRegions : s.yourPrice,
+            ctrl: ctrls['${row.sku}::'],
+            available: row.available,
+            lineValue: row.lineValue,
+            s: s,
           ),
+          if (_hasGovBreakdown) ...[
+            const SizedBox(height: 12),
+            Text(s.byGovernorate, style: IntesharType.overline(color: cs.onSurfaceVariant)),
+            const SizedBox(height: 4),
+            ...row.governorates.map((g) {
+              final label = g.governorate.isEmpty ? s.untagged : governorateLabel(g.governorate, loc);
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: _PriceField(
+                  label: label,
+                  ctrl: ctrls['${row.sku}::${g.governorate}'],
+                  available: g.available,
+                  lineValue: g.lineValue,
+                  s: s,
+                ),
+              );
+            }),
+          ],
         ],
       ),
+    );
+  }
+}
+
+class _PriceField extends StatelessWidget {
+  final String label;
+  final TextEditingController? ctrl;
+  final int available;
+  final num lineValue;
+  final _S s;
+  const _PriceField({
+    required this.label,
+    required this.ctrl,
+    required this.available,
+    required this.lineValue,
+    required this.s,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(
+          width: 130,
+          child: TextField(
+            controller: ctrl,
+            keyboardType: TextInputType.number,
+            style: IntesharType.mono(14, color: cs.onSurface),
+            decoration: InputDecoration(labelText: label, isDense: true),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('${s.available}: $available',
+                  style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
+              const SizedBox(height: 2),
+              Text('${s.lineValue}: ${Formatters.iqd(lineValue.round())}',
+                  style: IntesharType.mono(12.5, color: cs.onSurface, w: FontWeight.w700)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

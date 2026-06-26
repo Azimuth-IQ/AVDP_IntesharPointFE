@@ -159,8 +159,9 @@ class Entity {
   final List<String> childrenIds;
   final List<String> productsIds;
   final List<EntityUser> users;
+  final bool active; // operational on/off — a disabled point's users cannot log in
 
-  const Entity({required this.id, required this.meta, this.profile, this.parent = '', required this.type, this.childrenIds = const [], this.productsIds = const [], this.users = const []});
+  const Entity({required this.id, required this.meta, this.profile, this.parent = '', required this.type, this.childrenIds = const [], this.productsIds = const [], this.users = const [], this.active = true});
 
   factory Entity.fromJson(Map<String, dynamic> j) => Entity(
     id: j['id'] as String? ?? j['_id'] as String? ?? '',
@@ -171,6 +172,7 @@ class Entity {
     childrenIds: (j['childrenIds'] as List<dynamic>?)?.cast<String>() ?? [],
     productsIds: (j['productsIds'] as List<dynamic>?)?.cast<String>() ?? [],
     users: (j['users'] as List<dynamic>?)?.map((u) => EntityUser.fromJson(u as Map<String, dynamic>)).toList() ?? [],
+    active: j['active'] as bool? ?? true,
   );
 
   Map<String, dynamic> toJson({bool includeUsers = false}) {
@@ -181,6 +183,7 @@ class Entity {
       'type': type.name,
       'childrenIds': childrenIds,
       'productsIds': productsIds,
+      'active': active,
     };
     if (profile != null) m['profile'] = profile!.toJson();
     if (includeUsers && users.isNotEmpty) {
@@ -189,7 +192,7 @@ class Entity {
     return m;
   }
 
-  Entity copyWith({String? id, EntityMeta? meta, EntityProfile? profile, String? parent, EntityType? type, List<String>? childrenIds, List<String>? productsIds, List<EntityUser>? users}) => Entity(
+  Entity copyWith({String? id, EntityMeta? meta, EntityProfile? profile, String? parent, EntityType? type, List<String>? childrenIds, List<String>? productsIds, List<EntityUser>? users, bool? active}) => Entity(
     id: id ?? this.id,
     meta: meta ?? this.meta,
     profile: profile ?? this.profile,
@@ -198,5 +201,6 @@ class Entity {
     childrenIds: childrenIds ?? this.childrenIds,
     productsIds: productsIds ?? this.productsIds,
     users: users ?? this.users,
+    active: active ?? this.active,
   );
 }

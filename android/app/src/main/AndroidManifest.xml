@@ -8,7 +8,7 @@
     <!-- In-app self-update: launch the package installer for the downloaded APK. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <application
-        android:label="inteshar"
+        android:label="Inteshar Point"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">

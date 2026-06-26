@@ -1,6 +1,43 @@
+/// A governorate sub-bucket within a [SkuSummary] — the voucher's governorate is the
+/// subcategory of its category (SKU). `governorate` '' = untagged / region-free.
+class GovBucket {
+  final String governorate;
+  final int total;
+  final int available;
+  final int printed;
+  final int damaged;
+  final int sentForPrinting;
+  final int failedPrinting;
+  final num availableValue; // available * defaultPrice (at the category's default price)
+
+  const GovBucket({
+    this.governorate = '',
+    this.total = 0,
+    this.available = 0,
+    this.printed = 0,
+    this.damaged = 0,
+    this.sentForPrinting = 0,
+    this.failedPrinting = 0,
+    this.availableValue = 0,
+  });
+
+  bool get isUntagged => governorate.isEmpty;
+
+  factory GovBucket.fromJson(Map<String, dynamic> j) => GovBucket(
+        governorate: j['governorate'] as String? ?? '',
+        total: (j['total'] as num?)?.toInt() ?? 0,
+        available: (j['available'] as num?)?.toInt() ?? 0,
+        printed: (j['printed'] as num?)?.toInt() ?? 0,
+        damaged: (j['damaged'] as num?)?.toInt() ?? 0,
+        sentForPrinting: (j['sentForPrinting'] as num?)?.toInt() ?? 0,
+        failedPrinting: (j['failedPrinting'] as num?)?.toInt() ?? 0,
+        availableValue: (j['availableValue'] as num?) ?? 0,
+      );
+}
+
 /// Per-SKU rollup for an entity's inventory, returned by the backend
-/// `product/summaryByEntity` aggregation. Lets the inventory page render grouped
-/// cards, tallies and total value without downloading every voucher document.
+/// `product/summaryByEntity` aggregation. The SKU-level counts are the sum of the
+/// per-governorate [governorates] buckets (governorate = the voucher subcategory).
 class SkuSummary {
   final String sku;
   final String name;
@@ -11,6 +48,7 @@ class SkuSummary {
   final int damaged;
   final int sentForPrinting;
   final int failedPrinting;
+  final List<GovBucket> governorates;
 
   const SkuSummary({
     required this.sku,
@@ -22,6 +60,7 @@ class SkuSummary {
     this.damaged = 0,
     this.sentForPrinting = 0,
     this.failedPrinting = 0,
+    this.governorates = const [],
   });
 
   /// Value of sellable (AVAILABLE) stock for this SKU.
@@ -37,5 +76,8 @@ class SkuSummary {
         damaged: (j['damaged'] as num?)?.toInt() ?? 0,
         sentForPrinting: (j['sentForPrinting'] as num?)?.toInt() ?? 0,
         failedPrinting: (j['failedPrinting'] as num?)?.toInt() ?? 0,
+        governorates: ((j['governorates'] as List<dynamic>?) ?? const [])
+            .map((e) => GovBucket.fromJson(e as Map<String, dynamic>))
+            .toList(),
       );
 }

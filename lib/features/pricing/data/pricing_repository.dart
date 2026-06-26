@@ -14,8 +14,15 @@ class PricingRepository {
     return _api.unwrap(r, (d) => PricingCatalog.fromJson(d as Map<String, dynamic>));
   }
 
-  Future<void> setPrice({required String entityId, required String sku, required num price}) async {
-    await _api.post(Endpoints.pricingSet, data: {'entityId': entityId, 'sku': sku, 'price': price});
+  /// Sets the entity's price for a category, optionally scoped to a [governorate]
+  /// (the voucher subcategory). Null/'' governorate = the SKU-wide base price.
+  Future<void> setPrice({required String entityId, required String sku, required num price, String? governorate}) async {
+    await _api.post(Endpoints.pricingSet, data: {
+      'entityId': entityId,
+      'sku': sku,
+      'price': price,
+      'governorate': ?governorate,
+    });
   }
 
   Future<AgentBalance> balance({String? entityId}) async {

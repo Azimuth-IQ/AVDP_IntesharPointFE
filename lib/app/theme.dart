@@ -3,9 +3,9 @@ import 'package:google_fonts/google_fonts.dart';
 
 /// "Inteshar Sunburst" — the brand-led design language.
 ///
-/// Sampled from the Inteshar Store identity: a saturated marigold yellow as
-/// the single hero accent, anchored by deep ink black for structure and clean
-/// off-white surfaces. Sage stands in for "available/success" because a green
+/// Sampled from the Inteshar identity: the official brand gold (#E2AD25) as
+/// the single hero accent, anchored by near-black ink for structure and clean
+/// off-white surfaces (warm charcoal in dark mode). Sage stands in for "available/success" because a green
 /// reads cleanly against yellow; a clean crimson handles errors. The whole UI
 /// is set in Codec Pro (twelve weights covering display through body) with
 /// JetBrainsMono reserved for serials, PINs and MAC addresses.
@@ -24,22 +24,22 @@ class IntesharColors {
   static const hairline   = Color(0xFFE2E5EA); // borders — cool hairline
   static const hairlineSoft = Color(0xFFEEF0F3); // faint divider
 
-  // Accents — `saffron` keeps its name but is now the deeper brand gold.
-  static const saffron    = Color(0xFFF5B100); // brand gold — primary fills
-  static const saffronDeep = Color(0xFFA8770A); // dark amber — brand-tinted text/icons, pressed/hover
+  // Accents — `saffron` keeps its name but is now the official brand gold.
+  static const saffron    = Color(0xFFE2AD25); // official brand gold #E2AD25 (was #F5B100) — primary fills
+  static const saffronDeep = Color(0xFF9C7515); // dark amber — brand-tinted text/icons, pressed/hover
   static const oxblood    = Color(0xFFDC2626); // outgoing / danger — clean red
   static const sage       = Color(0xFF1E9E5A); // available / success — clean green
   static const dust       = Color(0xFFFFEAB8); // soft gold wash (tags, primaryContainer)
 
   // Dark surface stack
-  static const inkPaper   = Color(0xFF0B0B0F); // dark page bg
-  static const inkCard    = Color(0xFF16171C); // dark elevated
-  static const inkSunk    = Color(0xFF1E1F25); // dark recessed
+  static const inkPaper   = Color(0xFF121110); // dark page bg — brand warm charcoal
+  static const inkCard    = Color(0xFF1C1A18); // dark elevated
+  static const inkSunk    = Color(0xFF262320); // dark recessed
   static const bone       = Color(0xFFF5F2EA); // dark mode "ink" (text)
   static const boneSoft   = Color(0xFFB3B0A6);
   static const hairlineDark = Color(0x2EF5F2EA);
 
-  static const saffronOnDark = Color(0xFFFCC629); // yellow still pops on dark
+  static const saffronOnDark = Color(0xFFECBC3F); // brand gold lifted for legibility on charcoal
   static const sageOnDark   = Color(0xFF7CA690);
   static const oxbloodOnDark = Color(0xFFE0625A);
 }
@@ -79,12 +79,12 @@ class IntesharShadows {
 /// CTA gradient stops (top → middle → bottom) for the glossy yellow pill.
 class IntesharGradients {
   static const List<Color> ctaPill = [
-    Color(0xFFFFE066), // top highlight
-    Color(0xFFFCC629), // brand body
-    Color(0xFFE8B419), // bottom shadow lip
+    Color(0xFFF2CE63), // top highlight
+    Color(0xFFE2AD25), // brand body — official gold
+    Color(0xFFC28F18), // bottom shadow lip
   ];
   /// Inner highlight — drawn as a 1px top hairline inside the CTA for shine.
-  static const Color ctaInnerHighlight = Color(0xFFFFEDA8);
+  static const Color ctaInnerHighlight = Color(0xFFF7DFA0);
 }
 
 /// Static typography helpers — every named style draws from Codec Pro, with

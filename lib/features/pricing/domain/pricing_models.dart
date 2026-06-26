@@ -1,16 +1,51 @@
-/// One catalog row: a category, its company, official + own price, and the entity's
-/// available stock / line value. Mirrors backend `Pricing/DTOs/CategoryPriceRow`.
+/// A governorate sub-row within a [CategoryPriceRow] — pricing for one
+/// (category × governorate). Effective price falls back governorate → SKU-wide → official.
+/// `governorate` '' is the category-wide base row.
+class GovPriceRow {
+  final String governorate;
+  final num officialPrice;
+  final num? agentPrice; // null = no per-governorate override
+  final num effectivePrice;
+  final int available;
+  final num lineValue;
+  final bool priced;
+
+  const GovPriceRow({
+    this.governorate = '',
+    this.officialPrice = 0,
+    this.agentPrice,
+    this.effectivePrice = 0,
+    this.available = 0,
+    this.lineValue = 0,
+    this.priced = false,
+  });
+
+  factory GovPriceRow.fromJson(Map<String, dynamic> j) => GovPriceRow(
+        governorate: j['governorate'] as String? ?? '',
+        officialPrice: (j['officialPrice'] as num?) ?? 0,
+        agentPrice: j['agentPrice'] as num?,
+        effectivePrice: (j['effectivePrice'] as num?) ?? 0,
+        available: (j['available'] as num?)?.toInt() ?? 0,
+        lineValue: (j['lineValue'] as num?) ?? 0,
+        priced: j['priced'] as bool? ?? false,
+      );
+}
+
+/// One catalog row: a category, its company, official + SKU-wide price, the entity's
+/// available stock / line value, and the per-governorate (subcategory) price rows.
+/// Mirrors backend `Pricing/DTOs/CategoryPriceRow`.
 class CategoryPriceRow {
   final String sku;
   final String name;
   final String companyId;
   final String companyName;
   final num officialPrice;
-  final num? agentPrice; // null = the entity hasn't set its own price
+  final num? agentPrice; // SKU-wide ('') override; null = unset
   final num effectivePrice;
   final int available;
   final num lineValue;
   final bool priced;
+  final List<GovPriceRow> governorates;
 
   const CategoryPriceRow({
     this.sku = '',
@@ -23,6 +58,7 @@ class CategoryPriceRow {
     this.available = 0,
     this.lineValue = 0,
     this.priced = false,
+    this.governorates = const [],
   });
 
   factory CategoryPriceRow.fromJson(Map<String, dynamic> j) => CategoryPriceRow(
@@ -36,6 +72,9 @@ class CategoryPriceRow {
         available: (j['available'] as num?)?.toInt() ?? 0,
         lineValue: (j['lineValue'] as num?) ?? 0,
         priced: j['priced'] as bool? ?? false,
+        governorates: ((j['governorates'] as List<dynamic>?) ?? const [])
+            .map((e) => GovPriceRow.fromJson(e as Map<String, dynamic>))
+            .toList(),
       );
 }
 

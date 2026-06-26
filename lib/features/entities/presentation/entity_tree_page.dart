@@ -4,11 +4,14 @@ import 'package:go_router/go_router.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/storage/session_storage.dart';
+import 'package:inteshar/features/agents/domain/agent_tier.dart';
+import 'package:inteshar/features/agents/presentation/agent_form.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/entities/presentation/manage_users_sheet.dart';
+import 'package:inteshar/features/stores/presentation/stores_page.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
@@ -525,7 +528,7 @@ class _TreeNode extends ConsumerWidget {
     } else if (action == 'view_inventory') {
       _viewInventory(context, ref);
     } else if (action == 'add_child') {
-      await _showAddChildSheet(context, ref);
+      await _addChild(context, ref);
     } else if (action == 'delete') {
       await _confirmDelete(context, ref);
     }
@@ -613,56 +616,30 @@ class _TreeNode extends ConsumerWidget {
     );
   }
 
-  Future<void> _showAddChildSheet(BuildContext context, WidgetRef ref) async {
-    final l = AppLocalizations.of(context)!;
-    final nameCtrl = TextEditingController();
-    final sloganCtrl = TextEditingController();
-    final descCtrl = TextEditingController();
-    final logoCtrl = TextEditingController();
-    final primaryCtrl = TextEditingController();
-    final secondaryCtrl = TextEditingController();
-    final thresholdCtrl = TextEditingController();
-
+  /// Routes "Add child" to the proper validated onboarding form for the child
+  /// tier instead of the bare meta-only sheet (which produced user-less,
+  /// region-less, non-functional entities). AGENT1/AGENT2 → the two-step
+  /// [AgentForm]; STORE → [StoreForm]. Refreshes the tree on a successful save.
+  Future<void> _addChild(BuildContext context, WidgetRef ref) async {
     final childType = _childType(entity.type);
     if (childType == null) return;
 
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) => _EntityFormSheet(
-        title: l.entityTreeAddChildTitle(
-            _localizedEntityTypeLabel(childType, l)),
-        nameCtrl: nameCtrl,
-        sloganCtrl: sloganCtrl,
-        descCtrl: descCtrl,
-        logoCtrl: logoCtrl,
-        primaryCtrl: primaryCtrl,
-        secondaryCtrl: secondaryCtrl,
-        thresholdCtrl: thresholdCtrl,
-        onSave: () async {
-          final api = ref.read(apiClientProvider);
-          final repo = EntityRepository(api);
-          final child = Entity(
-            id: '${childType.name.toLowerCase()}-${DateTime.now().millisecondsSinceEpoch}',
-            meta: EntityMeta(
-              name: nameCtrl.text.trim(),
-              slogan: sloganCtrl.text.trim(),
-              description: descCtrl.text.trim(),
-              logoUrl: logoCtrl.text.trim(),
-              primaryColor: primaryCtrl.text.trim(),
-              secondaryColor: secondaryCtrl.text.trim(),
-              lowStockThreshold: int.tryParse(thresholdCtrl.text.trim()) ?? 0,
-            ),
-            parent: entity.id,
-            type: childType,
-          );
-          await repo.create(child);
-          await repo.relinkChildToParent(entity.id, child.id);
-          if (ctx.mounted) Navigator.pop(ctx);
-          onRefresh();
-        },
-      ),
+    Widget page;
+    switch (childType) {
+      case EntityType.AGENT1:
+        page = const AgentForm(tier: AgentTier.main);
+      case EntityType.AGENT2:
+        page = const AgentForm(tier: AgentTier.sub);
+      case EntityType.STORE:
+        page = StoreForm(parentId: entity.id);
+      case EntityType.INTESHAR:
+        return;
+    }
+
+    final ok = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => page),
     );
+    if (ok == true) onRefresh();
   }
 
   EntityType? _childType(EntityType parent) {

@@ -927,7 +927,7 @@ class _BalanceCard extends StatelessWidget {
               onPressed: () => showModalBottomSheet<void>(
                 context: context,
                 isScrollControlled: true,
-                builder: (_) => _TransferSheet(children: children, onGranted: onGranted),
+                builder: (_) => _TransferSheet(children: children, balance: balance, onGranted: onGranted),
               ),
               icon: const Icon(Icons.north_east, size: 16),
               label: Text(ar ? 'تحويل رصيد' : 'Transfer'),
@@ -940,8 +940,9 @@ class _BalanceCard extends StatelessWidget {
 
 class _TransferSheet extends ConsumerStatefulWidget {
   final List<Entity> children;
+  final AgentBalance balance;
   final VoidCallback onGranted;
-  const _TransferSheet({required this.children, required this.onGranted});
+  const _TransferSheet({required this.children, required this.balance, required this.onGranted});
 
   @override
   ConsumerState<_TransferSheet> createState() => _TransferSheetState();
@@ -972,6 +973,12 @@ class _TransferSheetState extends ConsumerState<_TransferSheet> {
     if (dest == null) return;
     if (amount == null || amount <= 0) {
       setState(() => _error = ar ? 'أدخل مبلغاً صحيحاً' : 'Enter a valid amount');
+      return;
+    }
+    if (amount > widget.balance.available) {
+      setState(() => _error = ar
+          ? 'الرصيد غير كافٍ (المتاح ${Formatters.iqd(widget.balance.available.round())})'
+          : 'Insufficient balance (available ${Formatters.iqd(widget.balance.available.round())})');
       return;
     }
     setState(() {

@@ -1,11 +1,11 @@
 {
-    "name": "inteshar",
-    "short_name": "inteshar",
+    "name": "Inteshar Point",
+    "short_name": "Inteshar",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#1A1714",
+    "theme_color": "#E2AD25",
+    "description": "Inteshar Point — telecom voucher distribution platform.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

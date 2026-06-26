@@ -268,19 +268,33 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
   }
 
   void _showVoucher(Product product) {
+    // Tracks whether the voucher was consumed (revealed, or found already-used)
+    // while the sheet was open. Reveal == sale on the backend: the instant it
+    // succeeds we drop the code from the in-memory list so a swipe/scrim/back
+    // dismissal can never leave the counter inflated, then reconcile on close.
+    var consumed = false;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       builder: (ctx) => _VoucherSheet(
         product: product,
         // The PIN stays hidden until the operator taps Reveal inside the sheet.
-        // This callback closes and refreshes the list once a code is consumed.
-        onPrinted: () {
-          Navigator.pop(ctx);
-          _load();
+        // Fired the moment the voucher is consumed — drop it from the counter now.
+        onConsumed: () {
+          consumed = true;
+          if (mounted) {
+            setState(() => _products?.removeWhere((p) => p.id == product.id));
+          }
         },
+        // Done / Print just close the sheet; the reload happens in whenComplete.
+        onPrinted: () => Navigator.pop(ctx),
       ),
-    );
+    ).whenComplete(() {
+      // ANY dismissal after a reveal (Done, Print, swipe, scrim, or back button)
+      // routes through here, re-fetching from the server so the consumed code is
+      // gone and the tally matches the source of truth.
+      if (consumed) _load();
+    });
   }
 }
 
@@ -411,8 +425,8 @@ class _SkuTileState extends State<_SkuTile> {
                   ),
                   const SizedBox(height: 10),
                   BrandCTAButton(
-                    label: l.posHomePrint,
-                    leading: Icons.print_outlined,
+                    label: l.posHomeSell,
+                    leading: Icons.sell_outlined,
                     onPressed: widget.onTap,
                     height: 38,
                     fontSize: 12.5,
@@ -431,9 +445,12 @@ class _SkuTileState extends State<_SkuTile> {
 
 class _VoucherSheet extends ConsumerStatefulWidget {
   final Product product;
+  // Fired the instant the voucher is consumed — a successful reveal, or a 409
+  // telling us it was already used — so the parent can drop it from the counter.
+  final VoidCallback onConsumed;
   final VoidCallback onPrinted;
 
-  const _VoucherSheet({required this.product, required this.onPrinted});
+  const _VoucherSheet({required this.product, required this.onConsumed, required this.onPrinted});
 
   @override
   ConsumerState<_VoucherSheet> createState() => _VoucherSheetState();
@@ -456,6 +473,10 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
     try {
       final api = ref.read(apiClientProvider);
       final full = await ProductRepository(api).sendForPrinting(widget.product.id);
+      // The backend has atomically flipped this voucher to PRINTED (used). Drop it
+      // from the counter NOW — before any further interaction — so an accidental
+      // swipe/scrim/back can't leave the consumed code lingering on the tally.
+      widget.onConsumed();
       if (mounted) setState(() => _sent = full);
     } catch (e) {
       if (!mounted) return;
@@ -463,8 +484,14 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l.posHomePrintFailed(e.toString())), backgroundColor: Theme.of(context).colorScheme.error),
       );
-      // Already used / no longer available → drop it from the counter.
-      if (e is ApiException && e.statusCode == 409) widget.onPrinted();
+      // Already used / no longer available → drop it from the counter and close.
+      // The interceptor throws a DioException wrapping the ApiException, so unwrap
+      // before inspecting the status (a bare `e is ApiException` never matches).
+      final apiErr = ApiException.from(e);
+      if (apiErr?.statusCode == 409) {
+        widget.onConsumed();
+        widget.onPrinted();
+      }
     } finally {
       if (mounted) setState(() => _revealing = false);
     }
@@ -513,7 +540,14 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
     final def = p.productDefinition;
     final t = def.template;
 
-    return SafeArea(
+    return PopScope(
+      // After reveal the voucher is consumed and its PIN/QR are shown only once.
+      // Block the back gesture / scrim tap so an accidental dismissal can't drop
+      // the code before it's printed (Done/Print still pop explicitly). The
+      // optimistic removal + whenComplete reload keep the counter correct even if
+      // a drag-dismiss slips past this guard.
+      canPop: !revealed,
+      child: SafeArea(
       child: SingleChildScrollView(
         padding: EdgeInsets.only(
           bottom: 24 + MediaQuery.of(context).viewInsets.bottom,
@@ -547,7 +581,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                     Text(
                       t.headerText.trim().isNotEmpty
                           ? t.headerText.trim().toUpperCase()
-                          : 'INTESHAR STORE',
+                          : 'INTESHAR PLATFORM',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontFamily: 'CodecPro',
@@ -652,6 +686,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
             if (!revealed) _buildRevealActions(l, cs) else _buildPrintActions(l, cs),
           ],
         ),
+      ),
       ),
     );
   }

@@ -348,7 +348,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get healthFailed => 'Failed';
 
   @override
-  String get entityTypeInteshar => 'Inteshar';
+  String get entityTypeInteshar => 'Inteshar Platform';
 
   @override
   String get entityTypeAgent1 => 'Main Agent';
@@ -677,7 +677,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get defsSubtitle =>
-      'Master record of voucher denominations issued by Inteshar Store.';
+      'Master record of voucher denominations issued by Inteshar Platform.';
 
   @override
   String get defsTitlesLabel => 'titles';
@@ -736,6 +736,15 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get inventorySubtitle =>
       'Vouchers currently owned by this entity — search by name, SKU, or serial.';
+
+  @override
+  String get inventoryByGovernorate => 'By governorate';
+
+  @override
+  String get inventoryUntagged => 'No region';
+
+  @override
+  String get inventoryLow => 'Low';
 
   @override
   String get inventoryStatusAvailable => 'Available';
@@ -853,6 +862,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get posHomePrint => 'Print';
+
+  @override
+  String get posHomeSell => 'Sell';
 
   @override
   String get posHomeScratchNote => 'Scratch only at point of redemption.';
@@ -1395,6 +1407,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get navCompanies => 'Companies';
+
+  @override
+  String get navStores => 'Stores';
 
   @override
   String get navPrices => 'Prices';

@@ -10,7 +10,9 @@ import 'package:inteshar/features/entities/data/entity_repository.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/inventory/data/definition_repository.dart';
+import 'package:inteshar/features/inventory/data/product_repository.dart';
 import 'package:inteshar/features/inventory/domain/product_definition.dart';
+import 'package:inteshar/features/pricing/data/pricing_repository.dart';
 import 'package:inteshar/features/transactions/data/transaction_repository.dart';
 import 'package:inteshar/features/transactions/domain/transaction.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
@@ -29,7 +31,6 @@ class NewTransactionPage extends ConsumerStatefulWidget {
 class _NewTransactionPageState extends ConsumerState<NewTransactionPage> {
   Entity? _currentEntity;
   List<Entity> _children = [];
-  List<ProductDefinition> _defs = [];
 
   Entity? _destination;
   final List<_LineItem> _lines = [];
@@ -38,6 +39,13 @@ class _NewTransactionPageState extends ConsumerState<NewTransactionPage> {
   bool _submitting = false;
   String? _error;
   AppTransaction? _result;
+
+  // Pre-flight state, computed once in [_load]: the SKUs the SOURCE actually
+  // holds as AVAILABLE (gate + per-line cap), and the agent's effective unit
+  // price per SKU (default for new lines).
+  Map<String, int> _availableBySku = {};
+  Map<String, num> _effectivePriceBySku = {};
+  List<ProductDefinition> _sellableDefs = [];
 
   @override
   void initState() {
@@ -59,16 +67,41 @@ class _NewTransactionPageState extends ConsumerState<NewTransactionPage> {
       final entityRepo = EntityRepository(api);
       final defRepo = DefinitionRepository(api);
 
+      final productRepo = ProductRepository(api);
+      final pricingRepo = PricingRepository(api);
+
       final children = await entityRepo.readDirectChildren(_currentEntity!.id);
       final defs = await defRepo.readAll();
+      // Pre-flight: only SKUs the SOURCE actually holds as AVAILABLE are sellable.
+      final summaries = await productRepo.summaryByEntity(_currentEntity!.id);
+      final availableBySku = {for (final s in summaries) s.sku: s.available};
+      // Agent effective price per SKU (falls back to the SKU default below).
+      final priceBySku = <String, num>{};
+      try {
+        final catalog = await pricingRepo.catalog(entityId: _currentEntity!.id);
+        for (final row in catalog.rows) {
+          if (row.effectivePrice > 0) priceBySku[row.sku] = row.effectivePrice;
+        }
+      } catch (_) {
+        // Pricing is optional; fall back to definition default prices.
+      }
+      final sellableDefs =
+          defs.where((d) => (availableBySku[d.sku] ?? 0) > 0).toList();
 
       if (mounted) {
         setState(() {
           _children = children;
-          _defs = defs;
+          _availableBySku = availableBySku;
+          _effectivePriceBySku = priceBySku;
+          _sellableDefs = sellableDefs;
           if (children.isNotEmpty) _destination = children.first;
-          if (defs.isNotEmpty && _lines.isEmpty) {
-            _lines.add(_LineItem(def: defs.first, amount: 1));
+          if (sellableDefs.isNotEmpty && _lines.isEmpty) {
+            final first = sellableDefs.first;
+            _lines.add(_LineItem(
+              def: first,
+              amount: 1,
+              price: _defaultPriceFor(first),
+            ));
           }
           _loading = false;
         });
@@ -84,7 +117,7 @@ class _NewTransactionPageState extends ConsumerState<NewTransactionPage> {
   }
 
   Future<void> _submit() async {
-    if (_destination == null || _lines.isEmpty) return;
+    if (_destination == null || _lines.isEmpty || _hasOverAllocation) return;
     setState(() {
       _submitting = true;
       _error = null;
@@ -154,6 +187,36 @@ class _NewTransactionPageState extends ConsumerState<NewTransactionPage> {
   int get _grandTotal => _lines.fold(0, (s, l) => s + (int.tryParse(_lineTotal(l)) ?? 0));
   int get _totalUnits => _lines.fold(0, (s, l) => s + l.amount);
 
+  /// Default unit price for [def]: the agent effective price when set, else the
+  /// SKU's catalog default (mirrors the pricing effective→default fallback).
+  String _defaultPriceFor(ProductDefinition def) {
+    final eff = _effectivePriceBySku[def.sku];
+    if (eff != null && eff > 0) return eff.toInt().toString();
+    return def.defaultPrice;
+  }
+
+  int _availableFor(ProductDefinition def) => _availableBySku[def.sku] ?? 0;
+
+  /// Units requested per SKU across all lines — sums duplicate-SKU lines.
+  Map<String, int> get _requestedBySku {
+    final m = <String, int>{};
+    for (final l in _lines) {
+      if (l.amount > 0) m[l.def.sku] = (m[l.def.sku] ?? 0) + l.amount;
+    }
+    return m;
+  }
+
+  /// SKUs whose summed request exceeds the source's AVAILABLE stock.
+  List<String> get _overAllocatedSkus {
+    final out = <String>[];
+    _requestedBySku.forEach((sku, qty) {
+      if (qty > (_availableBySku[sku] ?? 0)) out.add(sku);
+    });
+    return out;
+  }
+
+  bool get _hasOverAllocation => _overAllocatedSkus.isNotEmpty;
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
@@ -177,6 +240,7 @@ class _NewTransactionPageState extends ConsumerState<NewTransactionPage> {
   Widget _buildForm() {
     final l = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
     return MaxWidthBox(
       maxWidth: 900,
       child: SingleChildScrollView(
@@ -208,13 +272,34 @@ class _NewTransactionPageState extends ConsumerState<NewTransactionPage> {
             SectionLabel(
               l.newTxnManifestLines,
               trailing: TextButton.icon(
-                onPressed: _defs.isEmpty
+                onPressed: _sellableDefs.isEmpty
                     ? null
-                    : () => setState(() => _lines.add(_LineItem(def: _defs.first, amount: 1))),
+                    : () => setState(() {
+                          final d = _sellableDefs.first;
+                          _lines.add(_LineItem(
+                            def: d,
+                            amount: 1,
+                            price: _defaultPriceFor(d),
+                          ));
+                        }),
                 icon: const Icon(Icons.add, size: 16),
                 label: Text(l.newTxnAddLine),
               ),
             ),
+            if (_sellableDefs.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Text(
+                  // TODO(l10n): promote to ARB key newTxnNoSellableStock.
+                  isAr
+                      ? 'لا يوجد مخزون متاح للإصدار من هذا المصدر.'
+                      : 'No sellable stock available at the source.',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: cs.onSurfaceVariant),
+                ),
+              ),
             ..._lines.asMap().entries.map((entry) {
               final i = entry.key;
               final line = entry.value;
@@ -223,9 +308,19 @@ class _NewTransactionPageState extends ConsumerState<NewTransactionPage> {
                 child: _LineCard(
                   index: i,
                   line: line,
-                  defs: _defs,
+                  defs: _sellableDefs,
+                  available: _availableFor(line.def),
+                  overAllocated: line.amount > _availableFor(line.def),
                   total: _lineTotal(line),
-                  onChanged: (l) => setState(() => _lines[i] = l),
+                  onChanged: (updated) => setState(() {
+                    var next = updated;
+                    // Switching SKU re-defaults the unit price to that SKU's
+                    // agent effective price.
+                    if (next.def.sku != _lines[i].def.sku) {
+                      next = next.copyWith(price: _defaultPriceFor(next.def));
+                    }
+                    _lines[i] = next;
+                  }),
                   onRemove: _lines.length > 1 ? () => setState(() => _lines.removeAt(i)) : null,
                 ),
               );
@@ -287,12 +382,43 @@ class _NewTransactionPageState extends ConsumerState<NewTransactionPage> {
                 ),
               ),
             ],
+            if (_hasOverAllocation) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: cs.error.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(IntesharRadii.sm),
+                  border: Border.all(color: cs.error.withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.inventory_2_outlined, size: 18, color: cs.error),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      // TODO(l10n): promote to ARB key newTxnOverAllocated.
+                      child: Text(
+                        isAr
+                            ? 'لا يوجد مخزون كافٍ لـ: ${_overAllocatedSkus.join('، ')}. قلّل الكمية.'
+                            : 'Not enough stock for: ${_overAllocatedSkus.join(', ')}. Reduce the quantity.',
+                        style: TextStyle(color: cs.onSurface),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 20),
             BrandCTAButton(
               label: _submitting ? l.newTxnPosting : l.newTxnSubmit,
               leading: _submitting ? null : Icons.send,
               loading: _submitting,
-              onPressed: (_submitting || _destination == null || _lines.isEmpty) ? null : _submit,
+              onPressed: (_submitting ||
+                      _destination == null ||
+                      _lines.isEmpty ||
+                      _hasOverAllocation)
+                  ? null
+                  : _submit,
             ),
           ],
         ),
@@ -480,6 +606,8 @@ class _LineCard extends StatelessWidget {
   final int index;
   final _LineItem line;
   final List<ProductDefinition> defs;
+  final int available;
+  final bool overAllocated;
   final String total;
   final ValueChanged<_LineItem> onChanged;
   final VoidCallback? onRemove;
@@ -487,6 +615,8 @@ class _LineCard extends StatelessWidget {
     required this.index,
     required this.line,
     required this.defs,
+    required this.available,
+    required this.overAllocated,
     required this.total,
     required this.onChanged,
     required this.onRemove,
@@ -496,6 +626,7 @@ class _LineCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
     return InkCard(
       padding: const EdgeInsets.all(14),
       ruleColor: cs.outline,
@@ -547,18 +678,33 @@ class _LineCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               SizedBox(
-                width: 110,
+                width: 132,
                 child: TextFormField(
+                  // Re-key on SKU change so the field re-seeds from initialValue.
+                  key: ValueKey('qty-$index-${line.def.sku}'),
                   initialValue: line.amount.toString(),
                   keyboardType: TextInputType.number,
                   style: IntesharType.mono(14, color: cs.onSurface),
-                  decoration: InputDecoration(labelText: l.newTxnQty, isDense: true),
+                  decoration: InputDecoration(
+                    labelText: l.newTxnQty,
+                    isDense: true,
+                    // 'N available' per line (reuses inventoryAvailableCount).
+                    helperText: l.inventoryAvailableCount(available),
+                    helperMaxLines: 1,
+                    // TODO(l10n): promote to ARB key newTxnOnlyNAvailable.
+                    errorText: overAllocated
+                        ? (isAr ? 'المتاح فقط $available' : 'Only $available available')
+                        : null,
+                    errorMaxLines: 2,
+                  ),
                   onChanged: (v) => onChanged(line.copyWith(amount: int.tryParse(v) ?? 1)),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: TextFormField(
+                  // Re-key on SKU change so a SKU switch re-seeds the effective price.
+                  key: ValueKey('price-$index-${line.def.sku}'),
                   initialValue: line.price ?? line.def.defaultPrice,
                   keyboardType: TextInputType.number,
                   style: IntesharType.mono(14, color: cs.onSurface),
@@ -604,8 +750,36 @@ class _ResultView extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    final success = result.status == TransactionStatus.COMPLETED;
-    final tone = success ? IntesharColors.sage : cs.error;
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
+    final completed = result.status == TransactionStatus.COMPLETED;
+    // Poll budget exhausted while the processor is still draining: neutral
+    // 'still processing', NOT a red 'declined'. FAILED stays declined.
+    final stillProcessing = result.status == TransactionStatus.PENDING ||
+        result.status == TransactionStatus.PROCESSING;
+    final tone = completed
+        ? IntesharColors.sage
+        : stillProcessing
+            ? IntesharColors.saffronDeep
+            : cs.error;
+    final icon = completed
+        ? Icons.check
+        : stillProcessing
+            ? Icons.schedule
+            : Icons.close;
+    // TODO(l10n): promote 'still processing' title/subtitle to ARB keys
+    // newTxnStillProcessing / newTxnResultStillProcessing.
+    final title = completed
+        ? l.newTxnPostedToLedger
+        : stillProcessing
+            ? (isAr ? 'قيد المعالجة' : 'Still processing')
+            : l.newTxnDeclined;
+    final subtitle = completed
+        ? l.newTxnResultPosted
+        : stillProcessing
+            ? (isAr
+                ? 'لم تكتمل بعد — تحقق من قائمة المعاملات'
+                : 'Not settled yet — check the transactions list')
+            : l.newTxnResultDeclined;
 
     return Center(
       child: ConstrainedBox(
@@ -627,12 +801,12 @@ class _ResultView extends StatelessWidget {
                       color: tone.withValues(alpha: 0.14),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(success ? Icons.check : Icons.close, size: 32, color: tone),
+                    child: Icon(icon, size: 32, color: tone),
                   ),
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  success ? l.newTxnPostedToLedger : l.newTxnDeclined,
+                  title,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontFamily: 'CodecPro',
@@ -645,7 +819,7 @@ class _ResultView extends StatelessWidget {
                 const SizedBox(height: 6),
                 Center(
                   child: Text(
-                    success ? l.newTxnResultPosted : l.newTxnResultDeclined,
+                    subtitle,
                     style: TextStyle(
                       fontFamily: 'CodecPro',
                       fontSize: 12,

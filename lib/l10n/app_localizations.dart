@@ -725,7 +725,7 @@ abstract class AppLocalizations {
   /// No description provided for @entityTypeInteshar.
   ///
   /// In en, this message translates to:
-  /// **'Inteshar'**
+  /// **'Inteshar Platform'**
   String get entityTypeInteshar;
 
   /// No description provided for @entityTypeAgent1.
@@ -1295,7 +1295,7 @@ abstract class AppLocalizations {
   /// No description provided for @defsSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Master record of voucher denominations issued by Inteshar Store.'**
+  /// **'Master record of voucher denominations issued by Inteshar Platform.'**
   String get defsSubtitle;
 
   /// No description provided for @defsTitlesLabel.
@@ -1405,6 +1405,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Vouchers currently owned by this entity — search by name, SKU, or serial.'**
   String get inventorySubtitle;
+
+  /// No description provided for @inventoryByGovernorate.
+  ///
+  /// In en, this message translates to:
+  /// **'By governorate'**
+  String get inventoryByGovernorate;
+
+  /// No description provided for @inventoryUntagged.
+  ///
+  /// In en, this message translates to:
+  /// **'No region'**
+  String get inventoryUntagged;
+
+  /// No description provided for @inventoryLow.
+  ///
+  /// In en, this message translates to:
+  /// **'Low'**
+  String get inventoryLow;
 
   /// No description provided for @inventoryStatusAvailable.
   ///
@@ -1597,6 +1615,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Print'**
   String get posHomePrint;
+
+  /// No description provided for @posHomeSell.
+  ///
+  /// In en, this message translates to:
+  /// **'Sell'**
+  String get posHomeSell;
 
   /// No description provided for @posHomeScratchNote.
   ///
@@ -2599,6 +2623,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Companies'**
   String get navCompanies;
+
+  /// No description provided for @navStores.
+  ///
+  /// In en, this message translates to:
+  /// **'Stores'**
+  String get navStores;
 
   /// No description provided for @navPrices.
   ///

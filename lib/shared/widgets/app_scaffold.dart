@@ -48,6 +48,7 @@ class AppShell extends ConsumerWidget {
           _NavItem(Icons.badge_outlined,        Icons.badge,        l.navMainAgents,   '/hq/main-agents'),
           _NavItem(Icons.store_outlined,        Icons.store,        l.navSubAgents,    '/hq/sub-agents'),
           _NavItem(Icons.business_outlined,     Icons.business,     l.navCompanies,    '/hq/companies'),
+          _NavItem(Icons.point_of_sale_outlined,Icons.point_of_sale,l.navStores,       '/hq/stores'),
           _NavItem(Icons.inventory_2_outlined,  Icons.inventory_2,  l.navCatalog,      '/hq/definitions'),
           _NavItem(Icons.receipt_long_outlined, Icons.receipt_long, l.navTemplates,    '/hq/templates'),
           _NavItem(Icons.upload_file_outlined,  Icons.upload_file,  l.navBatchAdd,     '/hq/batch'),
@@ -58,6 +59,7 @@ class AppShell extends ConsumerWidget {
           _NavItem(Icons.account_tree_outlined, Icons.account_tree, l.navChildren,     '/agent1/entities'),
           _NavItem(Icons.warehouse_outlined,    Icons.warehouse,    l.navInventory,    '/agent1/inventory'),
           _NavItem(Icons.swap_horiz_outlined,   Icons.swap_horiz,   l.navTransactions, '/agent1/transactions'),
+          _NavItem(Icons.point_of_sale_outlined,Icons.point_of_sale,l.navStores,       '/agent1/stores'),
         ];
       case EntityType.AGENT2:
         return [
@@ -65,6 +67,7 @@ class AppShell extends ConsumerWidget {
           _NavItem(Icons.account_tree_outlined, Icons.account_tree, l.navChildren,     '/agent2/entities'),
           _NavItem(Icons.warehouse_outlined,    Icons.warehouse,    l.navInventory,    '/agent2/inventory'),
           _NavItem(Icons.swap_horiz_outlined,   Icons.swap_horiz,   l.navTransactions, '/agent2/transactions'),
+          _NavItem(Icons.point_of_sale_outlined,Icons.point_of_sale,l.navStores,       '/agent2/stores'),
         ];
       case EntityType.STORE:
         return [
@@ -189,7 +192,7 @@ class _MobileLayout extends StatelessWidget {
           onLongPress: () => context.go('/diagnostics'),
           child: IntesharLockup(
             title: title,
-            tagline: 'Inteshar Store',
+            tagline: 'Inteshar Platform',
             compact: true,
             showTagline: false,
           ),
@@ -411,7 +414,7 @@ class _TabletLayout extends StatelessWidget {
         titleSpacing: 16,
         title: GestureDetector(
           onLongPress: () => context.go('/diagnostics'),
-          child: IntesharLockup(title: title, tagline: 'Inteshar Store', compact: true),
+          child: IntesharLockup(title: title, tagline: 'Inteshar Platform', compact: true),
         ),
         actions: [
           if (entity != null)
@@ -572,7 +575,7 @@ class _Sidebar extends StatelessWidget {
                 sparkleAlignment: const Alignment(1.4, 1.2),
                 child: IntesharLockup(
                   title: title,
-                  tagline: 'Inteshar Store',
+                  tagline: 'Inteshar Platform',
                   onBrandSurface: true,
                 ),
               ),
@@ -894,7 +897,7 @@ class _AboutDrawer extends StatelessWidget {
                 children: [
                   IntesharLockup(
                     title: l.appTitle,
-                    tagline: 'Inteshar Store',
+                    tagline: 'Inteshar Platform',
                     onBrandSurface: true,
                   ),
                   const SizedBox(height: 12),

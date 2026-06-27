@@ -4,6 +4,7 @@ import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/geo/governorate_picker.dart';
 import 'package:inteshar/core/geo/governorates.dart';
+import 'package:inteshar/shared/widgets/working_hours_editor.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
@@ -554,6 +555,7 @@ class _StoreFormState extends ConsumerState<StoreForm> {
   late final TextEditingController _password;
   late final TextEditingController _landmark;
   String? _gov;
+  WorkingHours? _workingHours;
   late String _parentId;
   bool _saving = false;
 
@@ -571,6 +573,7 @@ class _StoreFormState extends ConsumerState<StoreForm> {
     _password = TextEditingController();
     _landmark = TextEditingController(text: e?.profile?.nearestLandmark ?? '');
     _gov = (e?.meta.governorates.isNotEmpty ?? false) ? e!.meta.governorates.first : null;
+    _workingHours = e?.meta.workingHours;
   }
 
   @override
@@ -592,7 +595,7 @@ class _StoreFormState extends ConsumerState<StoreForm> {
       if (_isEdit) {
         final e = widget.existing!;
         final updated = e.copyWith(
-          meta: e.meta.copyWith(name: _name.text.trim(), governorates: govs),
+          meta: e.meta.copyWith(name: _name.text.trim(), governorates: govs, workingHours: _workingHours),
           profile: (e.profile ?? const EntityProfile())
               .copyWith(ownerName: _owner.text.trim(), nearestLandmark: _landmark.text.trim()),
         );
@@ -602,7 +605,7 @@ class _StoreFormState extends ConsumerState<StoreForm> {
           id: '',
           type: EntityType.STORE,
           parent: _parentId,
-          meta: EntityMeta(name: _name.text.trim(), governorates: govs),
+          meta: EntityMeta(name: _name.text.trim(), governorates: govs, workingHours: _workingHours),
           profile: EntityProfile(
             ownerName: _owner.text.trim(),
             nearestLandmark: _landmark.text.trim(),
@@ -682,6 +685,11 @@ class _StoreFormState extends ConsumerState<StoreForm> {
             ),
             const SizedBox(height: 14),
             TextFormField(controller: _landmark, decoration: InputDecoration(labelText: s.landmark)),
+            const SizedBox(height: 20),
+            WorkingHoursEditor(
+              value: _workingHours,
+              onChanged: (v) => setState(() => _workingHours = v),
+            ),
             const SizedBox(height: 28),
             FilledButton(
               onPressed: _saving ? null : () => _save(s),

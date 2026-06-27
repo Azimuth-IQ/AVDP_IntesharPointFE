@@ -20,7 +20,10 @@ class AuthRepository {
     } on ApiException {
       rethrow;
     } catch (e) {
-      throw ApiException(e.toString());
+      // Unwrap the DioException the interceptor throws so the user sees the real
+      // backend message (e.g. the working-hours "Closed now …" reason), not a raw
+      // DioException string.
+      throw ApiException.from(e) ?? ApiException(e.toString());
     }
   }
 

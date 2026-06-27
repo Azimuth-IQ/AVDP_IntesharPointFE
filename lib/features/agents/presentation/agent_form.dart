@@ -14,6 +14,7 @@ import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/system_activity/domain/feed_rows.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
+import 'package:inteshar/shared/widgets/working_hours_editor.dart';
 
 String _genId(String prefix) {
   final rand = Random.secure();
@@ -52,6 +53,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
   final _primary = TextEditingController();
   final _secondary = TextEditingController();
   Set<String> _governorates = {};
+  WorkingHours? _workingHours;
 
   // Sub-agent parent (Main Agent) selection
   List<EntitySummaryRow> _parentOptions = [];
@@ -75,6 +77,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
       _primary.text = e.meta.primaryColor;
       _secondary.text = e.meta.secondaryColor;
       _governorates = e.meta.governorates.toSet();
+      _workingHours = e.meta.workingHours;
       _parentId = e.parent.isEmpty ? null : e.parent;
       final p = e.profile;
       if (p != null) {
@@ -247,6 +250,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
       primaryColor: _primary.text.trim(),
       secondaryColor: _secondary.text.trim(),
       governorates: _governorates.toList(),
+      workingHours: _workingHours,
     );
     final profile = EntityProfile(
       ownerName: _ownerName.text.trim(),
@@ -398,6 +402,13 @@ class _AgentFormState extends ConsumerState<AgentForm> {
           selected: _governorates,
           allowedCodes: _allowedGovernorates,
           onChanged: (v) => setState(() => _governorates = v),
+        ),
+        const SizedBox(height: 22),
+        SectionLabel(Localizations.localeOf(context).languageCode == 'ar' ? 'ساعات الدخول' : 'Login hours'),
+        const SizedBox(height: 8),
+        WorkingHoursEditor(
+          value: _workingHours,
+          onChanged: (v) => setState(() => _workingHours = v),
         ),
         const SizedBox(height: 22),
         SectionLabel(s.sectionOwner),

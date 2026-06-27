@@ -37,10 +37,15 @@ class _AuthInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
-    if (err.response?.statusCode == 401) {
-      // Token rejected (expired, or the backend's SESSION_SUPERSEDED — signed in
-      // elsewhere / logged out). Clear the dead session and tick the invalidation
-      // signal so AuthController rebuilds and the router bounces to /login.
+    // End the session on a 401 (expired / SESSION_SUPERSEDED) OR the working-hours
+    // 403 (the account window closed mid-session): clear and tick the invalidation
+    // signal so AuthController rebuilds and the router bounces to /login. A plain
+    // 403 (forbidden action) does NOT end the session.
+    final code = err.response?.statusCode;
+    final data = err.response?.data;
+    final sessionEnded = code == 401 ||
+        (code == 403 && data is Map && data['data'] == 'OUTSIDE_WORKING_HOURS');
+    if (sessionEnded) {
       await sessionStorage.clear();
       _ref.read(sessionInvalidationProvider.notifier).state++;
     }

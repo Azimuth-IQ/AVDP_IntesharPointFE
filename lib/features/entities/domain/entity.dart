@@ -1,6 +1,37 @@
 import 'package:inteshar/core/auth/capabilities.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 
+/// Per-account login window (BRD FR-03). Null on EntityMeta / disabled = always open.
+class WorkingHours {
+  final bool enabled;
+  final String start; // "HH:mm" 24h, Asia/Baghdad
+  final String end; // "HH:mm"; end < start means the window wraps past midnight
+  final List<int> days; // ISO day-of-week 1=Mon..7=Sun; empty = every day
+
+  const WorkingHours({this.enabled = false, this.start = '', this.end = '', this.days = const []});
+
+  factory WorkingHours.fromJson(Map<String, dynamic> j) => WorkingHours(
+        enabled: j['enabled'] as bool? ?? false,
+        start: j['start'] as String? ?? '',
+        end: j['end'] as String? ?? '',
+        days: (j['days'] as List<dynamic>?)?.map((e) => (e as num).toInt()).toList() ?? const [],
+      );
+
+  Map<String, dynamic> toJson() => {
+        'enabled': enabled,
+        'start': start,
+        'end': end,
+        'days': days,
+      };
+
+  WorkingHours copyWith({bool? enabled, String? start, String? end, List<int>? days}) => WorkingHours(
+        enabled: enabled ?? this.enabled,
+        start: start ?? this.start,
+        end: end ?? this.end,
+        days: days ?? this.days,
+      );
+}
+
 class EntityMeta {
   /// App-wide fallback used when an entity hasn't configured its own
   /// [lowStockThreshold]. A SKU with fewer available units is flagged low.
@@ -16,8 +47,9 @@ class EntityMeta {
   final String secondaryColor; // accent hex — white-label
   final int lowStockThreshold; // per-account low-stock alert level; 0 = unset → default
   final List<String> governorates; // governorate codes this entity operates in (geo-lock)
+  final WorkingHours? workingHours; // per-account login window (BRD FR-03); null = always open
 
-  const EntityMeta({this.name = '', this.slogan = '', this.description = '', this.logoUrl = '', this.backgroundUrl = '', this.sliderImagesUrl = const [], this.primaryColor = '', this.secondaryColor = '', this.lowStockThreshold = 0, this.governorates = const []});
+  const EntityMeta({this.name = '', this.slogan = '', this.description = '', this.logoUrl = '', this.backgroundUrl = '', this.sliderImagesUrl = const [], this.primaryColor = '', this.secondaryColor = '', this.lowStockThreshold = 0, this.governorates = const [], this.workingHours});
 
   /// The threshold to actually apply: the configured value, or the default
   /// when unset (0 or negative).
@@ -35,6 +67,7 @@ class EntityMeta {
     secondaryColor: j['secondaryColor'] as String? ?? '',
     lowStockThreshold: (j['lowStockThreshold'] as num?)?.toInt() ?? 0,
     governorates: (j['governorates'] as List<dynamic>?)?.cast<String>() ?? const [],
+    workingHours: j['workingHours'] == null ? null : WorkingHours.fromJson((j['workingHours'] as Map).cast<String, dynamic>()),
   );
 
   Map<String, dynamic> toJson() => {
@@ -48,9 +81,10 @@ class EntityMeta {
     'secondaryColor': secondaryColor,
     'lowStockThreshold': lowStockThreshold,
     'governorates': governorates,
+    if (workingHours != null) 'workingHours': workingHours!.toJson(),
   };
 
-  EntityMeta copyWith({String? name, String? slogan, String? description, String? logoUrl, String? backgroundUrl, List<String>? sliderImagesUrl, String? primaryColor, String? secondaryColor, int? lowStockThreshold, List<String>? governorates}) => EntityMeta(
+  EntityMeta copyWith({String? name, String? slogan, String? description, String? logoUrl, String? backgroundUrl, List<String>? sliderImagesUrl, String? primaryColor, String? secondaryColor, int? lowStockThreshold, List<String>? governorates, WorkingHours? workingHours}) => EntityMeta(
     name: name ?? this.name,
     slogan: slogan ?? this.slogan,
     description: description ?? this.description,
@@ -61,6 +95,7 @@ class EntityMeta {
     secondaryColor: secondaryColor ?? this.secondaryColor,
     lowStockThreshold: lowStockThreshold ?? this.lowStockThreshold,
     governorates: governorates ?? this.governorates,
+    workingHours: workingHours ?? this.workingHours,
   );
 }
 

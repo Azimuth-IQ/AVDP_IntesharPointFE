@@ -27,6 +27,11 @@ class LoginTotpRequired extends LoginResult {
   const LoginTotpRequired(this.message);
 }
 
+/// Forced password rotation: the password must be changed before a token is issued.
+class LoginMustChange extends LoginResult {
+  const LoginMustChange();
+}
+
 class AuthRepository {
   final ApiClient _api;
   AuthRepository(this._api);
@@ -54,6 +59,9 @@ class AuthRepository {
         if (body['totpRequired'] == true) {
           return LoginTotpRequired(body['message'] as String?);
         }
+        if (body['mustChangePassword'] == true) {
+          return const LoginMustChange();
+        }
       }
       throw const ApiException('Login failed: unexpected response');
     } on ApiException {
@@ -61,6 +69,27 @@ class AuthRepository {
     } catch (e) {
       // Unwrap the DioException so the user sees the real backend message
       // (e.g. the working-hours "Closed now …" reason), not a DioException string.
+      throw ApiException.from(e) ?? ApiException(e.toString());
+    }
+  }
+
+  /// Forced password change (auth Phase 4). Re-authenticates with [oldPassword],
+  /// sets [newPassword], and returns a fresh JWT so the user is signed in straight
+  /// after. The endpoint is public (callable with no token, after a login that
+  /// returned mustChangePassword).
+  Future<String> changePassword(String phone, String oldPassword, String newPassword) async {
+    try {
+      final response = await _api.post(
+        Endpoints.changePassword,
+        data: {'phone': phone, 'oldPassword': oldPassword, 'newPassword': newPassword},
+      );
+      final body = response.data;
+      if (body is Map && body['token'] != null) return body['token'] as String;
+      throw ApiException(
+          (body is Map ? body['message'] as String? : null) ?? 'Password change failed');
+    } on ApiException {
+      rethrow;
+    } catch (e) {
       throw ApiException.from(e) ?? ApiException(e.toString());
     }
   }

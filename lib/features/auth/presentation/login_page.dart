@@ -13,7 +13,7 @@ import 'package:inteshar/shared/widgets/brand_star.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
-enum _TotpStep { credentials, enroll, code }
+enum _TotpStep { credentials, enroll, code, changePassword }
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -34,12 +34,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   String _otpauthUri = '';
   String _secret = '';
   final _totpCtrl = TextEditingController();
+  final _newPassCtrl = TextEditingController();
+  final _confirmPassCtrl = TextEditingController();
 
   @override
   void dispose() {
     _phoneCtrl.dispose();
     _passCtrl.dispose();
     _totpCtrl.dispose();
+    _newPassCtrl.dispose();
+    _confirmPassCtrl.dispose();
     super.dispose();
   }
 
@@ -47,7 +51,43 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     setState(() {
       _totpStep = _TotpStep.credentials;
       _totpCtrl.clear();
+      _newPassCtrl.clear();
+      _confirmPassCtrl.clear();
       _error = null;
+    });
+  }
+
+  Future<void> _changePassword() async {
+    final newPass = _newPassCtrl.text;
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    if (newPass.isEmpty) {
+      setState(() => _error = ar ? 'أدخل كلمة مرور جديدة' : 'Enter a new password');
+      return;
+    }
+    if (newPass != _confirmPassCtrl.text) {
+      setState(() => _error = ar ? 'كلمتا المرور غير متطابقتين' : 'Passwords do not match');
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final outcome = await ref.read(authStateProvider.notifier).changePassword(
+          _phoneCtrl.text.trim(),
+          _passCtrl.text, // the password they just signed in with
+          newPass,
+        );
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      if (outcome is LoginFailed) {
+        _error = outcome.message
+            .replaceFirst('ApiException', '')
+            .replaceAll('(', '')
+            .replaceAll(')', '')
+            .trim();
+      }
+      // LoginDone → the authState listener navigates home.
     });
   }
 
@@ -76,6 +116,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         case LoginNeedsCode(:final message):
           _totpStep = _TotpStep.code;
           _error = message;
+        case LoginNeedsPasswordChange():
+          _totpStep = _TotpStep.changePassword;
+          _error = null;
         case LoginFailed(:final message):
           final clean = message
               .replaceFirst('ApiException', '')
@@ -162,7 +205,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     final isWide = context.isWide;
 
-    final Widget formCard = _totpStep != _TotpStep.credentials
+    final Widget formCard = _totpStep == _TotpStep.changePassword
+        ? _ChangePasswordForm(
+            newPassCtrl: _newPassCtrl,
+            confirmPassCtrl: _confirmPassCtrl,
+            loading: _loading,
+            error: _error,
+            onSubmit: _changePassword,
+          )
+        : _totpStep != _TotpStep.credentials
         ? _TotpChallenge(
             enroll: _totpStep == _TotpStep.enroll,
             otpauthUri: _otpauthUri,
@@ -336,6 +387,80 @@ class _TotpChallenge extends StatelessWidget {
             child: TextButton(
               onPressed: loading ? null : onBack,
               child: Text(ar ? 'رجوع' : 'Back'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Forced password-change step (auth Phase 4) — shown after a correct password when
+/// the account is flagged/expired for rotation. The old password is the one just
+/// entered; on success the user is signed straight in.
+class _ChangePasswordForm extends StatelessWidget {
+  final TextEditingController newPassCtrl;
+  final TextEditingController confirmPassCtrl;
+  final bool loading;
+  final String? error;
+  final VoidCallback onSubmit;
+  const _ChangePasswordForm({
+    required this.newPassCtrl,
+    required this.confirmPassCtrl,
+    required this.loading,
+    required this.error,
+    required this.onSubmit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    return InkCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(children: [
+            Icon(Icons.lock_reset, color: cs.primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(ar ? 'تغيير كلمة المرور' : 'Change your password',
+                  style: Theme.of(context).textTheme.titleMedium),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          Text(
+            ar
+                ? 'يجب تعيين كلمة مرور جديدة قبل المتابعة.'
+                : 'You must set a new password before continuing.',
+            style: TextStyle(color: cs.onSurfaceVariant),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: newPassCtrl,
+            obscureText: true,
+            decoration: InputDecoration(labelText: ar ? 'كلمة المرور الجديدة' : 'New password'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: confirmPassCtrl,
+            obscureText: true,
+            decoration: InputDecoration(labelText: ar ? 'تأكيد كلمة المرور' : 'Confirm password'),
+            onSubmitted: (_) => onSubmit(),
+          ),
+          if (error != null) ...[
+            const SizedBox(height: 8),
+            Text(error!, style: TextStyle(color: cs.error)),
+          ],
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: loading ? null : onSubmit,
+              child: loading
+                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : Text(ar ? 'حفظ وتسجيل الدخول' : 'Save & sign in'),
             ),
           ),
         ],

@@ -61,6 +61,10 @@ class LoginFailed extends LoginOutcome {
   const LoginFailed(this.message);
 }
 
+class LoginNeedsPasswordChange extends LoginOutcome {
+  const LoginNeedsPasswordChange();
+}
+
 final authStateProvider = AsyncNotifierProvider<AuthController, AuthState>(AuthController.new);
 
 class AuthController extends AsyncNotifier<AuthState> {
@@ -111,40 +115,63 @@ class AuthController extends AsyncNotifier<AuthState> {
       final result = await AuthRepository(api).login(phone, password, totp: totp);
       switch (result) {
         case LoginSuccess(:final token):
-          await sessionStorage.setToken(token);
-          await sessionStorage.setCurrentPhone(phone);
-
-          final entityRepo = EntityRepository(api);
-          final entities = await entityRepo.readAll();
-          Entity? found;
-          UserRole foundRole = UserRole.USER;
-          Set<Capability> foundCaps = const {};
-          for (final e in entities) {
-            final user = e.users.where((u) => u.phone == phone).firstOrNull;
-            if (user != null) {
-              found = e;
-              foundRole = user.role;
-              foundCaps = user.capabilities;
-              break;
-            }
-          }
-          if (found == null) {
-            state = AsyncValue.data(AuthUnauthenticated());
-            return const LoginFailed('Could not find entity for this user');
-          }
-          await sessionStorage.setCurrentEntityId(found.id);
-          await sessionStorage.setCurrentEntityType(found.type.name);
-          final isPosUser = foundRole == UserRole.USER && found.type == EntityType.STORE;
-          state = AsyncValue.data(AuthAuthenticated(
-              entity: found, role: foundRole, isPosUser: isPosUser, capabilities: foundCaps));
-          return const LoginDone();
+          return await _completeWithToken(api, phone, token);
         case LoginEnrollResult(:final otpauthUri, :final secret, :final message):
           state = AsyncValue.data(AuthUnauthenticated());
           return LoginEnroll(otpauthUri, secret, message);
         case LoginTotpRequired(:final message):
           state = AsyncValue.data(AuthUnauthenticated());
           return LoginNeedsCode(message);
+        case LoginMustChange():
+          state = AsyncValue.data(AuthUnauthenticated());
+          return const LoginNeedsPasswordChange();
       }
+    } on ApiException catch (e) {
+      state = AsyncValue.data(AuthUnauthenticated());
+      return LoginFailed(e.message);
+    } catch (e) {
+      state = AsyncValue.data(AuthUnauthenticated());
+      return LoginFailed(e.toString());
+    }
+  }
+
+  /// Stores [token], resolves the signed-in entity/role, and sets authenticated state.
+  Future<LoginOutcome> _completeWithToken(ApiClient api, String phone, String token) async {
+    await sessionStorage.setToken(token);
+    await sessionStorage.setCurrentPhone(phone);
+    final entityRepo = EntityRepository(api);
+    final entities = await entityRepo.readAll();
+    Entity? found;
+    UserRole foundRole = UserRole.USER;
+    Set<Capability> foundCaps = const {};
+    for (final e in entities) {
+      final user = e.users.where((u) => u.phone == phone).firstOrNull;
+      if (user != null) {
+        found = e;
+        foundRole = user.role;
+        foundCaps = user.capabilities;
+        break;
+      }
+    }
+    if (found == null) {
+      state = AsyncValue.data(AuthUnauthenticated());
+      return const LoginFailed('Could not find entity for this user');
+    }
+    await sessionStorage.setCurrentEntityId(found.id);
+    await sessionStorage.setCurrentEntityType(found.type.name);
+    final isPosUser = foundRole == UserRole.USER && found.type == EntityType.STORE;
+    state = AsyncValue.data(AuthAuthenticated(
+        entity: found, role: foundRole, isPosUser: isPosUser, capabilities: foundCaps));
+    return const LoginDone();
+  }
+
+  /// Forced password change (auth Phase 4): sets the new password and signs in.
+  Future<LoginOutcome> changePassword(String phone, String oldPassword, String newPassword) async {
+    state = const AsyncValue.loading();
+    try {
+      final api = ref.read(apiClientProvider);
+      final token = await AuthRepository(api).changePassword(phone, oldPassword, newPassword);
+      return await _completeWithToken(api, phone, token);
     } on ApiException catch (e) {
       state = AsyncValue.data(AuthUnauthenticated());
       return LoginFailed(e.message);

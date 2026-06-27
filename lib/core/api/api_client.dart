@@ -8,9 +8,47 @@ import 'package:inteshar/core/logging/client_log_reporter.dart';
 import 'package:inteshar/core/logging/device_context.dart';
 import 'package:inteshar/core/storage/session_storage.dart';
 
+/// Pure function — no I/O. Returns the delay before the next retry attempt,
+/// or [null] if the request must NOT be retried.
+///
+/// Only idempotent GETs on transport-level failures (no server response) are
+/// eligible — POSTs (login, transaction create, sendForPrinting) are never
+/// retried regardless of error type.
+///
+/// [method]      HTTP verb (case-insensitive).
+/// [hasResponse] true when the server returned any HTTP status (4xx/5xx etc.).
+/// [errorType]   Dio error classification.
+/// [attempt]     1-based number of the attempt that just failed.
+/// [maxAttempts] Total attempts allowed (first try + retries); defaults to 3.
+Duration? retryDelay({
+  required String method,
+  required bool hasResponse,
+  required DioExceptionType errorType,
+  required int attempt,
+  int maxAttempts = 3,
+}) {
+  if (method.toUpperCase() != 'GET') return null;
+  if (hasResponse) return null;
+  const retryableTypes = {
+    DioExceptionType.connectionTimeout,
+    DioExceptionType.receiveTimeout,
+    DioExceptionType.sendTimeout,
+    DioExceptionType.connectionError,
+  };
+  if (!retryableTypes.contains(errorType)) return null;
+  if (attempt >= maxAttempts) return null;
+  // Exponential back-off: 500 ms → 1 000 ms → 2 000 ms …
+  return Duration(milliseconds: 500 * (1 << (attempt - 1)));
+}
+
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(BaseOptions(connectTimeout: const Duration(seconds: 10), receiveTimeout: const Duration(seconds: 15), sendTimeout: const Duration(seconds: 10)));
   dio.interceptors.add(_AuthInterceptor(ref));
+  // _RetryInterceptor is added AFTER _AuthInterceptor so that in the reverse
+  // error-processing order it fires FIRST: it retries GETs on transport errors
+  // and only calls handler.next when retries are exhausted, letting
+  // _AuthInterceptor.onError run exactly once for the final failure.
+  dio.interceptors.add(_RetryInterceptor(dio));
   return dio;
 });
 
@@ -72,6 +110,51 @@ class _AuthInterceptor extends Interceptor {
     final data = err.response?.data;
     if (data is Map && data['message'] != null) return data['message'] as String;
     return err.message ?? 'Unknown error';
+  }
+}
+
+/// Retries idempotent GET requests on transport errors with exponential
+/// back-off. The retry/delay decision is delegated to [retryDelay].
+///
+/// On success the resolved response bypasses the rest of the interceptor chain.
+/// On exhausted retries [handler.next] is called so [_AuthInterceptor.onError]
+/// (the next interceptor in reverse order) runs exactly once for the final
+/// failure — handling session-end and client-side transport-error reporting.
+/// Intermediate failures caught from inner [_dio.fetch] calls use
+/// [handler.reject] to skip re-running [_AuthInterceptor.onError] a second time.
+class _RetryInterceptor extends Interceptor {
+  final Dio _dio;
+  static const String _attemptKey = '_retry_attempt';
+
+  _RetryInterceptor(this._dio);
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) async {
+    final attempt = (err.requestOptions.extra[_attemptKey] as int?) ?? 1;
+    final delay = retryDelay(
+      method: err.requestOptions.method,
+      hasResponse: err.response != null,
+      errorType: err.type,
+      attempt: attempt,
+    );
+    if (delay == null) {
+      // Not retrying — let _AuthInterceptor.onError handle it.
+      handler.next(err);
+      return;
+    }
+    await Future<void>.delayed(delay);
+    final opts = err.requestOptions;
+    opts.extra[_attemptKey] = attempt + 1;
+    try {
+      // Re-issue through the full interceptor chain so _AuthInterceptor stamps
+      // a fresh token. On success, resolve directly (skip remaining chain).
+      handler.resolve(await _dio.fetch<dynamic>(opts));
+    } on DioException catch (retryErr) {
+      // The inner fetch already ran through the full error chain (including
+      // _AuthInterceptor.onError which wrapped the error). Use reject — not
+      // next — to propagate without running _AuthInterceptor.onError again.
+      handler.reject(retryErr);
+    }
   }
 }
 

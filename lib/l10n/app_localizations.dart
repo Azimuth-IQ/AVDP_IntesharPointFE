@@ -1106,6 +1106,12 @@ abstract class AppLocalizations {
   /// **'Imported {count} products!'**
   String batchAddImportedProducts(int count);
 
+  /// No description provided for @batchAddImportSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported {imported}, skipped {skipped} (already present)'**
+  String batchAddImportSummary(int imported, int skipped);
+
   /// No description provided for @batchAddCsvFormat.
   ///
   /// In en, this message translates to:

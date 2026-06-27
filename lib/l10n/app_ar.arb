@@ -1,7 +1,7 @@
 {
   "@@locale": "ar",
 
-  "appTitle": "إنتشار بوينت",
+  "appTitle": "إنتشار بلاتفورم",
   "navDashboard": "لوحة التحكم",
   "navHierarchy": "الهيكل التنظيمي",
   "navChildren": "الفروع",
@@ -14,7 +14,7 @@
   "navMore": "المزيد",
 
   "updateAvailableTitle": "تحديث متوفّر",
-  "updateBody": "إصدار أحدث من إنتشار بوينت جاهز للتثبيت.",
+  "updateBody": "إصدار أحدث من إنتشار بلاتفورم جاهز للتثبيت.",
   "updateRequiredTitle": "التحديث مطلوب",
   "updateRequiredBody": "يجب تثبيت التحديث المطلوب قبل المتابعة.",
   "updateWhatsNew": "الجديد في هذا الإصدار",
@@ -23,7 +23,7 @@
   "updateDownloading": "جارٍ التنزيل…",
   "updateOpenInstaller": "فتح المُثبِّت…",
   "updateRetry": "إعادة المحاولة",
-  "updatePermissionBody": "فعّل «تثبيت تطبيقات غير معروفة» لإنتشار بوينت، ثم اضغط تحديث مرة أخرى.",
+  "updatePermissionBody": "فعّل «تثبيت تطبيقات غير معروفة» لإنتشار بلاتفورم، ثم اضغط تحديث مرة أخرى.",
   "updatePermissionOpenSettings": "فتح الإعدادات",
   "updateVersion": "الإصدار {version}",
   "@updateVersion": { "placeholders": { "version": { "type": "String" } } },
@@ -219,6 +219,13 @@
   "batchAddImportedProducts": "تم استيراد {count} منتج بنجاح!",
   "@batchAddImportedProducts": {
     "placeholders": { "count": { "type": "int" } }
+  },
+  "batchAddImportSummary": "تم استيراد {imported}، تخطي {skipped} (موجود مسبقاً)",
+  "@batchAddImportSummary": {
+    "placeholders": {
+      "imported": { "type": "int" },
+      "skipped": { "type": "int" }
+    }
   },
   "batchAddCsvFormat": "تنسيق الملف",
   "batchAddRequiredColumns": "الأعمدة المطلوبة",

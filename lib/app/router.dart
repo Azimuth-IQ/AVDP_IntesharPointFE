@@ -32,7 +32,10 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: _AuthStateListenable(ref),
     redirect: (context, state) {
       final loc = state.matchedLocation;
-      final isPublic = loc == '/splash' || loc == '/login' || loc == '/diagnostics';
+      // /diagnostics is intentionally omitted here: unauthenticated users are
+      // already allowed through by the isLoginPage check below, and authenticated
+      // users must be able to reach it too (POS long-press-to-diagnostics).
+      final isPublic = loc == '/splash' || loc == '/login';
 
       // While loading, stay on splash.
       if (authAsync.isLoading) {

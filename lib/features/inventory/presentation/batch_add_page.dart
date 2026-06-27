@@ -29,6 +29,37 @@ String _newProductId() {
   return 'prod-${DateTime.now().millisecondsSinceEpoch}-$hex';
 }
 
+// ── Batch-import row decision (pure, testable) ─────────────────────────────
+
+/// The outcome of evaluating a single row in a batch import.
+enum BatchRowAction {
+  /// The row is new — proceed to create the product.
+  add,
+
+  /// The serial already exists in this entity's inventory — skip silently.
+  skip,
+
+  /// The row has an empty serial or PIN — skip silently.
+  invalid,
+}
+
+/// Decide what to do with a single batch-import row.
+///
+/// [serial] and [pin] are the raw values from the file (trimming is applied
+/// internally). [existingSerials] must contain already-lower-cased keys so the
+/// look-up is case-insensitive and O(1).
+BatchRowAction batchRowDecide({
+  required String serial,
+  required String pin,
+  required Set<String> existingSerials,
+}) {
+  if (serial.trim().isEmpty || pin.trim().isEmpty) return BatchRowAction.invalid;
+  if (existingSerials.contains(serial.trim().toLowerCase())) {
+    return BatchRowAction.skip;
+  }
+  return BatchRowAction.add;
+}
+
 class BatchAddPage extends ConsumerStatefulWidget {
   const BatchAddPage({super.key});
 
@@ -357,6 +388,7 @@ class _ExcelTabState extends ConsumerState<_ExcelTab> {
   bool _importing = false;
   double _progress = 0;
   int _imported = 0;
+  int _skipped = 0;
   String? _error;
 
   @override
@@ -556,6 +588,7 @@ class _ExcelTabState extends ConsumerState<_ExcelTab> {
       _importing = true;
       _progress = 0;
       _imported = 0;
+      _skipped = 0;
       _error = null;
     });
 
@@ -579,17 +612,21 @@ class _ExcelTabState extends ConsumerState<_ExcelTab> {
     }
 
     for (var i = 0; i < rows.length; i++) {
-      final key = rows[i].serial.trim().toLowerCase();
-      if (existingSerials.contains(key)) {
-        if (mounted) {
-          setState(() {
-            _error = l.batchAddDuplicateRow(i + 1, rows[i].serial);
-            _importing = false;
-          });
-        }
-        return;
+      final action = batchRowDecide(
+        serial: rows[i].serial,
+        pin: rows[i].pin,
+        existingSerials: existingSerials,
+      );
+      if (action == BatchRowAction.skip) {
+        if (mounted) setState(() { _skipped++; _progress = (i + 1) / rows.length; });
+        continue;
+      }
+      if (action == BatchRowAction.invalid) {
+        if (mounted) setState(() => _progress = (i + 1) / rows.length);
+        continue;
       }
 
+      final key = rows[i].serial.trim().toLowerCase();
       try {
         await repo.create(Product(
           id: _newProductId(),
@@ -604,7 +641,7 @@ class _ExcelTabState extends ConsumerState<_ExcelTab> {
         existingSerials.add(key);
         if (mounted) {
           setState(() {
-            _imported = i + 1;
+            _imported++;
             _progress = (i + 1) / rows.length;
           });
         }
@@ -625,7 +662,7 @@ class _ExcelTabState extends ConsumerState<_ExcelTab> {
         _preview = null;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l.batchAddImportedProducts(_imported))),
+        SnackBar(content: Text(l.batchAddImportSummary(_imported, _skipped))),
       );
     }
   }
@@ -847,8 +884,7 @@ class _ExcelTabState extends ConsumerState<_ExcelTab> {
               if (_importing) ...[
                 _ProgressBlock(
                   progress: _progress,
-                  label: l.batchAddProgressImported(
-                      _imported, _preview!.length),
+                  label: l.batchAddImportSummary(_imported, _skipped),
                 ),
                 const SizedBox(height: 12),
               ],

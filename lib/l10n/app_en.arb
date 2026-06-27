@@ -1,7 +1,7 @@
 {
   "@@locale": "en",
 
-  "appTitle": "Inteshar Point",
+  "appTitle": "Inteshar Platform",
   "@appTitle": { "description": "Application title" },
 
   "navDashboard": "Dashboard",
@@ -27,7 +27,7 @@
 
   "updateAvailableTitle": "Update available",
   "@updateAvailableTitle": {},
-  "updateBody": "A newer version of Inteshar Point is ready to install.",
+  "updateBody": "A newer version of Inteshar Platform is ready to install.",
   "@updateBody": {},
   "updateRequiredTitle": "Update required",
   "@updateRequiredTitle": {},
@@ -45,7 +45,7 @@
   "@updateOpenInstaller": {},
   "updateRetry": "Retry",
   "@updateRetry": {},
-  "updatePermissionBody": "Enable “Install unknown apps” for Inteshar Point, then tap Update again.",
+  “updatePermissionBody”: “Enable “Install unknown apps” for Inteshar Platform, then tap Update again.”,
   "@updatePermissionBody": {},
   "updatePermissionOpenSettings": "Open settings",
   "@updatePermissionOpenSettings": {},
@@ -376,6 +376,13 @@
   "batchAddImportedProducts": "Imported {count} products!",
   "@batchAddImportedProducts": {
     "placeholders": { "count": { "type": "int" } }
+  },
+  "batchAddImportSummary": "Imported {imported}, skipped {skipped} (already present)",
+  "@batchAddImportSummary": {
+    "placeholders": {
+      "imported": { "type": "int" },
+      "skipped": { "type": "int" }
+    }
   },
   "batchAddCsvFormat": "Manifest format",
   "@batchAddCsvFormat": {},

@@ -566,6 +566,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String batchAddImportSummary(int imported, int skipped) {
+    return 'Imported $imported, skipped $skipped (already present)';
+  }
+
+  @override
   String get batchAddCsvFormat => 'Manifest format';
 
   @override

@@ -95,7 +95,7 @@ Future<List<int>> buildTestReceipt() async {
   final profile = await CapabilityProfile.load();
   final g = Generator(PaperSize.mm58, profile);
   final out = <int>[];
-  out.addAll(g.text('Inteshar Point',
+  out.addAll(g.text('Inteshar Platform',
       styles: const PosStyles(
           align: PosAlign.center, bold: true, height: PosTextSize.size2)));
   out.addAll(g.text('Printer OK', styles: const PosStyles(align: PosAlign.center)));

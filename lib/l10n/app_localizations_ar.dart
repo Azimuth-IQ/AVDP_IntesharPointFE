@@ -566,6 +566,11 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
+  String batchAddImportSummary(int imported, int skipped) {
+    return 'تم استيراد $imported، تخطي $skipped (موجود مسبقاً)';
+  }
+
+  @override
   String get batchAddCsvFormat => 'تنسيق الملف';
 
   @override

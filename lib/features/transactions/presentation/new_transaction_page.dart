@@ -154,13 +154,12 @@ class _NewTransactionPageState extends ConsumerState<NewTransactionPage> {
 
       AppTransaction created = await txRepo.create(tx);
 
-      int polls = 0;
-      while (polls < 15 &&
+      final sw = Stopwatch()..start();
+      while (txPollShouldContinue(sw.elapsed) &&
           created.status != TransactionStatus.COMPLETED &&
           created.status != TransactionStatus.FAILED) {
-        await Future.delayed(const Duration(seconds: 1));
+        await Future.delayed(_kTxPollInterval);
         created = await txRepo.read(created.id);
-        polls++;
       }
 
       if (mounted) {
@@ -915,3 +914,20 @@ class _LineItem {
   _LineItem copyWith({ProductDefinition? def, int? amount, String? price}) =>
       _LineItem(def: def ?? this.def, amount: amount ?? this.amount, price: price ?? this.price);
 }
+
+// ── Transaction poll helper ──────────────────────────────────────────────────
+
+/// Wall-clock budget for the post-submit result poll.
+const Duration _kTxPollDeadline = Duration(seconds: 30);
+
+/// Interval between consecutive status checks.
+const Duration _kTxPollInterval = Duration(milliseconds: 1500);
+
+/// Pure predicate: returns [true] while the poll loop should keep running.
+///
+/// Extracted as a top-level function so it can be unit-tested without a
+/// widget harness. [elapsed] is the time since the first poll attempt;
+/// [deadline] defaults to the 30 s wall-clock budget ([_kTxPollDeadline]).
+bool txPollShouldContinue(Duration elapsed,
+    {Duration deadline = _kTxPollDeadline}) =>
+    elapsed < deadline;

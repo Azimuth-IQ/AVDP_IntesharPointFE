@@ -1,11 +1,11 @@
 {
-    "name": "Inteshar Point",
+    "name": "Inteshar Platform",
     "short_name": "Inteshar",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#1A1714",
     "theme_color": "#E2AD25",
-    "description": "Inteshar Point — telecom voucher distribution platform.",
+    "description": "Inteshar Platform — telecom voucher distribution platform.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

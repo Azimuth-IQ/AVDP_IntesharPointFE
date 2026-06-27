@@ -506,7 +506,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
       final def = revealed.productDefinition;
       final bytes = await buildVoucherReceipt(
         template: def.template,
-        companyName: 'Inteshar Point',
+        companyName: 'Inteshar Platform',
         shopName: auth?.entity.meta.name ?? 'Store',
         posLabel: 'Counter 1',
         operatorPhone: auth?.entity.users.firstOrNull?.phone ?? '',

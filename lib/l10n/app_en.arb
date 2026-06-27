@@ -45,7 +45,7 @@
   "@updateOpenInstaller": {},
   "updateRetry": "Retry",
   "@updateRetry": {},
-  “updatePermissionBody”: “Enable “Install unknown apps” for Inteshar Platform, then tap Update again.”,
+  "updatePermissionBody": "Enable \"Install unknown apps\" for Inteshar Platform, then tap Update again.",
   "@updatePermissionBody": {},
   "updatePermissionOpenSettings": "Open settings",
   "@updatePermissionOpenSettings": {},

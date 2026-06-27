@@ -9,7 +9,7 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
-  String get appTitle => 'Inteshar Point';
+  String get appTitle => 'Inteshar Platform';
 
   @override
   String get navDashboard => 'Dashboard';
@@ -46,7 +46,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get updateBody =>
-      'A newer version of Inteshar Point is ready to install.';
+      'A newer version of Inteshar Platform is ready to install.';
 
   @override
   String get updateRequiredTitle => 'Update required';
@@ -75,7 +75,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get updatePermissionBody =>
-      'Enable “Install unknown apps” for Inteshar Point, then tap Update again.';
+      'Enable \"Install unknown apps\" for Inteshar Platform, then tap Update again.';
 
   @override
   String get updatePermissionOpenSettings => 'Open settings';

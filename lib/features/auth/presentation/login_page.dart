@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/storage/session_storage.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
@@ -11,6 +12,8 @@ import 'package:inteshar/shared/widgets/brand_cta.dart';
 import 'package:inteshar/shared/widgets/brand_star.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
+
+enum _TotpStep { credentials, enroll, code }
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -27,33 +30,64 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   bool _loading = false;
   String? _error;
   bool _showMongoHint = false;
+  _TotpStep _totpStep = _TotpStep.credentials;
+  String _otpauthUri = '';
+  String _secret = '';
+  final _totpCtrl = TextEditingController();
 
   @override
   void dispose() {
     _phoneCtrl.dispose();
     _passCtrl.dispose();
+    _totpCtrl.dispose();
     super.dispose();
   }
 
+  void _resetToCredentials() {
+    setState(() {
+      _totpStep = _TotpStep.credentials;
+      _totpCtrl.clear();
+      _error = null;
+    });
+  }
+
   Future<void> _signIn() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (_totpStep == _TotpStep.credentials && !_formKey.currentState!.validate()) return;
     setState(() {
       _loading = true;
       _error = null;
       _showMongoHint = false;
     });
-    try {
-      await ref.read(authStateProvider.notifier).login(_phoneCtrl.text.trim(), _passCtrl.text);
-    } catch (e) {
-      final raw = e.toString();
-      final clean = raw.replaceFirst('ApiException', '').replaceAll('(', '').replaceAll(')', '').trim();
-      setState(() {
-        _error = clean;
-        _showMongoHint = raw.contains('401') || raw.contains('no user') || raw.contains('Could not find');
-      });
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
+    final code = _totpStep == _TotpStep.credentials ? null : _totpCtrl.text.trim();
+    final outcome = await ref
+        .read(authStateProvider.notifier)
+        .login(_phoneCtrl.text.trim(), _passCtrl.text, totp: code);
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      switch (outcome) {
+        case LoginDone():
+          break; // the authState listener navigates home
+        case LoginEnroll(:final otpauthUri, :final secret, :final message):
+          _totpStep = _TotpStep.enroll;
+          _otpauthUri = otpauthUri;
+          _secret = secret;
+          _error = message;
+        case LoginNeedsCode(:final message):
+          _totpStep = _TotpStep.code;
+          _error = message;
+        case LoginFailed(:final message):
+          final clean = message
+              .replaceFirst('ApiException', '')
+              .replaceAll('(', '')
+              .replaceAll(')', '')
+              .trim();
+          _error = clean;
+          _showMongoHint = message.contains('401') ||
+              message.contains('no user') ||
+              message.contains('Could not find');
+      }
+    });
   }
 
   Future<void> _showUrlSheet() async {
@@ -128,21 +162,32 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     final isWide = context.isWide;
 
-    final formCard = _LoginForm(
-      formKey: _formKey,
-      phoneCtrl: _phoneCtrl,
-      passCtrl: _passCtrl,
-      obscure: _obscure,
-      onToggleObscure: () => setState(() => _obscure = !_obscure),
-      loading: _loading,
-      error: _error,
-      showMongoHint: _showMongoHint,
-      isAuthenticated: isAuthenticated,
-      l: l,
-      onSignIn: _signIn,
-      onShowUrlSheet: _showUrlSheet,
-      onSeed: () => ref.read(seedControllerProvider.notifier).seed(context),
-    );
+    final Widget formCard = _totpStep != _TotpStep.credentials
+        ? _TotpChallenge(
+            enroll: _totpStep == _TotpStep.enroll,
+            otpauthUri: _otpauthUri,
+            secret: _secret,
+            codeCtrl: _totpCtrl,
+            loading: _loading,
+            error: _error,
+            onVerify: _signIn,
+            onBack: _resetToCredentials,
+          )
+        : _LoginForm(
+            formKey: _formKey,
+            phoneCtrl: _phoneCtrl,
+            passCtrl: _passCtrl,
+            obscure: _obscure,
+            onToggleObscure: () => setState(() => _obscure = !_obscure),
+            loading: _loading,
+            error: _error,
+            showMongoHint: _showMongoHint,
+            isAuthenticated: isAuthenticated,
+            l: l,
+            onSignIn: _signIn,
+            onShowUrlSheet: _showUrlSheet,
+            onSeed: () => ref.read(seedControllerProvider.notifier).seed(context),
+          );
 
     return Scaffold(
       body: SafeArea(
@@ -181,6 +226,119 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ),
                 ],
               ),
+      ),
+    );
+  }
+}
+
+/// Two-factor step shown after a correct password: a QR + manual key on first
+/// enrollment (bind an authenticator app), or just a code field on every login after.
+class _TotpChallenge extends StatelessWidget {
+  final bool enroll;
+  final String otpauthUri;
+  final String secret;
+  final TextEditingController codeCtrl;
+  final bool loading;
+  final String? error;
+  final VoidCallback onVerify;
+  final VoidCallback onBack;
+  const _TotpChallenge({
+    required this.enroll,
+    required this.otpauthUri,
+    required this.secret,
+    required this.codeCtrl,
+    required this.loading,
+    required this.error,
+    required this.onVerify,
+    required this.onBack,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    return InkCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.verified_user_outlined, color: cs.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  enroll
+                      ? (ar ? 'إعداد المصادقة الثنائية' : 'Set up two-factor')
+                      : (ar ? 'المصادقة الثنائية' : 'Two-factor authentication'),
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            enroll
+                ? (ar
+                    ? 'امسح الرمز بتطبيق مصادقة (مثل Google Authenticator)، ثم أدخل الرمز المكوّن من 6 أرقام لتأكيد الربط.'
+                    : 'Scan the QR with an authenticator app (e.g. Google Authenticator), then enter the 6-digit code to finish setup.')
+                : (ar
+                    ? 'أدخل الرمز المكوّن من 6 أرقام من تطبيق المصادقة.'
+                    : 'Enter the 6-digit code from your authenticator app.'),
+            style: TextStyle(color: cs.onSurfaceVariant),
+          ),
+          if (enroll) ...[
+            const SizedBox(height: 16),
+            Center(
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                child: QrImageView(data: otpauthUri, size: 184),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(ar ? 'أو أدخل المفتاح يدوياً:' : 'Or enter this key manually:',
+                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+            const SizedBox(height: 4),
+            SelectableText(secret,
+                style: const TextStyle(fontFamily: 'JetBrainsMono', letterSpacing: 1.5, fontSize: 13)),
+          ],
+          const SizedBox(height: 18),
+          TextField(
+            controller: codeCtrl,
+            keyboardType: TextInputType.number,
+            maxLength: 6,
+            autofocus: true,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 24, letterSpacing: 10, fontFamily: 'JetBrainsMono'),
+            decoration: InputDecoration(
+              labelText: ar ? 'رمز التحقق' : 'Verification code',
+              counterText: '',
+            ),
+            onSubmitted: (_) => onVerify(),
+          ),
+          if (error != null) ...[
+            const SizedBox(height: 8),
+            Text(error!, style: TextStyle(color: cs.error)),
+          ],
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: loading ? null : onVerify,
+              child: loading
+                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : Text(enroll ? (ar ? 'تأكيد وربط' : 'Confirm & bind') : (ar ? 'تحقق' : 'Verify')),
+            ),
+          ),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton(
+              onPressed: loading ? null : onBack,
+              child: Text(ar ? 'رجوع' : 'Back'),
+            ),
+          ),
+        ],
       ),
     );
   }

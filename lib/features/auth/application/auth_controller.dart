@@ -35,6 +35,32 @@ class AuthAuthenticated extends AuthState {
   bool can(Set<Capability> required) => hasAnyCapability(role, capabilities, required);
 }
 
+/// Result of a login attempt — drives the login screen's TOTP step.
+sealed class LoginOutcome {
+  const LoginOutcome();
+}
+
+class LoginDone extends LoginOutcome {
+  const LoginDone();
+}
+
+class LoginEnroll extends LoginOutcome {
+  final String otpauthUri;
+  final String secret;
+  final String? message;
+  const LoginEnroll(this.otpauthUri, this.secret, this.message);
+}
+
+class LoginNeedsCode extends LoginOutcome {
+  final String? message;
+  const LoginNeedsCode(this.message);
+}
+
+class LoginFailed extends LoginOutcome {
+  final String message;
+  const LoginFailed(this.message);
+}
+
 final authStateProvider = AsyncNotifierProvider<AuthController, AuthState>(AuthController.new);
 
 class AuthController extends AsyncNotifier<AuthState> {
@@ -78,43 +104,53 @@ class AuthController extends AsyncNotifier<AuthState> {
     }
   }
 
-  Future<void> login(String phone, String password) async {
+  Future<LoginOutcome> login(String phone, String password, {String? totp}) async {
     state = const AsyncValue.loading();
     try {
       final api = ref.read(apiClientProvider);
-      final authRepo = AuthRepository(api);
-      final token = await authRepo.login(phone, password);
-      await sessionStorage.setToken(token);
-      await sessionStorage.setCurrentPhone(phone);
+      final result = await AuthRepository(api).login(phone, password, totp: totp);
+      switch (result) {
+        case LoginSuccess(:final token):
+          await sessionStorage.setToken(token);
+          await sessionStorage.setCurrentPhone(phone);
 
-      final entityRepo = EntityRepository(api);
-      final entities = await entityRepo.readAll();
-      Entity? found;
-      UserRole foundRole = UserRole.USER;
-      Set<Capability> foundCaps = const {};
-      for (final e in entities) {
-        final user = e.users.where((u) => u.phone == phone).firstOrNull;
-        if (user != null) {
-          found = e;
-          foundRole = user.role;
-          foundCaps = user.capabilities;
-          break;
-        }
+          final entityRepo = EntityRepository(api);
+          final entities = await entityRepo.readAll();
+          Entity? found;
+          UserRole foundRole = UserRole.USER;
+          Set<Capability> foundCaps = const {};
+          for (final e in entities) {
+            final user = e.users.where((u) => u.phone == phone).firstOrNull;
+            if (user != null) {
+              found = e;
+              foundRole = user.role;
+              foundCaps = user.capabilities;
+              break;
+            }
+          }
+          if (found == null) {
+            state = AsyncValue.data(AuthUnauthenticated());
+            return const LoginFailed('Could not find entity for this user');
+          }
+          await sessionStorage.setCurrentEntityId(found.id);
+          await sessionStorage.setCurrentEntityType(found.type.name);
+          final isPosUser = foundRole == UserRole.USER && found.type == EntityType.STORE;
+          state = AsyncValue.data(AuthAuthenticated(
+              entity: found, role: foundRole, isPosUser: isPosUser, capabilities: foundCaps));
+          return const LoginDone();
+        case LoginEnrollResult(:final otpauthUri, :final secret, :final message):
+          state = AsyncValue.data(AuthUnauthenticated());
+          return LoginEnroll(otpauthUri, secret, message);
+        case LoginTotpRequired(:final message):
+          state = AsyncValue.data(AuthUnauthenticated());
+          return LoginNeedsCode(message);
       }
-
-      if (found == null) {
-        throw const ApiException('Could not find entity for this user');
-      }
-
-      await sessionStorage.setCurrentEntityId(found.id);
-      await sessionStorage.setCurrentEntityType(found.type.name);
-
-      final isPosUser = foundRole == UserRole.USER && found.type == EntityType.STORE;
-      state = AsyncValue.data(AuthAuthenticated(entity: found, role: foundRole, isPosUser: isPosUser, capabilities: foundCaps));
     } on ApiException catch (e) {
-      state = AsyncValue.error(e, StackTrace.current);
-    } catch (e, st) {
-      state = AsyncValue.error(e, st);
+      state = AsyncValue.data(AuthUnauthenticated());
+      return LoginFailed(e.message);
+    } catch (e) {
+      state = AsyncValue.data(AuthUnauthenticated());
+      return LoginFailed(e.toString());
     }
   }
 

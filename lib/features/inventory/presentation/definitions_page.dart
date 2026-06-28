@@ -11,6 +11,7 @@ import 'package:inteshar/features/inventory/domain/voucher_template.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
+import 'package:inteshar/shared/widgets/image_upload_field.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
@@ -62,6 +63,7 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
     if (!mounted) return;
     String? selectedCompanyId =
         (existing != null && existing.companyId.isNotEmpty) ? existing.companyId : null;
+    String imageUrl = existing?.imageUrl ?? '';
     final idCtrl = TextEditingController(
         text: existing?.id ?? 'def-${DateTime.now().millisecondsSinceEpoch}');
     final nameCtrl = TextEditingController(text: existing?.name ?? '');
@@ -83,6 +85,8 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
         companies: companies,
         initialCompanyId: selectedCompanyId,
         onCompanyChanged: (v) => selectedCompanyId = v,
+        initialImageUrl: imageUrl,
+        onImageUrlChanged: (v) => imageUrl = v,
         onSave: () async {
           final repo = DefinitionRepository(api);
           final def = ProductDefinition(
@@ -92,6 +96,7 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
             defaultPrice: priceCtrl.text.trim(),
             description: descCtrl.text.trim(),
             companyId: selectedCompanyId ?? '',
+            imageUrl: imageUrl,
             template: existing?.template ?? const VoucherTemplate(),
           );
           if (existing == null) {
@@ -456,6 +461,8 @@ class _DefinitionFormSheet extends StatefulWidget {
   final List<Company> companies;
   final String? initialCompanyId;
   final ValueChanged<String?> onCompanyChanged;
+  final String initialImageUrl;
+  final ValueChanged<String> onImageUrlChanged;
   final Future<void> Function() onSave;
 
   const _DefinitionFormSheet({
@@ -469,6 +476,8 @@ class _DefinitionFormSheet extends StatefulWidget {
     required this.companies,
     required this.initialCompanyId,
     required this.onCompanyChanged,
+    required this.initialImageUrl,
+    required this.onImageUrlChanged,
     required this.onSave,
   });
 
@@ -479,6 +488,7 @@ class _DefinitionFormSheet extends StatefulWidget {
 class _DefinitionFormSheetState extends State<_DefinitionFormSheet> {
   bool _saving = false;
   late String? _companyId = widget.initialCompanyId;
+  late String _imageUrl = widget.initialImageUrl;
   String? _nameError;
   String? _skuError;
   String? _priceError;
@@ -571,6 +581,16 @@ class _DefinitionFormSheetState extends State<_DefinitionFormSheet> {
               controller: widget.descCtrl,
               maxLines: 2,
               decoration: InputDecoration(labelText: l.defsFieldDescription),
+            ),
+            const SizedBox(height: 12),
+            ImageUploadField(
+              value: _imageUrl.isEmpty ? null : _imageUrl,
+              kind: 'product-image',
+              label: ar ? 'صورة المنتج' : 'Product Image',
+              onChanged: (v) {
+                setState(() => _imageUrl = v);
+                widget.onImageUrlChanged(v);
+              },
             ),
             if (widget.companies.isNotEmpty) ...[
               const SizedBox(height: 12),

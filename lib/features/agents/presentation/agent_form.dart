@@ -14,6 +14,7 @@ import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/system_activity/domain/feed_rows.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
+import 'package:inteshar/shared/widgets/image_upload_field.dart';
 import 'package:inteshar/shared/widgets/working_hours_editor.dart';
 
 String _genId(String prefix) {
@@ -392,7 +393,12 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         const SizedBox(height: 8),
         TextField(controller: _name, decoration: InputDecoration(labelText: s.fieldName)),
         const SizedBox(height: 12),
-        TextField(controller: _logo, decoration: InputDecoration(labelText: s.fieldLogo)),
+        ImageUploadField(
+          value: _logo.text.isEmpty ? null : _logo.text,
+          kind: 'agent-branding',
+          label: s.fieldLogo,
+          onChanged: (u) => setState(() => _logo.text = u),
+        ),
         const SizedBox(height: 22),
         SectionLabel(s.sectionGovernorates),
         const SizedBox(height: 4),

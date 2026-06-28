@@ -146,6 +146,12 @@ abstract class AppLocalizations {
   /// **'Print Ops'**
   String get navPrintOps;
 
+  /// No description provided for @navUsers.
+  ///
+  /// In en, this message translates to:
+  /// **'Users'**
+  String get navUsers;
+
   /// No description provided for @navTransactions.
   ///
   /// In en, this message translates to:

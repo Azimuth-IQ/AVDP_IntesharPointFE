@@ -17,6 +17,11 @@ class Endpoints {
   // Point (STORE/POS) management
   static const entitySetActive = '/api/entity/setActive';
   static const entityResetPassword = '/api/entity/resetPassword';
+  // HQ users / supervisors management
+  static const entityUsers = '/api/entity/users';
+  static const entityUserAdd = '/api/entity/users/add';
+  static const entityUserUpdate = '/api/entity/users/update';
+  static const entityUserRemove = '/api/entity/users/remove';
   static const entityPosStats = '/api/entity/posStats';
 
   static const definitionCreate = '/api/inventory/definition/create';

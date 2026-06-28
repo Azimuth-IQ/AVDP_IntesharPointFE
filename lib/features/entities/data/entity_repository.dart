@@ -1,6 +1,8 @@
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/endpoints.dart';
+import 'package:inteshar/core/auth/capabilities.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
+import 'package:inteshar/features/entities/domain/entity_type.dart';
 
 class EntityRepository {
   final ApiClient _api;
@@ -94,6 +96,52 @@ class EntityRepository {
 
   Future<void> delete(String id) async {
     await _api.delete(Endpoints.entityDelete, params: {'id': id});
+  }
+
+  // ---- HQ users / supervisors (single-user endpoints; avoid the buggy full-PUT) ----
+
+  Future<List<EntityUser>> listUsers(String entityId) async {
+    final response =
+        await _api.get(Endpoints.entityUsers, params: {'entityId': entityId});
+    return _api.unwrap(response, (d) {
+      final list = d as List<dynamic>;
+      return list
+          .map((e) => EntityUser.fromJson(e as Map<String, dynamic>))
+          .toList();
+    });
+  }
+
+  Future<void> addUser({
+    required String entityId,
+    required String phone,
+    required String password,
+    required UserRole role,
+    required Set<Capability> capabilities,
+  }) async {
+    await _api.post(Endpoints.entityUserAdd, data: {
+      'entityId': entityId,
+      'phone': phone,
+      'password': password,
+      'role': role.name,
+      'capabilities': capabilitiesToJson(capabilities),
+    });
+  }
+
+  Future<void> updateUser({
+    required String phone,
+    required UserRole role,
+    required Set<Capability> capabilities,
+  }) async {
+    await _api.put(Endpoints.entityUserUpdate, data: {
+      'phone': phone,
+      'role': role.name,
+      'capabilities': capabilitiesToJson(capabilities),
+    });
+  }
+
+  Future<void> removeUser(String entityId, String phone) async {
+    await _api.delete(Endpoints.entityUserRemove,
+        params: {'entityId': entityId, 'phone': phone});
   }
 
   /// Re-links a child to its parent's childrenIds list.

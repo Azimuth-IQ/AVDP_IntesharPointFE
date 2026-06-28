@@ -33,6 +33,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navPrintOps => 'Print Ops';
 
   @override
+  String get navUsers => 'Users';
+
+  @override
   String get navTransactions => 'Transactions';
 
   @override

@@ -25,7 +25,18 @@ class _NavItem {
   final IconData selectedIcon;
   final String label;
   final String route;
-  const _NavItem(this.icon, this.selectedIcon, this.label, this.route);
+  // HQ supervisors are scoped to sections via capabilities; null = always visible.
+  final Capability? required;
+  const _NavItem(this.icon, this.selectedIcon, this.label, this.route, {this.required});
+}
+
+/// Whether a nav item is visible to a user with [caps]. Items with no [required]
+/// capability are always shown; an empty capability set (the platform admin / legacy
+/// users) or the AGENT_ADMIN capability sees everything.
+bool _navAllowed(Set<Capability> caps, Capability? required) {
+  if (required == null) return true;
+  if (caps.isEmpty || caps.contains(Capability.AGENT_ADMIN)) return true;
+  return caps.contains(required);
 }
 
 /// Responsive shell used by all signed-in role routes.
@@ -41,18 +52,19 @@ class AppShell extends ConsumerWidget {
         // Templates / Batch Add are lower-cadence setup tasks that move into the
         // "More" sheet on phones.
         return [
-          _NavItem(Icons.monitor_heart_outlined,Icons.monitor_heart,l.navSystemActivity,'/hq/home'),
-          _NavItem(Icons.account_tree_outlined, Icons.account_tree, l.navHierarchy,    '/hq/entities'),
-          _NavItem(Icons.warehouse_outlined,    Icons.warehouse,    l.navInventory,    '/hq/inventory'),
-          _NavItem(Icons.swap_horiz_outlined,   Icons.swap_horiz,   l.navTransactions, '/hq/transactions'),
-          _NavItem(Icons.badge_outlined,        Icons.badge,        l.navMainAgents,   '/hq/main-agents'),
-          _NavItem(Icons.store_outlined,        Icons.store,        l.navSubAgents,    '/hq/sub-agents'),
-          _NavItem(Icons.business_outlined,     Icons.business,     l.navCompanies,    '/hq/companies'),
-          _NavItem(Icons.point_of_sale_outlined,Icons.point_of_sale,l.navStores,       '/hq/stores'),
-          _NavItem(Icons.inventory_2_outlined,  Icons.inventory_2,  l.navCatalog,      '/hq/definitions'),
-          _NavItem(Icons.receipt_long_outlined, Icons.receipt_long, l.navTemplates,    '/hq/templates'),
-          _NavItem(Icons.upload_file_outlined,  Icons.upload_file,  l.navBatchAdd,     '/hq/batch'),
-          _NavItem(Icons.fact_check_outlined,   Icons.fact_check,   l.navPrintOps,     '/hq/print-operations'),
+          _NavItem(Icons.monitor_heart_outlined, Icons.monitor_heart, l.navSystemActivity, '/hq/home', required: Capability.VIEW_REPORTS),
+          _NavItem(Icons.account_tree_outlined, Icons.account_tree, l.navHierarchy, '/hq/entities', required: Capability.AGENT_ADMIN),
+          _NavItem(Icons.warehouse_outlined, Icons.warehouse, l.navInventory, '/hq/inventory', required: Capability.VIEW_REPORTS),
+          _NavItem(Icons.swap_horiz_outlined, Icons.swap_horiz, l.navTransactions, '/hq/transactions', required: Capability.CREATE_TRANSACTIONS),
+          _NavItem(Icons.badge_outlined, Icons.badge, l.navMainAgents, '/hq/main-agents', required: Capability.AGENT_ADMIN),
+          _NavItem(Icons.store_outlined, Icons.store, l.navSubAgents, '/hq/sub-agents', required: Capability.AGENT_ADMIN),
+          _NavItem(Icons.business_outlined, Icons.business, l.navCompanies, '/hq/companies', required: Capability.AGENT_ADMIN),
+          _NavItem(Icons.point_of_sale_outlined, Icons.point_of_sale, l.navStores, '/hq/stores', required: Capability.MANAGE_POS),
+          _NavItem(Icons.inventory_2_outlined, Icons.inventory_2, l.navCatalog, '/hq/definitions', required: Capability.AGENT_ADMIN),
+          _NavItem(Icons.receipt_long_outlined, Icons.receipt_long, l.navTemplates, '/hq/templates', required: Capability.AGENT_ADMIN),
+          _NavItem(Icons.upload_file_outlined, Icons.upload_file, l.navBatchAdd, '/hq/batch', required: Capability.AGENT_ADMIN),
+          _NavItem(Icons.fact_check_outlined, Icons.fact_check, l.navPrintOps, '/hq/print-operations', required: Capability.VIEW_REPORTS),
+          _NavItem(Icons.manage_accounts_outlined, Icons.manage_accounts, l.navUsers, '/hq/users', required: Capability.AGENT_ADMIN),
         ];
       case EntityType.AGENT1:
         return [
@@ -109,10 +121,15 @@ class AppShell extends ConsumerWidget {
 
     // Capability-gated extras layered onto the base per-tier nav. Pricing is a
     // Main-Agent feature behind MANAGE_PRICING (sub-agents can't hold it).
-    final items = [..._navFor(l, type)];
+    final base = [..._navFor(l, type)];
     if (type == EntityType.AGENT1 && auth is AuthAuthenticated && auth.can({Capability.MANAGE_PRICING})) {
-      items.add(_NavItem(Icons.sell_outlined, Icons.sell, l.navPrices, '/agent1/pricing'));
+      base.add(_NavItem(Icons.sell_outlined, Icons.sell, l.navPrices, '/agent1/pricing'));
     }
+    // HQ supervisors see only the sections their capabilities allow (empty caps =
+    // full access). Never produce an empty nav.
+    final caps = (auth is AuthAuthenticated) ? auth.capabilities : const <Capability>{};
+    final filtered = base.where((it) => _navAllowed(caps, it.required)).toList();
+    final items = filtered.isEmpty ? base : filtered;
     final location = GoRouterState.of(context).matchedLocation;
     final activeIndex = _activeIndex(items, location);
 

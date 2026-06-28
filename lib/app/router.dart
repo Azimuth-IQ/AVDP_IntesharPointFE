@@ -7,6 +7,7 @@ import 'package:inteshar/features/auth/presentation/splash_page.dart';
 import 'package:inteshar/features/dashboard/presentation/dashboard_page.dart';
 import 'package:inteshar/features/diagnostics/presentation/health_page.dart';
 import 'package:inteshar/features/entities/presentation/entity_tree_page.dart';
+import 'package:inteshar/features/entities/presentation/hq_users_page.dart';
 import 'package:inteshar/features/inventory/presentation/batch_add_page.dart';
 import 'package:inteshar/features/inventory/presentation/definitions_page.dart';
 import 'package:inteshar/features/inventory/presentation/print_operations_page.dart';
@@ -115,6 +116,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/hq/inventory', builder: (_, _) => const InventoryPage()),
           GoRoute(path: '/hq/batch', builder: (_, _) => const BatchAddPage()),
           GoRoute(path: '/hq/print-operations', builder: (_, _) => const PrintOperationsPage()),
+          GoRoute(path: '/hq/users', builder: (_, _) => const HqUsersPage()),
           GoRoute(path: '/hq/transactions', builder: (_, _) => const TransactionsPage()),
 
           // Agent1

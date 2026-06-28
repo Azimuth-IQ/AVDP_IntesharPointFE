@@ -33,6 +33,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get navPrintOps => 'عمليات الطباعة';
 
   @override
+  String get navUsers => 'المستخدمون';
+
+  @override
   String get navTransactions => 'المعاملات';
 
   @override

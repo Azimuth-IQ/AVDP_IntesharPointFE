@@ -18,6 +18,8 @@
   "@navBatchAdd": {},
   "navPrintOps": "Print Ops",
   "@navPrintOps": {},
+  "navUsers": "Users",
+  "@navUsers": {},
   "navTransactions": "Transactions",
   "@navTransactions": {},
   "navPos": "POS",

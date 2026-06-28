@@ -80,7 +80,13 @@ jobs:
           $SSH "sudo mkdir -p /opt/inteshar/apk"
           gcloud compute scp build/app/outputs/flutter-apk/app-release.apk \
             "$INSTANCE:/tmp/inteshar-$VC.apk" --zone "$ZONE" --tunnel-through-iap --quiet
-          $SSH "sudo mv /tmp/inteshar-$VC.apk /opt/inteshar/apk/inteshar-$VC.apk && sudo chmod 644 /opt/inteshar/apk/inteshar-$VC.apk"
+          # Keep the immutable versioned file (for history / the in-app-update record),
+          # AND refresh a stable alias so ONE link always serves the latest build:
+          #   http://34.185.153.95/downloads/inteshar-latest.apk
+          $SSH "sudo mv /tmp/inteshar-$VC.apk /opt/inteshar/apk/inteshar-$VC.apk \
+            && sudo chmod 644 /opt/inteshar/apk/inteshar-$VC.apk \
+            && sudo cp -f /opt/inteshar/apk/inteshar-$VC.apk /opt/inteshar/apk/inteshar-latest.apk \
+            && sudo chmod 644 /opt/inteshar/apk/inteshar-latest.apk"
 
       - name: Publish release to backend
         env:
@@ -89,11 +95,19 @@ jobs:
           VC: ${{ github.run_number }}
         run: |
           # Log in as an admin to publish (POST /api/app/release is ADMIN-only).
-          TOKEN=$(curl -sf -X POST "$API_BASE/api/auth/login" \
+          LOGIN=$(curl -s -X POST "$API_BASE/api/auth/login" \
             -H "Content-Type: application/json" \
-            -d "$(jq -n --arg p "$ADMIN_PHONE" --arg pw "$ADMIN_PASSWORD" '{phone:$p, password:$pw}')" \
-            | jq -r '.token')
-          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then echo "Login failed"; exit 1; fi
+            -d "$(jq -n --arg p "$ADMIN_PHONE" --arg pw "$ADMIN_PASSWORD" '{phone:$p, password:$pw}')")
+          TOKEN=$(echo "$LOGIN" | jq -r '.token // empty')
+          if [ -z "$TOKEN" ]; then
+            # 2FA/TOTP (or forced rotation) is on for this account → no token is returned
+            # to a non-interactive client, so the in-app-update record can't be refreshed.
+            # Do NOT fail the build: the signed APK is already uploaded and the stable
+            # /downloads/inteshar-latest.apk link is current. (Proper fix: a CI release
+            # API key or a TOTP-exempt service account — see the deploy notes.)
+            echo "::warning::Release-record publish skipped — admin login returned no token (2FA/rotation enabled). APK uploaded; stable link /downloads/inteshar-latest.apk updated; in-app auto-update record NOT refreshed."
+            exit 0
+          fi
 
           CHANGELOG=$(git log -1 --pretty=%B)
           BODY=$(jq -n \

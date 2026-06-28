@@ -7,6 +7,7 @@ import 'package:inteshar/core/api/api_exception.dart';
 import 'package:inteshar/core/printing/bluetooth_service.dart';
 import 'package:inteshar/core/printing/escpos_builder.dart';
 import 'package:inteshar/core/printing/logo_loader.dart';
+import 'package:inteshar/core/printing/print_queue.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
@@ -488,6 +489,11 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
           _agentLogoUrl = full.agentLogoUrl;
           _companyLogoUrl = full.companyLogoUrl;
         });
+        // Warm the logo cache now (off the print's critical path) so the eventual
+        // print is instant and works even if the link drops by then.
+        final t = widget.product.productDefinition.template;
+        if (t.showAgentLogo) loadReceiptLogo(full.agentLogoUrl);
+        if (t.showCompanyLogo) loadReceiptLogo(full.companyLogoUrl);
       }
     } catch (e) {
       if (!mounted) return;
@@ -536,7 +542,10 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
         expiry: revealed.expiryDate,
         receiptNo: _receiptNo,
       );
-      await ref.read(bluetoothServiceProvider.notifier).send(bytes);
+      // Enqueue on the serialized print queue: one ESC/POS write at a time (so
+      // rapid/concurrent prints never interleave bytes) with retry on transient
+      // printer failures.
+      await ref.read(printQueueProvider).enqueue(bytes);
       if (mounted) widget.onPrinted();
     } catch (e) {
       if (mounted) {

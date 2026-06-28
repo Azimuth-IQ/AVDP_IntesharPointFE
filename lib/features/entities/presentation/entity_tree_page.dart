@@ -16,6 +16,8 @@ import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:inteshar/core/upload/upload_repository.dart';
 import 'package:inteshar/shared/widgets/image_upload_field.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 import 'package:inteshar/shared/widgets/role_badge.dart';
@@ -549,6 +551,10 @@ class _TreeNode extends ConsumerWidget {
     final sloganCtrl = TextEditingController(text: entity.meta.slogan);
     final descCtrl = TextEditingController(text: entity.meta.description);
     final logoCtrl = TextEditingController(text: entity.meta.logoUrl);
+    final backgroundCtrl =
+        TextEditingController(text: entity.meta.backgroundUrl);
+    final sliderImagesNotifier = ValueNotifier<List<String>>(
+        List<String>.from(entity.meta.sliderImagesUrl));
     final primaryCtrl = TextEditingController(text: entity.meta.primaryColor);
     final secondaryCtrl =
         TextEditingController(text: entity.meta.secondaryColor);
@@ -567,6 +573,8 @@ class _TreeNode extends ConsumerWidget {
         sloganCtrl: sloganCtrl,
         descCtrl: descCtrl,
         logoCtrl: logoCtrl,
+        backgroundCtrl: backgroundCtrl,
+        sliderImagesNotifier: sliderImagesNotifier,
         primaryCtrl: primaryCtrl,
         secondaryCtrl: secondaryCtrl,
         thresholdCtrl: thresholdCtrl,
@@ -579,6 +587,8 @@ class _TreeNode extends ConsumerWidget {
               slogan: sloganCtrl.text.trim(),
               description: descCtrl.text.trim(),
               logoUrl: logoCtrl.text.trim(),
+              backgroundUrl: backgroundCtrl.text.trim(),
+              sliderImagesUrl: sliderImagesNotifier.value,
               primaryColor: primaryCtrl.text.trim(),
               secondaryColor: secondaryCtrl.text.trim(),
               lowStockThreshold: int.tryParse(thresholdCtrl.text.trim()) ?? 0,
@@ -764,6 +774,170 @@ class _HexSwatch extends StatelessWidget {
   }
 }
 
+// ─── Slider gallery ──────────────────────────────────────────────────────────
+
+/// Multi-image upload control for [EntityMeta.sliderImagesUrl].
+/// Renders a [Wrap] of thumbnails, each with an ✕ remove button, plus an
+/// add-image tile that opens the file picker and appends to [notifier].
+class _SliderGallery extends ConsumerStatefulWidget {
+  final ValueNotifier<List<String>> notifier;
+  const _SliderGallery({required this.notifier});
+
+  @override
+  ConsumerState<_SliderGallery> createState() => _SliderGalleryState();
+}
+
+class _SliderGalleryState extends ConsumerState<_SliderGallery> {
+  bool _uploading = false;
+  String? _error;
+
+  Future<void> _addImage() async {
+    setState(() => _error = null);
+    FilePickerResult? result;
+    try {
+      result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        withData: true,
+      );
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Could not open file picker: $e');
+      return;
+    }
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.first;
+    final bytes = file.bytes;
+    if (bytes == null) {
+      if (mounted) setState(() => _error = 'Could not read file bytes');
+      return;
+    }
+    setState(() => _uploading = true);
+    try {
+      final repo = UploadRepository(ref.read(apiClientProvider));
+      final url = await repo.uploadFile(bytes, file.name, 'agent-branding');
+      if (mounted) {
+        widget.notifier.value = [...widget.notifier.value, url];
+        setState(() => _uploading = false);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _uploading = false;
+          _error = e.toString();
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          isAr ? 'صور الشريط' : 'Slider Images',
+          style: IntesharType.sans(12,
+              color: cs.onSurfaceVariant, w: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        ValueListenableBuilder<List<String>>(
+          valueListenable: widget.notifier,
+          builder: (context, images, _) {
+            return Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ...images.asMap().entries.map((entry) {
+                  final idx = entry.key;
+                  final url = entry.value;
+                  return Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius:
+                            BorderRadius.circular(IntesharRadii.sm),
+                        child: Image.network(
+                          url,
+                          width: 72,
+                          height: 72,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            width: 72,
+                            height: 72,
+                            decoration: BoxDecoration(
+                              color: cs.surfaceContainerHighest,
+                              borderRadius:
+                                  BorderRadius.circular(IntesharRadii.sm),
+                            ),
+                            child: Icon(Icons.broken_image_outlined,
+                                size: 22, color: cs.onSurfaceVariant),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 2,
+                        right: 2,
+                        child: GestureDetector(
+                          onTap: () {
+                            final updated =
+                                List<String>.from(widget.notifier.value)
+                                  ..removeAt(idx);
+                            widget.notifier.value = updated;
+                          },
+                          child: Container(
+                            width: 20,
+                            height: 20,
+                            decoration: BoxDecoration(
+                              color: cs.error,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(Icons.close,
+                                size: 12, color: cs.onError),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+                if (_uploading)
+                  SizedBox(
+                    width: 72,
+                    height: 72,
+                    child: Center(
+                        child: CircularProgressIndicator(strokeWidth: 2)),
+                  )
+                else
+                  GestureDetector(
+                    onTap: _addImage,
+                    child: Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: cs.outline, width: 1.5),
+                        borderRadius:
+                            BorderRadius.circular(IntesharRadii.sm),
+                      ),
+                      child: Icon(
+                        Icons.add_photo_alternate_outlined,
+                        size: 28,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+        if (_error != null) ...[  
+          const SizedBox(height: 4),
+          Text(_error!, style: IntesharType.sans(12, color: cs.error)),
+        ],
+      ],
+    );
+  }
+}
+
 // ─── Entity form sheet ───────────────────────────────────────────────────────
 
 class _EntityFormSheet extends StatefulWidget {
@@ -772,6 +946,8 @@ class _EntityFormSheet extends StatefulWidget {
   final TextEditingController sloganCtrl;
   final TextEditingController descCtrl;
   final TextEditingController logoCtrl;
+  final TextEditingController backgroundCtrl;
+  final ValueNotifier<List<String>> sliderImagesNotifier;
   final TextEditingController primaryCtrl;
   final TextEditingController secondaryCtrl;
   final TextEditingController thresholdCtrl;
@@ -783,6 +959,8 @@ class _EntityFormSheet extends StatefulWidget {
     required this.sloganCtrl,
     required this.descCtrl,
     required this.logoCtrl,
+    required this.backgroundCtrl,
+    required this.sliderImagesNotifier,
     required this.primaryCtrl,
     required this.secondaryCtrl,
     required this.thresholdCtrl,
@@ -857,6 +1035,20 @@ class _EntityFormSheetState extends State<_EntityFormSheet> {
               kind: 'agent-branding',
               onChanged: (u) => setState(() => widget.logoCtrl.text = u),
             ),
+            const SizedBox(height: 12),
+            ImageUploadField(
+              value: widget.backgroundCtrl.text.isEmpty
+                  ? null
+                  : widget.backgroundCtrl.text,
+              label: Localizations.localeOf(context).languageCode == 'ar'
+                  ? 'صورة الخلفية'
+                  : 'Background Image',
+              kind: 'agent-branding',
+              onChanged: (u) =>
+                  setState(() => widget.backgroundCtrl.text = u),
+            ),
+            const SizedBox(height: 12),
+            _SliderGallery(notifier: widget.sliderImagesNotifier),
             const SizedBox(height: 12),
             TextField(
               controller: widget.primaryCtrl,

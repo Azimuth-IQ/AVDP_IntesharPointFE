@@ -36,6 +36,12 @@ class AppLocalizationsAr extends AppLocalizations {
   String get navUsers => 'المستخدمون';
 
   @override
+  String get navWorkingHours => 'ساعات العمل';
+
+  @override
+  String get navNotifications => 'الإشعارات';
+
+  @override
   String get navTransactions => 'المعاملات';
 
   @override

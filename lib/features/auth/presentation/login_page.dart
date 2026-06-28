@@ -357,6 +357,13 @@ class _TotpChallenge extends StatelessWidget {
             const SizedBox(height: 4),
             SelectableText(secret,
                 style: const TextStyle(fontFamily: 'JetBrainsMono', letterSpacing: 1.5, fontSize: 13)),
+            const SizedBox(height: 10),
+            Text(
+              ar
+                  ? 'إذا كان الرمز السابق لا يعمل، احذف المدخل القديم من تطبيق المصادقة ثم امسح هذا الرمز من جديد.'
+                  : 'If a previously scanned code no longer works, delete that old entry from your authenticator app and scan this QR again.',
+              style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+            ),
           ],
           const SizedBox(height: 18),
           TextField(

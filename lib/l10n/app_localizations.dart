@@ -152,6 +152,18 @@ abstract class AppLocalizations {
   /// **'Users'**
   String get navUsers;
 
+  /// No description provided for @navWorkingHours.
+  ///
+  /// In en, this message translates to:
+  /// **'Working Hours'**
+  String get navWorkingHours;
+
+  /// No description provided for @navNotifications.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications'**
+  String get navNotifications;
+
   /// No description provided for @navTransactions.
   ///
   /// In en, this message translates to:

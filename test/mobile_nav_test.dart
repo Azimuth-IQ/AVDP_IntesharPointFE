@@ -81,11 +81,13 @@ void main() {
     expect(find.text('Batch Add'), findsOneWidget);
   });
 
-  testWidgets('Store role (4 routes) shows every tab, no More', (tester) async {
+  testWidgets('Store role (5 routes) shows every tab, no More', (tester) async {
     await _pumpShell(tester, EntityType.STORE);
 
+    // STORE has exactly _kMaxBottomTabs (5) destinations after Notifications was
+    // added — at the cap, so all show inline with no overflow "More" tab.
     final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
-    expect(bar.destinations.length, 4);
+    expect(bar.destinations.length, 5);
     expect(find.text('More'), findsNothing);
   });
 }

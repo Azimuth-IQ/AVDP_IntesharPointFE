@@ -1,8 +1,11 @@
+import 'dart:typed_data';
+
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/endpoints.dart';
 import 'package:inteshar/features/inventory/domain/print_operation.dart';
 import 'package:inteshar/features/inventory/domain/product.dart';
 import 'package:inteshar/features/inventory/domain/sku_summary.dart';
+import 'package:inteshar/features/inventory/domain/voucher_batch.dart';
 import 'package:inteshar/features/inventory/domain/voucher_import.dart';
 
 /// Enriched voucher-reveal payload: the consumed product (PIN decrypted), the
@@ -192,5 +195,43 @@ class ProductRepository {
 
   Future<void> delete(String id) async {
     await _api.delete(Endpoints.productDelete, params: {'id': id});
+  }
+
+  /// Lists all voucher batches (newest first). The endpoint is HQ-only and
+  /// returns every batch the platform admin manages, so no owner filter is sent.
+  /// Calls `GET /api/inventory/batches`.
+  Future<List<VoucherBatch>> listBatches() async {
+    final response = await _api.get(Endpoints.productBatches);
+    return _api.unwrap(response, (d) {
+      final list = d as List<dynamic>;
+      return list
+          .map((e) => VoucherBatch.fromJson(e as Map<String, dynamic>))
+          .toList();
+    });
+  }
+
+  /// Pauses or resumes a batch via the single toggle endpoint.
+  /// `POST /api/inventory/batch/pause?batchId=&paused=` (paused true/false).
+  Future<void> pauseBatch(String batchId, {required bool pause}) async {
+    final response = await _api.post(
+      Endpoints.productBatchPause,
+      params: {'batchId': batchId, 'paused': pause},
+    );
+    _api.unwrap(response, (_) {});
+  }
+
+  /// Deletes all AVAILABLE vouchers in a batch.
+  /// The backend rejects with 409 when any voucher in the batch is already
+  /// PRINTED (sold), so [VoucherBatch.canDelete] should be checked first.
+  Future<void> deleteBatch(String batchId) async {
+    await _api
+        .delete(Endpoints.productBatchDelete, params: {'batchId': batchId});
+  }
+
+  /// Downloads the original serial/pin TXT for a batch (raw bytes, not JSON).
+  /// Uses [ApiClient.getBytes] with ResponseType.bytes. HQ-only.
+  Future<Uint8List> exportBatchTxt(String batchId) async {
+    return _api
+        .getBytes(Endpoints.productBatchExport, params: {'batchId': batchId});
   }
 }

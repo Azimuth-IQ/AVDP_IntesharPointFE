@@ -77,4 +77,20 @@ class Endpoints {
 
   // Object storage
   static const storageUpload = '/api/storage/upload';
+
+  // Voucher import batches (HQ-only). pause handles resume too via ?paused=.
+  static const productBatches = '/api/inventory/batches';
+  static const productBatchPause = '/api/inventory/batch/pause';
+  static const productBatchDelete = '/api/inventory/batch';
+  static const productBatchExport = '/api/inventory/batch/export';
+
+  // Broadcast notifications. GET inbox + POST create share the base path;
+  // mark-read is POST /api/notifications/{id}/read (built in the repository).
+  static const notifications = '/api/notifications';
+  static const notificationsSend = '/api/notifications';
+
+  // Platform settings: the global working-hours toggle is a generic key/value
+  // setting; the per-entity window is a targeted patch on the entity.
+  static const settingsWorkingHours = '/api/settings/auth.workinghours.enabled';
+  static const settingsWorkingHoursEntity = '/api/entity/workingHours';
 }

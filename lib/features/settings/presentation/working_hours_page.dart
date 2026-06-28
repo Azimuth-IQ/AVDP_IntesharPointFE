@@ -1,0 +1,410 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inteshar/app/theme.dart';
+import 'package:inteshar/core/api/api_client.dart';
+import 'package:inteshar/features/entities/data/entity_repository.dart';
+import 'package:inteshar/features/entities/domain/entity.dart';
+import 'package:inteshar/features/entities/domain/entity_type.dart';
+import 'package:inteshar/features/settings/data/settings_repository.dart';
+import 'package:inteshar/shared/widgets/design_system.dart';
+import 'package:inteshar/shared/widgets/error_state.dart';
+import 'package:inteshar/shared/widgets/responsive.dart';
+import 'package:inteshar/shared/widgets/working_hours_editor.dart';
+
+// ─── Inline localisation strings (no .arb edits) ───────────────────────────
+
+class _S {
+  final bool ar;
+  const _S(this.ar);
+  factory _S.of(BuildContext c) =>
+      _S(Localizations.localeOf(c).languageCode == 'ar');
+  String p(String en, String arT) => ar ? arT : en;
+
+  String get eyebrow => p('Administration', 'الإدارة');
+  String get title => p('Working Hours', 'ساعات العمل');
+  String get subtitle =>
+      p('Control login time windows for accounts', 'تحكم في أوقات تسجيل دخول الحسابات');
+
+  // Global card
+  String get globalSection => p('Global Lock', 'القفل العام');
+  String get globalDesc => p(
+        'When enabled, accounts that have a configured window cannot log in outside that window. '
+        'Accounts with no window configured are unaffected.',
+        'عند التفعيل، لا تستطيع الحسابات ذات النافذة الزمنية تسجيل الدخول خارجها. '
+        'الحسابات التي لا تمتلك نافذة لا تتأثر.',
+      );
+  String get globalToggle =>
+      p('Enforce working hours system-wide', 'تطبيق ساعات العمل على كامل النظام');
+  String get active => p('Active', 'مُفعَّل');
+  String get inactive => p('Inactive', 'معطَّل');
+
+  // Per-entity card
+  String get entitySection => p('Per-Account Window', 'نافذة الحساب');
+  String get selectEntityHint => p('Select an account', 'اختر الحساب');
+  String get noEntitySelected =>
+      p('Choose an account above to configure its login window.',
+          'اختر حسابًا أعلاه لضبط نافذته الزمنية.');
+  String get save => p('Save window', 'حفظ النافذة');
+  String get savedMsg => p('Working hours saved.', 'تم حفظ ساعات العمل.');
+}
+
+// ─── Page ───────────────────────────────────────────────────────────────────
+
+/// HQ-only screen for configuring the working-hours login gate (BRD FR-03).
+///
+/// **Section A — Global Lock**: a toggle that enables/disables platform-wide
+/// enforcement via [Endpoints.settingsWorkingHours]. When off, every login
+/// succeeds regardless of per-account windows (windows are preserved, just
+/// not enforced). When on, accounts with a window are gated; accounts without
+/// one are unaffected.
+///
+/// **Section B — Per-Account Window**: pick any entity from the hierarchy,
+/// edit its window using the shared [WorkingHoursEditor] widget, then save
+/// via [Endpoints.settingsWorkingHoursEntity].
+///
+/// Route: `/hq/working-hours` (add to router.dart — see wiringNotes).
+/// Required capability: [Capability.AGENT_ADMIN].
+class WorkingHoursPage extends ConsumerStatefulWidget {
+  const WorkingHoursPage({super.key});
+
+  @override
+  ConsumerState<WorkingHoursPage> createState() => _WorkingHoursPageState();
+}
+
+class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
+  // ── Global toggle ─────────────────────────────────────────────────────────
+  bool _globalEnabled = false;
+  bool _globalLoading = true;
+  bool _globalSaving = false;
+  Object? _globalError;
+
+  // ── Entity list (dropdown) ────────────────────────────────────────────────
+  List<Entity> _entities = [];
+  bool _entitiesLoading = true;
+  Object? _entitiesError;
+
+  // ── Per-entity form ───────────────────────────────────────────────────────
+  Entity? _selectedEntity;
+  /// The working-hours value currently shown in the editor.
+  WorkingHours? _pendingWindow;
+  bool _windowSaving = false;
+  String? _windowError;
+
+  SettingsRepository get _settingsRepo =>
+      SettingsRepository(ref.read(apiClientProvider));
+  EntityRepository get _entityRepo =>
+      EntityRepository(ref.read(apiClientProvider));
+
+  @override
+  void initState() {
+    super.initState();
+    _loadGlobal();
+    _loadEntities();
+  }
+
+  // ── Loaders ───────────────────────────────────────────────────────────────
+
+  Future<void> _loadGlobal() async {
+    setState(() {
+      _globalLoading = true;
+      _globalError = null;
+    });
+    try {
+      final enabled = await _settingsRepo.getGlobalWorkingHoursEnabled();
+      if (!mounted) return;
+      setState(() {
+        _globalEnabled = enabled;
+        _globalLoading = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _globalError = e;
+          _globalLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadEntities() async {
+    setState(() {
+      _entitiesLoading = true;
+      _entitiesError = null;
+    });
+    try {
+      final all = await _entityRepo.readAll();
+      if (!mounted) return;
+      // INTESHAR (HQ) first, then alphabetically.
+      all.sort((a, b) {
+        if (a.type == EntityType.INTESHAR) return -1;
+        if (b.type == EntityType.INTESHAR) return 1;
+        return a.meta.name.compareTo(b.meta.name);
+      });
+      setState(() {
+        _entities = all;
+        _entitiesLoading = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _entitiesError = e;
+          _entitiesLoading = false;
+        });
+      }
+    }
+  }
+
+  // ── Actions ───────────────────────────────────────────────────────────────
+
+  Future<void> _toggleGlobal(bool value) async {
+    setState(() => _globalSaving = true);
+    try {
+      await _settingsRepo.setGlobalWorkingHoursEnabled(value);
+      if (!mounted) return;
+      setState(() {
+        _globalEnabled = value;
+        _globalSaving = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _globalSaving = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+  }
+
+  void _onEntitySelected(Entity? entity) {
+    if (entity == null) return;
+    setState(() {
+      _selectedEntity = entity;
+      // Seed the editor with the account's current window (or a blank default).
+      _pendingWindow = entity.meta.workingHours ?? const WorkingHours();
+      _windowError = null;
+    });
+  }
+
+  Future<void> _saveWindow() async {
+    final entity = _selectedEntity;
+    if (entity == null) return;
+    setState(() {
+      _windowSaving = true;
+      _windowError = null;
+    });
+    final wh = _pendingWindow ?? const WorkingHours();
+    try {
+      await _settingsRepo.setEntityWorkingHours(entity.id, wh);
+      if (!mounted) return;
+      setState(() => _windowSaving = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(_S.of(context).savedMsg)));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _windowSaving = false;
+        _windowError = e.toString();
+      });
+    }
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    final s = _S.of(context);
+    return MaxWidthBox(
+      child: Column(
+        children: [
+          PageHeader(
+            eyebrow: s.eyebrow,
+            title: s.title,
+            subtitle: s.subtitle,
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () async {
+                await _loadGlobal();
+                await _loadEntities();
+              },
+              child: ListView(
+                padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 32),
+                children: [
+                  _globalCard(s),
+                  const SizedBox(height: 20),
+                  _entityWindowCard(s),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Global toggle card ────────────────────────────────────────────────────
+
+  Widget _globalCard(_S s) {
+    final cs = Theme.of(context).colorScheme;
+    return InkCard(
+      ruleColor: _globalEnabled ? IntesharColors.saffron : cs.outlineVariant,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionLabel(s.globalSection),
+          Text(
+            s.globalDesc,
+            style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant, height: 1.5),
+          ),
+          const SizedBox(height: 14),
+          if (_globalLoading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_globalError != null)
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _globalError.toString(),
+                    style: TextStyle(color: cs.error, fontSize: 13),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.refresh, size: 20),
+                  onPressed: _loadGlobal,
+                  tooltip: s.ar ? 'إعادة المحاولة' : 'Retry',
+                ),
+              ],
+            )
+          else ...[
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                s.globalToggle,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
+              value: _globalEnabled,
+              onChanged: _globalSaving ? null : _toggleGlobal,
+              activeColor: IntesharColors.saffron,
+              secondary: _globalSaving
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(
+                      _globalEnabled
+                          ? Icons.schedule
+                          : Icons.lock_open_outlined,
+                      color: _globalEnabled
+                          ? IntesharColors.saffron
+                          : cs.onSurfaceVariant,
+                    ),
+            ),
+            const SizedBox(height: 4),
+            StampPill(
+              label: _globalEnabled ? s.active : s.inactive,
+              color: _globalEnabled ? IntesharColors.sage : cs.outline,
+              icon: _globalEnabled
+                  ? Icons.check_circle_outline
+                  : Icons.cancel_outlined,
+              filled: false,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ── Per-entity window card ────────────────────────────────────────────────
+
+  Widget _entityWindowCard(_S s) {
+    final cs = Theme.of(context).colorScheme;
+    return InkCard(
+      ruleColor: IntesharColors.saffron,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionLabel(s.entitySection),
+
+          // Entity picker ───────────────────────────────────────────────────
+          if (_entitiesLoading)
+            const Center(child: CircularProgressIndicator())
+          else if (_entitiesError != null)
+            ErrorState(error: _entitiesError!, onRetry: _loadEntities)
+          else
+            DropdownButtonFormField<Entity>(
+              value: _selectedEntity,
+              hint: Text(s.selectEntityHint),
+              isExpanded: true,
+              items: _entities.map((e) {
+                return DropdownMenuItem<Entity>(
+                  value: e,
+                  child: Text(
+                    '${e.meta.name.isNotEmpty ? e.meta.name : e.id}  ·  ${e.type.label}',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                );
+              }).toList(),
+              onChanged: _onEntitySelected,
+              decoration: InputDecoration(
+                labelText: s.selectEntityHint,
+                border: const OutlineInputBorder(),
+                contentPadding: const EdgeInsetsDirectional.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+              ),
+            ),
+
+          const SizedBox(height: 16),
+
+          // Editor — shown only when an entity is chosen ───────────────────
+          if (_selectedEntity == null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 8),
+              child: Text(
+                s.noEntitySelected,
+                style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
+              ),
+            )
+          else ...[
+            WorkingHoursEditor(
+              value: _pendingWindow,
+              onChanged: (wh) => setState(() => _pendingWindow = wh),
+            ),
+
+            if (_windowError != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Text(
+                  _windowError!,
+                  style: TextStyle(color: cs.error, fontSize: 12.5),
+                ),
+              ),
+
+            const SizedBox(height: 20),
+
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _windowSaving ? null : _saveWindow,
+                child: _windowSaving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Text(s.save),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}

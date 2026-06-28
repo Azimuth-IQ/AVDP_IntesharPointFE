@@ -19,9 +19,11 @@ import 'package:inteshar/features/inventory/data/definition_repository.dart';
 import 'package:inteshar/features/inventory/data/product_repository.dart';
 import 'package:inteshar/features/inventory/domain/product.dart';
 import 'package:inteshar/features/inventory/domain/product_definition.dart';
+import 'package:inteshar/features/inventory/domain/voucher_batch.dart';
 import 'package:inteshar/features/inventory/domain/voucher_import.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
+import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
@@ -82,7 +84,7 @@ class _BatchAddPageState extends ConsumerState<BatchAddPage>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
+    _tabs = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -127,6 +129,7 @@ class _BatchAddPageState extends ConsumerState<BatchAddPage>
                 tabs: [
                   Tab(text: l.batchAddTabSingle),
                   Tab(text: _tr(context, 'رفع ملف', 'Upload file')),
+                  Tab(text: _tr(context, 'الدفعات', 'Batches')),
                 ],
               ),
             ),
@@ -137,6 +140,7 @@ class _BatchAddPageState extends ConsumerState<BatchAddPage>
               children: const [
                 _ManualTab(),
                 _UploadTab(),
+                _BatchesTab(),
               ],
             ),
           ),
@@ -928,6 +932,378 @@ class _ProgressBlock extends StatelessWidget {
               style: IntesharType.sans(12, color: IntesharColors.lichen)),
         ],
       ),
+    );
+  }
+}
+
+// ── Batches Tab ───────────────────────────────────────────────────────────────
+
+class _BatchesTab extends ConsumerStatefulWidget {
+  const _BatchesTab();
+
+  @override
+  ConsumerState<_BatchesTab> createState() => _BatchesTabState();
+}
+
+class _BatchesTabState extends ConsumerState<_BatchesTab> {
+  List<VoucherBatch>? _batches;
+  bool _loading = true;
+  Object? _error;
+  // Batch IDs currently awaiting a server response (pause/delete/export).
+  final Set<String> _busy = {};
+
+  String _entityId() {
+    final auth = ref.read(authStateProvider).valueOrNull;
+    if (auth is AuthAuthenticated) return auth.entity.id;
+    return '';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final repo = ProductRepository(ref.read(apiClientProvider));
+      final batches = await repo.listBatches();
+      if (mounted) setState(() { _batches = batches; _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _error = e; _loading = false; });
+    }
+  }
+
+  Future<void> _togglePause(VoucherBatch batch) async {
+    if (_busy.contains(batch.id)) return;
+    setState(() => _busy.add(batch.id));
+    try {
+      final repo = ProductRepository(ref.read(apiClientProvider));
+      await repo.pauseBatch(batch.id, pause: !batch.paused);
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _busy.remove(batch.id));
+    }
+  }
+
+  Future<void> _confirmDelete(VoucherBatch batch) async {
+    if (_busy.contains(batch.id)) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(_tr(context, 'حذف الدفعة', 'Delete batch')),
+        content: Text(_tr(
+          context,
+          'سيتم حذف جميع القسائم في هذه الدفعة نهائياً. لا يمكن التراجع.',
+          'All vouchers in this batch will be permanently deleted. This cannot be undone.',
+        )),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(_tr(context, 'إلغاء', 'Cancel')),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(ctx).colorScheme.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(_tr(context, 'حذف', 'Delete')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() => _busy.add(batch.id));
+    try {
+      final repo = ProductRepository(ref.read(apiClientProvider));
+      await repo.deleteBatch(batch.id);
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _busy.remove(batch.id));
+    }
+  }
+
+  Future<void> _export(VoucherBatch batch) async {
+    if (_busy.contains(batch.id)) return;
+    setState(() => _busy.add(batch.id));
+    try {
+      final repo = ProductRepository(ref.read(apiClientProvider));
+      final bytes = await repo.exportBatchTxt(batch.id);
+      final fileName = 'batch_${batch.id}.txt';
+      if (kIsWeb) {
+        downloadBytes(fileName, bytes);
+      } else if (Platform.isAndroid || Platform.isIOS) {
+        await FilePicker.platform.saveFile(
+          dialogTitle: _tr(context, 'حفظ الملف', 'Save file'),
+          fileName: fileName,
+          bytes: bytes,
+        );
+      } else {
+        final path = await FilePicker.platform.saveFile(
+          dialogTitle: _tr(context, 'حفظ الملف', 'Save file'),
+          fileName: fileName,
+        );
+        if (path != null) {
+          final finalPath =
+              path.toLowerCase().endsWith('.txt') ? path : '$path.txt';
+          await File(finalPath).writeAsBytes(bytes);
+        }
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                _tr(context, 'تم تحميل الملف', 'File downloaded'))));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _busy.remove(batch.id));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) return ErrorState(error: _error!, onRetry: _load);
+    final batches = _batches ?? [];
+    if (batches.isEmpty) {
+      return EmptyState(
+        message: _tr(
+          context,
+          'لا توجد دفعات — ارفع ملفاً لإنشاء دفعة جديدة',
+          'No batches yet — upload a file to create one',
+        ),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.separated(
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
+        itemCount: batches.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
+        itemBuilder: (_, i) => _BatchCard(
+          batch: batches[i],
+          busy: _busy.contains(batches[i].id),
+          onTogglePause: () => _togglePause(batches[i]),
+          onDelete: () => _confirmDelete(batches[i]),
+          onExport: () => _export(batches[i]),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Batch card ────────────────────────────────────────────────────────────────
+
+class _BatchCard extends StatelessWidget {
+  final VoucherBatch batch;
+  final bool busy;
+  final VoidCallback onTogglePause;
+  final VoidCallback onDelete;
+  final VoidCallback onExport;
+
+  const _BatchCard({
+    required this.batch,
+    required this.busy,
+    required this.onTogglePause,
+    required this.onDelete,
+    required this.onExport,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final paused = batch.paused;
+
+    return InkCard(
+      ruleColor: paused ? cs.outline : IntesharColors.saffronDeep,
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header: product name + status badge
+          Row(children: [
+            Expanded(
+              child: Text(
+                batch.productName.isNotEmpty
+                    ? batch.productName
+                    : batch.sku,
+                style: IntesharType.sans(15,
+                    color: cs.onSurface, w: FontWeight.w800),
+              ),
+            ),
+            const SizedBox(width: 8),
+            _BatchStatusChip(paused: paused),
+          ]),
+          const SizedBox(height: 6),
+          // SKU · type · governorate tags
+          Row(children: [
+            monoText(batch.sku, size: 12, color: IntesharColors.lichen),
+            const SizedBox(width: 8),
+            _BatchTag(batch.type),
+            if ((batch.governorate ?? '').isNotEmpty) ...[  
+              const SizedBox(width: 6),
+              _BatchTag(batch.governorate!),
+            ],
+          ]),
+          const SizedBox(height: 12),
+          // Count stats: total / available / used
+          Row(children: [
+            _CountStat(
+              label: _tr(context, 'الإجمالي', 'Total'),
+              value: batch.totalCount,
+              color: cs.onSurfaceVariant,
+            ),
+            const SizedBox(width: 24),
+            _CountStat(
+              label: _tr(context, 'متاح', 'Available'),
+              value: batch.availableCount,
+              color: cs.onSurface,
+            ),
+            const SizedBox(width: 24),
+            _CountStat(
+              label: _tr(context, 'مُستخدَم', 'Used'),
+              value: batch.printedCount,
+              color: batch.printedCount > 0 ? cs.error : cs.onSurfaceVariant,
+            ),
+          ]),
+          if (batch.createdAt.isNotEmpty) ...[  
+            const SizedBox(height: 8),
+            Text(
+              batch.createdAt.replaceFirst('T', ' ').split('.').first,
+              style: IntesharType.sans(11, color: cs.onSurfaceVariant),
+            ),
+          ],
+          const SizedBox(height: 12),
+          // Action row
+          if (busy)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 6),
+              child: Center(
+                child: SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2)),
+              ),
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: onExport,
+                  icon: const Icon(Icons.file_download_outlined, size: 16),
+                  label: Text(_tr(context, 'تصدير TXT', 'Export TXT')),
+                ),
+                OutlinedButton.icon(
+                  onPressed: onTogglePause,
+                  icon: Icon(
+                      paused
+                          ? Icons.play_arrow_outlined
+                          : Icons.pause_outlined,
+                      size: 16),
+                  label: Text(paused
+                      ? _tr(context, 'استئناف', 'Resume')
+                      : _tr(context, 'إيقاف مؤقت', 'Pause')),
+                ),
+                OutlinedButton.icon(
+                  onPressed: batch.canDelete ? onDelete : null,
+                  icon: const Icon(Icons.delete_outline, size: 16),
+                  label: Text(_tr(context, 'حذف', 'Delete')),
+                  style: batch.canDelete
+                      ? OutlinedButton.styleFrom(foregroundColor: cs.error)
+                      : null,
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BatchTag extends StatelessWidget {
+  final String text;
+  const _BatchTag(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: monoText(text, size: 11, color: cs.onSurfaceVariant),
+    );
+  }
+}
+
+class _BatchStatusChip extends StatelessWidget {
+  final bool paused;
+  const _BatchStatusChip({required this.paused});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: paused ? cs.errorContainer : cs.primaryContainer,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        paused
+            ? (isAr ? 'موقوف' : 'Paused')
+            : (isAr ? 'نشط' : 'Active'),
+        style: IntesharType.sans(11,
+            color:
+                paused ? cs.onErrorContainer : cs.onPrimaryContainer,
+            w: FontWeight.w700),
+      ),
+    );
+  }
+}
+
+class _CountStat extends StatelessWidget {
+  final String label;
+  final int value;
+  final Color color;
+  const _CountStat(
+      {required this.label, required this.value, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          value.toString(),
+          style: IntesharType.sans(17, color: color, w: FontWeight.w800),
+        ),
+        Text(label,
+            style: IntesharType.sans(10, color: cs.onSurfaceVariant)),
+      ],
     );
   }
 }

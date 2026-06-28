@@ -65,6 +65,8 @@ class AppShell extends ConsumerWidget {
           _NavItem(Icons.upload_file_outlined, Icons.upload_file, l.navBatchAdd, '/hq/batch', required: Capability.AGENT_ADMIN),
           _NavItem(Icons.fact_check_outlined, Icons.fact_check, l.navPrintOps, '/hq/print-operations', required: Capability.VIEW_REPORTS),
           _NavItem(Icons.manage_accounts_outlined, Icons.manage_accounts, l.navUsers, '/hq/users', required: Capability.AGENT_ADMIN),
+          _NavItem(Icons.schedule_outlined, Icons.schedule, l.navWorkingHours, '/hq/working-hours', required: Capability.AGENT_ADMIN),
+          _NavItem(Icons.campaign_outlined, Icons.campaign, l.navNotifications, '/hq/notifications', required: Capability.AGENT_ADMIN),
         ];
       case EntityType.AGENT1:
         return [
@@ -73,6 +75,7 @@ class AppShell extends ConsumerWidget {
           _NavItem(Icons.warehouse_outlined,    Icons.warehouse,    l.navInventory,    '/agent1/inventory'),
           _NavItem(Icons.swap_horiz_outlined,   Icons.swap_horiz,   l.navTransactions, '/agent1/transactions'),
           _NavItem(Icons.point_of_sale_outlined,Icons.point_of_sale,l.navStores,       '/agent1/stores'),
+          _NavItem(Icons.notifications_outlined,Icons.notifications,l.navNotifications,'/agent1/notifications'),
         ];
       case EntityType.AGENT2:
         return [
@@ -81,6 +84,7 @@ class AppShell extends ConsumerWidget {
           _NavItem(Icons.warehouse_outlined,    Icons.warehouse,    l.navInventory,    '/agent2/inventory'),
           _NavItem(Icons.swap_horiz_outlined,   Icons.swap_horiz,   l.navTransactions, '/agent2/transactions'),
           _NavItem(Icons.point_of_sale_outlined,Icons.point_of_sale,l.navStores,       '/agent2/stores'),
+          _NavItem(Icons.notifications_outlined,Icons.notifications,l.navNotifications,'/agent2/notifications'),
         ];
       case EntityType.STORE:
         return [
@@ -88,6 +92,7 @@ class AppShell extends ConsumerWidget {
           _NavItem(Icons.warehouse_outlined,    Icons.warehouse,        l.navInventory,    '/store/inventory'),
           _NavItem(Icons.swap_horiz_outlined,   Icons.swap_horiz,       l.navTransactions, '/store/transactions'),
           _NavItem(Icons.point_of_sale_outlined,Icons.point_of_sale,    l.navPos,          '/pos/home'),
+          _NavItem(Icons.notifications_outlined,Icons.notifications,    l.navNotifications,'/store/notifications'),
         ];
     }
   }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -183,6 +184,19 @@ class ApiClient {
   Future<Response<dynamic>> delete(String path, {Map<String, dynamic>? params, dynamic data}) async {
     final base = await baseUrl;
     return _dio.delete('$base$path', queryParameters: params, data: data);
+  }
+
+  /// Download raw bytes (e.g. a TXT batch export). Uses [ResponseType.bytes] so
+  /// Dio does not attempt JSON decoding — returns the raw body as [Uint8List].
+  Future<Uint8List> getBytes(String path,
+      {Map<String, dynamic>? params}) async {
+    final base = await baseUrl;
+    final response = await _dio.get<List<int>>(
+      '$base$path',
+      queryParameters: params,
+      options: Options(responseType: ResponseType.bytes),
+    );
+    return Uint8List.fromList(response.data ?? []);
   }
 
   T unwrap<T>(Response<dynamic> r, T Function(dynamic) parse) {

@@ -14,6 +14,9 @@ import 'package:inteshar/features/inventory/presentation/print_operations_page.d
 import 'package:inteshar/features/inventory/presentation/voucher_templates_page.dart';
 import 'package:inteshar/features/inventory/presentation/inventory_page.dart';
 import 'package:inteshar/features/inventory/presentation/child_inventory_page.dart';
+import 'package:inteshar/features/notifications/presentation/notifications_compose_page.dart';
+import 'package:inteshar/features/notifications/presentation/notifications_inbox_page.dart';
+import 'package:inteshar/features/settings/presentation/working_hours_page.dart';
 import 'package:inteshar/features/agents/presentation/main_agents_page.dart';
 import 'package:inteshar/features/agents/presentation/sub_agents_page.dart';
 import 'package:inteshar/features/companies/presentation/companies_page.dart';
@@ -117,6 +120,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/hq/batch', builder: (_, _) => const BatchAddPage()),
           GoRoute(path: '/hq/print-operations', builder: (_, _) => const PrintOperationsPage()),
           GoRoute(path: '/hq/users', builder: (_, _) => const HqUsersPage()),
+          GoRoute(path: '/hq/working-hours', builder: (_, _) => const WorkingHoursPage()),
+          GoRoute(path: '/hq/notifications', builder: (_, _) => const NotificationsComposePage()),
           GoRoute(path: '/hq/transactions', builder: (_, _) => const TransactionsPage()),
 
           // Agent1
@@ -126,6 +131,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/agent1/transactions', builder: (_, _) => const TransactionsPage()),
           GoRoute(path: '/agent1/pricing', builder: (_, _) => const PricingPage()),
           GoRoute(path: '/agent1/stores', builder: (_, _) => const StoresPage()),
+          GoRoute(path: '/agent1/notifications', builder: (_, _) => const NotificationsInboxPage()),
 
           // Agent2
           GoRoute(path: '/agent2/home', builder: (_, _) => const DashboardPage()),
@@ -133,11 +139,13 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/agent2/inventory', builder: (_, _) => const InventoryPage()),
           GoRoute(path: '/agent2/transactions', builder: (_, _) => const TransactionsPage()),
           GoRoute(path: '/agent2/stores', builder: (_, _) => const StoresPage()),
+          GoRoute(path: '/agent2/notifications', builder: (_, _) => const NotificationsInboxPage()),
 
           // Store
           GoRoute(path: '/store/home', builder: (_, _) => const DashboardPage()),
           GoRoute(path: '/store/inventory', builder: (_, _) => const InventoryPage()),
           GoRoute(path: '/store/transactions', builder: (_, _) => const TransactionsPage()),
+          GoRoute(path: '/store/notifications', builder: (_, _) => const NotificationsInboxPage()),
         ],
       ),
     ],

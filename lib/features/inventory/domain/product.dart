@@ -16,6 +16,9 @@ class Product {
   /// Region-lock tag (governorate code). Null = not geo-locked (movable anywhere).
   final String? governorate;
 
+  /// Voucher validity, ISO yyyy-MM-dd (from the import). Printed on the receipt.
+  final String? expiryDate;
+
   const Product({
     required this.id,
     this.version,
@@ -26,6 +29,7 @@ class Product {
     this.owners = const [],
     required this.currentOwner,
     this.governorate,
+    this.expiryDate,
   });
 
   factory Product.fromJson(Map<String, dynamic> j) => Product(
@@ -42,6 +46,7 @@ class Product {
         owners: (j['owners'] as List<dynamic>?)?.cast<String>() ?? [],
         currentOwner: j['currentOwner'] as String? ?? '',
         governorate: j['governorate'] as String?,
+        expiryDate: j['expiryDate'] as String?,
       );
 
   Map<String, dynamic> toJson() {
@@ -56,6 +61,7 @@ class Product {
     };
     if (version != null) m['version'] = version;
     if (governorate != null) m['governorate'] = governorate;
+    if (expiryDate != null) m['expiryDate'] = expiryDate;
     return m;
   }
 
@@ -69,6 +75,7 @@ class Product {
     List<String>? owners,
     String? currentOwner,
     String? governorate,
+    String? expiryDate,
   }) =>
       Product(
         id: id ?? this.id,
@@ -80,5 +87,6 @@ class Product {
         owners: owners ?? this.owners,
         currentOwner: currentOwner ?? this.currentOwner,
         governorate: governorate ?? this.governorate,
+        expiryDate: expiryDate ?? this.expiryDate,
       );
 }

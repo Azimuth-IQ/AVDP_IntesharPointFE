@@ -2,6 +2,7 @@ import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/endpoints.dart';
 import 'package:inteshar/features/inventory/domain/product.dart';
 import 'package:inteshar/features/inventory/domain/sku_summary.dart';
+import 'package:inteshar/features/inventory/domain/voucher_import.dart';
 
 class ProductRepository {
   final ApiClient _api;
@@ -46,6 +47,47 @@ class ProductRepository {
         await _api.post(Endpoints.productCreate, data: product.toJson());
     return _api.unwrap(
         response, (d) => Product.fromJson(d as Map<String, dynamic>));
+  }
+
+  /// Bulk voucher import (HQ "الرفع"). Sends the parsed batch in chunks of [chunk]
+  /// to `POST /api/inventory/product/batch` (the backend encrypts each PIN, dedups
+  /// by serial, and bulk-inserts), aggregating the per-chunk results. [governorate]
+  /// region-locks NEW/SEW batches; null leaves OTHER vouchers region-free.
+  Future<BatchImportResult> batchImport({
+    required String definitionId,
+    required String ownerId,
+    String? governorate,
+    required String type,
+    required List<ParsedVoucher> vouchers,
+    int chunk = 1000,
+    void Function(int done, int total)? onProgress,
+  }) async {
+    var agg = const BatchImportResult();
+    for (var i = 0; i < vouchers.length; i += chunk) {
+      final end = (i + chunk) < vouchers.length ? (i + chunk) : vouchers.length;
+      final slice = vouchers.sublist(i, end);
+      final body = <String, dynamic>{
+        'definitionId': definitionId,
+        'ownerId': ownerId,
+        'type': type,
+        if (governorate != null && governorate.isNotEmpty)
+          'governorate': governorate,
+        'vouchers': slice
+            .map((v) => {
+                  'serialNumber': v.serial,
+                  'pin': v.pin,
+                  if (v.expiry != null) 'expiryDate': v.expiry,
+                  if (v.label != null) 'label': v.label,
+                })
+            .toList(),
+      };
+      final response = await _api.post(Endpoints.productBatch, data: body);
+      final res = _api.unwrap(
+          response, (d) => BatchImportResult.fromJson(d as Map<String, dynamic>));
+      agg = agg.merge(res);
+      onProgress?.call(end, vouchers.length);
+    }
+    return agg;
   }
 
   Future<List<Product>> readByEntity(String entityId) async {

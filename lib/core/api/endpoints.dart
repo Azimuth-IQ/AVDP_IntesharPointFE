@@ -26,6 +26,7 @@ class Endpoints {
   static const definitionDelete = '/api/inventory/definition/delete';
 
   static const productCreate = '/api/inventory/product/create';
+  static const productBatch = '/api/inventory/product/batch';
   static const productRead = '/api/inventory/product/read';
   static const productReadAll = '/api/inventory/product/readall';
   static const productReadByEntity = '/api/inventory/product/readByEntity';

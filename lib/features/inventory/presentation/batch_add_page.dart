@@ -13,10 +13,13 @@ import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/files/web_download.dart';
 import 'package:inteshar/core/geo/governorate_picker.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
+import 'package:inteshar/features/entities/data/entity_repository.dart';
+import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/inventory/data/definition_repository.dart';
 import 'package:inteshar/features/inventory/data/product_repository.dart';
 import 'package:inteshar/features/inventory/domain/product.dart';
 import 'package:inteshar/features/inventory/domain/product_definition.dart';
+import 'package:inteshar/features/inventory/domain/voucher_import.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
@@ -28,6 +31,11 @@ String _newProductId() {
       List.generate(8, (_) => rand.nextInt(16).toRadixString(16)).join();
   return 'prod-${DateTime.now().millisecondsSinceEpoch}-$hex';
 }
+
+/// Inline bilingual label (the import tab adds several controls; rather than churn
+/// the .arb files we resolve ar/en at build time, the same pattern the login page uses).
+String _tr(BuildContext c, String ar, String en) =>
+    Localizations.localeOf(c).languageCode == 'ar' ? ar : en;
 
 // ── Batch-import row decision (pure, testable) ─────────────────────────────
 
@@ -118,7 +126,7 @@ class _BatchAddPageState extends ConsumerState<BatchAddPage>
                 unselectedLabelStyle: IntesharType.sans(13, w: FontWeight.w700),
                 tabs: [
                   Tab(text: l.batchAddTabSingle),
-                  Tab(text: l.batchAddTabCsvXlsx),
+                  Tab(text: _tr(context, 'رفع ملف', 'Upload file')),
                 ],
               ),
             ),
@@ -128,7 +136,7 @@ class _BatchAddPageState extends ConsumerState<BatchAddPage>
               controller: _tabs,
               children: const [
                 _ManualTab(),
-                _ExcelTab(),
+                _UploadTab(),
               ],
             ),
           ),
@@ -370,197 +378,109 @@ class _ManualTabState extends ConsumerState<_ManualTab> {
   }
 }
 
-// ── Excel / CSV Tab ───────────────────────────────────────────────────────────
+// ── Upload file Tab (two supplier formats: NEW / OTHER) ─────────────────────────
 
-class _ExcelTab extends ConsumerStatefulWidget {
-  const _ExcelTab();
+class _UploadTab extends ConsumerStatefulWidget {
+  const _UploadTab();
 
   @override
-  ConsumerState<_ExcelTab> createState() => _ExcelTabState();
+  ConsumerState<_UploadTab> createState() => _UploadTabState();
 }
 
-class _ExcelTabState extends ConsumerState<_ExcelTab> {
-  List<_ExcelRow>? _preview;
+class _UploadTabState extends ConsumerState<_UploadTab> {
+  ImportFormat _format = ImportFormat.newSew;
+
   List<ProductDefinition> _defs = [];
   ProductDefinition? _selectedDef;
-  String? _selectedGovernorate; // null = not geo-locked (applied to all rows)
-  bool _loadingDefs = true;
+  List<Entity> _entities = [];
+  Entity? _target; // who receives the vouchers (the agent/warehouse)
+  String? _selectedGovernorate; // region-lock (NEW only)
+  bool _loading = true;
+  Object? _loadError;
+
+  Uint8List? _pickedBytes;
+  String? _pickedExt;
+  String? _fileName;
+  List<ParsedVoucher>? _preview;
+
   bool _importing = false;
   double _progress = 0;
-  int _imported = 0;
-  int _skipped = 0;
+  BatchImportResult? _result;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _loadDefs();
+    _load();
   }
 
-  Future<void> _loadDefs() async {
+  Future<void> _load() async {
     try {
       final api = ref.read(apiClientProvider);
-      final repo = DefinitionRepository(api);
-      final defs = await repo.readAll();
+      final defs = await DefinitionRepository(api).readAll();
+      final entities = await EntityRepository(api).readAll();
+      final auth = ref.read(authStateProvider).valueOrNull;
+      final selfId = auth is AuthAuthenticated ? auth.entity.id : '';
+      Entity? self;
+      for (final e in entities) {
+        if (e.id == selfId) {
+          self = e;
+          break;
+        }
+      }
       if (mounted) {
         setState(() {
           _defs = defs;
-          _loadingDefs = false;
+          _entities = entities;
           if (defs.isNotEmpty) _selectedDef = defs.first;
+          _target = self ?? (entities.isNotEmpty ? entities.first : null);
+          _loading = false;
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _loadingDefs = false);
-    }
-  }
-
-  Future<void> _downloadTemplate() async {
-    final l = AppLocalizations.of(context)!;
-    final excel = Excel.createExcel();
-    final sheet = excel['Vouchers'];
-    excel.setDefaultSheet('Vouchers');
-    if (excel.tables.containsKey('Sheet1')) {
-      excel.delete('Sheet1');
-    }
-    sheet.appendRow([TextCellValue('serialNumber'), TextCellValue('pin')]);
-    sheet.appendRow([TextCellValue('SN0001'), TextCellValue('1234')]);
-    sheet.appendRow([TextCellValue('SN0002'), TextCellValue('5678')]);
-    sheet.appendRow([TextCellValue('SN0003'), TextCellValue('9012')]);
-
-    final encoded = excel.encode();
-    if (encoded == null) return;
-    final bytes = Uint8List.fromList(encoded);
-
-    const fileName = 'vouchers_template.xlsx';
-    String? path;
-    try {
-      if (kIsWeb) {
-        downloadBytes(fileName, bytes);
-        path = fileName;
-      } else if (Platform.isAndroid || Platform.isIOS) {
-        path = await FilePicker.platform.saveFile(
-          dialogTitle: l.batchAddDownloadTemplate,
-          fileName: fileName,
-          bytes: bytes,
-        );
-      } else {
-        path = await FilePicker.platform.saveFile(
-          dialogTitle: l.batchAddDownloadTemplate,
-          fileName: fileName,
-        );
-        if (path != null) {
-          final finalPath =
-              path.toLowerCase().endsWith('.xlsx') ? path : '$path.xlsx';
-          await File(finalPath).writeAsBytes(bytes);
-          path = finalPath;
-        }
-      }
-    } catch (e) {
       if (mounted) {
-        setState(() => _error = e.toString());
+        setState(() {
+          _loadError = e;
+          _loading = false;
+        });
       }
-      return;
-    }
-
-    if (path != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l.batchAddTemplateSaved)),
-      );
     }
   }
 
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['xlsx', 'csv'],
+      allowedExtensions: ['txt', 'csv', 'xlsx'],
       withData: true,
     );
     if (result == null || result.files.isEmpty) return;
-
     final file = result.files.first;
     final bytes = file.bytes;
     if (bytes == null) {
-      setState(
-          () => _error = AppLocalizations.of(context)!.batchAddErrorReadBytes);
+      setState(() => _error = AppLocalizations.of(context)!.batchAddErrorReadBytes);
       return;
     }
-
-    if (file.extension?.toLowerCase() == 'csv') {
-      _parseCsv(utf8.decode(bytes, allowMalformed: true));
-    } else {
-      _parseXlsx(bytes);
-    }
-  }
-
-  void _parseCsv(String content) {
-    final rows = <_ExcelRow>[];
-    final lines =
-        content.split('\n').where((l) => l.trim().isNotEmpty).toList();
-    int start = 0;
-    if (lines.isNotEmpty && lines[0].toLowerCase().contains('serial')) {
-      start = 1;
-    }
-    for (var i = start; i < lines.length; i++) {
-      final parts = lines[i].split(',');
-      if (parts.length >= 2) {
-        rows.add(_ExcelRow(serial: parts[0].trim(), pin: parts[1].trim()));
-      }
-    }
     setState(() {
-      _preview = rows;
+      _pickedBytes = bytes;
+      _pickedExt = file.extension?.toLowerCase();
+      _fileName = file.name;
+      _result = null;
       _error = null;
     });
+    _reparse();
   }
 
-  void _parseXlsx(Uint8List bytes) {
-    final l = AppLocalizations.of(context)!;
+  /// Re-derive the preview from the picked file + the current format (so toggling
+  /// NEW/OTHER re-reads the same file without re-picking).
+  void _reparse() {
+    final bytes = _pickedBytes;
+    if (bytes == null) return;
     try {
-      final book = Excel.decodeBytes(bytes);
-      final sheets =
-          book.tables.values.where((t) => t.maxRows > 0).toList();
-      if (sheets.isEmpty) {
-        setState(() => _error = l.batchAddXlsxBadHeader);
-        return;
-      }
-      final sheet = sheets.first;
-      final allRows = sheet.rows;
-      if (allRows.isEmpty) {
-        setState(() => _error = l.batchAddXlsxBadHeader);
-        return;
-      }
-
-      int serialCol = -1;
-      int pinCol = -1;
-      final header = allRows.first;
-      for (var i = 0; i < header.length; i++) {
-        final raw =
-            header[i]?.value?.toString().trim().toLowerCase() ?? '';
-        if (raw == 'serialnumber' ||
-            raw == 'serial' ||
-            raw == 'serial number') {
-          serialCol = i;
-        } else if (raw == 'pin') {
-          pinCol = i;
-        }
-      }
-      if (serialCol < 0 || pinCol < 0) {
-        setState(() => _error = l.batchAddXlsxBadHeader);
-        return;
-      }
-
-      final rows = <_ExcelRow>[];
-      for (var r = 1; r < allRows.length; r++) {
-        final row = allRows[r];
-        final serial = (serialCol < row.length
-                ? row[serialCol]?.value?.toString().trim()
-                : '') ??
-            '';
-        final pin = (pinCol < row.length
-                ? row[pinCol]?.value?.toString().trim()
-                : '') ??
-            '';
-        if (serial.isEmpty && pin.isEmpty) continue;
-        rows.add(_ExcelRow(serial: serial, pin: pin));
+      final List<ParsedVoucher> rows;
+      if (_pickedExt == 'xlsx') {
+        rows = _parseXlsx(bytes, _format);
+      } else {
+        rows = parseVoucherFile(utf8.decode(bytes, allowMalformed: true), _format);
       }
       setState(() {
         _preview = rows;
@@ -571,36 +491,131 @@ class _ExcelTabState extends ConsumerState<_ExcelTab> {
     }
   }
 
-  String _entityId() {
-    final auth = ref.read(authStateProvider).valueOrNull;
-    if (auth is AuthAuthenticated) return auth.entity.id;
-    return '';
+  List<ParsedVoucher> _parseXlsx(Uint8List bytes, ImportFormat format) {
+    final book = Excel.decodeBytes(bytes);
+    final sheets = book.tables.values.where((t) => t.maxRows > 0).toList();
+    if (sheets.isEmpty) return [];
+    final rows = sheets.first.rows;
+    final out = <ParsedVoucher>[];
+    for (var r = 0; r < rows.length; r++) {
+      final row = rows[r];
+      String cell(int i) =>
+          (i < row.length ? row[i]?.value?.toString().trim() : '') ?? '';
+      final serial = cell(0);
+      if (r == 0 && serial.toLowerCase().contains('serial')) continue; // header
+      final pin = cell(1);
+      if (serial.isEmpty || pin.isEmpty) continue;
+      final expiry = normalizeExpiry(cell(2));
+      final label = format == ImportFormat.other
+          ? (cell(3).isEmpty ? null : cell(3))
+          : null;
+      out.add(ParsedVoucher(
+          serial: serial, pin: pin, expiry: expiry, label: label));
+    }
+    return out;
+  }
+
+  Future<void> _downloadTemplate() async {
+    final l = AppLocalizations.of(context)!;
+    final excel = Excel.createExcel();
+    final sheet = excel['Vouchers'];
+    excel.setDefaultSheet('Vouchers');
+    if (excel.tables.containsKey('Sheet1')) excel.delete('Sheet1');
+    if (_format == ImportFormat.newSew) {
+      sheet.appendRow([
+        TextCellValue('serialNumber'),
+        TextCellValue('pin'),
+        TextCellValue('expiry')
+      ]);
+      sheet.appendRow([
+        TextCellValue('80385983791'),
+        TextCellValue('020339743268988'),
+        TextCellValue('28/02/2028')
+      ]);
+    } else {
+      sheet.appendRow([
+        TextCellValue('serialNumber'),
+        TextCellValue('pin'),
+        TextCellValue('expiry'),
+        TextCellValue('label')
+      ]);
+      sheet.appendRow([
+        TextCellValue('260303MIN0001031'),
+        TextCellValue('X97645X48D7LHF4J'),
+        TextCellValue('03/03/2027'),
+        TextCellValue('Apple 2')
+      ]);
+    }
+    final encoded = excel.encode();
+    if (encoded == null) return;
+    final bytes = Uint8List.fromList(encoded);
+    const fileName = 'vouchers_template.xlsx';
+    String? path;
+    try {
+      if (kIsWeb) {
+        downloadBytes(fileName, bytes);
+        path = fileName;
+      } else if (Platform.isAndroid || Platform.isIOS) {
+        path = await FilePicker.platform.saveFile(
+            dialogTitle: l.batchAddDownloadTemplate,
+            fileName: fileName,
+            bytes: bytes);
+      } else {
+        path = await FilePicker.platform
+            .saveFile(dialogTitle: l.batchAddDownloadTemplate, fileName: fileName);
+        if (path != null) {
+          final finalPath =
+              path.toLowerCase().endsWith('.xlsx') ? path : '$path.xlsx';
+          await File(finalPath).writeAsBytes(bytes);
+          path = finalPath;
+        }
+      }
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+      return;
+    }
+    if (path != null && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(l.batchAddTemplateSaved)));
+    }
   }
 
   Future<void> _import() async {
-    final l = AppLocalizations.of(context)!;
-    if (_preview == null || _preview!.isEmpty || _selectedDef == null) return;
-    final def = _selectedDef!;
-    final entityId = _entityId();
-    if (entityId.isEmpty) return;
-
+    final def = _selectedDef;
+    final target = _target;
+    if (_preview == null || _preview!.isEmpty || def == null || target == null) {
+      return;
+    }
     setState(() {
       _importing = true;
       _progress = 0;
-      _imported = 0;
-      _skipped = 0;
+      _result = null;
       _error = null;
     });
-
-    final api = ref.read(apiClientProvider);
-    final repo = ProductRepository(api);
-    final rows = _preview!;
-
-    final Set<String> existingSerials;
     try {
-      final existing = await repo.readByEntity(entityId);
-      existingSerials =
-          existing.map((p) => p.serialNumber.trim().toLowerCase()).toSet();
+      final repo = ProductRepository(ref.read(apiClientProvider));
+      final gov = _format.regionLocked ? _selectedGovernorate : null;
+      final res = await repo.batchImport(
+        definitionId: def.id,
+        ownerId: target.id,
+        governorate: gov,
+        type: _format.wire,
+        vouchers: _preview!,
+        onProgress: (done, total) {
+          if (mounted) {
+            setState(() => _progress = total == 0 ? 1 : done / total);
+          }
+        },
+      );
+      if (mounted) {
+        setState(() {
+          _importing = false;
+          _result = res;
+          _preview = null;
+          _pickedBytes = null;
+          _fileName = null;
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -608,69 +623,18 @@ class _ExcelTabState extends ConsumerState<_ExcelTab> {
           _error = e.toString();
         });
       }
-      return;
-    }
-
-    for (var i = 0; i < rows.length; i++) {
-      final action = batchRowDecide(
-        serial: rows[i].serial,
-        pin: rows[i].pin,
-        existingSerials: existingSerials,
-      );
-      if (action == BatchRowAction.skip) {
-        if (mounted) setState(() { _skipped++; _progress = (i + 1) / rows.length; });
-        continue;
-      }
-      if (action == BatchRowAction.invalid) {
-        if (mounted) setState(() => _progress = (i + 1) / rows.length);
-        continue;
-      }
-
-      final key = rows[i].serial.trim().toLowerCase();
-      try {
-        await repo.create(Product(
-          id: _newProductId(),
-          productDefinition: def,
-          status: ProductStatus.AVAILABLE,
-          serialNumber: rows[i].serial,
-          pin: rows[i].pin,
-          owners: [entityId],
-          currentOwner: entityId,
-          governorate: _selectedGovernorate,
-        ));
-        existingSerials.add(key);
-        if (mounted) {
-          setState(() {
-            _imported++;
-            _progress = (i + 1) / rows.length;
-          });
-        }
-      } catch (e) {
-        if (mounted) {
-          setState(() {
-            _error = l.batchAddFailedAtRow(i + 1, e.toString());
-            _importing = false;
-          });
-        }
-        return;
-      }
-    }
-
-    if (mounted) {
-      setState(() {
-        _importing = false;
-        _preview = null;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l.batchAddImportSummary(_imported, _skipped))),
-      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loadError != null) {
+      return ErrorState(error: _loadError!, onRetry: _load);
+    }
     final l = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
+    final isNew = _format == ImportFormat.newSew;
 
     return SingleChildScrollView(
       padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
@@ -679,83 +643,103 @@ class _ExcelTabState extends ConsumerState<_ExcelTab> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Format guide card ────────────────────────────────────────
-            SectionLabel(l.batchAddCsvFormat),
-            InkCard(
-              ruleColor: cs.onPrimaryContainer,
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l.batchAddRequiredColumns,
-                    style: IntesharType.overline(color: cs.onSurfaceVariant),
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: cs.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(IntesharRadii.sm),
-                    ),
-                    child: SelectableText(
-                      'serialNumber,pin\nSN0001,1234\nSN0002,5678',
-                      style: IntesharType.mono(12.5,
-                          color: cs.onSurface, letterSpacing: 0.3),
-                    ),
-                  ),
-                ],
-              ),
+            // ── Format selector ──────────────────────────────────────────
+            SectionLabel(_tr(context, 'صيغة الملف', 'File format')),
+            SegmentedButton<ImportFormat>(
+              segments: [
+                ButtonSegment(
+                  value: ImportFormat.newSew,
+                  label: Text(_tr(context, 'NEW (آسيا/زين)', 'NEW (Asia/Zain)')),
+                  icon: const Icon(Icons.location_on_outlined, size: 16),
+                ),
+                ButtonSegment(
+                  value: ImportFormat.other,
+                  label: Text(_tr(context, 'OTHER', 'OTHER')),
+                  icon: const Icon(Icons.public_outlined, size: 16),
+                ),
+              ],
+              selected: {_format},
+              onSelectionChanged: (s) {
+                setState(() => _format = s.first);
+                _reparse();
+              },
             ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _downloadTemplate,
-                icon: const Icon(Icons.file_download_outlined, size: 18),
-                label: Text(l.batchAddDownloadTemplate),
-              ),
+            const SizedBox(height: 6),
+            Text(
+              isNew
+                  ? _tr(context, 'serial,pin,expiry — مقيّد بالمحافظة',
+                      'serial,pin,expiry — region-locked')
+                  : _tr(context, 'serial,pin,expiry,label — غير مقيّد',
+                      'serial,pin,expiry,label — region-free'),
+              style: IntesharType.mono(12, color: cs.onSurfaceVariant),
             ),
+            const SizedBox(height: 22),
 
-            const SizedBox(height: 24),
-            // ── Denomination picker ──────────────────────────────────────
-            SectionLabel(l.batchAddDenomination),
-            if (_loadingDefs)
-              const Padding(
-                  padding: EdgeInsets.all(8),
-                  child: CircularProgressIndicator())
-            else
-              DropdownButtonFormField<ProductDefinition>(
-                initialValue: _selectedDef,
-                isExpanded: true,
-                decoration:
-                    InputDecoration(labelText: l.batchAddProductDefinition),
-                items: _defs
-                    .map((d) => DropdownMenuItem(
-                          value: d,
-                          child: Text('${d.name} (${d.sku})'),
-                        ))
-                    .toList(),
-                onChanged: (v) => setState(() => _selectedDef = v),
-              ),
-            const SizedBox(height: 16),
-            SectionLabel(l.batchAddGovernorate),
-            GovernorateDropdown(
-              value: _selectedGovernorate,
-              noneLabel: l.batchAddNotGeoLocked,
-              labelText: l.batchAddGovernorate,
-              onChanged: (v) => setState(() => _selectedGovernorate = v),
+            // ── Category (definition) ────────────────────────────────────
+            SectionLabel(_tr(context, 'الفئة', 'Category')),
+            DropdownButtonFormField<ProductDefinition>(
+              initialValue: _selectedDef,
+              isExpanded: true,
+              decoration: InputDecoration(labelText: l.batchAddProductDefinition),
+              items: _defs
+                  .map((d) => DropdownMenuItem(
+                      value: d, child: Text('${d.name} (${d.sku})')))
+                  .toList(),
+              onChanged: (v) => setState(() => _selectedDef = v),
             ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _pickFile,
-                icon: const Icon(Icons.upload_file_outlined, size: 18),
-                label: Text(l.batchAddPickFile),
-              ),
+            const SizedBox(height: 22),
+
+            // ── Target agent (owner) ─────────────────────────────────────
+            SectionLabel(_tr(context, 'الوكيل / الجهة', 'Target agent')),
+            DropdownButtonFormField<Entity>(
+              initialValue: _target,
+              isExpanded: true,
+              decoration: InputDecoration(
+                  labelText: _tr(context, 'تُرفع إلى', 'Load into')),
+              items: _entities
+                  .map((e) => DropdownMenuItem(
+                      value: e,
+                      child: Text('${e.meta.name} · ${e.type.name}')))
+                  .toList(),
+              onChanged: (v) => setState(() => _target = v),
             ),
+            const SizedBox(height: 22),
+
+            // ── City / governorate (NEW only) ────────────────────────────
+            if (isNew) ...[
+              SectionLabel(_tr(context, 'المحافظة', 'City / governorate')),
+              GovernorateDropdown(
+                value: _selectedGovernorate,
+                noneLabel: l.batchAddNotGeoLocked,
+                labelText: l.batchAddGovernorate,
+                onChanged: (v) => setState(() => _selectedGovernorate = v),
+              ),
+              const SizedBox(height: 22),
+            ],
+
+            // ── File pick + template ─────────────────────────────────────
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: _pickFile,
+                    icon: const Icon(Icons.upload_file_outlined, size: 18),
+                    label: Text(l.batchAddPickFile),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                OutlinedButton.icon(
+                  onPressed: _downloadTemplate,
+                  icon: const Icon(Icons.file_download_outlined, size: 18),
+                  label: Text(_tr(context, 'قالب', 'Template')),
+                ),
+              ],
+            ),
+            if (_fileName != null) ...[
+              const SizedBox(height: 8),
+              Text('📄 $_fileName',
+                  style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
+            ],
 
             // ── Error banner ─────────────────────────────────────────────
             if (_error != null) ...[
@@ -768,138 +752,135 @@ class _ExcelTabState extends ConsumerState<_ExcelTab> {
               ),
             ],
 
-            // ── Preview table ────────────────────────────────────────────
+            // ── Result banner ────────────────────────────────────────────
+            if (_result != null) ...[
+              const SizedBox(height: 14),
+              InkCard(
+                ruleColor: IntesharColors.saffronDeep,
+                padding: const EdgeInsets.all(14),
+                child: Text(
+                  _tr(
+                    context,
+                    'تم الاستيراد: ${_result!.imported} • مكرر: ${_result!.skipped} • غير صالح: ${_result!.invalid}',
+                    'Imported: ${_result!.imported} • duplicate: ${_result!.skipped} • invalid: ${_result!.invalid}',
+                  ),
+                  style: IntesharType.sans(13.5,
+                      color: cs.onSurface, w: FontWeight.w700),
+                ),
+              ),
+            ],
+
+            // ── Preview ──────────────────────────────────────────────────
             if (_preview != null && _preview!.isNotEmpty) ...[
               const SizedBox(height: 24),
               SectionLabel(
                 l.batchAddPreview,
-                trailing: Text(
-                  l.batchAddRowCount(_preview!.length),
-                  style:
-                      IntesharType.overline(color: cs.onSurfaceVariant),
-                ),
+                trailing: Text(l.batchAddRowCount(_preview!.length),
+                    style: IntesharType.overline(color: cs.onSurfaceVariant)),
               ),
-              InkCard(
-                padding: EdgeInsets.zero,
-                child: Column(
-                  children: [
-                    // Header
-                    Padding(
-                      padding: const EdgeInsetsDirectional.fromSTEB(
-                          14, 10, 14, 10),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 36,
-                            child: Text(
-                              '#',
-                              style: IntesharType.sans(11,
-                                  color: IntesharColors.lichen,
-                                  w: FontWeight.w700),
-                            ),
-                          ),
-                          Expanded(
-                            child: Text(
-                              l.batchAddColSerial,
-                              style: IntesharType.sans(11,
-                                  color: IntesharColors.lichen,
-                                  w: FontWeight.w700),
-                            ),
-                          ),
-                          Expanded(
-                            child: Text(
-                              l.batchAddColPin,
-                              style: IntesharType.sans(11,
-                                  color: IntesharColors.lichen,
-                                  w: FontWeight.w700),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Hairline(),
-                    // Data rows (max 10)
-                    ..._preview!.take(10).toList().asMap().entries.map(
-                          (e) => Column(
-                            children: [
-                              Padding(
-                                padding: const EdgeInsetsDirectional
-                                    .fromSTEB(14, 9, 14, 9),
-                                child: Row(
-                                  children: [
-                                    SizedBox(
-                                      width: 36,
-                                      child: monoText(
-                                        (e.key + 1)
-                                            .toString()
-                                            .padLeft(2, '0'),
-                                        size: 11,
-                                        color: IntesharColors.lichen,
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: monoText(
-                                        e.value.serial,
-                                        size: 12.5,
-                                        color: cs.onSurface,
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: monoText(
-                                        e.value.pin,
-                                        size: 12.5,
-                                        color: IntesharColors.lichen,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (e.key <
-                                  (_preview!.length > 10
-                                          ? 10
-                                          : _preview!.length) -
-                                      1)
-                                const Hairline(),
-                            ],
-                          ),
-                        ),
-                    // "and N more" footer
-                    if (_preview!.length > 10) ...[
-                      const Hairline(),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 10),
-                        child: Text(
-                          l.batchAddMoreRows(_preview!.length - 10),
-                          style: IntesharType.sans(12,
-                              color: IntesharColors.lichen),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
+              _PreviewTable(rows: _preview!, showLabel: !isNew),
               const SizedBox(height: 16),
-              // Progress block
               if (_importing) ...[
                 _ProgressBlock(
                   progress: _progress,
-                  label: l.batchAddImportSummary(_imported, _skipped),
+                  label: _tr(context, '${(_progress * 100).round()}%',
+                      '${(_progress * 100).round()}%'),
                 ),
                 const SizedBox(height: 12),
               ],
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed:
-                      (_importing || _selectedDef == null) ? null : _import,
-                  icon: const Icon(Icons.print_outlined, size: 18),
+                  onPressed: (_importing || _selectedDef == null || _target == null)
+                      ? null
+                      : _import,
+                  icon: const Icon(Icons.cloud_upload_outlined, size: 18),
                   label: Text(l.batchAddImportRows(_preview!.length)),
                 ),
               ),
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Preview table ─────────────────────────────────────────────────────────────
+
+class _PreviewTable extends StatelessWidget {
+  final List<ParsedVoucher> rows;
+  final bool showLabel;
+  const _PreviewTable({required this.rows, required this.showLabel});
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final shown = rows.take(10).toList();
+    Widget head(String t, {int flex = 1, double width = 0}) {
+      final w = Text(t,
+          style: IntesharType.sans(11,
+              color: IntesharColors.lichen, w: FontWeight.w700));
+      return width > 0 ? SizedBox(width: width, child: w) : Expanded(flex: flex, child: w);
+    }
+
+    return InkCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(14, 10, 14, 10),
+            child: Row(children: [
+              head('#', width: 30),
+              head(l.batchAddColSerial, flex: 2),
+              head(l.batchAddColPin, flex: 2),
+              head(_tr(context, 'انتهاء', 'Expiry'), flex: 2),
+              if (showLabel) head(_tr(context, 'الوصف', 'Label'), flex: 2),
+            ]),
+          ),
+          const Hairline(),
+          ...shown.asMap().entries.map((e) {
+            final v = e.value;
+            return Column(children: [
+              Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(14, 9, 14, 9),
+                child: Row(children: [
+                  SizedBox(
+                      width: 30,
+                      child: monoText((e.key + 1).toString().padLeft(2, '0'),
+                          size: 11, color: IntesharColors.lichen)),
+                  Expanded(
+                      flex: 2,
+                      child: monoText(v.serial, size: 12, color: cs.onSurface)),
+                  Expanded(
+                      flex: 2,
+                      child:
+                          monoText(v.pin, size: 12, color: IntesharColors.lichen)),
+                  Expanded(
+                      flex: 2,
+                      child: monoText(v.expiry ?? '—',
+                          size: 12, color: cs.onSurfaceVariant)),
+                  if (showLabel)
+                    Expanded(
+                        flex: 2,
+                        child: Text(v.label ?? '—',
+                            style: IntesharType.sans(12,
+                                color: cs.onSurfaceVariant))),
+                ]),
+              ),
+              if (e.key < shown.length - 1) const Hairline(),
+            ]);
+          }),
+          if (rows.length > 10) ...[
+            const Hairline(),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Text(l.batchAddMoreRows(rows.length - 10),
+                  style: IntesharType.sans(12, color: IntesharColors.lichen)),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -944,16 +925,9 @@ class _ProgressBlock extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(label,
-              style:
-                  IntesharType.sans(12, color: IntesharColors.lichen)),
+              style: IntesharType.sans(12, color: IntesharColors.lichen)),
         ],
       ),
     );
   }
-}
-
-class _ExcelRow {
-  final String serial;
-  final String pin;
-  const _ExcelRow({required this.serial, required this.pin});
 }

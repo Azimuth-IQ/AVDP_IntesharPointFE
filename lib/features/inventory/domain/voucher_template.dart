@@ -28,6 +28,15 @@ class VoucherTemplate {
   /// Appended to the QR payload, e.g. '#'.
   final String qrSuffix;
 
+  /// Print the main agent's logo (nearest AGENT1 ancestor's logo).
+  final bool showAgentLogo;
+
+  /// Print the company logo (e.g. Asiacell), from the SKU's company.
+  final bool showCompanyLogo;
+
+  /// Print the voucher expiry date below the code.
+  final bool showExpiry;
+
   const VoucherTemplate({
     this.headerText = '',
     this.footerText = '',
@@ -40,6 +49,9 @@ class VoucherTemplate {
     this.qrSource = 'PIN',
     this.qrPrefix = '',
     this.qrSuffix = '',
+    this.showAgentLogo = true,
+    this.showCompanyLogo = true,
+    this.showExpiry = true,
   });
 
   factory VoucherTemplate.fromJson(Map<String, dynamic>? j) {
@@ -56,6 +68,9 @@ class VoucherTemplate {
       qrSource: j['qrSource'] as String? ?? 'PIN',
       qrPrefix: j['qrPrefix'] as String? ?? '',
       qrSuffix: j['qrSuffix'] as String? ?? '',
+      showAgentLogo: j['showAgentLogo'] as bool? ?? true,
+      showCompanyLogo: j['showCompanyLogo'] as bool? ?? true,
+      showExpiry: j['showExpiry'] as bool? ?? true,
     );
   }
 
@@ -71,6 +86,9 @@ class VoucherTemplate {
         'qrSource': qrSource,
         'qrPrefix': qrPrefix,
         'qrSuffix': qrSuffix,
+        'showAgentLogo': showAgentLogo,
+        'showCompanyLogo': showCompanyLogo,
+        'showExpiry': showExpiry,
       };
 
   /// Builds the QR payload from a voucher's pin/serial using the configured
@@ -93,6 +111,9 @@ class VoucherTemplate {
     String? qrSource,
     String? qrPrefix,
     String? qrSuffix,
+    bool? showAgentLogo,
+    bool? showCompanyLogo,
+    bool? showExpiry,
   }) =>
       VoucherTemplate(
         headerText: headerText ?? this.headerText,
@@ -106,5 +127,8 @@ class VoucherTemplate {
         qrSource: qrSource ?? this.qrSource,
         qrPrefix: qrPrefix ?? this.qrPrefix,
         qrSuffix: qrSuffix ?? this.qrSuffix,
+        showAgentLogo: showAgentLogo ?? this.showAgentLogo,
+        showCompanyLogo: showCompanyLogo ?? this.showCompanyLogo,
+        showExpiry: showExpiry ?? this.showExpiry,
       );
 }

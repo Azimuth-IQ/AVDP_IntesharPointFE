@@ -30,6 +30,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navBatchAdd => 'Batch Add';
 
   @override
+  String get navPrintOps => 'Print Ops';
+
+  @override
   String get navTransactions => 'Transactions';
 
   @override

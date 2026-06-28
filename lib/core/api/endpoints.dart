@@ -33,6 +33,7 @@ class Endpoints {
   static const productSummaryByEntity = '/api/inventory/product/summaryByEntity';
   static const productReadByEntityAndSku = '/api/inventory/product/readByEntityAndSku';
   static const productSendForPrinting = '/api/inventory/product/sendForPrinting';
+  static const productPrintOperations = '/api/inventory/product/print-operations';
   static const productConfirmPrint = '/api/inventory/product/confirmPrint';
   static const productUpdate = '/api/inventory/product/update';
   static const productDelete = '/api/inventory/product/delete';

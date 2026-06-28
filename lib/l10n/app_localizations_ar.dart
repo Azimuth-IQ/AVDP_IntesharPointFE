@@ -30,6 +30,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get navBatchAdd => 'إضافة مجمّعة';
 
   @override
+  String get navPrintOps => 'عمليات الطباعة';
+
+  @override
   String get navTransactions => 'المعاملات';
 
   @override

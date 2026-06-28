@@ -1,4 +1,5 @@
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
+import 'package:image/image.dart' as img;
 import 'package:inteshar/features/inventory/domain/voucher_template.dart';
 
 String _fmtTs(DateTime t) =>
@@ -21,10 +22,20 @@ Future<List<int>> buildVoucherReceipt({
   required String serial,
   required String pin,
   required DateTime timestamp,
+  img.Image? agentLogo,
+  img.Image? companyLogo,
+  String? expiry,
+  int? receiptNo,
 }) async {
   final profile = await CapabilityProfile.load();
   final g = Generator(PaperSize.mm58, profile);
   final out = <int>[];
+
+  // Main-agent logo at the very top (white-label branding).
+  if (template.showAgentLogo && agentLogo != null) {
+    out.addAll(g.imageRaster(agentLogo, align: PosAlign.center));
+    out.addAll(g.feed(1));
+  }
 
   final header = template.headerText.trim().isNotEmpty
       ? template.headerText.trim()
@@ -38,6 +49,12 @@ Future<List<int>> buildVoucherReceipt({
   out.addAll(g.text(shopName, styles: const PosStyles(align: PosAlign.center)));
   out.addAll(g.text(posLabel, styles: const PosStyles(align: PosAlign.center)));
   out.addAll(g.hr());
+
+  // Company logo (e.g. Asiacell) above the product/code.
+  if (template.showCompanyLogo && companyLogo != null) {
+    out.addAll(g.imageRaster(companyLogo, align: PosAlign.center));
+    out.addAll(g.feed(1));
+  }
 
   if (template.showProductName) {
     out.addAll(g.text(productName,
@@ -74,7 +91,21 @@ Future<List<int>> buildVoucherReceipt({
         styles: const PosStyles(align: PosAlign.center)));
   }
 
+  // Expiry below the code (per the client's note).
+  if (template.showExpiry && expiry != null && expiry.trim().isNotEmpty) {
+    out.addAll(g.feed(1));
+    out.addAll(g.text('Expiry: ${expiry.trim()}',
+        styles: const PosStyles(align: PosAlign.center, bold: true)));
+  }
+
   out.addAll(g.hr());
+  // Operation reference: per-store receipt number + the voucher serial.
+  if (receiptNo != null && receiptNo > 0) {
+    out.addAll(g.text('Receipt #$receiptNo',
+        styles: const PosStyles(align: PosAlign.center, bold: true)));
+  }
+  out.addAll(
+      g.text('Ref: $serial', styles: const PosStyles(align: PosAlign.center)));
   out.addAll(
       g.text(_fmtTs(timestamp), styles: const PosStyles(align: PosAlign.center)));
   if (operatorPhone.isNotEmpty) {

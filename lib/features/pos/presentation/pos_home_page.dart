@@ -6,6 +6,7 @@ import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/api_exception.dart';
 import 'package:inteshar/core/printing/bluetooth_service.dart';
 import 'package:inteshar/core/printing/escpos_builder.dart';
+import 'package:inteshar/core/printing/logo_loader.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
@@ -463,6 +464,9 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
   // (status PRINTED) and returns the decrypted code. Revealing is the point of
   // sale; it consumes the voucher and cannot be undone.
   Product? _sent;
+  int _receiptNo = 0;
+  String? _agentLogoUrl;
+  String? _companyLogoUrl;
   bool _revealing = false;
   bool _printing = false;
 
@@ -477,7 +481,14 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
       // from the counter NOW — before any further interaction — so an accidental
       // swipe/scrim/back can't leave the consumed code lingering on the tally.
       widget.onConsumed();
-      if (mounted) setState(() => _sent = full);
+      if (mounted) {
+        setState(() {
+          _sent = full.product;
+          _receiptNo = full.receiptNo;
+          _agentLogoUrl = full.agentLogoUrl;
+          _companyLogoUrl = full.companyLogoUrl;
+        });
+      }
     } catch (e) {
       if (!mounted) return;
       final l = AppLocalizations.of(context)!;
@@ -504,8 +515,13 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
     try {
       final auth = ref.read(authStateProvider).valueOrNull as AuthAuthenticated?;
       final def = revealed.productDefinition;
+      final t = def.template;
+      // Fetch + decode the logos (best-effort; printing proceeds without them on failure).
+      final agentLogo = t.showAgentLogo ? await loadReceiptLogo(_agentLogoUrl) : null;
+      final companyLogo =
+          t.showCompanyLogo ? await loadReceiptLogo(_companyLogoUrl) : null;
       final bytes = await buildVoucherReceipt(
-        template: def.template,
+        template: t,
         companyName: 'Inteshar Platform',
         shopName: auth?.entity.meta.name ?? 'Store',
         posLabel: 'Counter 1',
@@ -515,6 +531,10 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
         serial: revealed.serialNumber,
         pin: revealed.pin,
         timestamp: DateTime.now(),
+        agentLogo: agentLogo,
+        companyLogo: companyLogo,
+        expiry: revealed.expiryDate,
+        receiptNo: _receiptNo,
       );
       await ref.read(bluetoothServiceProvider.notifier).send(bytes);
       if (mounted) widget.onPrinted();
@@ -662,6 +682,26 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                           style: IntesharType.mono(12, color: cs.onSurface, w: FontWeight.w700),
                         ),
                       ],
+                    ],
+                    if (t.showExpiry && (p.expiryDate ?? '').isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _ReceiptRow(
+                        label: Localizations.localeOf(context).languageCode == 'ar'
+                            ? 'تاريخ الانتهاء'
+                            : 'Expiry',
+                        value: p.expiryDate!,
+                        monoSize: 13,
+                      ),
+                    ],
+                    if (revealed && _receiptNo > 0) ...[
+                      const SizedBox(height: 12),
+                      _ReceiptRow(
+                        label: Localizations.localeOf(context).languageCode == 'ar'
+                            ? 'رقم العملية'
+                            : 'Receipt #',
+                        value: '$_receiptNo',
+                        monoSize: 13,
+                      ),
                     ],
                     const SizedBox(height: 14),
                     const _ReceiptDivider(),

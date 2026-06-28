@@ -16,6 +16,8 @@
   "@navInventory": {},
   "navBatchAdd": "Batch Add",
   "@navBatchAdd": {},
+  "navPrintOps": "Print Ops",
+  "@navPrintOps": {},
   "navTransactions": "Transactions",
   "@navTransactions": {},
   "navPos": "POS",

@@ -1,8 +1,25 @@
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/endpoints.dart';
+import 'package:inteshar/features/inventory/domain/print_operation.dart';
 import 'package:inteshar/features/inventory/domain/product.dart';
 import 'package:inteshar/features/inventory/domain/sku_summary.dart';
 import 'package:inteshar/features/inventory/domain/voucher_import.dart';
+
+/// Enriched voucher-reveal payload: the consumed product (PIN decrypted), the
+/// per-store sequential receipt number, and the resolved main-agent + company logo
+/// URLs the POS prints on the receipt.
+class RevealResult {
+  final Product product;
+  final int receiptNo;
+  final String? agentLogoUrl;
+  final String? companyLogoUrl;
+  const RevealResult({
+    required this.product,
+    this.receiptNo = 0,
+    this.agentLogoUrl,
+    this.companyLogoUrl,
+  });
+}
 
 class ProductRepository {
   final ApiClient _api;
@@ -108,14 +125,45 @@ class ProductRepository {
         response, (d) => Product.fromJson(d as Map<String, dynamic>));
   }
 
-  /// The single channel that yields a decrypted PIN: flips the product to
-  /// SENT_FOR_PRINTING (audited) and returns it with the PIN decrypted. Backend
-  /// authorizes that the caller's entity is the product's current owner.
-  Future<Product> sendForPrinting(String id) async {
+  /// The single channel that yields a decrypted PIN: atomically marks the voucher
+  /// used (PRINTED) and returns it with the PIN decrypted, PLUS the per-store receipt
+  /// number and the main-agent + company logo URLs for the receipt. Backend authorizes
+  /// that the caller's entity is the product's current owner.
+  Future<RevealResult> sendForPrinting(String id) async {
     final response =
         await _api.post(Endpoints.productSendForPrinting, params: {'id': id});
-    return _api.unwrap(
-        response, (d) => Product.fromJson(d as Map<String, dynamic>));
+    return _api.unwrap(response, (d) {
+      final m = d as Map<String, dynamic>;
+      return RevealResult(
+        product: Product.fromJson(m['product'] as Map<String, dynamic>? ?? {}),
+        receiptNo: (m['receiptNo'] as num?)?.toInt() ?? 0,
+        agentLogoUrl: m['agentLogoUrl'] as String?,
+        companyLogoUrl: m['companyLogoUrl'] as String?,
+      );
+    });
+  }
+
+  /// Print-operations (sales) for the inspection screen. HQ may pass [storeId] to
+  /// scope to one store (omit for all); other roles are scoped server-side to self.
+  /// [q] matches a voucher serial (substring) or an exact receipt number.
+  Future<List<PrintOperation>> printOperations({
+    String? storeId,
+    String? q,
+    int page = 0,
+    int size = 50,
+  }) async {
+    final response = await _api.get(Endpoints.productPrintOperations, params: {
+      if (storeId != null && storeId.isNotEmpty) 'storeId': storeId,
+      if (q != null && q.isNotEmpty) 'q': q,
+      'page': page,
+      'size': size,
+    });
+    return _api.unwrap(response, (d) {
+      final list = d as List<dynamic>;
+      return list
+          .map((e) => PrintOperation.fromJson(e as Map<String, dynamic>))
+          .toList();
+    });
   }
 
   /// Resolves an in-flight print: PRINTED when [printed] is true, else

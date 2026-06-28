@@ -140,6 +140,12 @@ abstract class AppLocalizations {
   /// **'Batch Add'**
   String get navBatchAdd;
 
+  /// No description provided for @navPrintOps.
+  ///
+  /// In en, this message translates to:
+  /// **'Print Ops'**
+  String get navPrintOps;
+
   /// No description provided for @navTransactions.
   ///
   /// In en, this message translates to:

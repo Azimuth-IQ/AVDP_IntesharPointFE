@@ -52,6 +52,7 @@ class AppShell extends ConsumerWidget {
           _NavItem(Icons.inventory_2_outlined,  Icons.inventory_2,  l.navCatalog,      '/hq/definitions'),
           _NavItem(Icons.receipt_long_outlined, Icons.receipt_long, l.navTemplates,    '/hq/templates'),
           _NavItem(Icons.upload_file_outlined,  Icons.upload_file,  l.navBatchAdd,     '/hq/batch'),
+          _NavItem(Icons.fact_check_outlined,   Icons.fact_check,   l.navPrintOps,     '/hq/print-operations'),
         ];
       case EntityType.AGENT1:
         return [
@@ -325,13 +326,25 @@ class _MoreSheet extends StatelessWidget {
               ),
             ),
           ),
-          for (var i = 0; i < items.length; i++)
-            _MoreRow(
-              item: items[i],
-              active: i == activeIndex,
-              onTap: () => onSelect(i),
+          // Scrollable so the sheet never overflows when the role has many
+          // overflow destinations or the screen is short.
+          Flexible(
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var i = 0; i < items.length; i++)
+                    _MoreRow(
+                      item: items[i],
+                      active: i == activeIndex,
+                      onTap: () => onSelect(i),
+                    ),
+                  const SizedBox(height: 8),
+                ],
+              ),
             ),
-          const SizedBox(height: 8),
+          ),
         ],
       ),
     );

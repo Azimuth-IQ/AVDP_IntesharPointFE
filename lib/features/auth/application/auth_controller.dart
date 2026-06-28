@@ -109,7 +109,12 @@ class AuthController extends AsyncNotifier<AuthState> {
   }
 
   Future<LoginOutcome> login(String phone, String password, {String? totp}) async {
-    state = const AsyncValue.loading();
+    // Do NOT flip global auth state to loading/unauthenticated here. The router
+    // redirects to /splash while auth isLoading (and to /login on unauthenticated),
+    // which REMOUNTS the login page and discards its in-progress TOTP step — so the
+    // enrollment QR / code screen would never appear (it'd snap back to credentials).
+    // Keep the state stable; the login page renders its own spinner via _loading.
+    // Only _completeWithToken transitions to authenticated, on real success.
     try {
       final api = ref.read(apiClientProvider);
       final result = await AuthRepository(api).login(phone, password, totp: totp);
@@ -117,20 +122,15 @@ class AuthController extends AsyncNotifier<AuthState> {
         case LoginSuccess(:final token):
           return await _completeWithToken(api, phone, token);
         case LoginEnrollResult(:final otpauthUri, :final secret, :final message):
-          state = AsyncValue.data(AuthUnauthenticated());
           return LoginEnroll(otpauthUri, secret, message);
         case LoginTotpRequired(:final message):
-          state = AsyncValue.data(AuthUnauthenticated());
           return LoginNeedsCode(message);
         case LoginMustChange():
-          state = AsyncValue.data(AuthUnauthenticated());
           return const LoginNeedsPasswordChange();
       }
     } on ApiException catch (e) {
-      state = AsyncValue.data(AuthUnauthenticated());
       return LoginFailed(e.message);
     } catch (e) {
-      state = AsyncValue.data(AuthUnauthenticated());
       return LoginFailed(e.toString());
     }
   }
@@ -167,16 +167,16 @@ class AuthController extends AsyncNotifier<AuthState> {
 
   /// Forced password change (auth Phase 4): sets the new password and signs in.
   Future<LoginOutcome> changePassword(String phone, String oldPassword, String newPassword) async {
-    state = const AsyncValue.loading();
+    // Same rule as login(): no loading/unauthenticated churn — it would remount the
+    // login page and lose the change-password step (and its error message).
+    // _completeWithToken sets the authenticated state on success.
     try {
       final api = ref.read(apiClientProvider);
       final token = await AuthRepository(api).changePassword(phone, oldPassword, newPassword);
       return await _completeWithToken(api, phone, token);
     } on ApiException catch (e) {
-      state = AsyncValue.data(AuthUnauthenticated());
       return LoginFailed(e.message);
     } catch (e) {
-      state = AsyncValue.data(AuthUnauthenticated());
       return LoginFailed(e.toString());
     }
   }

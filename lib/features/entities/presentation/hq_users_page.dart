@@ -104,6 +104,41 @@ class _HqUsersPageState extends ConsumerState<HqUsersPage> {
     }
   }
 
+  Future<void> _resetTotp(EntityUser u) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(_tr(ctx, 'إعادة تعيين المصادقة الثنائية', 'Reset 2FA')),
+        content: Text(_tr(
+            ctx,
+            'سيُطلب من ${u.phone} ربط تطبيق المصادقة من جديد عند تسجيل الدخول التالي.',
+            'Will require ${u.phone} to re-enroll an authenticator on next login.')),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(_tr(ctx, 'إلغاء', 'Cancel'))),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(_tr(ctx, 'إعادة تعيين', 'Reset'))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await EntityRepository(ref.read(apiClientProvider)).resetUserTotp(u.phone);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                _tr(context, 'تمت إعادة تعيين المصادقة الثنائية', '2FA reset'))));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaxWidthBox(
@@ -150,6 +185,7 @@ class _HqUsersPageState extends ConsumerState<HqUsersPage> {
         user: u[i],
         onEdit: () => _openForm(existing: u[i]),
         onRemove: () => _remove(u[i]),
+        onResetTotp: () => _resetTotp(u[i]),
       ),
     );
   }
@@ -159,8 +195,12 @@ class _UserCard extends StatelessWidget {
   final EntityUser user;
   final VoidCallback onEdit;
   final VoidCallback onRemove;
+  final VoidCallback onResetTotp;
   const _UserCard(
-      {required this.user, required this.onEdit, required this.onRemove});
+      {required this.user,
+      required this.onEdit,
+      required this.onRemove,
+      required this.onResetTotp});
 
   @override
   Widget build(BuildContext context) {
@@ -178,6 +218,10 @@ class _UserCard extends StatelessWidget {
               child: monoText(user.phone,
                   size: 14, color: cs.onSurface, w: FontWeight.w800),
             ),
+            IconButton(
+                tooltip: _tr(context, 'إعادة تعيين 2FA', 'Reset 2FA'),
+                onPressed: onResetTotp,
+                icon: const Icon(Icons.lock_reset, size: 18)),
             IconButton(
                 onPressed: onEdit,
                 icon: const Icon(Icons.edit_outlined, size: 18)),

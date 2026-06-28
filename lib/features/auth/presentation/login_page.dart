@@ -53,6 +53,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       _totpCtrl.clear();
       _newPassCtrl.clear();
       _confirmPassCtrl.clear();
+      // Clear any in-progress enrollment data so a stale QR/secret can't linger
+      // when the next sign-in (e.g. a different account) is attempted.
+      _otpauthUri = '';
+      _secret = '';
       _error = null;
     });
   }

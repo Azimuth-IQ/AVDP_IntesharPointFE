@@ -144,6 +144,12 @@ class EntityRepository {
         params: {'entityId': entityId, 'phone': phone});
   }
 
+  /// HQ recovery: reset a user's 2FA (clears the TOTP secret + enrollment, so they
+  /// re-enroll on next login).
+  Future<void> resetUserTotp(String phone) async {
+    await _api.post(Endpoints.entityUserResetTotp, params: {'phone': phone});
+  }
+
   /// Re-links a child to its parent's childrenIds list.
   /// The backend has a known bug where creating a child does not always append
   /// its id to the parent's childrenIds — this workaround handles that.

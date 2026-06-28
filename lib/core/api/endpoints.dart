@@ -22,6 +22,7 @@ class Endpoints {
   static const entityUserAdd = '/api/entity/users/add';
   static const entityUserUpdate = '/api/entity/users/update';
   static const entityUserRemove = '/api/entity/users/remove';
+  static const entityUserResetTotp = '/api/entity/users/resetTotp';
   static const entityPosStats = '/api/entity/posStats';
 
   static const definitionCreate = '/api/inventory/definition/create';

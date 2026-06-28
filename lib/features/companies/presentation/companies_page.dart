@@ -7,6 +7,7 @@ import 'package:inteshar/features/companies/domain/company.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
+import 'package:inteshar/shared/widgets/image_upload_field.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
 /// Local Arabic/English strings for the Companies admin page.
@@ -279,7 +280,12 @@ class _CompanyDialogState extends State<_CompanyDialog> {
           children: [
             TextField(controller: _name, decoration: InputDecoration(labelText: s.name)),
             const SizedBox(height: 10),
-            TextField(controller: _logo, decoration: InputDecoration(labelText: s.logo)),
+            ImageUploadField(
+              value: _logo.text.isEmpty ? null : _logo.text,
+              label: s.logo,
+              kind: 'agent-branding',
+              onChanged: (u) => setState(() => _logo.text = u),
+            ),
             const SizedBox(height: 10),
             TextField(controller: _desc, decoration: InputDecoration(labelText: s.description)),
             const SizedBox(height: 10),

@@ -16,6 +16,7 @@ import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
+import 'package:inteshar/shared/widgets/image_upload_field.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 import 'package:inteshar/shared/widgets/role_badge.dart';
 
@@ -850,10 +851,11 @@ class _EntityFormSheetState extends State<_EntityFormSheet> {
             const SizedBox(height: 12),
 
             // ── New brand fields ─────────────────────────────────────────
-            TextField(
-              controller: widget.logoCtrl,
-              decoration:
-                  InputDecoration(labelText: l.entityFieldLogoUrl),
+            ImageUploadField(
+              value: widget.logoCtrl.text.isEmpty ? null : widget.logoCtrl.text,
+              label: l.entityFieldLogoUrl,
+              kind: 'agent-branding',
+              onChanged: (u) => setState(() => widget.logoCtrl.text = u),
             ),
             const SizedBox(height: 12),
             TextField(

@@ -421,7 +421,21 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         const SizedBox(height: 8),
         TextField(controller: _ownerName, decoration: InputDecoration(labelText: s.fieldOwnerName)),
         const SizedBox(height: 12),
-        TextField(controller: _documents, decoration: InputDecoration(labelText: s.fieldDocuments)),
+        ImageUploadField(
+          value: null,
+          label: s.fieldDocuments,
+          kind: 'kyc-doc',
+          onChanged: (u) => setState(() {
+            final cur = _documents.text.trim();
+            _documents.text = cur.isEmpty ? u : '$cur, $u';
+          }),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _documents,
+          maxLines: 2,
+          decoration: InputDecoration(labelText: s.fieldDocuments),
+        ),
         const SizedBox(height: 12),
         TextField(controller: _landmark, decoration: InputDecoration(labelText: s.fieldLandmark)),
         const SizedBox(height: 12),

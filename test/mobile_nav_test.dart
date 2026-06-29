@@ -81,13 +81,14 @@ void main() {
     expect(find.text('Batch Add'), findsOneWidget);
   });
 
-  testWidgets('Store role (5 routes) shows every tab, no More', (tester) async {
+  testWidgets('Store role (4 routes) shows every tab, no More', (tester) async {
     await _pumpShell(tester, EntityType.STORE);
 
-    // STORE has exactly _kMaxBottomTabs (5) destinations after Notifications was
-    // added — at the cap, so all show inline with no overflow "More" tab.
+    // STORE has 4 destinations (Inventory, Transactions, Dashboard, Notifications) —
+    // the /pos/home item was removed (it bounced the store-admin via prefix mismatch),
+    // so under the 5-tab cap everything shows inline with no overflow "More" tab.
     final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
-    expect(bar.destinations.length, 5);
+    expect(bar.destinations.length, 4);
     expect(find.text('More'), findsNothing);
   });
 }

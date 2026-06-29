@@ -32,6 +32,7 @@ String? _inventoryRoutePrefix(WidgetRef ref) {
   if (viewer is! AuthAuthenticated) return null;
   return switch (viewer.entity.type) {
     EntityType.INTESHAR => '/hq',
+    EntityType.AGENT1 => '/agent1', // Main Agent browses descendant inventory (BRD)
     EntityType.AGENT2 => '/agent2',
     _ => null,
   };

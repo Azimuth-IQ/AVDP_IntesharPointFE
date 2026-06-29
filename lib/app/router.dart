@@ -90,7 +90,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/hq/transactions/new', builder: (_, _) => const NewTransactionPage()),
       GoRoute(path: '/agent1/transactions/new', builder: (_, _) => const NewTransactionPage()),
       GoRoute(path: '/agent2/transactions/new', builder: (_, _) => const NewTransactionPage()),
-      GoRoute(path: '/store/transactions/new', builder: (_, _) => const NewTransactionPage()),
+      // No /store/transactions/new: a STORE is the leaf (load + print only), it never
+      // initiates transactions (BRD). The New-Transaction affordance is hidden for stores.
 
       // Child-inventory drill-in (read-only). HQ + Distributor browse a
       // downstream entity's stock; pushed outside the shell with its own AppBar.
@@ -103,6 +104,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/agent2/entities/:id/inventory',
+        builder: (_, s) => ChildInventoryPage(
+          entityId: s.pathParameters['id']!,
+          entityName: s.uri.queryParameters['name'] ?? '',
+        ),
+      ),
+      // Main Agent browses a descendant's stock (BRD: AGENT1 browses own+descendant inventory).
+      GoRoute(
+        path: '/agent1/entities/:id/inventory',
         builder: (_, s) => ChildInventoryPage(
           entityId: s.pathParameters['id']!,
           entityName: s.uri.queryParameters['name'] ?? '',
@@ -133,7 +142,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           // Agent1
           GoRoute(path: '/agent1/home', builder: (_, _) => const DashboardPage()),
           GoRoute(path: '/agent1/entities', builder: (_, _) => const EntityTreePage()),
-          GoRoute(path: '/agent1/inventory', builder: (_, _) => const InventoryPage()),
+          GoRoute(path: '/agent1/inventory', builder: (_, _) => const InventoryPage(readOnly: true)),
           GoRoute(path: '/agent1/transactions', builder: (_, _) => const TransactionsPage()),
           GoRoute(path: '/agent1/pricing', builder: (_, _) => const PricingPage()),
           GoRoute(path: '/agent1/stores', builder: (_, _) => const StoresPage()),
@@ -142,14 +151,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           // Agent2
           GoRoute(path: '/agent2/home', builder: (_, _) => const DashboardPage()),
           GoRoute(path: '/agent2/entities', builder: (_, _) => const EntityTreePage()),
-          GoRoute(path: '/agent2/inventory', builder: (_, _) => const InventoryPage()),
+          GoRoute(path: '/agent2/inventory', builder: (_, _) => const InventoryPage(readOnly: true)),
           GoRoute(path: '/agent2/transactions', builder: (_, _) => const TransactionsPage()),
           GoRoute(path: '/agent2/stores', builder: (_, _) => const StoresPage()),
           GoRoute(path: '/agent2/notifications', builder: (_, _) => const NotificationsInboxPage()),
 
           // Store
           GoRoute(path: '/store/home', builder: (_, _) => const DashboardPage()),
-          GoRoute(path: '/store/inventory', builder: (_, _) => const InventoryPage()),
+          GoRoute(path: '/store/inventory', builder: (_, _) => const InventoryPage(readOnly: true)),
           GoRoute(path: '/store/transactions', builder: (_, _) => const TransactionsPage()),
           GoRoute(path: '/store/notifications', builder: (_, _) => const NotificationsInboxPage()),
         ],

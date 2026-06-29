@@ -234,11 +234,10 @@ class AppShell extends ConsumerWidget {
         ];
 
       case EntityType.STORE:
-        // POS is the primary action for a shop — promote to index 0.
-        // 5 items fit the bottom bar without overflow (no More sheet needed).
+        // The STORE-ADMIN manages the shop (inventory / transactions / dashboard). The POS
+        // terminal is a SEPARATE USER-role session (/pos); a /pos/home nav item here would
+        // only bounce the store-admin (route prefix mismatch), so it is intentionally omitted.
         return [
-          _NavItem(Icons.point_of_sale_outlined,Icons.point_of_sale,
-              l.navPos,          '/pos/home'),
           _NavItem(Icons.warehouse_outlined,    Icons.warehouse,
               l.navInventory,    '/store/inventory'),
           _NavItem(Icons.swap_horiz_outlined,   Icons.swap_horiz,

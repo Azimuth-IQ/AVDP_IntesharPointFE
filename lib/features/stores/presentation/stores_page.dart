@@ -275,6 +275,12 @@ class StoreDetailSheet extends ConsumerStatefulWidget {
 
 class _StoreDetailSheetState extends ConsumerState<StoreDetailSheet> {
   late bool _active = widget.store.active;
+
+  /// The signed-in viewer's entity id — the would-be granting parent.
+  String get _viewerId {
+    final a = ref.read(authStateProvider).valueOrNull;
+    return a is AuthAuthenticated ? a.entity.id : '';
+  }
   PosStats? _stats;
   bool _busy = false;
 
@@ -475,11 +481,15 @@ class _StoreDetailSheetState extends ConsumerState<StoreDetailSheet> {
                   icon: const Icon(Icons.lock_reset, size: 18),
                   label: Text(s.resetPassword),
                 ),
-                OutlinedButton.icon(
-                  onPressed: _busy ? null : () => _transfer(s),
-                  icon: const Icon(Icons.account_balance_wallet_outlined, size: 18),
-                  label: Text(s.transfer),
-                ),
+                // Balance grants are DIRECT-parent → DIRECT-child only (BRD): only the
+                // store's immediate parent (its Sub-Agent) may transfer balance to it. For
+                // an HQ/Main-Agent viewer the store is not a direct child, so this is hidden.
+                if (widget.store.parent == _viewerId)
+                  OutlinedButton.icon(
+                    onPressed: _busy ? null : () => _transfer(s),
+                    icon: const Icon(Icons.account_balance_wallet_outlined, size: 18),
+                    label: Text(s.transfer),
+                  ),
                 OutlinedButton.icon(
                   onPressed: _busy ? null : widget.onEdit,
                   icon: const Icon(Icons.edit_outlined, size: 18),

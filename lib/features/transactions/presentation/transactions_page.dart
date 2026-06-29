@@ -7,6 +7,7 @@ import 'package:inteshar/core/auth/capabilities.dart';
 import 'package:inteshar/core/storage/session_storage.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
+import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/transactions/data/transaction_repository.dart';
@@ -106,7 +107,8 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
     // RBAC: only users who may create transfers see the create affordances. The
     // backend independently enforces this on POST /api/transactions/create.
     final auth = ref.watch(authStateProvider).valueOrNull;
-    final canCreate = auth is! AuthAuthenticated ||
+    final canCreate = auth is AuthAuthenticated &&
+        auth.entity.type != EntityType.STORE && // a STORE is load + print only (BRD)
         auth.can({Capability.CREATE_TRANSACTIONS});
     if (_loading) {
       return const Center(child: CircularProgressIndicator());

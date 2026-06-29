@@ -84,6 +84,7 @@ class Endpoints {
   static const productBatches = '/api/inventory/batches';
   static const productBatchPause = '/api/inventory/batch/pause';
   static const productBatchDelete = '/api/inventory/batch';
+  static const productBatchWithdraw = '/api/inventory/batch/withdraw';
   static const productBatchExport = '/api/inventory/batch/export';
 
   // Broadcast notifications. GET inbox + POST create share the base path;

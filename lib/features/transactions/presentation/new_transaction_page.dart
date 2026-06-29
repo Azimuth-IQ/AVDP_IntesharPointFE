@@ -70,6 +70,9 @@ class _NewTransactionPageState extends ConsumerState<NewTransactionPage> {
       final productRepo = ProductRepository(api);
       final pricingRepo = PricingRepository(api);
 
+      // Destination list is intentionally limited to the caller's direct
+      // children only (HQ→AGENT1, AGENT1→AGENT2, AGENT2→STORE).  This enforces
+      // the downstream-only transfer rule — never replace with a flat readAll.
       final children = await entityRepo.readDirectChildren(_currentEntity!.id);
       final defs = await defRepo.readAll();
       // Pre-flight: only SKUs the SOURCE actually holds as AVAILABLE are sellable.
@@ -579,6 +582,8 @@ class _DestPicker extends StatelessWidget {
               decoration: InputDecoration(
                 labelText: l.newTxnChooseEntity,
               ),
+              // `children` == readDirectChildren output: the correct downstream
+              // tier only.  Do not filter or broaden this list here.
               items: children
                   .map((e) => DropdownMenuItem(
                         value: e,

@@ -28,6 +28,15 @@ class VoucherBatch {
   final BatchStatus status;
   final String createdAt;
 
+  /// The entity that originally imported this batch (server-derived: the HQ
+  /// caller at import time). Null on legacy batches created before this field
+  /// was introduced.
+  final String? originId;
+
+  /// The AGENT1 the batch was handed off to after import, or null if the batch
+  /// is still held by HQ (no handover happened, or a withdraw was performed).
+  final String? assignedTo;
+
   const VoucherBatch({
     required this.id,
     required this.sku,
@@ -41,6 +50,8 @@ class VoucherBatch {
     required this.printedCount,
     this.status = BatchStatus.ACTIVE,
     this.createdAt = '',
+    this.originId,
+    this.assignedTo,
   });
 
   bool get paused => status == BatchStatus.PAUSED;
@@ -64,5 +75,7 @@ class VoucherBatch {
           orElse: () => BatchStatus.ACTIVE,
         ),
         createdAt: j['createdAt']?.toString() ?? '',
+        originId: j['originId'] as String?,
+        assignedTo: j['assignedTo'] as String?,
       );
 }

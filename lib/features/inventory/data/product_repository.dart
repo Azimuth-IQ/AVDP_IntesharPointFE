@@ -5,6 +5,7 @@ import 'package:inteshar/core/api/endpoints.dart';
 import 'package:inteshar/features/inventory/domain/print_operation.dart';
 import 'package:inteshar/features/inventory/domain/product.dart';
 import 'package:inteshar/features/inventory/domain/sku_summary.dart';
+import 'package:inteshar/features/inventory/domain/batch_withdraw_result.dart';
 import 'package:inteshar/features/inventory/domain/voucher_batch.dart';
 import 'package:inteshar/features/inventory/domain/voucher_import.dart';
 
@@ -226,6 +227,23 @@ class ProductRepository {
   Future<void> deleteBatch(String batchId) async {
     await _api
         .delete(Endpoints.productBatchDelete, params: {'batchId': batchId});
+  }
+
+  /// Withdraws (reclaims) all still-AVAILABLE vouchers in a batch back to the
+  /// batch origin (HQ), regardless of which descendant currently holds them.
+  /// PRINTED (sold) vouchers are tallied but never blocked — only AVAILABLE
+  /// codes move. Returns counts of [reclaimed], [used], and [total] so the
+  /// caller can surface a meaningful summary.
+  /// Calls `POST /api/inventory/batch/withdraw?batchId=`. HQ-only.
+  Future<BatchWithdrawResult> withdrawBatch(String batchId) async {
+    final response = await _api.post(
+      Endpoints.productBatchWithdraw,
+      params: {'batchId': batchId},
+    );
+    return _api.unwrap(
+      response,
+      (d) => BatchWithdrawResult.fromJson(d as Map<String, dynamic>),
+    );
   }
 
   /// Downloads the original serial/pin TXT for a batch (raw bytes, not JSON).

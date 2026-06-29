@@ -15,6 +15,7 @@ import 'package:inteshar/core/geo/governorate_picker.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
+import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/inventory/data/definition_repository.dart';
 import 'package:inteshar/features/inventory/data/product_repository.dart';
 import 'package:inteshar/features/inventory/domain/product.dart';
@@ -422,21 +423,14 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
       final api = ref.read(apiClientProvider);
       final defs = await DefinitionRepository(api).readAll();
       final entities = await EntityRepository(api).readAll();
-      final auth = ref.read(authStateProvider).valueOrNull;
-      final selfId = auth is AuthAuthenticated ? auth.entity.id : '';
-      Entity? self;
-      for (final e in entities) {
-        if (e.id == selfId) {
-          self = e;
-          break;
-        }
-      }
+      // Filter to AGENT1 only — batch target must be a Main Agent (server enforces this too).
+      final agent1s = entities.where((e) => e.type == EntityType.AGENT1).toList();
       if (mounted) {
         setState(() {
           _defs = defs;
-          _entities = entities;
+          _entities = agent1s;
           if (defs.isNotEmpty) _selectedDef = defs.first;
-          _target = self ?? (entities.isNotEmpty ? entities.first : null);
+          _target = agent1s.isNotEmpty ? agent1s.first : null;
           _loading = false;
         });
       }
@@ -694,20 +688,28 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
             ),
             const SizedBox(height: 22),
 
-            // ── Target agent (owner) ─────────────────────────────────────
-            SectionLabel(_tr(context, 'الوكيل / الجهة', 'Target agent')),
-            DropdownButtonFormField<Entity>(
-              initialValue: _target,
-              isExpanded: true,
-              decoration: InputDecoration(
-                  labelText: _tr(context, 'تُرفع إلى', 'Load into')),
-              items: _entities
-                  .map((e) => DropdownMenuItem(
-                      value: e,
-                      child: Text('${e.meta.name} · ${e.type.name}')))
-                  .toList(),
-              onChanged: (v) => setState(() => _target = v),
-            ),
+            // ── Target Main Agent ────────────────────────────────────────
+            SectionLabel(_tr(context, 'الوكيل الرئيسي', 'Main Agent')),
+            if (_entities.isEmpty)
+              InkCard(
+                ruleColor: cs.error,
+                padding: const EdgeInsets.all(12),
+                child: Text(
+                  _tr(context, 'أنشئ وكيلاً رئيسياً أولاً', 'Create a Main Agent first'),
+                  style: IntesharType.sans(13, color: cs.onSurface),
+                ),
+              )
+            else
+              DropdownButtonFormField<Entity>(
+                initialValue: _target,
+                isExpanded: true,
+                decoration: InputDecoration(
+                    labelText: _tr(context, 'تُرفع إلى الوكيل الرئيسي', 'Hand to Main Agent')),
+                items: _entities
+                    .map((e) => DropdownMenuItem(value: e, child: Text(e.meta.name)))
+                    .toList(),
+                onChanged: (v) => setState(() => _target = v),
+              ),
             const SizedBox(height: 22),
 
             // ── City / governorate (NEW only) ────────────────────────────
@@ -1075,6 +1077,61 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
     }
   }
 
+  Future<void> _withdraw(VoucherBatch batch) async {
+    if (_busy.contains(batch.id)) return;
+    // Capture bilingual strings before the async gap (showDialog returns a Future).
+    final confirmTitle = _tr(context, 'سحب الدفعة', 'Withdraw batch');
+    final confirmBody = _tr(
+      context,
+      'سيتم سحب جميع القسائم غير المستخدمة في هذه الدفعة إلى المقر. القسائم المستخدمة لا يمكن استرجاعها.',
+      'All UNUSED vouchers in this batch will be reclaimed to HQ. Used vouchers cannot be recovered.',
+    );
+    final cancelLabel = _tr(context, 'إلغاء', 'Cancel');
+    final withdrawLabel = _tr(context, 'سحب', 'Withdraw');
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(confirmTitle),
+        content: Text(confirmBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(cancelLabel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(withdrawLabel),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() => _busy.add(batch.id));
+    try {
+      final repo = ProductRepository(ref.read(apiClientProvider));
+      final result = await repo.withdrawBatch(batch.id);
+      if (mounted) {
+        final isAr = Localizations.localeOf(context).languageCode == 'ar';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+            isAr
+                ? 'تم سحب ${result.reclaimed} • مُستخدَم ${result.used}'
+                : 'Reclaimed ${result.reclaimed} • Used ${result.used}',
+          ),
+        ));
+      }
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _busy.remove(batch.id));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
@@ -1101,6 +1158,7 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
           onTogglePause: () => _togglePause(batches[i]),
           onDelete: () => _confirmDelete(batches[i]),
           onExport: () => _export(batches[i]),
+          onWithdraw: () => _withdraw(batches[i]),
         ),
       ),
     );
@@ -1115,6 +1173,7 @@ class _BatchCard extends StatelessWidget {
   final VoidCallback onTogglePause;
   final VoidCallback onDelete;
   final VoidCallback onExport;
+  final VoidCallback onWithdraw;
 
   const _BatchCard({
     required this.batch,
@@ -1122,6 +1181,7 @@ class _BatchCard extends StatelessWidget {
     required this.onTogglePause,
     required this.onDelete,
     required this.onExport,
+    required this.onWithdraw,
   });
 
   @override
@@ -1209,6 +1269,13 @@ class _BatchCard extends StatelessWidget {
                   onPressed: onExport,
                   icon: const Icon(Icons.file_download_outlined, size: 16),
                   label: Text(_tr(context, 'تصدير TXT', 'Export TXT')),
+                ),
+                // Withdraw: always enabled — reclaims AVAILABLE vouchers to HQ even if
+                // some are already PRINTED (used). Result snackbar reports both counts.
+                OutlinedButton.icon(
+                  onPressed: onWithdraw,
+                  icon: const Icon(Icons.undo_outlined, size: 16),
+                  label: Text(_tr(context, 'سحب', 'Withdraw')),
                 ),
                 OutlinedButton.icon(
                   onPressed: onTogglePause,

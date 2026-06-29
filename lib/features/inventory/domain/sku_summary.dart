@@ -8,7 +8,7 @@ class GovBucket {
   final int damaged;
   final int sentForPrinting;
   final int failedPrinting;
-  final num availableValue; // available * defaultPrice (at the category's default price)
+  final num availableValue; // available * EFFECTIVE price (per-gov override ?? SKU-wide base ?? default), set by the backend
 
   const GovBucket({
     this.governorate = '',
@@ -63,8 +63,14 @@ class SkuSummary {
     this.governorates = const [],
   });
 
-  /// Value of sellable (AVAILABLE) stock for this SKU.
-  num get availableValue => available * defaultPrice;
+  /// Value of sellable (AVAILABLE) stock for this SKU, at the entity's EFFECTIVE price.
+  /// Sums the per-governorate buckets — the backend prices each bucket at the effective
+  /// per-agent price (override ?? SKU-wide base ?? defaultPrice), so this agrees with the
+  /// pricing screen + balance. Falls back to `available * defaultPrice` when there are no
+  /// buckets (older backend / empty response) so the value card never drops to 0 mid-rollout.
+  num get availableValue => governorates.isEmpty
+      ? available * defaultPrice
+      : governorates.fold<num>(0, (s, b) => s + b.availableValue);
 
   factory SkuSummary.fromJson(Map<String, dynamic> j) => SkuSummary(
         sku: j['sku'] as String? ?? '',

@@ -334,7 +334,7 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
             ErrorState(error: _entitiesError!, onRetry: _loadEntities)
           else
             DropdownButtonFormField<Entity>(
-              value: _selectedEntity,
+              initialValue: _selectedEntity,
               hint: Text(s.selectEntityHint),
               isExpanded: true,
               items: _entities.map((e) {

@@ -64,58 +64,37 @@ jobs:
           echo "sha256=$(sha256sum "$APK" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
           echo "size=$(stat -c%s "$APK")" >> "$GITHUB_OUTPUT"
 
-      - name: Authenticate to GCP
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-      - uses: google-github-actions/setup-gcloud@v2
-
-      - name: Upload APK to the VM
+      - name: Upload APK to object storage (MinIO, via the key-authed backend endpoint)
+        id: upload
         env:
-          INSTANCE: ${{ secrets.GCE_INSTANCE }}
-          ZONE: ${{ secrets.GCP_ZONE }}
+          RELEASE_API_KEY: ${{ secrets.RELEASE_API_KEY }}
           VC: ${{ github.run_number }}
         run: |
-          SSH="gcloud compute ssh $INSTANCE --zone $ZONE --tunnel-through-iap --quiet --command"
-          $SSH "sudo mkdir -p /opt/inteshar/apk"
-          gcloud compute scp build/app/outputs/flutter-apk/app-release.apk \
-            "$INSTANCE:/tmp/inteshar-$VC.apk" --zone "$ZONE" --tunnel-through-iap --quiet
-          # Keep the immutable versioned file (for history / the in-app-update record),
-          # AND refresh a stable alias so ONE link always serves the latest build:
-          #   http://34.185.153.95/downloads/inteshar-latest.apk
-          $SSH "sudo mv /tmp/inteshar-$VC.apk /opt/inteshar/apk/inteshar-$VC.apk \
-            && sudo chmod 644 /opt/inteshar/apk/inteshar-$VC.apk \
-            && sudo cp -f /opt/inteshar/apk/inteshar-$VC.apk /opt/inteshar/apk/inteshar-latest.apk \
-            && sudo chmod 644 /opt/inteshar/apk/inteshar-latest.apk"
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          RESP=$(curl -sf -X POST "$API_BASE/api/app/upload-apk" \
+            -H "X-Release-Key: $RELEASE_API_KEY" \
+            -F "file=@$APK" \
+            -F "filename=inteshar-$VC.apk")
+          URL=$(echo "$RESP" | jq -r '.data.url // empty')
+          if [ -z "$URL" ]; then
+            echo "::error::APK upload returned no URL — response: $RESP"
+            exit 1
+          fi
+          echo "apk_url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Uploaded APK → $URL"
 
       - name: Publish release to backend
         env:
-          ADMIN_PHONE: ${{ secrets.RELEASE_ADMIN_PHONE }}
-          ADMIN_PASSWORD: ${{ secrets.RELEASE_ADMIN_PASSWORD }}
+          RELEASE_API_KEY: ${{ secrets.RELEASE_API_KEY }}
           VC: ${{ github.run_number }}
         run: |
-          # Log in as an admin to publish (POST /api/app/release is ADMIN-only).
-          LOGIN=$(curl -s -X POST "$API_BASE/api/auth/login" \
-            -H "Content-Type: application/json" \
-            -d "$(jq -n --arg p "$ADMIN_PHONE" --arg pw "$ADMIN_PASSWORD" '{phone:$p, password:$pw}')")
-          TOKEN=$(echo "$LOGIN" | jq -r '.token // empty')
-          if [ -z "$TOKEN" ]; then
-            # 2FA/TOTP (or forced rotation) is on for this account → no token is returned
-            # to a non-interactive client, so the in-app-update record can't be refreshed.
-            # Do NOT fail the build: the signed APK is already uploaded and the stable
-            # /downloads/inteshar-latest.apk link is current. (Proper fix: a CI release
-            # API key or a TOTP-exempt service account — see the deploy notes.)
-            echo "::warning::Release-record publish skipped — admin login returned no token (2FA/rotation enabled). APK uploaded; stable link /downloads/inteshar-latest.apk updated; in-app auto-update record NOT refreshed."
-            exit 0
-          fi
-
           CHANGELOG=$(git log -1 --pretty=%B)
           BODY=$(jq -n \
             --arg channel "$RELEASE_CHANNEL" \
             --arg platform "$RELEASE_PLATFORM" \
             --argjson versionCode "$VC" \
             --arg versionName "${{ steps.build.outputs.version_name }}" \
-            --arg apkUrl "$API_BASE/downloads/inteshar-$VC.apk" \
+            --arg apkUrl "${{ steps.upload.outputs.apk_url }}" \
             --argjson sizeBytes "${{ steps.build.outputs.size }}" \
             --arg sha256 "${{ steps.build.outputs.sha256 }}" \
             --argjson mandatory false \
@@ -123,7 +102,10 @@ jobs:
             --arg changelog "$CHANGELOG" \
             '{channel:$channel, platform:$platform, versionCode:$versionCode, versionName:$versionName, apkUrl:$apkUrl, sizeBytes:$sizeBytes, sha256:$sha256, mandatory:$mandatory, minSupportedVersionCode:$minSupportedVersionCode, changelog:$changelog}')
 
+          # Key-authed (X-Release-Key) — no admin login, so 2FA/rotation no longer
+          # blocks the publish: the in-app auto-update record now always refreshes.
           curl -sf -X POST "$API_BASE/api/app/release" \
-            -H "Authorization: Bearer $TOKEN" \
+            -H "X-Release-Key: $RELEASE_API_KEY" \
             -H "Content-Type: application/json" \
             -d "$BODY"
+          echo "Release published for versionCode $VC"

@@ -15,6 +15,7 @@ import 'package:inteshar/features/inventory/domain/product_definition.dart';
 import 'package:inteshar/features/pricing/data/pricing_repository.dart';
 import 'package:inteshar/features/transactions/data/transaction_repository.dart';
 import 'package:inteshar/features/transactions/domain/transaction.dart';
+import 'package:inteshar/features/transactions/domain/tx_preflight.dart' as preflight;
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/brand_cta.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
@@ -208,14 +209,10 @@ class _NewTransactionPageState extends ConsumerState<NewTransactionPage> {
     return m;
   }
 
-  /// SKUs whose summed request exceeds the source's AVAILABLE stock.
-  List<String> get _overAllocatedSkus {
-    final out = <String>[];
-    _requestedBySku.forEach((sku, qty) {
-      if (qty > (_availableBySku[sku] ?? 0)) out.add(sku);
-    });
-    return out;
-  }
+  /// SKUs whose summed request exceeds the source's AVAILABLE stock. Delegates to
+  /// the shared, unit-tested pre-flight gate (domain/tx_preflight.dart).
+  List<String> get _overAllocatedSkus =>
+      preflight.overAllocatedSkus(_requestedBySku, _availableBySku);
 
   bool get _hasOverAllocation => _overAllocatedSkus.isNotEmpty;
 

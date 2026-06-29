@@ -19,6 +19,7 @@ import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:inteshar/core/upload/upload_repository.dart';
 import 'package:inteshar/shared/widgets/image_upload_field.dart';
+import 'package:inteshar/shared/widgets/color_hex_field.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 import 'package:inteshar/shared/widgets/role_badge.dart';
 
@@ -69,15 +70,6 @@ String _typeInitial(EntityType t) {
     case EntityType.STORE:
       return 'S';
   }
-}
-
-/// Parse a hex colour string (#RRGGBB) to a [Color], returning null on failure.
-Color? _parseHex(String raw) {
-  final clean = raw.trim().replaceAll('#', '');
-  if (clean.length != 6) return null;
-  final value = int.tryParse(clean, radix: 16);
-  if (value == null) return null;
-  return Color(0xFF000000 | value);
 }
 
 // ─── Page ────────────────────────────────────────────────────────────────────
@@ -744,36 +736,6 @@ class _Tally extends StatelessWidget {
   }
 }
 
-// ─── Colour swatch suffix ────────────────────────────────────────────────────
-
-class _HexSwatch extends StatelessWidget {
-  final TextEditingController ctrl;
-  const _HexSwatch({required this.ctrl});
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: ctrl,
-      builder: (context, _) {
-        final color = _parseHex(ctrl.text);
-        if (color == null) return const SizedBox(width: 24, height: 24);
-        return Container(
-          width: 24,
-          height: 24,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(5),
-            border: Border.all(
-              color: Theme.of(context).colorScheme.outline,
-              width: 1,
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
 // ─── Slider gallery ──────────────────────────────────────────────────────────
 
 /// Multi-image upload control for [EntityMeta.sliderImagesUrl].
@@ -1050,20 +1012,14 @@ class _EntityFormSheetState extends State<_EntityFormSheet> {
             const SizedBox(height: 12),
             _SliderGallery(notifier: widget.sliderImagesNotifier),
             const SizedBox(height: 12),
-            TextField(
+            ColorHexField(
               controller: widget.primaryCtrl,
-              decoration: InputDecoration(
-                labelText: l.entityFieldPrimaryColor,
-                suffix: _HexSwatch(ctrl: widget.primaryCtrl),
-              ),
+              label: l.entityFieldPrimaryColor,
             ),
             const SizedBox(height: 12),
-            TextField(
+            ColorHexField(
               controller: widget.secondaryCtrl,
-              decoration: InputDecoration(
-                labelText: l.entityFieldSecondaryColor,
-                suffix: _HexSwatch(ctrl: widget.secondaryCtrl),
-              ),
+              label: l.entityFieldSecondaryColor,
             ),
             const SizedBox(height: 12),
             TextField(

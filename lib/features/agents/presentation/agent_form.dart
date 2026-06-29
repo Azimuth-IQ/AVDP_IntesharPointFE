@@ -12,6 +12,7 @@ import 'package:inteshar/features/agents/presentation/agent_strings.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
+import 'package:inteshar/shared/widgets/color_hex_field.dart';
 import 'package:inteshar/features/system_activity/domain/feed_rows.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/image_upload_field.dart';
@@ -475,9 +476,9 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         const SizedBox(height: 8),
         Row(
           children: [
-            Expanded(child: TextField(controller: _primary, decoration: InputDecoration(labelText: s.fieldPrimary, hintText: '#F5B100'))),
+            Expanded(child: ColorHexField(controller: _primary, label: s.fieldPrimary, hint: '#F5B100')),
             const SizedBox(width: 12),
-            Expanded(child: TextField(controller: _secondary, decoration: InputDecoration(labelText: s.fieldSecondary, hintText: '#2C3A55'))),
+            Expanded(child: ColorHexField(controller: _secondary, label: s.fieldSecondary, hint: '#2C3A55')),
           ],
         ),
       ],

@@ -693,6 +693,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get defsDelete => 'حذف';
 
   @override
+  String get defsDeleteAnyway => 'احذف على أي حال';
+
+  @override
   String get defsSubtitle => 'السجل الرئيسي لفئات القسائم الصادرة عن إنتشار.';
 
   @override

@@ -1322,6 +1322,12 @@ abstract class AppLocalizations {
   /// **'Delete'**
   String get defsDelete;
 
+  /// No description provided for @defsDeleteAnyway.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete anyway'**
+  String get defsDeleteAnyway;
+
   /// No description provided for @defsSubtitle.
   ///
   /// In en, this message translates to:

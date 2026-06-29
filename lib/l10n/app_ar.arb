@@ -297,6 +297,7 @@
   },
   "defsCancel": "إلغاء",
   "defsDelete": "حذف",
+  "defsDeleteAnyway": "احذف على أي حال",
   "defsSubtitle": "السجل الرئيسي لفئات القسائم الصادرة عن إنتشار.",
   "defsTitlesLabel": "عنوان",
   "defsSearchHint": "بحث بالاسم أو رمز المنتج أو الوصف…",

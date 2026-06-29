@@ -481,6 +481,8 @@
   "@defsCancel": {},
   "defsDelete": "Delete",
   "@defsDelete": {},
+  "defsDeleteAnyway": "Delete anyway",
+  "@defsDeleteAnyway": {},
   "defsSubtitle": "Master record of voucher denominations issued by Inteshar Platform.",
   "@defsSubtitle": {},
   "defsTitlesLabel": "titles",

@@ -37,7 +37,10 @@ class DefinitionRepository {
         response, (d) => ProductDefinition.fromJson(d as Map<String, dynamic>));
   }
 
-  Future<void> delete(String id) async {
-    await _api.delete(Endpoints.definitionDelete, params: {'id': id});
+  /// Delete a category. The backend refuses (409) when vouchers still reference the
+  /// SKU; pass [force] to override (admin cleanup) after the user confirms.
+  Future<void> delete(String id, {bool force = false}) async {
+    await _api.delete(Endpoints.definitionDelete,
+        params: {'id': id, if (force) 'force': true});
   }
 }

@@ -693,6 +693,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get defsDelete => 'Delete';
 
   @override
+  String get defsDeleteAnyway => 'Delete anyway';
+
+  @override
   String get defsSubtitle =>
       'Master record of voucher denominations issued by Inteshar Platform.';
 

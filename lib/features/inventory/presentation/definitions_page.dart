@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
+import 'package:inteshar/core/api/api_exception.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/companies/data/company_repository.dart';
 import 'package:inteshar/features/companies/domain/company.dart';
@@ -111,38 +112,66 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
     );
   }
 
-  Future<void> _delete(ProductDefinition def) async {
+  Future<void> _delete(ProductDefinition def, {bool force = false}) async {
     final l = AppLocalizations.of(context)!;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l.defsDeleteTitle),
-        content: Text(l.defsDeleteConfirm(def.name)),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(l.defsCancel)),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(ctx).colorScheme.error),
-            child: Text(l.defsDelete),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true) return;
+    // The first delete shows the generic confirm; a forced retry skips it (the user
+    // already confirmed via the "delete anyway" dialog below).
+    if (!force) {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(l.defsDeleteTitle),
+          content: Text(l.defsDeleteConfirm(def.name)),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(l.defsCancel)),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(ctx).colorScheme.error),
+              child: Text(l.defsDelete),
+            ),
+          ],
+        ),
+      );
+      if (confirm != true) return;
+    }
     try {
       final api = ref.read(apiClientProvider);
       final repo = DefinitionRepository(api);
-      await repo.delete(def.id);
+      await repo.delete(def.id, force: force);
       _load();
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context)!.commonDeleteFailed('$e'))),
+      if (!mounted) return;
+      final apiErr = ApiException.from(e);
+      // 409 = the category still has vouchers referencing it. Show the backend's
+      // explanatory message and offer a forced delete (admin override).
+      if (apiErr?.statusCode == 409) {
+        final forceConfirm = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(l.defsDeleteTitle),
+            content: Text(apiErr!.message),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: Text(l.defsCancel)),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(ctx).colorScheme.error),
+                child: Text(l.defsDeleteAnyway),
+              ),
+            ],
+          ),
         );
+        if (forceConfirm == true) await _delete(def, force: true);
+        return;
       }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(apiErr?.message ?? l.commonDeleteFailed('$e'))),
+      );
     }
   }
 

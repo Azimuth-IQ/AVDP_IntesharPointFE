@@ -471,16 +471,18 @@ class _AgentFormState extends ConsumerState<AgentForm> {
           keyboardType: TextInputType.emailAddress,
           decoration: InputDecoration(labelText: s.fieldEmail),
         ),
-        const SizedBox(height: 22),
-        SectionLabel(s.sectionBranding),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(child: ColorHexField(controller: _primary, label: s.fieldPrimary, hint: '#F5B100')),
-            const SizedBox(width: 12),
-            Expanded(child: ColorHexField(controller: _secondary, label: s.fieldSecondary, hint: '#2C3A55')),
-          ],
-        ),
+        if (tier == AgentTier.main) ...[
+          const SizedBox(height: 22),
+          SectionLabel(s.sectionBranding),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(child: ColorHexField(controller: _primary, label: s.fieldPrimary, hint: '#F5B100')),
+              const SizedBox(width: 12),
+              Expanded(child: ColorHexField(controller: _secondary, label: s.fieldSecondary, hint: '#2C3A55')),
+            ],
+          ),
+        ],
       ],
     );
   }

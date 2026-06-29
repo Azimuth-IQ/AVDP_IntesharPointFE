@@ -156,10 +156,10 @@ class AppShell extends ConsumerWidget {
               required: Capability.VIEW_REPORTS, group: 'inventory_stock'),
           _NavItem(Icons.swap_horiz_outlined, Icons.swap_horiz,
               l.navTransactions, '/hq/transactions',
-              required: Capability.CREATE_TRANSACTIONS, group: 'distribution'),
+              required: Capability.VIEW_REPORTS, group: 'distribution'),
           _NavItem(Icons.account_tree_outlined, Icons.account_tree,
               l.navHierarchy, '/hq/entities',
-              required: Capability.AGENT_ADMIN, group: 'network'),
+              required: Capability.VIEW_REPORTS, group: 'network'),
           // ── More sheet below ─────────────────────────────────────────────
           _NavItem(Icons.fact_check_outlined, Icons.fact_check,
               l.navPrintOps, '/hq/print-operations',

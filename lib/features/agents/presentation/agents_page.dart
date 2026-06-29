@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
+import 'package:inteshar/core/auth/capabilities.dart';
 import 'package:inteshar/core/geo/governorates.dart';
 import 'package:inteshar/features/agents/data/agent_repository.dart';
 import 'package:inteshar/features/agents/domain/agent_tier.dart';
 import 'package:inteshar/features/agents/presentation/agent_form.dart';
 import 'package:inteshar/features/agents/presentation/agent_strings.dart';
+import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/system_activity/domain/feed_rows.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
@@ -161,6 +163,8 @@ class _AgentsPageState extends ConsumerState<AgentsPage> {
   @override
   Widget build(BuildContext context) {
     final s = AgentStrings.of(context, tier);
+    final authState = ref.watch(authStateProvider).valueOrNull;
+    final canManage = authState is AuthAuthenticated && authState.can({Capability.AGENT_ADMIN});
     return MaxWidthBox(
       child: Column(
         children: [
@@ -168,11 +172,13 @@ class _AgentsPageState extends ConsumerState<AgentsPage> {
             eyebrow: s.pageEyebrow,
             title: s.pageTitle,
             subtitle: s.pageSubtitle,
-            trailing: FilledButton.icon(
-              onPressed: () => _openForm(),
-              icon: const Icon(Icons.add, size: 18),
-              label: Text(s.newAgent),
-            ),
+            trailing: canManage
+                ? FilledButton.icon(
+                    onPressed: () => _openForm(),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: Text(s.newAgent),
+                  )
+                : null,
           ),
           Padding(
             padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 12),
@@ -186,13 +192,13 @@ class _AgentsPageState extends ConsumerState<AgentsPage> {
               ),
             ),
           ),
-          Expanded(child: _buildBody(s)),
+          Expanded(child: _buildBody(s, canManage: canManage)),
         ],
       ),
     );
   }
 
-  Widget _buildBody(AgentStrings s) {
+  Widget _buildBody(AgentStrings s, {required bool canManage}) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) return ErrorState(error: _error!, onRetry: _reload);
     if (_items.isEmpty) {
@@ -218,6 +224,7 @@ class _AgentsPageState extends ConsumerState<AgentsPage> {
           return _AgentCard(
             row: _items[i],
             s: s,
+            canManage: canManage,
             onEdit: () => _openForm(editId: _items[i].id),
             onDelete: () => _confirmDelete(_items[i]),
           );
@@ -230,9 +237,10 @@ class _AgentsPageState extends ConsumerState<AgentsPage> {
 class _AgentCard extends StatelessWidget {
   final EntitySummaryRow row;
   final AgentStrings s;
+  final bool canManage;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
-  const _AgentCard({required this.row, required this.s, required this.onEdit, required this.onDelete});
+  const _AgentCard({required this.row, required this.s, required this.canManage, required this.onEdit, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -261,13 +269,14 @@ class _AgentCard extends StatelessWidget {
                   ],
                 ),
               ),
-              PopupMenuButton<String>(
-                onSelected: (v) => v == 'edit' ? onEdit() : onDelete(),
-                itemBuilder: (_) => [
-                  PopupMenuItem(value: 'edit', child: Text(s.edit)),
-                  PopupMenuItem(value: 'delete', child: Text(s.delete)),
-                ],
-              ),
+              if (canManage)
+                PopupMenuButton<String>(
+                  onSelected: (v) => v == 'edit' ? onEdit() : onDelete(),
+                  itemBuilder: (_) => [
+                    PopupMenuItem(value: 'edit', child: Text(s.edit)),
+                    PopupMenuItem(value: 'delete', child: Text(s.delete)),
+                  ],
+                ),
             ],
           ),
           if (row.parentName.isNotEmpty) ...[

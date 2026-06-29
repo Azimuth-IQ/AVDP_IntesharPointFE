@@ -613,11 +613,44 @@ class _TreeNode extends ConsumerWidget {
         onSave: (updatedUsers) async {
           final api = ref.read(apiClientProvider);
           final repo = EntityRepository(api);
-          final updated = entity.copyWith(users: updatedUsers);
-          await repo.updateWithUsers(updated);
-          if (entity.parent.isNotEmpty) {
-            await repo.relinkChildToParent(entity.parent, entity.id);
+
+          // Fine-grained diff: avoids the full-entity PUT that clears
+          // childrenIds on the backend (EntityHelper.updateEntity bug).
+          final originalByPhone = {for (final u in entity.users) u.phone: u};
+          final updatedByPhone = {for (final u in updatedUsers) u.phone: u};
+
+          // Remove users dropped from the sheet.
+          for (final phone in originalByPhone.keys) {
+            if (!updatedByPhone.containsKey(phone)) {
+              await repo.removeUser(entity.id, phone);
+            }
           }
+
+          // Add new users; update existing ones whose role/capabilities changed.
+          for (final u in updatedUsers) {
+            final orig = originalByPhone[u.phone];
+            if (orig == null) {
+              // New user — ManageUsersSheet populates u.password from the form.
+              await repo.addUser(
+                entityId: entity.id,
+                phone: u.phone,
+                password: u.password,
+                role: u.role,
+                capabilities: u.capabilities,
+              );
+            } else if (orig.role != u.role ||
+                orig.capabilities.length != u.capabilities.length ||
+                !orig.capabilities.containsAll(u.capabilities)) {
+              // Role or capabilities changed; password is not re-sent here
+              // so the backend does not re-hash an already-hashed value.
+              await repo.updateUser(
+                phone: u.phone,
+                role: u.role,
+                capabilities: u.capabilities,
+              );
+            }
+          }
+
           if (ctx.mounted) Navigator.pop(ctx);
           onRefresh();
         },

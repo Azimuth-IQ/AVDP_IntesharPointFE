@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
+import 'package:inteshar/core/auth/capabilities.dart';
 import 'package:inteshar/core/geo/governorates.dart';
 import 'package:inteshar/core/utils/formatters.dart';
+import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/pricing/data/pricing_repository.dart';
 import 'package:inteshar/features/pricing/domain/pricing_models.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
@@ -32,6 +34,7 @@ class _S {
   String get byGovernorate => p('By governorate', 'حسب المحافظة');
   String get untagged => p('No region', 'بدون محافظة');
   String get allRegions => p('All regions', 'كل المحافظات');
+  String get unauthorized => p('Pricing access not granted', 'لا تملك صلاحية إدارة الأسعار');
 }
 
 class PricingPage extends ConsumerStatefulWidget {
@@ -46,6 +49,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
   bool _loading = true;
   bool _saving = false;
   Object? _error;
+  bool _authorized = true;
   final Map<String, TextEditingController> _ctrls = {};
 
   PricingRepository get _repo => PricingRepository(ref.read(apiClientProvider));
@@ -53,7 +57,16 @@ class _PricingPageState extends ConsumerState<PricingPage> {
   @override
   void initState() {
     super.initState();
-    _load();
+    // Guard: only agents with MANAGE_PRICING may load the catalog. An AGENT1
+    // user that reaches this route without the capability sees an empty state
+    // and the catalog fetch is skipped entirely (no needless server call).
+    final auth = ref.read(authStateProvider).valueOrNull;
+    _authorized = auth is AuthAuthenticated && auth.can({Capability.MANAGE_PRICING});
+    if (_authorized) {
+      _load();
+    } else {
+      _loading = false;
+    }
   }
 
   @override
@@ -147,6 +160,22 @@ class _PricingPageState extends ConsumerState<PricingPage> {
   }
 
   Widget _body(_S s) {
+    if (!_authorized) {
+      final cs = Theme.of(context).colorScheme;
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.lock_outline, size: 48, color: cs.onSurfaceVariant),
+            const SizedBox(height: 12),
+            Text(
+              s.unauthorized,
+              style: IntesharType.sans(14, color: cs.onSurfaceVariant),
+            ),
+          ],
+        ),
+      );
+    }
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) return ErrorState(error: _error!, onRetry: _load);
     final catalog = _catalog!;

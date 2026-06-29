@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
+import 'package:inteshar/core/auth/capabilities.dart';
+import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/companies/data/company_repository.dart';
 import 'package:inteshar/features/companies/domain/company.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
@@ -122,6 +124,8 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
   @override
   Widget build(BuildContext context) {
     final s = _S.of(context);
+    final authState = ref.watch(authStateProvider).valueOrNull;
+    final canManage = authState is AuthAuthenticated && authState.can({Capability.AGENT_ADMIN});
     return MaxWidthBox(
       child: Column(
         children: [
@@ -129,19 +133,21 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
             eyebrow: s.eyebrow,
             title: s.title,
             subtitle: s.subtitle,
-            trailing: FilledButton.icon(
-              onPressed: () => _openForm(),
-              icon: const Icon(Icons.add, size: 18),
-              label: Text(s.newCompany),
-            ),
+            trailing: canManage
+                ? FilledButton.icon(
+                    onPressed: () => _openForm(),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: Text(s.newCompany),
+                  )
+                : null,
           ),
-          Expanded(child: _body(s)),
+          Expanded(child: _body(s, canManage: canManage)),
         ],
       ),
     );
   }
 
-  Widget _body(_S s) {
+  Widget _body(_S s, {required bool canManage}) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) return ErrorState(error: _error!, onRetry: _load);
     if (_items.isEmpty) {
@@ -189,13 +195,14 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
                   color: c.active ? IntesharColors.sage : cs.outline,
                   filled: false,
                 ),
-                PopupMenuButton<String>(
-                  onSelected: (v) => v == 'edit' ? _openForm(existing: c) : _confirmDelete(c),
-                  itemBuilder: (_) => [
-                    PopupMenuItem(value: 'edit', child: Text(s.edit)),
-                    PopupMenuItem(value: 'delete', child: Text(s.delete)),
-                  ],
-                ),
+                if (canManage)
+                  PopupMenuButton<String>(
+                    onSelected: (v) => v == 'edit' ? _openForm(existing: c) : _confirmDelete(c),
+                    itemBuilder: (_) => [
+                      PopupMenuItem(value: 'edit', child: Text(s.edit)),
+                      PopupMenuItem(value: 'delete', child: Text(s.delete)),
+                    ],
+                  ),
               ],
             ),
           );

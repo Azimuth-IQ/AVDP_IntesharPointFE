@@ -459,22 +459,27 @@ class _TreeNode extends ConsumerWidget {
               onSelected: (action) =>
                   _handleAction(context, ref, action),
               itemBuilder: (_) => [
-                PopupMenuItem(
-                  value: 'edit',
-                  child: ListTile(
-                    leading: const Icon(Icons.edit_outlined),
-                    title: Text(l.entityTreeEdit),
-                    contentPadding: EdgeInsets.zero,
+                // Editing an entity + managing its users are HQ-only (BRD: only the
+                // platform admin creates/assigns accounts). Enforced server-side; mirrored
+                // here so non-HQ viewers get a read-only hierarchy and never hit a 403.
+                if (_viewerIsHq(ref))
+                  PopupMenuItem(
+                    value: 'edit',
+                    child: ListTile(
+                      leading: const Icon(Icons.edit_outlined),
+                      title: Text(l.entityTreeEdit),
+                      contentPadding: EdgeInsets.zero,
+                    ),
                   ),
-                ),
-                PopupMenuItem(
-                  value: 'manage_users',
-                  child: ListTile(
-                    leading: const Icon(Icons.manage_accounts_outlined),
-                    title: Text(l.entityTreeManageUsers),
-                    contentPadding: EdgeInsets.zero,
+                if (_viewerIsHq(ref))
+                  PopupMenuItem(
+                    value: 'manage_users',
+                    child: ListTile(
+                      leading: const Icon(Icons.manage_accounts_outlined),
+                      title: Text(l.entityTreeManageUsers),
+                      contentPadding: EdgeInsets.zero,
+                    ),
                   ),
-                ),
                 if (_inventoryRoutePrefix(ref) != null)
                   PopupMenuItem(
                     value: 'view_inventory',

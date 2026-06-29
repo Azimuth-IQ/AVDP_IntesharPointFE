@@ -892,9 +892,12 @@ class _BalanceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ar = Localizations.localeOf(context).languageCode == 'ar';
+    // Inventory-backed tiers (HQ / Main Agent) grant balance down, so it reads as
+    // transferable credit. Wallet tiers (Sub Agent / Store) only spend it on
+    // withdrawals/prints from the Main Agent's stock, so it reads as a spending cap.
     final label = balance.inventoryBacked
         ? (ar ? 'الرصيد المتاح للتحويل' : 'Balance available to transfer')
-        : (ar ? 'رصيد المحفظة' : 'Wallet balance');
+        : (ar ? 'حد السحب المتاح' : 'Withdrawal limit');
     final showTransfer = canTransfer && children.isNotEmpty;
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),

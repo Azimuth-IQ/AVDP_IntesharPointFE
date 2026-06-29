@@ -9,6 +9,9 @@ import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/inventory/data/product_repository.dart';
 import 'package:inteshar/features/inventory/domain/product.dart';
 import 'package:inteshar/features/inventory/domain/sku_summary.dart';
+import 'package:inteshar/features/agents/data/agent_repository.dart';
+import 'package:inteshar/features/entities/domain/entity_type.dart';
+import 'package:inteshar/features/system_activity/domain/feed_rows.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
@@ -37,17 +40,18 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
   ProductStatus? _statusFilter;
   String? _entityId;
 
+  // HQ-only "view a Main Agent's inventory" picker. Conceptually only Main Agents
+  // hold stock, so HQ can inspect its own holding or any AGENT1 pool. Only shown on
+  // HQ's own inventory screen (widget.entityId == null), not the read-only drill-in.
+  bool _isHqRoot = false;
+  String? _selfId; // signed-in HQ entity id (the default "HQ holding" option)
+  String? _selectedId; // chosen entity to view (null => self)
+  List<EntitySummaryRow> _mainAgents = [];
+
   @override
   void initState() {
     super.initState();
     _load();
-  }
-
-  Future<String?> _resolveEntityId() async {
-    if (widget.entityId != null) return widget.entityId;
-    final auth = ref.read(authStateProvider).valueOrNull;
-    if (auth is AuthAuthenticated) return auth.entity.id;
-    return sessionStorage.getCurrentEntityId();
   }
 
   Future<void> _load() async {
@@ -56,7 +60,23 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
       _error = null;
     });
     try {
-      final entityId = await _resolveEntityId();
+      final auth = ref.read(authStateProvider).valueOrNull;
+      _selfId = (auth is AuthAuthenticated)
+          ? auth.entity.id
+          : await sessionStorage.getCurrentEntityId();
+      _isHqRoot = widget.entityId == null &&
+          auth is AuthAuthenticated &&
+          auth.entity.type == EntityType.INTESHAR;
+      if (_isHqRoot && _mainAgents.isEmpty) {
+        try {
+          _mainAgents =
+              await AgentRepository(ref.read(apiClientProvider)).listAll('AGENT1');
+        } catch (_) {
+          // Picker degrades to HQ-only if the Main-Agent list can't be loaded.
+        }
+      }
+      // Drill-in id wins; else the HQ-picked agent; else the signed-in entity.
+      final entityId = widget.entityId ?? _selectedId ?? _selfId;
       if (entityId == null) throw Exception('No entity id in session');
       _entityId = entityId;
       final repo = ProductRepository(ref.read(apiClientProvider));
@@ -131,6 +151,19 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
               damaged: damagedTotal,
             ),
           ),
+          if (_isHqRoot)
+            Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 8),
+              child: _InventoryOwnerPicker(
+                selfId: _selfId!,
+                agents: _mainAgents,
+                selectedId: _entityId!,
+                onChanged: (id) {
+                  setState(() => _selectedId = id);
+                  _load();
+                },
+              ),
+            ),
           if (all.isNotEmpty)
             Padding(
               padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 4),
@@ -178,6 +211,58 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
                   ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── HQ "view whose inventory" picker ──────────────────────────────────────────
+// Lets HQ choose which Main Agent's stock to inspect (or its own holding). Stock
+// conceptually lives with the Main Agents, so this is the HQ's window into each pool.
+class _InventoryOwnerPicker extends StatelessWidget {
+  final String selfId;
+  final List<EntitySummaryRow> agents;
+  final String selectedId;
+  final ValueChanged<String> onChanged;
+  const _InventoryOwnerPicker({
+    required this.selfId,
+    required this.agents,
+    required this.selectedId,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    final items = <DropdownMenuItem<String>>[
+      DropdownMenuItem(
+        value: selfId,
+        child: Text(ar ? 'إنتشار (المقر الرئيسي)' : 'Inteshar (HQ)'),
+      ),
+      ...agents.map((a) => DropdownMenuItem(
+            value: a.id,
+            child: Text('${a.label} · ${a.productsCount}',
+                overflow: TextOverflow.ellipsis),
+          )),
+    ];
+    // The selected id must exist among the items or the dropdown asserts.
+    final value = items.any((i) => i.value == selectedId) ? selectedId : selfId;
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText: ar ? 'عرض مخزون' : 'Viewing inventory of',
+        border: const OutlineInputBorder(),
+        isDense: true,
+        prefixIcon: const Icon(Icons.warehouse_outlined, size: 20),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          isExpanded: true,
+          value: value,
+          items: items,
+          onChanged: (v) {
+            if (v != null) onChanged(v);
+          },
+        ),
       ),
     );
   }

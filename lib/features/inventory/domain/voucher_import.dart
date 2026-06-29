@@ -74,6 +74,23 @@ List<ParsedVoucher> parseVoucherFile(String content, ImportFormat format) {
   return out;
 }
 
+/// Auto-detect the import format from raw pasted/loaded content by counting the
+/// columns of the first usable data line (skips blanks + a `serial`-header line):
+/// 4 or more comma-separated columns => OTHER (carries a label), otherwise NEW.
+/// Returns null when there is no parseable data line, so the caller can keep the
+/// current selection. Drives "auto-select the fields on paste".
+ImportFormat? detectFormat(String content) {
+  for (final line in content.split('\n')) {
+    final t = line.trim();
+    if (t.isEmpty) continue;
+    if (t.toLowerCase().contains('serial')) continue; // header row
+    final cols = t.split(',');
+    if (cols.length < 2) continue;
+    return cols.length >= 4 ? ImportFormat.other : ImportFormat.newSew;
+  }
+  return null;
+}
+
 /// Result of a bulk import (mirrors the backend `BatchImportResult`).
 class BatchImportResult {
   final int imported;

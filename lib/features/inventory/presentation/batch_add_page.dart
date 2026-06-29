@@ -167,6 +167,8 @@ class _ManualTabState extends ConsumerState<_ManualTab> {
 
   ProductDefinition? _selectedDef;
   String? _selectedGovernorate; // null = not geo-locked
+  List<Entity> _agents = []; // Main Agents (AGENT1) the voucher can be added to
+  Entity? _target; // the Main Agent that receives this voucher
   final _serialCtrl = TextEditingController();
   final _pinCtrl = TextEditingController();
   final _serialFocus = FocusNode();
@@ -193,11 +195,16 @@ class _ManualTabState extends ConsumerState<_ManualTab> {
       final api = ref.read(apiClientProvider);
       final repo = DefinitionRepository(api);
       final defs = await repo.readAll();
+      final entities = await EntityRepository(api).readAll();
+      // Stock lands at a Main Agent — offer AGENT1 only (the server enforces this too).
+      final agent1s = entities.where((e) => e.type == EntityType.AGENT1).toList();
       if (mounted) {
         setState(() {
           _defs = defs;
+          _agents = agent1s;
           _loading = false;
           if (defs.isNotEmpty) _selectedDef = defs.first;
+          _target = agent1s.isNotEmpty ? agent1s.first : null;
         });
       }
     } catch (e) {
@@ -232,6 +239,11 @@ class _ManualTabState extends ConsumerState<_ManualTab> {
       return;
     }
 
+    final target = _target;
+    if (target == null) {
+      setState(() => _error = _tr(context, 'اختر الوكيل الرئيسي أولاً', 'Select a Main Agent first'));
+      return;
+    }
     final entityId = _entityId();
     if (entityId.isEmpty) return;
 
@@ -244,7 +256,7 @@ class _ManualTabState extends ConsumerState<_ManualTab> {
     final repo = ProductRepository(api);
 
     try {
-      final existing = await repo.readByEntity(entityId);
+      final existing = await repo.readByEntity(target.id);
       final dup = existing.any(
         (p) => p.serialNumber.trim().toLowerCase() == serial.toLowerCase(),
       );
@@ -264,8 +276,10 @@ class _ManualTabState extends ConsumerState<_ManualTab> {
         status: ProductStatus.AVAILABLE,
         serialNumber: serial,
         pin: pin,
-        owners: [entityId],
-        currentOwner: entityId,
+        // Provenance: entered via HQ, held by the chosen Main Agent (mirrors the
+        // batch HQ→AGENT1 handover trail).
+        owners: [entityId, target.id],
+        currentOwner: target.id,
         governorate: _selectedGovernorate,
       ));
 
@@ -320,6 +334,29 @@ class _ManualTabState extends ConsumerState<_ManualTab> {
               onChanged: (v) => setState(() => _selectedDef = v),
             ),
             const SizedBox(height: 22),
+            // Main Agent — the voucher is added to this Main Agent's stock.
+            SectionLabel(_tr(context, 'الوكيل الرئيسي', 'Main Agent')),
+            if (_agents.isEmpty)
+              InkCard(
+                ruleColor: cs.error,
+                padding: const EdgeInsets.all(12),
+                child: Text(
+                  _tr(context, 'أنشئ وكيلاً رئيسياً أولاً', 'Create a Main Agent first'),
+                  style: IntesharType.sans(13, color: cs.onSurface),
+                ),
+              )
+            else
+              DropdownButtonFormField<Entity>(
+                initialValue: _target,
+                isExpanded: true,
+                decoration: InputDecoration(
+                    labelText: _tr(context, 'تُضاف إلى الوكيل الرئيسي', 'Add to Main Agent')),
+                items: _agents
+                    .map((e) => DropdownMenuItem(value: e, child: Text(e.meta.name)))
+                    .toList(),
+                onChanged: (v) => setState(() => _target = v),
+              ),
+            const SizedBox(height: 22),
             SectionLabel(l.batchAddGovernorate),
             GovernorateDropdown(
               value: _selectedGovernorate,
@@ -364,7 +401,9 @@ class _ManualTabState extends ConsumerState<_ManualTab> {
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                onPressed: (_saving || _selectedDef == null) ? null : _save,
+                onPressed: (_saving || _selectedDef == null || _target == null)
+                    ? null
+                    : _save,
                 icon: _saving
                     ? const SizedBox(
                         height: 16,
@@ -411,11 +450,18 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
   double _progress = 0;
   BatchImportResult? _result;
   String? _error;
+  final TextEditingController _pasteCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _pasteCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -488,6 +534,54 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
       setState(() => _error = e.toString());
     }
   }
+
+  /// Paste path: parse the textarea content directly and AUTO-SELECT the format
+  /// from the columns (3 → NEW, 4+ → OTHER). Keeps the encoded bytes so a later
+  /// NEW/OTHER toggle re-derives the preview from the same pasted text.
+  void _onPasteChanged(String text) {
+    if (text.trim().isEmpty) {
+      setState(() {
+        _preview = null;
+        _pickedBytes = null;
+        _pickedExt = null;
+        _fileName = null;
+        _error = null;
+      });
+      return;
+    }
+    final detected = detectFormat(text);
+    try {
+      final rows = parseVoucherFile(text, detected ?? _format);
+      setState(() {
+        if (detected != null) _format = detected;
+        _pickedBytes = Uint8List.fromList(utf8.encode(text));
+        _pickedExt = 'txt';
+        _fileName = _tr(context, 'نص ملصوق', 'pasted text');
+        _preview = rows;
+        _result = null;
+        _error = null;
+      });
+    } catch (e) {
+      setState(() => _error = e.toString());
+    }
+  }
+
+  /// Required fields not yet satisfied — drives the pre-upload guard + hint.
+  List<String> _missing() {
+    final m = <String>[];
+    if (_selectedDef == null) m.add(_tr(context, 'الفئة', 'Category'));
+    if (_target == null) m.add(_tr(context, 'الوكيل الرئيسي', 'Main Agent'));
+    if (_preview == null || _preview!.isEmpty) {
+      m.add(_tr(context, 'قسائم صالحة', 'valid vouchers'));
+    }
+    return m;
+  }
+
+  bool get _canImport =>
+      _selectedDef != null &&
+      _target != null &&
+      _preview != null &&
+      _preview!.isNotEmpty;
 
   List<ParsedVoucher> _parseXlsx(Uint8List bytes, ImportFormat format) {
     final book = Excel.decodeBytes(bytes);
@@ -748,6 +842,24 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                   style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
             ],
 
+            // ── Or paste rows (auto-detects NEW vs OTHER from the columns) ──
+            const SizedBox(height: 16),
+            SectionLabel(_tr(context, 'أو الصق الصفوف', 'Or paste rows')),
+            TextField(
+              controller: _pasteCtrl,
+              minLines: 3,
+              maxLines: 8,
+              style: IntesharType.mono(12),
+              decoration: InputDecoration(
+                hintText: isNew
+                    ? 'serial,pin,expiry'
+                    : 'serial,pin,expiry,label',
+                alignLabelWithHint: true,
+                border: const OutlineInputBorder(),
+              ),
+              onChanged: _onPasteChanged,
+            ),
+
             // ── Error banner ─────────────────────────────────────────────
             if (_error != null) ...[
               const SizedBox(height: 14),
@@ -777,6 +889,20 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
               ),
             ],
 
+            // ── No valid rows (content provided but parsed to nothing) ───
+            if (_preview != null && _preview!.isEmpty && _result == null) ...[
+              const SizedBox(height: 14),
+              InkCard(
+                ruleColor: cs.error,
+                padding: const EdgeInsets.all(12),
+                child: Text(
+                  _tr(context, 'لا توجد صفوف صالحة — تحقّق من الصيغة',
+                      'No valid rows found — check the format'),
+                  style: IntesharType.sans(13, color: cs.onSurface),
+                ),
+              ),
+            ],
+
             // ── Preview ──────────────────────────────────────────────────
             if (_preview != null && _preview!.isNotEmpty) ...[
               const SizedBox(height: 24),
@@ -795,12 +921,19 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                 ),
                 const SizedBox(height: 12),
               ],
+              if (_missing().isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    '${_tr(context, 'مطلوب: ', 'Required: ')}${_missing().join(_tr(context, '، ', ', '))}',
+                    style: IntesharType.sans(12, color: cs.error, w: FontWeight.w600),
+                  ),
+                ),
+              ],
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: (_importing || _selectedDef == null || _target == null)
-                      ? null
-                      : _import,
+                  onPressed: (_importing || !_canImport) ? null : _import,
                   icon: const Icon(Icons.cloud_upload_outlined, size: 18),
                   label: Text(l.batchAddImportRows(_preview!.length)),
                 ),

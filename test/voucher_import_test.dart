@@ -98,4 +98,35 @@ void main() {
       expect(m.skippedSerials, ['x']);
     });
   });
+
+  group('detectFormat — auto-select on paste', () {
+    test('3 columns → NEW', () {
+      expect(detectFormat('80385983791,020339743268988,28/02/2028'),
+          ImportFormat.newSew);
+    });
+
+    test('4 columns → OTHER (has a label)', () {
+      expect(detectFormat('260303MIN0001031,X97645X48D7LHF4J,03/03/2027,Apple 2'),
+          ImportFormat.other);
+    });
+
+    test('skips a leading serial-header line', () {
+      expect(detectFormat('serialNumber,pin,expiry\nS1,P1,01/01/2028'),
+          ImportFormat.newSew);
+    });
+
+    test('skips blank lines before the first data row', () {
+      expect(detectFormat('\n\n  \nS1,P1,01/01/2028,Lbl'), ImportFormat.other);
+    });
+
+    test('uses the first usable data line', () {
+      expect(detectFormat('A,B,C,D\nE,F,G'), ImportFormat.other);
+    });
+
+    test('blank / unparseable content → null (keep current selection)', () {
+      expect(detectFormat(''), isNull);
+      expect(detectFormat('   \n\n'), isNull);
+      expect(detectFormat('justoneword'), isNull);
+    });
+  });
 }

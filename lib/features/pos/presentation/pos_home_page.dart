@@ -13,6 +13,7 @@ import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/inventory/data/product_repository.dart';
 import 'package:inteshar/features/inventory/domain/product.dart';
+import 'package:inteshar/features/pos/application/pos_pin_controller.dart';
 import 'package:inteshar/features/pos/presentation/printer_picker_page.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/brand_cta.dart';
@@ -38,6 +39,21 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
   @override
   void initState() {
     super.initState();
+    // Gate the POS terminal behind a PIN lock on every session start.
+    // The lock page (or setup page, if no PIN is configured) handles
+    // authentication; once the session is unlocked we load the inventory.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkPinGate());
+  }
+
+  /// If the session is not yet unlocked, redirect to the PIN lock screen and
+  /// let it handle the setup vs. verify decision. If already unlocked (the
+  /// operator navigated back to home during the same session), load normally.
+  void _checkPinGate() {
+    if (!mounted) return;
+    if (!ref.read(posUnlockedProvider)) {
+      context.go('/pos/pin-lock');
+      return;
+    }
     _load();
   }
 
@@ -160,6 +176,9 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
             icon: const Icon(Icons.logout_outlined),
             tooltip: l.signOut,
             onPressed: () async {
+              // Reset the PIN unlock flag before logging out so re-entry
+              // always requires PIN verification.
+              ref.read(posUnlockedProvider.notifier).state = false;
               await ref.read(authStateProvider.notifier).logout();
               if (context.mounted) context.go('/login');
             },
@@ -278,6 +297,12 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      // After reveal the PIN/QR must not be discarded by a swipe or scrim tap.
+      // PopScope(canPop:!revealed) blocks the back gesture; disabling drag +
+      // scrim closes the remaining dismiss paths so a revealed voucher can only
+      // be dismissed by the explicit Done or Print buttons.
+      isDismissible: false,
+      enableDrag: false,
       builder: (ctx) => _VoucherSheet(
         product: product,
         // The PIN stays hidden until the operator taps Reveal inside the sheet.

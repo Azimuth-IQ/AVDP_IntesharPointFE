@@ -402,11 +402,38 @@ class _TxStatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // In dark mode the StampPill uses `color` as BOTH foreground and the
+    // 14%-alpha tint for the pill background. Purely semantic colorScheme values
+    // (onSurfaceVariant, error) can yield borderline contrast on the dark card
+    // surface. Select a brighter/darker variant per brightness to keep legible.
     final (label, color, icon) = switch (status) {
-      TransactionStatus.PENDING    => (l.txnStatusPending,    cs.onSurfaceVariant,       Icons.access_time),
-      TransactionStatus.PROCESSING => (l.txnStatusProcessing, IntesharColors.saffronDeep, Icons.sync),
-      TransactionStatus.COMPLETED  => (l.txnStatusComplete,   IntesharColors.sage,       Icons.check),
-      TransactionStatus.FAILED     => (l.txnStatusFailed,     cs.error,                  Icons.close),
+      TransactionStatus.PENDING => (
+        l.txnStatusPending,
+        // cs.onSurfaceVariant = boneSoft in dark mode — gives ~4.1:1 on the
+        // dark chip bg, which is borderline for 11 px bold text. Switching to
+        // cs.onSurface (bone, near-white) raises it to ~5.2:1.
+        isDark ? cs.onSurface : cs.onSurfaceVariant,
+        Icons.access_time,
+      ),
+      TransactionStatus.PROCESSING => (
+        l.txnStatusProcessing,
+        IntesharColors.saffronDeep, // warm amber — reads well in both modes
+        Icons.sync,
+      ),
+      TransactionStatus.COMPLETED => (
+        l.txnStatusComplete,
+        IntesharColors.sage, // green — reads well in both modes
+        Icons.check,
+      ),
+      TransactionStatus.FAILED => (
+        l.txnStatusFailed,
+        // Explicitly pin to the brand palette variants so white-label overrides
+        // of cs.error cannot push this below the legibility floor.
+        isDark ? IntesharColors.oxbloodOnDark : IntesharColors.oxblood,
+        Icons.close,
+      ),
     };
     return StampPill(label: label, color: color, icon: icon);
   }

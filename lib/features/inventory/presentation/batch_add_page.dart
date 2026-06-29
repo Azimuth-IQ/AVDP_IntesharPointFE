@@ -268,16 +268,15 @@ class _ManualTabState extends ConsumerState<_ManualTab> {
         governorate: _selectedGovernorate,
       ));
 
-      if (mounted) {
-        setState(() {
-          _saving = false;
-          _serialCtrl.clear();
-          _pinCtrl.clear();
-        });
-        _serialFocus.requestFocus();
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(l.addVoucherSaved)));
-      }
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _serialCtrl.clear();
+        _pinCtrl.clear();
+      });
+      _serialFocus.requestFocus();
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(l.addVoucherSaved)));
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -461,6 +460,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
     final file = result.files.first;
     final bytes = file.bytes;
     if (bytes == null) {
+      if (!mounted) return;
       setState(() => _error = AppLocalizations.of(context)!.batchAddErrorReadBytes);
       return;
     }
@@ -578,7 +578,8 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
       if (mounted) setState(() => _error = e.toString());
       return;
     }
-    if (path != null && mounted) {
+    if (path != null) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(l.batchAddTemplateSaved)));
     }
@@ -952,12 +953,6 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
   // Batch IDs currently awaiting a server response (pause/delete/export).
   final Set<String> _busy = {};
 
-  String _entityId() {
-    final auth = ref.read(authStateProvider).valueOrNull;
-    if (auth is AuthAuthenticated) return auth.entity.id;
-    return '';
-  }
-
   @override
   void initState() {
     super.initState();
@@ -1039,6 +1034,10 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
   Future<void> _export(VoucherBatch batch) async {
     if (_busy.contains(batch.id)) return;
     setState(() => _busy.add(batch.id));
+    // Capture context-derived strings before any async gap to avoid
+    // use_build_context_synchronously warnings.
+    final saveFileTitle = _tr(context, 'حفظ الملف', 'Save file');
+    final fileDownloadedMsg = _tr(context, 'تم تحميل الملف', 'File downloaded');
     try {
       final repo = ProductRepository(ref.read(apiClientProvider));
       final bytes = await repo.exportBatchTxt(batch.id);
@@ -1047,13 +1046,13 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
         downloadBytes(fileName, bytes);
       } else if (Platform.isAndroid || Platform.isIOS) {
         await FilePicker.platform.saveFile(
-          dialogTitle: _tr(context, 'حفظ الملف', 'Save file'),
+          dialogTitle: saveFileTitle,
           fileName: fileName,
           bytes: bytes,
         );
       } else {
         final path = await FilePicker.platform.saveFile(
-          dialogTitle: _tr(context, 'حفظ الملف', 'Save file'),
+          dialogTitle: saveFileTitle,
           fileName: fileName,
         );
         if (path != null) {
@@ -1063,9 +1062,8 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
         }
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(
-                _tr(context, 'تم تحميل الملف', 'File downloaded'))));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(fileDownloadedMsg)));
       }
     } catch (e) {
       if (mounted) {

@@ -2,6 +2,8 @@ class Endpoints {
   static const login = '/api/auth/login';
   static const logout = '/api/auth/logout';
   static const changePassword = '/api/auth/change-password';
+  static const authSetPin = '/api/auth/set-pin';
+  static const authVerifyPin = '/api/auth/verify-pin';
 
   static const healthGeneral = '/api/health/general';
   static const healthRam = '/api/health/ram';

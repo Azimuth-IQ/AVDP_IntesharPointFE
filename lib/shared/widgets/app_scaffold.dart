@@ -9,6 +9,7 @@ import 'package:inteshar/core/printing/printer_registry.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
+import 'package:inteshar/features/notifications/application/notification_provider.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/brand_band.dart';
 import 'package:inteshar/shared/widgets/brand_star.dart';
@@ -20,6 +21,19 @@ import 'package:inteshar/shared/widgets/role_badge.dart';
 /// destinations on a phone. Roles with more spill the overflow into a sheet.
 const int _kMaxBottomTabs = 5;
 
+/// Group key → (Arabic label, English label).
+/// Used by [_GroupHeader] to render bilingual section dividers in the desktop
+/// sidebar. Keys must match the [_NavItem.group] values assigned in [_navFor].
+const Map<String, (String, String)> _kGroupLabels = {
+  'oversight':        ('الإشراف',          'Oversight'),
+  'inventory_stock':  ('المخزون',           'Inventory & Stock'),
+  'distribution':     ('التوزيع',           'Distribution'),
+  'network':          ('الشبكة',            'Network'),
+  'catalog':          ('الكتالوج',          'Catalog'),
+  'administration':   ('الإدارة',           'Administration'),
+  'operations':       ('العمليات',          'Operations'),
+};
+
 class _NavItem {
   final IconData icon;
   final IconData selectedIcon;
@@ -27,7 +41,12 @@ class _NavItem {
   final String route;
   // HQ supervisors are scoped to sections via capabilities; null = always visible.
   final Capability? required;
-  const _NavItem(this.icon, this.selectedIcon, this.label, this.route, {this.required});
+  /// Desktop-sidebar group key — matches a key in [_kGroupLabels].
+  /// Null means the item renders without a group header (agents' Notifications,
+  /// Store items, action rows). Ignored by the bottom-bar and NavigationRail.
+  final String? group;
+  const _NavItem(this.icon, this.selectedIcon, this.label, this.route,
+      {this.required, this.group});
 }
 
 /// Whether a nav item is visible to a user with [caps]. Items with no [required]
@@ -39,6 +58,82 @@ bool _navAllowed(Set<Capability> caps, Capability? required) {
   return caps.contains(required);
 }
 
+/// Wraps [icon] in a Material [Badge] when [route] ends with `/notifications`
+/// and [count] > 0. Applied to bottom-bar, rail, sidebar, and the More sheet.
+Widget _wrapBadge(Widget icon, String route, int count) {
+  if (!route.endsWith('/notifications') || count == 0) return icon;
+  return Badge(label: Text('$count'), isLabelVisible: true, child: icon);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sidebar group header support
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// An entry in the desktop sidebar's ListView: either an interactive nav item
+/// (carrying its original flat [itemIndex] for correct [activeIndex]/[onSelect]
+/// indexing) or a non-interactive group header.
+class _SidebarEntry {
+  /// Non-null for nav items; null for group headers.
+  final int? itemIndex;
+  /// Non-null for group headers; null for nav items.
+  final String? groupKey;
+  const _SidebarEntry.item(int index)
+      : itemIndex = index,
+        groupKey = null;
+  const _SidebarEntry.header(String key)
+      : itemIndex = null,
+        groupKey = key;
+  bool get isHeader => groupKey != null;
+}
+
+/// Builds [sidebarEntries] from [items]: injects one [_SidebarEntry.header]
+/// before the first occurrence of each distinct non-null group key, then
+/// appends an [_SidebarEntry.item] for every nav item.
+List<_SidebarEntry> _buildSidebarEntries(List<_NavItem> items) {
+  final seenGroups = <String>{};
+  final entries = <_SidebarEntry>[];
+  for (var i = 0; i < items.length; i++) {
+    final g = items[i].group;
+    if (g != null && seenGroups.add(g)) {
+      entries.add(_SidebarEntry.header(g));
+    }
+    entries.add(_SidebarEntry.item(i));
+  }
+  return entries;
+}
+
+/// Lightweight bilingual section label rendered as a non-interactive separator
+/// in the desktop sidebar ListView.
+class _GroupHeader extends StatelessWidget {
+  final String groupKey;
+  const _GroupHeader({required this.groupKey});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
+    final labels = _kGroupLabels[groupKey];
+    final label = labels != null ? (isAr ? labels.$1 : labels.$2) : groupKey;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 18, 14, 4),
+      child: Text(
+        label.toUpperCase(),
+        style: TextStyle(
+          fontFamily: 'CodecPro',
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          color: cs.onSurfaceVariant,
+          letterSpacing: 1.2,
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main shell widget
+// ─────────────────────────────────────────────────────────────────────────────
+
 /// Responsive shell used by all signed-in role routes.
 class AppShell extends ConsumerWidget {
   final Widget child;
@@ -47,52 +142,111 @@ class AppShell extends ConsumerWidget {
   List<_NavItem> _navFor(AppLocalizations l, EntityType type) {
     switch (type) {
       case EntityType.INTESHAR:
-        // Ordered by daily-use frequency. System Activity is the HQ home/landing
-        // (index 0). The first four are the mobile bottom-bar primaries; Catalog /
-        // Templates / Batch Add are lower-cadence setup tasks that move into the
-        // "More" sheet on phones.
+        // Flat order — frequency-first; first 4 = mobile bottom-bar primaries.
+        // Oversight is the HQ landing (index 0). Desktop sidebar overlays group
+        // headers on top of this flat order (see _kGroupLabels / _buildSidebarEntries).
+        //
+        // Groups: Oversight · Inventory & Stock · Distribution · Network · Catalog · Administration
         return [
-          _NavItem(Icons.monitor_heart_outlined, Icons.monitor_heart, l.navSystemActivity, '/hq/home', required: Capability.VIEW_REPORTS),
-          _NavItem(Icons.account_tree_outlined, Icons.account_tree, l.navHierarchy, '/hq/entities', required: Capability.AGENT_ADMIN),
-          _NavItem(Icons.warehouse_outlined, Icons.warehouse, l.navInventory, '/hq/inventory', required: Capability.VIEW_REPORTS),
-          _NavItem(Icons.swap_horiz_outlined, Icons.swap_horiz, l.navTransactions, '/hq/transactions', required: Capability.CREATE_TRANSACTIONS),
-          _NavItem(Icons.badge_outlined, Icons.badge, l.navMainAgents, '/hq/main-agents', required: Capability.AGENT_ADMIN),
-          _NavItem(Icons.store_outlined, Icons.store, l.navSubAgents, '/hq/sub-agents', required: Capability.AGENT_ADMIN),
-          _NavItem(Icons.business_outlined, Icons.business, l.navCompanies, '/hq/companies', required: Capability.AGENT_ADMIN),
-          _NavItem(Icons.point_of_sale_outlined, Icons.point_of_sale, l.navStores, '/hq/stores', required: Capability.MANAGE_POS),
-          _NavItem(Icons.inventory_2_outlined, Icons.inventory_2, l.navCatalog, '/hq/definitions', required: Capability.AGENT_ADMIN),
-          _NavItem(Icons.receipt_long_outlined, Icons.receipt_long, l.navTemplates, '/hq/templates', required: Capability.AGENT_ADMIN),
-          _NavItem(Icons.upload_file_outlined, Icons.upload_file, l.navBatchAdd, '/hq/batch', required: Capability.AGENT_ADMIN),
-          _NavItem(Icons.fact_check_outlined, Icons.fact_check, l.navPrintOps, '/hq/print-operations', required: Capability.VIEW_REPORTS),
-          _NavItem(Icons.manage_accounts_outlined, Icons.manage_accounts, l.navUsers, '/hq/users', required: Capability.AGENT_ADMIN),
-          _NavItem(Icons.schedule_outlined, Icons.schedule, l.navWorkingHours, '/hq/working-hours', required: Capability.AGENT_ADMIN),
-          _NavItem(Icons.campaign_outlined, Icons.campaign, l.navNotifications, '/hq/notifications', required: Capability.AGENT_ADMIN),
+          _NavItem(Icons.monitor_heart_outlined, Icons.monitor_heart,
+              l.navSystemActivity, '/hq/home',
+              required: Capability.VIEW_REPORTS, group: 'oversight'),
+          _NavItem(Icons.warehouse_outlined, Icons.warehouse,
+              l.navInventory, '/hq/inventory',
+              required: Capability.VIEW_REPORTS, group: 'inventory_stock'),
+          _NavItem(Icons.swap_horiz_outlined, Icons.swap_horiz,
+              l.navTransactions, '/hq/transactions',
+              required: Capability.CREATE_TRANSACTIONS, group: 'distribution'),
+          _NavItem(Icons.account_tree_outlined, Icons.account_tree,
+              l.navHierarchy, '/hq/entities',
+              required: Capability.AGENT_ADMIN, group: 'network'),
+          // ── More sheet below ─────────────────────────────────────────────
+          _NavItem(Icons.fact_check_outlined, Icons.fact_check,
+              l.navPrintOps, '/hq/print-operations',
+              required: Capability.VIEW_REPORTS, group: 'oversight'),
+          _NavItem(Icons.upload_file_outlined, Icons.upload_file,
+              l.navBatchAdd, '/hq/batch',
+              required: Capability.AGENT_ADMIN, group: 'inventory_stock'),
+          _NavItem(Icons.badge_outlined, Icons.badge,
+              l.navMainAgents, '/hq/main-agents',
+              required: Capability.AGENT_ADMIN, group: 'network'),
+          _NavItem(Icons.store_outlined, Icons.store,
+              l.navSubAgents, '/hq/sub-agents',
+              required: Capability.AGENT_ADMIN, group: 'network'),
+          _NavItem(Icons.point_of_sale_outlined, Icons.point_of_sale,
+              l.navStores, '/hq/stores',
+              required: Capability.MANAGE_POS, group: 'network'),
+          _NavItem(Icons.business_outlined, Icons.business,
+              l.navCompanies, '/hq/companies',
+              required: Capability.AGENT_ADMIN, group: 'catalog'),
+          _NavItem(Icons.inventory_2_outlined, Icons.inventory_2,
+              l.navCatalog, '/hq/definitions',
+              required: Capability.AGENT_ADMIN, group: 'catalog'),
+          _NavItem(Icons.receipt_long_outlined, Icons.receipt_long,
+              l.navTemplates, '/hq/templates',
+              required: Capability.AGENT_ADMIN, group: 'catalog'),
+          _NavItem(Icons.manage_accounts_outlined, Icons.manage_accounts,
+              l.navUsers, '/hq/users',
+              required: Capability.AGENT_ADMIN, group: 'administration'),
+          _NavItem(Icons.schedule_outlined, Icons.schedule,
+              l.navWorkingHours, '/hq/working-hours',
+              required: Capability.AGENT_ADMIN, group: 'administration'),
+          _NavItem(Icons.campaign_outlined, Icons.campaign,
+              l.navNotifications, '/hq/notifications',
+              required: Capability.AGENT_ADMIN, group: 'administration'),
         ];
+
       case EntityType.AGENT1:
+        // Frequency order: Dashboard, Transactions, Inventory, Children (primaries);
+        // Stores, [Pricing — runtime-appended before Notifications], Notifications (More).
+        // Groups: Operations · Network (Notifications ungrouped, always last).
         return [
-          _NavItem(Icons.dashboard_outlined,    Icons.dashboard,    l.navDashboard,    '/agent1/home'),
-          _NavItem(Icons.account_tree_outlined, Icons.account_tree, l.navChildren,     '/agent1/entities'),
-          _NavItem(Icons.warehouse_outlined,    Icons.warehouse,    l.navInventory,    '/agent1/inventory'),
-          _NavItem(Icons.swap_horiz_outlined,   Icons.swap_horiz,   l.navTransactions, '/agent1/transactions'),
-          _NavItem(Icons.point_of_sale_outlined,Icons.point_of_sale,l.navStores,       '/agent1/stores'),
-          _NavItem(Icons.notifications_outlined,Icons.notifications,l.navNotifications,'/agent1/notifications'),
+          _NavItem(Icons.dashboard_outlined,    Icons.dashboard,
+              l.navDashboard,    '/agent1/home',         group: 'operations'),
+          _NavItem(Icons.swap_horiz_outlined,   Icons.swap_horiz,
+              l.navTransactions, '/agent1/transactions',  group: 'operations'),
+          _NavItem(Icons.warehouse_outlined,    Icons.warehouse,
+              l.navInventory,    '/agent1/inventory',     group: 'operations'),
+          _NavItem(Icons.account_tree_outlined, Icons.account_tree,
+              l.navChildren,     '/agent1/entities',      group: 'network'),
+          _NavItem(Icons.point_of_sale_outlined,Icons.point_of_sale,
+              l.navStores,       '/agent1/stores',        group: 'network'),
+          // Pricing is runtime-inserted at (length-1) so it lands before Notifications.
+          _NavItem(Icons.notifications_outlined,Icons.notifications,
+              l.navNotifications,'/agent1/notifications'),
         ];
+
       case EntityType.AGENT2:
+        // Same operational-first rationale as AGENT1 (no Pricing for AGENT2).
         return [
-          _NavItem(Icons.dashboard_outlined,    Icons.dashboard,    l.navDashboard,    '/agent2/home'),
-          _NavItem(Icons.account_tree_outlined, Icons.account_tree, l.navChildren,     '/agent2/entities'),
-          _NavItem(Icons.warehouse_outlined,    Icons.warehouse,    l.navInventory,    '/agent2/inventory'),
-          _NavItem(Icons.swap_horiz_outlined,   Icons.swap_horiz,   l.navTransactions, '/agent2/transactions'),
-          _NavItem(Icons.point_of_sale_outlined,Icons.point_of_sale,l.navStores,       '/agent2/stores'),
-          _NavItem(Icons.notifications_outlined,Icons.notifications,l.navNotifications,'/agent2/notifications'),
+          _NavItem(Icons.dashboard_outlined,    Icons.dashboard,
+              l.navDashboard,    '/agent2/home',         group: 'operations'),
+          _NavItem(Icons.swap_horiz_outlined,   Icons.swap_horiz,
+              l.navTransactions, '/agent2/transactions',  group: 'operations'),
+          _NavItem(Icons.warehouse_outlined,    Icons.warehouse,
+              l.navInventory,    '/agent2/inventory',     group: 'operations'),
+          _NavItem(Icons.account_tree_outlined, Icons.account_tree,
+              l.navChildren,     '/agent2/entities',      group: 'network'),
+          _NavItem(Icons.point_of_sale_outlined,Icons.point_of_sale,
+              l.navStores,       '/agent2/stores',        group: 'network'),
+          _NavItem(Icons.notifications_outlined,Icons.notifications,
+              l.navNotifications,'/agent2/notifications'),
         ];
+
       case EntityType.STORE:
+        // POS is the primary action for a shop — promote to index 0.
+        // 5 items fit the bottom bar without overflow (no More sheet needed).
         return [
-          _NavItem(Icons.dashboard_outlined,    Icons.dashboard,        l.navDashboard,    '/store/home'),
-          _NavItem(Icons.warehouse_outlined,    Icons.warehouse,        l.navInventory,    '/store/inventory'),
-          _NavItem(Icons.swap_horiz_outlined,   Icons.swap_horiz,       l.navTransactions, '/store/transactions'),
-          _NavItem(Icons.point_of_sale_outlined,Icons.point_of_sale,    l.navPos,          '/pos/home'),
-          _NavItem(Icons.notifications_outlined,Icons.notifications,    l.navNotifications,'/store/notifications'),
+          _NavItem(Icons.point_of_sale_outlined,Icons.point_of_sale,
+              l.navPos,          '/pos/home'),
+          _NavItem(Icons.warehouse_outlined,    Icons.warehouse,
+              l.navInventory,    '/store/inventory'),
+          _NavItem(Icons.swap_horiz_outlined,   Icons.swap_horiz,
+              l.navTransactions, '/store/transactions'),
+          _NavItem(Icons.dashboard_outlined,    Icons.dashboard,
+              l.navDashboard,    '/store/home'),
+          _NavItem(Icons.notifications_outlined,Icons.notifications,
+              l.navNotifications,'/store/notifications'),
         ];
     }
   }
@@ -124,19 +278,32 @@ class AppShell extends ConsumerWidget {
     final entity = (auth is AuthAuthenticated) ? auth.entity : null;
     final type = entity?.type ?? EntityType.STORE;
 
-    // Capability-gated extras layered onto the base per-tier nav. Pricing is a
-    // Main-Agent feature behind MANAGE_PRICING (sub-agents can't hold it).
+    // Capability-gated Pricing item for AGENT1 (behind MANAGE_PRICING).
+    // Inserted before the last item (Notifications) so it lands at the correct
+    // frequency position: Dashboard, Transactions, Inventory, Children,
+    // Stores, Pricing, Notifications.
     final base = [..._navFor(l, type)];
-    if (type == EntityType.AGENT1 && auth is AuthAuthenticated && auth.can({Capability.MANAGE_PRICING})) {
-      base.add(_NavItem(Icons.sell_outlined, Icons.sell, l.navPrices, '/agent1/pricing'));
+    if (type == EntityType.AGENT1 &&
+        auth is AuthAuthenticated &&
+        auth.can({Capability.MANAGE_PRICING})) {
+      base.insert(
+        base.length - 1,
+        _NavItem(Icons.sell_outlined, Icons.sell, l.navPrices, '/agent1/pricing',
+            group: 'operations'),
+      );
     }
+
     // HQ supervisors see only the sections their capabilities allow (empty caps =
     // full access). Never produce an empty nav.
     final caps = (auth is AuthAuthenticated) ? auth.capabilities : const <Capability>{};
     final filtered = base.where((it) => _navAllowed(caps, it.required)).toList();
     final items = filtered.isEmpty ? base : filtered;
+
     final location = GoRouterState.of(context).matchedLocation;
     final activeIndex = _activeIndex(items, location);
+
+    // Unread notification badge count — fails silently (returns 0 on any error).
+    final unreadCount = ref.watch(notificationsUnreadCountProvider).valueOrNull ?? 0;
 
     void go(int i) {
       final target = items[i].route;
@@ -152,6 +319,7 @@ class AppShell extends ConsumerWidget {
         signOutTooltip: l.signOut,
         onLogout: () => _logout(context, ref),
         entity: entity,
+        unreadCount: unreadCount,
         body: child,
       ),
       ScreenSize.tablet => _TabletLayout(
@@ -162,6 +330,7 @@ class AppShell extends ConsumerWidget {
         signOutTooltip: l.signOut,
         onLogout: () => _logout(context, ref),
         entity: entity,
+        unreadCount: unreadCount,
         body: child,
       ),
       ScreenSize.desktop => _DesktopLayout(
@@ -172,6 +341,7 @@ class AppShell extends ConsumerWidget {
         signOutLabel: l.signOut,
         onLogout: () => _logout(context, ref),
         entity: entity,
+        unreadCount: unreadCount,
         body: child,
       ),
     };
@@ -193,6 +363,7 @@ class _MobileLayout extends StatelessWidget {
   final String signOutTooltip;
   final VoidCallback onLogout;
   final Entity? entity;
+  final int unreadCount;
   final Widget body;
 
   const _MobileLayout({
@@ -203,6 +374,7 @@ class _MobileLayout extends StatelessWidget {
     required this.signOutTooltip,
     required this.onLogout,
     required this.entity,
+    required this.unreadCount,
     required this.body,
   });
 
@@ -256,8 +428,8 @@ class _MobileLayout extends StatelessWidget {
     final destinations = <NavigationDestination>[
       for (final item in primary)
         NavigationDestination(
-          icon: Icon(item.icon),
-          selectedIcon: Icon(item.selectedIcon),
+          icon: _wrapBadge(Icon(item.icon), item.route, unreadCount),
+          selectedIcon: _wrapBadge(Icon(item.selectedIcon), item.route, unreadCount),
           label: item.label,
           tooltip: item.label,
         ),
@@ -304,6 +476,7 @@ class _MobileLayout extends StatelessWidget {
         // Index of the active route within [extras]; negative when a primary
         // tab is active (nothing in the sheet is highlighted then).
         activeIndex: activeIndex - primaryCount,
+        unreadCount: unreadCount,
         onSelect: (extraIndex) {
           Navigator.pop(sheetCtx);
           onSelect(primaryCount + extraIndex);
@@ -318,10 +491,12 @@ class _MobileLayout extends StatelessWidget {
 class _MoreSheet extends StatelessWidget {
   final List<_NavItem> items;
   final int activeIndex;
+  final int unreadCount;
   final ValueChanged<int> onSelect;
   const _MoreSheet({
     required this.items,
     required this.activeIndex,
+    required this.unreadCount,
     required this.onSelect,
   });
 
@@ -360,6 +535,7 @@ class _MoreSheet extends StatelessWidget {
                     _MoreRow(
                       item: items[i],
                       active: i == activeIndex,
+                      unreadCount: unreadCount,
                       onTap: () => onSelect(i),
                     ),
                   const SizedBox(height: 8),
@@ -376,8 +552,14 @@ class _MoreSheet extends StatelessWidget {
 class _MoreRow extends StatelessWidget {
   final _NavItem item;
   final bool active;
+  final int unreadCount;
   final VoidCallback onTap;
-  const _MoreRow({required this.item, required this.active, required this.onTap});
+  const _MoreRow({
+    required this.item,
+    required this.active,
+    required this.onTap,
+    this.unreadCount = 0,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -393,7 +575,11 @@ class _MoreRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           child: Row(
             children: [
-              Icon(active ? item.selectedIcon : item.icon, size: 22, color: fg),
+              _wrapBadge(
+                Icon(active ? item.selectedIcon : item.icon, size: 22, color: fg),
+                item.route,
+                unreadCount,
+              ),
               const SizedBox(width: 16),
               Expanded(
                 child: Text(
@@ -428,6 +614,7 @@ class _TabletLayout extends StatelessWidget {
   final String signOutTooltip;
   final VoidCallback onLogout;
   final Entity? entity;
+  final int unreadCount;
   final Widget body;
 
   const _TabletLayout({
@@ -438,6 +625,7 @@ class _TabletLayout extends StatelessWidget {
     required this.signOutTooltip,
     required this.onLogout,
     required this.entity,
+    required this.unreadCount,
     required this.body,
   });
 
@@ -493,8 +681,8 @@ class _TabletLayout extends StatelessWidget {
                       destinations: items
                           .map(
                             (e) => NavigationRailDestination(
-                              icon: Icon(e.icon),
-                              selectedIcon: Icon(e.selectedIcon),
+                              icon: _wrapBadge(Icon(e.icon), e.route, unreadCount),
+                              selectedIcon: _wrapBadge(Icon(e.selectedIcon), e.route, unreadCount),
                               label: Text(e.label),
                             ),
                           )
@@ -524,6 +712,7 @@ class _DesktopLayout extends StatelessWidget {
   final String signOutLabel;
   final VoidCallback onLogout;
   final Entity? entity;
+  final int unreadCount;
   final Widget body;
 
   const _DesktopLayout({
@@ -534,6 +723,7 @@ class _DesktopLayout extends StatelessWidget {
     required this.signOutLabel,
     required this.onLogout,
     required this.entity,
+    required this.unreadCount,
     required this.body,
   });
 
@@ -552,6 +742,7 @@ class _DesktopLayout extends StatelessWidget {
               signOutLabel: signOutLabel,
               onLogout: onLogout,
               entity: entity,
+              unreadCount: unreadCount,
             ),
             Expanded(
               child: Container(
@@ -574,6 +765,7 @@ class _Sidebar extends StatelessWidget {
   final String signOutLabel;
   final VoidCallback onLogout;
   final Entity? entity;
+  final int unreadCount;
 
   const _Sidebar({
     required this.items,
@@ -583,11 +775,17 @@ class _Sidebar extends StatelessWidget {
     required this.signOutLabel,
     required this.onLogout,
     required this.entity,
+    required this.unreadCount,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+
+    // Sidebar entries: interleave group headers (non-interactive) before the
+    // first occurrence of each distinct group key. Item indices remain unchanged
+    // so activeIndex / onSelect are unaffected by the header rows.
+    final sidebarEntries = _buildSidebarEntries(items);
 
     return SizedBox(
       width: 280,
@@ -623,17 +821,25 @@ class _Sidebar extends StatelessWidget {
               )
             else
               const SizedBox(height: 16),
-            // Nav list
+            // Nav list with interleaved group headers (HQ and agent roles).
+            // Headers are non-interactive separators; only _NavRow entries carry
+            // selectable indices — so activeIndex / onSelect are unaffected.
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-                itemCount: items.length,
-                itemBuilder: (ctx, i) {
+                itemCount: sidebarEntries.length,
+                itemBuilder: (ctx, e) {
+                  final entry = sidebarEntries[e];
+                  if (entry.isHeader) {
+                    return _GroupHeader(groupKey: entry.groupKey!);
+                  }
+                  final i = entry.itemIndex!;
                   final item = items[i];
                   final active = i == activeIndex;
                   return _NavRow(
                     item: item,
                     active: active,
+                    unreadCount: unreadCount,
                     onTap: () => onSelect(i),
                   );
                 },
@@ -725,8 +931,10 @@ class _NavRow extends StatefulWidget {
   final IconData? iconOverride;
   final String? labelOverride;
   final bool active;
+  final int unreadCount;
   final VoidCallback onTap;
-  const _NavRow({required this.item, required this.active, required this.onTap})
+
+  const _NavRow({required this.item, required this.active, required this.onTap, this.unreadCount = 0})
       : iconOverride = null,
         labelOverride = null;
 
@@ -734,7 +942,8 @@ class _NavRow extends StatefulWidget {
       : item = null,
         iconOverride = icon,
         labelOverride = label,
-        active = false;
+        active = false,
+        unreadCount = 0;
 
   @override
   State<_NavRow> createState() => _NavRowState();
@@ -760,6 +969,9 @@ class _NavRowState extends State<_NavRow> {
         ? cs.primary.withValues(alpha: 0.22)
         : (_hover ? cs.surfaceContainerHighest : Colors.transparent);
 
+    final route = widget.item?.route ?? '';
+    final iconWidget = _wrapBadge(Icon(icon, size: 20, color: fg), route, widget.unreadCount);
+
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
@@ -784,7 +996,7 @@ class _NavRowState extends State<_NavRow> {
                     )
                   else
                     const SizedBox(width: 24),
-                  Icon(icon, size: 20, color: fg),
+                  iconWidget,
                   const SizedBox(width: 14),
                   Expanded(
                     child: Text(

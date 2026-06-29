@@ -244,43 +244,54 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             onSeed: () => ref.read(seedControllerProvider.notifier).seed(context),
           );
 
-    return Scaffold(
-      body: SafeArea(
-        child: isWide
-            ? Row(
-                children: [
-                  Expanded(child: _BrandPanel()),
-                  Expanded(
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 460),
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.all(32),
-                          child: formCard,
+    // Intercept the system/browser back button while on enroll or code step so
+    // that pressing device-back resets to the credentials view (clearing any
+    // stale QR/secret/code state) rather than popping the login route.
+    return PopScope<Object?>(
+      canPop: _totpStep == _TotpStep.credentials,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _totpStep != _TotpStep.credentials) {
+          _resetToCredentials();
+        }
+      },
+      child: Scaffold(
+        body: SafeArea(
+          child: isWide
+              ? Row(
+                  children: [
+                    Expanded(child: _BrandPanel()),
+                    Expanded(
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 460),
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(32),
+                            child: formCard,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
-              )
-            : Column(
-                children: [
-                  GestureDetector(
-                    onLongPress: () => context.go('/diagnostics'),
-                    behavior: HitTestBehavior.opaque,
-                    child: const _MobileBrandHeader(),
-                  ),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(24),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 460),
-                        child: Center(child: formCard),
+                  ],
+                )
+              : Column(
+                  children: [
+                    GestureDetector(
+                      onLongPress: () => context.go('/diagnostics'),
+                      behavior: HitTestBehavior.opaque,
+                      child: const _MobileBrandHeader(),
+                    ),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(24),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 460),
+                          child: Center(child: formCard),
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+        ),
       ),
     );
   }
@@ -363,6 +374,33 @@ class _TotpChallenge extends StatelessWidget {
                   ? 'إذا كان الرمز السابق لا يعمل، احذف المدخل القديم من تطبيق المصادقة ثم امسح هذا الرمز من جديد.'
                   : 'If a previously scanned code no longer works, delete that old entry from your authenticator app and scan this QR again.',
               style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+            ),
+            const SizedBox(height: 10),
+            // Half-enrolled hint: if the user already added the entry in a
+            // previous session that was abandoned, the server reuses the same
+            // secret — they don't need to rescan, just enter the current code.
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: cs.primaryContainer.withValues(alpha: 0.45),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: cs.primary.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.tips_and_updates_outlined, size: 14, color: cs.primary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      ar
+                          ? 'هل أضفت إنتشار إلى تطبيق المصادقة مسبقاً؟ فقط أدخل الرمز المكوّن من 6 أرقام أدناه — لا حاجة لإعادة المسح.'
+                          : 'Already added Inteshar to your authenticator? Just enter the current 6-digit code below — no need to rescan.',
+                      style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant, height: 1.4),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
           const SizedBox(height: 18),

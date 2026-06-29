@@ -21,6 +21,8 @@ import 'package:inteshar/features/agents/presentation/main_agents_page.dart';
 import 'package:inteshar/features/agents/presentation/sub_agents_page.dart';
 import 'package:inteshar/features/companies/presentation/companies_page.dart';
 import 'package:inteshar/features/pos/presentation/pos_home_page.dart';
+import 'package:inteshar/features/pos/presentation/pos_pin_lock_page.dart';
+import 'package:inteshar/features/pos/presentation/pos_pin_setup_page.dart';
 import 'package:inteshar/features/pricing/presentation/pricing_page.dart';
 import 'package:inteshar/features/stores/presentation/stores_page.dart';
 import 'package:inteshar/features/system_activity/presentation/system_activity_page.dart';
@@ -77,7 +79,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/diagnostics', builder: (_, _) => const HealthPage()),
 
       // POS sits outside the shell — full screen on the device.
+      // The PIN gate routes (/pos/pin-lock, /pos/pin-setup) live here too so
+      // the existing role guard (/pos prefix) keeps them inside POS sessions.
       GoRoute(path: '/pos/home', builder: (_, _) => const PosHomePage()),
+      GoRoute(path: '/pos/pin-lock', builder: (_, _) => const PosPinLockPage()),
+      GoRoute(path: '/pos/pin-setup', builder: (_, _) => const PosPinSetupPage()),
 
       // Detail routes (pushed on top, outside the shell) — keep their own
       // back-aware AppBars.

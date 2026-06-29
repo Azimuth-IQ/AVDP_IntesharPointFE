@@ -285,7 +285,7 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
               ),
               value: _globalEnabled,
               onChanged: _globalSaving ? null : _toggleGlobal,
-              activeColor: IntesharColors.saffron,
+              activeThumbColor: IntesharColors.saffron,
               secondary: _globalSaving
                   ? const SizedBox(
                       width: 24,

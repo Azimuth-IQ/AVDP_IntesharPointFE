@@ -1447,4 +1447,43 @@ class AppLocalizationsEn extends AppLocalizations {
   String newTxnDeliverableHint(String coverage) {
     return 'Only vouchers for $coverage (plus non-region-locked stock) will be delivered.';
   }
+
+  @override
+  String get errWrongCredentials => 'Incorrect phone number or password';
+
+  @override
+  String get errAccessDenied => 'You don\'t have permission to do that';
+
+  @override
+  String get errNotFound => 'Not found';
+
+  @override
+  String get errConflict => 'This conflicts with existing data';
+
+  @override
+  String get errValidation => 'Please check the entered data';
+
+  @override
+  String get errServer => 'Server error — please try again';
+
+  @override
+  String get errNetwork => 'Connection problem — check your network';
+
+  @override
+  String get errInsufficientBalance => 'Insufficient balance';
+
+  @override
+  String get errGeneric => 'Something went wrong — please try again';
+
+  @override
+  String get invalidPhone => 'Enter a valid phone number (e.g. 07XXXXXXXXX)';
+
+  @override
+  String get passwordTooShort => 'Password must be at least 6 characters';
+
+  @override
+  String get mustBeAtLeastOne => 'Enter a number of 1 or more';
+
+  @override
+  String get fieldRequired => 'Required';
 }

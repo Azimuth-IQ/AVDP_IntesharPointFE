@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:inteshar/core/api/error_mapper.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -117,7 +118,7 @@ class _AgentsPageState extends ConsumerState<AgentsPage> {
         existing = await repo.read(editId);
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
         }
         return;
       }
@@ -155,7 +156,7 @@ class _AgentsPageState extends ConsumerState<AgentsPage> {
       _reload();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
       }
     }
   }

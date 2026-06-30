@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inteshar/app/theme.dart';
@@ -1001,7 +1002,7 @@ class _TransferSheetState extends ConsumerState<_TransferSheet> {
       if (mounted) {
         setState(() {
           _saving = false;
-          _error = e.toString();
+          _error = friendlyError(e, context);
         });
       }
     }

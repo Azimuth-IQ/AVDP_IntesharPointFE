@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inteshar/app/theme.dart';
@@ -113,7 +114,7 @@ class _NewTransactionPageState extends ConsumerState<NewTransactionPage> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = e.toString();
+          _error = friendlyError(e, context);
           _loading = false;
         });
       }
@@ -175,7 +176,7 @@ class _NewTransactionPageState extends ConsumerState<NewTransactionPage> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = e.toString();
+          _error = friendlyError(e, context);
           _submitting = false;
         });
       }

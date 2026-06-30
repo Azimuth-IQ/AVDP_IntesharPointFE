@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 
@@ -227,7 +228,7 @@ class _NotificationsComposePageState
       if (!mounted) return;
       setState(() {
         _sending = false;
-        _formError = e.toString();
+        _formError = friendlyError(e, context);
       });
     }
   }

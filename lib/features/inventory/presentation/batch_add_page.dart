@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:inteshar/core/api/error_mapper.dart';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
@@ -296,7 +297,7 @@ class _ManualTabState extends ConsumerState<_ManualTab> {
       if (mounted) {
         setState(() {
           _saving = false;
-          _error = e.toString();
+          _error = friendlyError(e, context);
         });
       }
     }
@@ -531,7 +532,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
         _error = null;
       });
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = friendlyError(e, context));
     }
   }
 
@@ -562,7 +563,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
         _error = null;
       });
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = friendlyError(e, context));
     }
   }
 
@@ -663,7 +664,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
         }
       }
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) setState(() => _error = friendlyError(e, context));
       return;
     }
     if (path != null) {
@@ -713,7 +714,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
       if (mounted) {
         setState(() {
           _importing = false;
-          _error = e.toString();
+          _error = friendlyError(e, context);
         });
       }
     }
@@ -1118,7 +1119,7 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.toString())));
+            .showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
       }
     } finally {
       if (mounted) setState(() => _busy.remove(batch.id));
@@ -1159,7 +1160,7 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.toString())));
+            .showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
       }
     } finally {
       if (mounted) setState(() => _busy.remove(batch.id));
@@ -1203,7 +1204,7 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.toString())));
+            .showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
       }
     } finally {
       if (mounted) setState(() => _busy.remove(batch.id));
@@ -1258,7 +1259,7 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.toString())));
+            .showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
       }
     } finally {
       if (mounted) setState(() => _busy.remove(batch.id));

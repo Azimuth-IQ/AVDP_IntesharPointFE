@@ -85,14 +85,22 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     setState(() {
       _loading = false;
       if (outcome is LoginFailed) {
-        _error = outcome.message
-            .replaceFirst('ApiException', '')
-            .replaceAll('(', '')
-            .replaceAll(')', '')
-            .trim();
+        _error = _friendlyLoginError(outcome.statusCode);
       }
       // LoginDone → the authState listener navigates home.
     });
+  }
+
+  /// A friendly, localized login error keyed by HTTP status — never the raw backend/
+  /// exception string. 401 (wrong password) is the common case.
+  String _friendlyLoginError(int? statusCode) {
+    final l = AppLocalizations.of(context)!;
+    return switch (statusCode) {
+      401 => l.errWrongCredentials,
+      403 => l.errAccessDenied,
+      int s when s >= 500 => l.errServer,
+      _ => l.errGeneric,
+    };
   }
 
   Future<void> _signIn() async {
@@ -123,16 +131,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         case LoginNeedsPasswordChange():
           _totpStep = _TotpStep.changePassword;
           _error = null;
-        case LoginFailed(:final message):
-          final clean = message
-              .replaceFirst('ApiException', '')
-              .replaceAll('(', '')
-              .replaceAll(')', '')
-              .trim();
-          _error = clean;
-          _showMongoHint = message.contains('401') ||
-              message.contains('no user') ||
-              message.contains('Could not find');
+        case LoginFailed(:final statusCode):
+          _error = _friendlyLoginError(statusCode);
+          _showMongoHint = false;
       }
     });
   }

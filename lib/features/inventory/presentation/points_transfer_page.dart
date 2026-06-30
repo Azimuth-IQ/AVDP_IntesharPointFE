@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
@@ -107,7 +108,7 @@ class _PointsTransferPageState extends ConsumerState<PointsTransferPage> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = e.toString();
+          _error = friendlyError(e, context);
           _loadingEntities = false;
         });
       }
@@ -140,7 +141,7 @@ class _PointsTransferPageState extends ConsumerState<PointsTransferPage> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = e.toString();
+          _error = friendlyError(e, context);
           _sourceSummary = [];
           _sku = null;
           _gov = '';
@@ -294,7 +295,7 @@ class _PointsTransferPageState extends ConsumerState<PointsTransferPage> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = e.toString();
+          _error = friendlyError(e, context);
           _submitting = false;
         });
       }

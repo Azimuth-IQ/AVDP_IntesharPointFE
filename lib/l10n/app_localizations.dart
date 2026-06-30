@@ -2695,6 +2695,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Only vouchers for {coverage} (plus non-region-locked stock) will be delivered.'**
   String newTxnDeliverableHint(String coverage);
+
+  /// No description provided for @errWrongCredentials.
+  ///
+  /// In en, this message translates to:
+  /// **'Incorrect phone number or password'**
+  String get errWrongCredentials;
+
+  /// No description provided for @errAccessDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'You don\'t have permission to do that'**
+  String get errAccessDenied;
+
+  /// No description provided for @errNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'Not found'**
+  String get errNotFound;
+
+  /// No description provided for @errConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'This conflicts with existing data'**
+  String get errConflict;
+
+  /// No description provided for @errValidation.
+  ///
+  /// In en, this message translates to:
+  /// **'Please check the entered data'**
+  String get errValidation;
+
+  /// No description provided for @errServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Server error — please try again'**
+  String get errServer;
+
+  /// No description provided for @errNetwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection problem — check your network'**
+  String get errNetwork;
+
+  /// No description provided for @errInsufficientBalance.
+  ///
+  /// In en, this message translates to:
+  /// **'Insufficient balance'**
+  String get errInsufficientBalance;
+
+  /// No description provided for @errGeneric.
+  ///
+  /// In en, this message translates to:
+  /// **'Something went wrong — please try again'**
+  String get errGeneric;
+
+  /// No description provided for @invalidPhone.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid phone number (e.g. 07XXXXXXXXX)'**
+  String get invalidPhone;
+
+  /// No description provided for @passwordTooShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Password must be at least 6 characters'**
+  String get passwordTooShort;
+
+  /// No description provided for @mustBeAtLeastOne.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a number of 1 or more'**
+  String get mustBeAtLeastOne;
+
+  /// No description provided for @fieldRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Required'**
+  String get fieldRequired;
 }
 
 class _AppLocalizationsDelegate

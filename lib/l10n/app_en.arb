@@ -991,5 +991,31 @@
   "newTxnDeliverableHint": "Only vouchers for {coverage} (plus non-region-locked stock) will be delivered.",
   "@newTxnDeliverableHint": {
     "placeholders": { "coverage": { "type": "String" } }
-  }
+  },
+  "errWrongCredentials": "Incorrect phone number or password",
+  "@errWrongCredentials": {},
+  "errAccessDenied": "You don't have permission to do that",
+  "@errAccessDenied": {},
+  "errNotFound": "Not found",
+  "@errNotFound": {},
+  "errConflict": "This conflicts with existing data",
+  "@errConflict": {},
+  "errValidation": "Please check the entered data",
+  "@errValidation": {},
+  "errServer": "Server error — please try again",
+  "@errServer": {},
+  "errNetwork": "Connection problem — check your network",
+  "@errNetwork": {},
+  "errInsufficientBalance": "Insufficient balance",
+  "@errInsufficientBalance": {},
+  "errGeneric": "Something went wrong — please try again",
+  "@errGeneric": {},
+  "invalidPhone": "Enter a valid phone number (e.g. 07XXXXXXXXX)",
+  "@invalidPhone": {},
+  "passwordTooShort": "Password must be at least 6 characters",
+  "@passwordTooShort": {},
+  "mustBeAtLeastOne": "Enter a number of 1 or more",
+  "@mustBeAtLeastOne": {},
+  "fieldRequired": "Required",
+  "@fieldRequired": {}
 }

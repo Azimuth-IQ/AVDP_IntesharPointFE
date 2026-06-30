@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
@@ -90,7 +91,7 @@ class _StoresPageState extends ConsumerState<StoresPage> {
         existing = await _repo.read(editId);
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
         }
         return;
       }
@@ -103,7 +104,7 @@ class _StoresPageState extends ConsumerState<StoresPage> {
         parentOptions = await _repo.listParentAgents(viewer.id);
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
         }
         return;
       }
@@ -319,8 +320,10 @@ class _StoreDetailSheetState extends ConsumerState<StoreDetailSheet> {
       _toast(next ? s.activated : s.deactivated);
       widget.onChanged();
     } catch (e) {
-      if (mounted) setState(() => _busy = false);
-      _toast(e.toString());
+      if (mounted) {
+        setState(() => _busy = false);
+        _toast(friendlyError(e, context));
+      }
     }
   }
 
@@ -335,8 +338,10 @@ class _StoreDetailSheetState extends ConsumerState<StoreDetailSheet> {
       if (mounted) setState(() => _busy = false);
       _toast(s.passwordReset);
     } catch (e) {
-      if (mounted) setState(() => _busy = false);
-      _toast(e.toString());
+      if (mounted) {
+        setState(() => _busy = false);
+        _toast(friendlyError(e, context));
+      }
     }
   }
 
@@ -367,8 +372,10 @@ class _StoreDetailSheetState extends ConsumerState<StoreDetailSheet> {
       _loadStats();
       widget.onChanged();
     } catch (e) {
-      if (mounted) setState(() => _busy = false);
-      _toast(e.toString());
+      if (mounted) {
+        setState(() => _busy = false);
+        _toast(friendlyError(e, context));
+      }
     }
   }
 
@@ -395,7 +402,7 @@ class _StoreDetailSheetState extends ConsumerState<StoreDetailSheet> {
       if (mounted) Navigator.pop(context);
       _toast(s.deleted);
     } catch (e) {
-      _toast(e.toString());
+      if (mounted) _toast(friendlyError(e, context));
     }
   }
 
@@ -631,7 +638,7 @@ class _StoreFormState extends ConsumerState<StoreForm> {
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
       }
     }
   }

@@ -595,5 +595,18 @@
   "batchAddGovernorate": "المحافظة (تقييد المنطقة)",
   "batchAddNotGeoLocked": "غير مقيّد بمحافظة",
   "newTxnNoRegionRestriction": "بدون تقييد محافظة",
-  "newTxnDeliverableHint": "سيتم تسليم الكروت الخاصة بـ {coverage} فقط (بالإضافة إلى الكروت غير المقيّدة بمحافظة)."
+  "newTxnDeliverableHint": "سيتم تسليم الكروت الخاصة بـ {coverage} فقط (بالإضافة إلى الكروت غير المقيّدة بمحافظة).",
+  "errWrongCredentials": "رقم الهاتف أو كلمة المرور غير صحيحة",
+  "errAccessDenied": "ليس لديك صلاحية للقيام بذلك",
+  "errNotFound": "غير موجود",
+  "errConflict": "يتعارض مع بيانات موجودة",
+  "errValidation": "يرجى التحقق من البيانات المدخلة",
+  "errServer": "خطأ في الخادم — حاول مرة أخرى",
+  "errNetwork": "مشكلة في الاتصال — تحقق من الشبكة",
+  "errInsufficientBalance": "الرصيد غير كافٍ",
+  "errGeneric": "حدث خطأ ما — حاول مرة أخرى",
+  "invalidPhone": "أدخل رقم هاتف صحيح (مثال 07XXXXXXXXX)",
+  "passwordTooShort": "يجب أن تكون كلمة المرور 6 أحرف على الأقل",
+  "mustBeAtLeastOne": "أدخل رقمًا 1 أو أكثر",
+  "fieldRequired": "مطلوب"
 }

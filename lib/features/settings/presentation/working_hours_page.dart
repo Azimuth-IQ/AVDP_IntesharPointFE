@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
@@ -169,7 +170,7 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
       if (!mounted) return;
       setState(() => _globalSaving = false);
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.toString())));
+          .showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
     }
   }
 
@@ -201,7 +202,7 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
       if (!mounted) return;
       setState(() {
         _windowSaving = false;
-        _windowError = e.toString();
+        _windowError = friendlyError(e, context);
       });
     }
   }

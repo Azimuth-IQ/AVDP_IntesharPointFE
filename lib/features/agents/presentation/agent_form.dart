@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:inteshar/core/api/error_mapper.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -291,7 +292,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
       if (mounted) {
         setState(() {
           _saving = false;
-          _error = e.toString();
+          _error = friendlyError(e, context);
         });
       }
     }

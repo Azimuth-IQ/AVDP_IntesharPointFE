@@ -58,7 +58,8 @@ class LoginNeedsCode extends LoginOutcome {
 
 class LoginFailed extends LoginOutcome {
   final String message;
-  const LoginFailed(this.message);
+  final int? statusCode;
+  const LoginFailed(this.message, [this.statusCode]);
 }
 
 class LoginNeedsPasswordChange extends LoginOutcome {
@@ -129,7 +130,7 @@ class AuthController extends AsyncNotifier<AuthState> {
           return const LoginNeedsPasswordChange();
       }
     } on ApiException catch (e) {
-      return LoginFailed(e.message);
+      return LoginFailed(e.message, e.statusCode);
     } catch (e) {
       return LoginFailed(e.toString());
     }
@@ -175,7 +176,7 @@ class AuthController extends AsyncNotifier<AuthState> {
       final token = await AuthRepository(api).changePassword(phone, oldPassword, newPassword);
       return await _completeWithToken(api, phone, token);
     } on ApiException catch (e) {
-      return LoginFailed(e.message);
+      return LoginFailed(e.message, e.statusCode);
     } catch (e) {
       return LoginFailed(e.toString());
     }

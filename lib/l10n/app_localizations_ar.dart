@@ -1438,4 +1438,43 @@ class AppLocalizationsAr extends AppLocalizations {
   String newTxnDeliverableHint(String coverage) {
     return 'سيتم تسليم الكروت الخاصة بـ $coverage فقط (بالإضافة إلى الكروت غير المقيّدة بمحافظة).';
   }
+
+  @override
+  String get errWrongCredentials => 'رقم الهاتف أو كلمة المرور غير صحيحة';
+
+  @override
+  String get errAccessDenied => 'ليس لديك صلاحية للقيام بذلك';
+
+  @override
+  String get errNotFound => 'غير موجود';
+
+  @override
+  String get errConflict => 'يتعارض مع بيانات موجودة';
+
+  @override
+  String get errValidation => 'يرجى التحقق من البيانات المدخلة';
+
+  @override
+  String get errServer => 'خطأ في الخادم — حاول مرة أخرى';
+
+  @override
+  String get errNetwork => 'مشكلة في الاتصال — تحقق من الشبكة';
+
+  @override
+  String get errInsufficientBalance => 'الرصيد غير كافٍ';
+
+  @override
+  String get errGeneric => 'حدث خطأ ما — حاول مرة أخرى';
+
+  @override
+  String get invalidPhone => 'أدخل رقم هاتف صحيح (مثال 07XXXXXXXXX)';
+
+  @override
+  String get passwordTooShort => 'يجب أن تكون كلمة المرور 6 أحرف على الأقل';
+
+  @override
+  String get mustBeAtLeastOne => 'أدخل رقمًا 1 أو أكثر';
+
+  @override
+  String get fieldRequired => 'مطلوب';
 }

@@ -208,6 +208,33 @@ class ProductRepository {
     await _api.delete(Endpoints.productDelete, params: {'id': id});
   }
 
+  /// HQ-only stock reallocation. Moves up to [amount] of [sourceId]'s AVAILABLE,
+  /// non-expired vouchers of [sku] in the [governorate] bucket to [destinationId]
+  /// in one guarded server-side move. A `null`/blank [governorate] targets the
+  /// untagged (region-free) bucket. A reverse "withdraw" is the same call with
+  /// source/destination swapped — there is no separate endpoint. Calls
+  /// `POST /api/inventory/agent-transfer` and returns the number actually moved.
+  Future<int> agentTransfer({
+    required String sourceId,
+    required String destinationId,
+    required String sku,
+    String? governorate,
+    required int amount,
+  }) async {
+    // Path is inlined (not in Endpoints) to keep this Wave-2 change self-contained.
+    final response = await _api.post('/api/inventory/agent-transfer', data: {
+      'sourceId': sourceId,
+      'destinationId': destinationId,
+      'sku': sku,
+      if (governorate != null && governorate.isNotEmpty) 'governorate': governorate,
+      'amount': amount,
+    });
+    return _api.unwrap(response, (d) {
+      final m = d as Map<String, dynamic>;
+      return (m['moved'] as num?)?.toInt() ?? 0;
+    });
+  }
+
   /// Lists all voucher batches (newest first). The endpoint is HQ-only and
   /// returns every batch the platform admin manages, so no owner filter is sent.
   /// Calls `GET /api/inventory/batches`.

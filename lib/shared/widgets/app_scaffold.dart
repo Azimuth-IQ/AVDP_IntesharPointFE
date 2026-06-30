@@ -147,6 +147,11 @@ class AppShell extends ConsumerWidget {
         // headers on top of this flat order (see _kGroupLabels / _buildSidebarEntries).
         //
         // Groups: Oversight · Inventory & Stock · Distribution · Network · Catalog · Administration
+        //
+        // Stock reallocation has no ARB key yet — labelled inline (mirrors the
+        // inline-localized strings used by the reallocation page itself).
+        final reallocLabel =
+            l.localeName.startsWith('ar') ? 'إعادة التوزيع' : 'Reallocation';
         return [
           _NavItem(Icons.monitor_heart_outlined, Icons.monitor_heart,
               l.navSystemActivity, '/hq/home',
@@ -166,6 +171,9 @@ class AppShell extends ConsumerWidget {
               required: Capability.VIEW_REPORTS, group: 'oversight'),
           _NavItem(Icons.upload_file_outlined, Icons.upload_file,
               l.navBatchAdd, '/hq/batch',
+              required: Capability.AGENT_ADMIN, group: 'inventory_stock'),
+          _NavItem(Icons.move_down_outlined, Icons.move_down,
+              reallocLabel, '/hq/points-transfer',
               required: Capability.AGENT_ADMIN, group: 'inventory_stock'),
           _NavItem(Icons.badge_outlined, Icons.badge,
               l.navMainAgents, '/hq/main-agents',

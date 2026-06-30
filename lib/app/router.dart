@@ -13,6 +13,7 @@ import 'package:inteshar/features/inventory/presentation/definitions_page.dart';
 import 'package:inteshar/features/inventory/presentation/print_operations_page.dart';
 import 'package:inteshar/features/inventory/presentation/voucher_templates_page.dart';
 import 'package:inteshar/features/inventory/presentation/inventory_page.dart';
+import 'package:inteshar/features/inventory/presentation/points_transfer_page.dart';
 import 'package:inteshar/features/inventory/presentation/child_inventory_page.dart';
 import 'package:inteshar/features/notifications/presentation/notifications_compose_page.dart';
 import 'package:inteshar/features/notifications/presentation/notifications_inbox_page.dart';
@@ -132,6 +133,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/hq/definitions', builder: (_, _) => const DefinitionsPage()),
           GoRoute(path: '/hq/templates', builder: (_, _) => const VoucherTemplatesPage()),
           GoRoute(path: '/hq/inventory', builder: (_, _) => const InventoryPage()),
+          GoRoute(path: '/hq/points-transfer', builder: (_, _) => const PointsTransferPage()),
           GoRoute(path: '/hq/batch', builder: (_, _) => const BatchAddPage()),
           GoRoute(path: '/hq/print-operations', builder: (_, _) => const PrintOperationsPage()),
           GoRoute(path: '/hq/users', builder: (_, _) => const HqUsersPage()),

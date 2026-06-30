@@ -612,7 +612,7 @@ class _StoreFormState extends ConsumerState<StoreForm> {
         await repo.update(updated);
       } else {
         final store = Entity(
-          id: '',
+          id: 'store-${DateTime.now().millisecondsSinceEpoch}',
           type: EntityType.STORE,
           parent: _parentId,
           meta: EntityMeta(name: _name.text.trim(), governorates: govs, workingHours: _workingHours),

@@ -96,11 +96,15 @@ async function tapNav(page, text, { minX = 1120 } = {}) {
   await enableSemantics(page);
 }
 
-/** Fill the Nth text field on screen (Flutter exposes focused text fields as <input>/<textarea>). */
+/** Fill the Nth text field on screen. Flutter exposes focused text fields as <input>s but
+ *  re-syncs its own model, so we focus → clear → TYPE (a bare .fill() of a CHANGED value
+ *  doesn't always propagate to Flutter's text controller; typing does). */
 async function fillNth(page, n, value) {
   const inputs = page.locator('input:not([type=hidden]), textarea');
   await inputs.nth(n).waitFor({ state: 'attached', timeout: 15_000 });
-  await inputs.nth(n).fill(value);
+  await inputs.nth(n).click();
+  await inputs.nth(n).fill('');
+  await inputs.nth(n).type(String(value), { delay: 15 });
   await page.waitForTimeout(300);
 }
 

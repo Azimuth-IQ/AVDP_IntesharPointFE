@@ -15,6 +15,20 @@ import 'package:inteshar/shared/widgets/responsive.dart';
 String _tr(BuildContext c, String ar, String en) =>
     Localizations.localeOf(c).languageCode == 'ar' ? ar : en;
 
+/// Short bilingual description of what a capability grants, shown under its
+/// checkbox in the supervisor form. Returns null for caps that need no hint.
+String? _capHint(BuildContext c, Capability cap) => switch (cap) {
+      Capability.AGENT_ADMIN =>
+        _tr(c, 'وصول كامل لكل الأقسام', 'Full access to every section'),
+      Capability.MANAGE_CATALOG =>
+        _tr(c, 'المنتجات والقوالب والإضافة بالجملة',
+            'Products, templates & batch import'),
+      Capability.MANAGE_AGENTS =>
+        _tr(c, 'الوكلاء والكيانات والمتاجر', 'Agents, entities & stores'),
+      Capability.MANAGE_COMPANIES => _tr(c, 'كتالوج الشركات', 'Companies catalog'),
+      _ => null,
+    };
+
 /// HQ "Supervisors" management (spec الادمن r7): the platform admin creates extra HQ
 /// login users scoped to dashboard sections via capabilities. Uses the single-user
 /// endpoints (add/update/remove) which avoid the full-entity-PUT childrenIds bug.
@@ -377,27 +391,28 @@ class _UserFormSheetState extends ConsumerState<_UserFormSheet> {
             Text(_tr(context, 'الصلاحيات', 'Capabilities'),
                 style: IntesharType.sans(12, color: cs.onSurfaceVariant, w: FontWeight.w700)),
             const SizedBox(height: 4),
-            ...Capability.values.map((c) => CheckboxListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  value: _caps.contains(c),
-                  title: Text(c.label(loc),
-                      style: IntesharType.sans(13.5, color: cs.onSurface)),
-                  subtitle: c == Capability.AGENT_ADMIN
-                      ? Text(
-                          _tr(context, 'وصول كامل لكل الأقسام',
-                              'Full access to every section'),
-                          style: IntesharType.sans(11, color: cs.onSurfaceVariant))
-                      : null,
-                  onChanged: (v) => setState(() {
-                    if (v == true) {
-                      _caps.add(c);
-                    } else {
-                      _caps.remove(c);
-                    }
-                  }),
-                )),
+            ...Capability.values.map((c) {
+              final hint = _capHint(context, c);
+              return CheckboxListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                value: _caps.contains(c),
+                title: Text(c.label(loc),
+                    style: IntesharType.sans(13.5, color: cs.onSurface)),
+                subtitle: hint == null
+                    ? null
+                    : Text(hint,
+                        style: IntesharType.sans(11, color: cs.onSurfaceVariant)),
+                onChanged: (v) => setState(() {
+                  if (v == true) {
+                    _caps.add(c);
+                  } else {
+                    _caps.remove(c);
+                  }
+                }),
+              );
+            }),
             if (_error != null) ...[
               const SizedBox(height: 8),
               Text(_error!, style: TextStyle(color: cs.error)),

@@ -164,7 +164,7 @@ class _AgentsPageState extends ConsumerState<AgentsPage> {
   Widget build(BuildContext context) {
     final s = AgentStrings.of(context, tier);
     final authState = ref.watch(authStateProvider).valueOrNull;
-    final canManage = authState is AuthAuthenticated && authState.can({Capability.AGENT_ADMIN});
+    final canManage = authState is AuthAuthenticated && authState.can({Capability.MANAGE_AGENTS});
     return MaxWidthBox(
       child: Column(
         children: [

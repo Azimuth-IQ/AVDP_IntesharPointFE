@@ -6,7 +6,10 @@ import 'package:inteshar/features/entities/domain/entity_type.dart';
 /// is also used client-side to show/hide nav items and actions. The coarse
 /// [UserRole] (ADMIN/USER) still applies on top.
 enum Capability {
-  /// Full control of the agency (the "شامل" admin); implies all others.
+  /// Full control of the agency (the "شامل" admin); implies all others —
+  /// including the finer [MANAGE_CATALOG], [MANAGE_AGENTS], [MANAGE_COMPANIES]
+  /// sections that were split out of it. Stays a wildcard everywhere so no
+  /// existing AGENT_ADMIN user loses access.
   AGENT_ADMIN,
 
   /// May create transactions / send vouchers (and balance) down the hierarchy.
@@ -20,6 +23,17 @@ enum Capability {
 
   /// May create and manage points of sale (stores) and transfers to them.
   MANAGE_POS,
+
+  /// May manage the product catalog: definitions/SKUs, voucher templates,
+  /// batch import, and single-voucher creation. Split out of [AGENT_ADMIN].
+  MANAGE_CATALOG,
+
+  /// May manage the agent/entity network: entity & agent CRUD, KYC/onboarding,
+  /// and stores. Split out of [AGENT_ADMIN].
+  MANAGE_AGENTS,
+
+  /// May manage the companies (voucher providers) catalog. Split out of [AGENT_ADMIN].
+  MANAGE_COMPANIES,
 }
 
 extension CapabilityX on Capability {
@@ -29,6 +43,9 @@ extension CapabilityX on Capability {
         Capability.MANAGE_PRICING => 'Manage pricing',
         Capability.VIEW_REPORTS => 'View reports',
         Capability.MANAGE_POS => 'Manage POS',
+        Capability.MANAGE_CATALOG => 'Manage catalog',
+        Capability.MANAGE_AGENTS => 'Manage agents',
+        Capability.MANAGE_COMPANIES => 'Manage companies',
       };
 
   String get ar => switch (this) {
@@ -37,6 +54,9 @@ extension CapabilityX on Capability {
         Capability.MANAGE_PRICING => 'إدارة الأسعار',
         Capability.VIEW_REPORTS => 'عرض التقارير',
         Capability.MANAGE_POS => 'إدارة نقاط البيع',
+        Capability.MANAGE_CATALOG => 'إدارة الكتالوج',
+        Capability.MANAGE_AGENTS => 'إدارة الوكلاء',
+        Capability.MANAGE_COMPANIES => 'إدارة الشركات',
       };
 
   String label(String localeCode) =>

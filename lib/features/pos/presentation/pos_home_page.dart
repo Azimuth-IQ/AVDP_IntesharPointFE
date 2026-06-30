@@ -31,7 +31,7 @@ class PosHomePage extends ConsumerStatefulWidget {
 }
 
 class _PosHomePageState extends ConsumerState<PosHomePage> {
-  List<Product>? _products;
+  List<SellableSku>? _sellable;
   Object? _error;
   bool _loading = true;
   String _search = '';
@@ -68,25 +68,16 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
 
       final api = ref.read(apiClientProvider);
       final repo = ProductRepository(api);
-      final all = await repo.readByEntity(auth.entity.id);
-      // Sellable = strictly AVAILABLE. Revealing a code consumes it (the backend
-      // flips it to PRINTED on decrypt), so anything not AVAILABLE has already
-      // been used and must never reappear on the counter.
-      final available = all.where((p) => p.status == ProductStatus.AVAILABLE).toList();
-      if (mounted) setState(() => _products = available);
+      // Draw-on-print: the store holds NO cards — it sells from its parent Main Agent's
+      // pool. Load the SKUs it can sell (the pool's available count + how many its
+      // withdrawal limit can afford); a sale draws one card from the pool on reveal.
+      final sellable = await repo.sellable(entityId: auth.entity.id);
+      if (mounted) setState(() => _sellable = sellable);
     } catch (e) {
       if (mounted) setState(() => _error = e);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
-  }
-
-  Map<String, List<Product>> _groupBySku(List<Product> products) {
-    final map = <String, List<Product>>{};
-    for (final p in products) {
-      map.putIfAbsent(p.productDefinition.sku, () => []).add(p);
-    }
-    return map;
   }
 
   @override
@@ -195,15 +186,15 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
 
   Widget _buildGrid(AppLocalizations l) {
     final cs = Theme.of(context).colorScheme;
-    final products = _products ?? [];
+    final sellable = _sellable ?? [];
     final filtered = _search.isEmpty
-        ? products
-        : products.where((p) {
+        ? sellable
+        : sellable.where((s) {
             final q = _search.toLowerCase();
-            return p.productDefinition.name.toLowerCase().contains(q) ||
-                p.productDefinition.sku.toLowerCase().contains(q);
+            return s.name.toLowerCase().contains(q) ||
+                s.sku.toLowerCase().contains(q);
           }).toList();
-    final groups = _groupBySku(filtered);
+    final totalAvailable = sellable.fold<int>(0, (a, s) => a + s.available);
 
     final tileExtent = switch (context.screenSize) {
       ScreenSize.desktop => 260.0,
@@ -234,7 +225,7 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
                     ],
                   ),
                 ),
-                _StockTally(stock: products.length),
+                _StockTally(stock: totalAvailable),
               ],
             ),
           ),
@@ -248,10 +239,10 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
               onChanged: (v) => setState(() => _search = v),
             ),
           ),
-          if (groups.isEmpty)
+          if (filtered.isEmpty)
             Expanded(
               child: EmptyState(
-                message: products.isEmpty
+                message: sellable.isEmpty
                     ? l.posHomeNoVouchers
                     : l.posHomeNoMatches(_search),
                 actionLabel: l.retryButton,
@@ -270,14 +261,12 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
                     crossAxisSpacing: 14,
                     childAspectRatio: 0.82,
                   ),
-                  itemCount: groups.length,
+                  itemCount: filtered.length,
                   itemBuilder: (context, i) {
-                    final sku = groups.keys.elementAt(i);
-                    final items = groups[sku]!;
+                    final s = filtered[i];
                     return _SkuTile(
-                      sku: sku,
-                      products: items,
-                      onTap: () => _showVoucher(items.first),
+                      sellable: s,
+                      onTap: () => _showVoucher(s),
                     );
                   },
                 ),
@@ -288,38 +277,26 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
     );
   }
 
-  void _showVoucher(Product product) {
-    // Tracks whether the voucher was consumed (revealed, or found already-used)
-    // while the sheet was open. Reveal == sale on the backend: the instant it
-    // succeeds we drop the code from the in-memory list so a swipe/scrim/back
-    // dismissal can never leave the counter inflated, then reconcile on close.
+  void _showVoucher(SellableSku sku) {
+    // A successful draw consumes one card from the parent pool. We can't optimistically
+    // patch the in-memory count (the backend picks the card), so just reload the sellable
+    // counts from the server once the sheet closes after a sale.
     var consumed = false;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      // After reveal the PIN/QR must not be discarded by a swipe or scrim tap.
-      // PopScope(canPop:!revealed) blocks the back gesture; disabling drag +
-      // scrim closes the remaining dismiss paths so a revealed voucher can only
-      // be dismissed by the explicit Done or Print buttons.
+      // After a draw the PIN/QR are shown once and must not be discarded by a swipe or
+      // scrim tap. PopScope(canPop:false) blocks the back gesture; disabling drag + scrim
+      // closes the remaining dismiss paths so a sold voucher can only be dismissed by Done/Print.
       isDismissible: false,
       enableDrag: false,
       builder: (ctx) => _VoucherSheet(
-        product: product,
-        // The PIN stays hidden until the operator taps Reveal inside the sheet.
-        // Fired the moment the voucher is consumed — drop it from the counter now.
-        onConsumed: () {
-          consumed = true;
-          if (mounted) {
-            setState(() => _products?.removeWhere((p) => p.id == product.id));
-          }
-        },
-        // Done / Print just close the sheet; the reload happens in whenComplete.
+        sku: sku,
+        onConsumed: () => consumed = true,
         onPrinted: () => Navigator.pop(ctx),
       ),
     ).whenComplete(() {
-      // ANY dismissal after a reveal (Done, Print, swipe, scrim, or back button)
-      // routes through here, re-fetching from the server so the consumed code is
-      // gone and the tally matches the source of truth.
+      // After a sale, re-fetch so the pool counts match the source of truth.
       if (consumed) _load();
     });
   }
@@ -373,10 +350,9 @@ class _StockTally extends StatelessWidget {
 // ── SKU tile ────────────────────────────────────────────────────────────────
 
 class _SkuTile extends StatefulWidget {
-  final String sku;
-  final List<Product> products;
+  final SellableSku sellable;
   final VoidCallback onTap;
-  const _SkuTile({required this.sku, required this.products, required this.onTap});
+  const _SkuTile({required this.sellable, required this.onTap});
 
   @override
   State<_SkuTile> createState() => _SkuTileState();
@@ -389,7 +365,7 @@ class _SkuTileState extends State<_SkuTile> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    final def = widget.products.first.productDefinition;
+    final s = widget.sellable;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
@@ -423,17 +399,17 @@ class _SkuTileState extends State<_SkuTile> {
                           borderRadius: BorderRadius.circular(24),
                         ),
                         child: Text(
-                          widget.sku,
+                          s.sku,
                           style: IntesharType.mono(13, color: IntesharColors.ink, w: FontWeight.w900, letterSpacing: 0.6),
                         ),
                       ),
                       const Spacer(),
-                      StampPill(label: '× ${widget.products.length}', color: IntesharColors.sage),
+                      StampPill(label: '× ${s.available}', color: IntesharColors.sage),
                     ],
                   ),
                   const Spacer(),
                   Text(
-                    def.name,
+                    s.name,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -447,7 +423,7 @@ class _SkuTileState extends State<_SkuTile> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    Formatters.iqd(def.defaultPrice),
+                    Formatters.iqd(s.price),
                     style: IntesharType.mono(15, color: cs.onSurface, w: FontWeight.w800),
                   ),
                   const SizedBox(height: 10),
@@ -471,24 +447,25 @@ class _SkuTileState extends State<_SkuTile> {
 // ── Voucher sheet ───────────────────────────────────────────────────────────
 
 class _VoucherSheet extends ConsumerStatefulWidget {
-  final Product product;
-  // Fired the instant the voucher is consumed — a successful reveal, or a 409
-  // telling us it was already used — so the parent can drop it from the counter.
+  final SellableSku sku;
+  // Fired the instant a card is drawn from the pool (a successful sale) so the parent
+  // can reload the pool counts on close.
   final VoidCallback onConsumed;
   final VoidCallback onPrinted;
 
-  const _VoucherSheet({required this.product, required this.onConsumed, required this.onPrinted});
+  const _VoucherSheet({required this.sku, required this.onConsumed, required this.onPrinted});
 
   @override
   ConsumerState<_VoucherSheet> createState() => _VoucherSheetState();
 }
 
 class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
-  // The list product arrives with its PIN stripped (encrypted at rest). The code
-  // stays hidden until the operator EXPLICITLY taps "Reveal" — that single tap
-  // calls sendForPrinting, which on the backend atomically marks the voucher used
-  // (status PRINTED) and returns the decrypted code. Revealing is the point of
-  // sale; it consumes the voucher and cannot be undone.
+  // The PIN stays hidden until the operator EXPLICITLY taps "Sell". That single tap calls
+  // /product/draw, which on the backend atomically claims one card from the parent Main
+  // Agent's pool (AVAILABLE->PRINTED), debits the withdrawal limit per tier, and returns
+  // the decrypted code. Selling consumes the voucher and cannot be undone. A per-attempt
+  // idempotency key makes a retry over a flaky link return the SAME sale, never a 2nd card.
+  late final String _clientRef;
   Product? _sent;
   int _receiptNo = 0;
   String? _agentLogoUrl;
@@ -500,16 +477,25 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
   bool _revealing = false;
   bool _printing = false;
 
-  bool get _revealed => _sent != null;
+  @override
+  void initState() {
+    super.initState();
+    // One idempotency key per sheet (per SKU selection), reused across Sell retries so a
+    // lost-response retry returns the original sale instead of drawing a second card.
+    _clientRef = 'draw-${widget.sku.sku}-${DateTime.now().microsecondsSinceEpoch}';
+  }
 
   Future<void> _reveal() async {
     setState(() => _revealing = true);
     try {
       final api = ref.read(apiClientProvider);
-      final full = await ProductRepository(api).sendForPrinting(widget.product.id);
-      // The backend has atomically flipped this voucher to PRINTED (used). Drop it
-      // from the counter NOW — before any further interaction — so an accidental
-      // swipe/scrim/back can't leave the consumed code lingering on the tally.
+      final full = await ProductRepository(api).draw(
+        sku: widget.sku.sku,
+        governorate: widget.sku.governorate,
+        clientRef: _clientRef,
+      );
+      // A card has been drawn from the pool (atomically claimed + debited). Mark the sheet
+      // consumed so the parent reloads pool counts on close.
       widget.onConsumed();
       if (mounted) {
         setState(() {
@@ -522,24 +508,23 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
         });
         // Warm the logo cache now (off the print's critical path) so the eventual
         // print is instant and works even if the link drops by then.
-        final t = widget.product.productDefinition.template;
+        final t = full.product.productDefinition.template;
         if (t.showAgentLogo) loadReceiptLogo(full.agentLogoUrl);
         if (t.showCompanyLogo) loadReceiptLogo(full.companyLogoUrl);
       }
     } catch (e) {
       if (!mounted) return;
       final l = AppLocalizations.of(context)!;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l.posHomePrintFailed(e.toString())), backgroundColor: Theme.of(context).colorScheme.error),
-      );
-      // Already used / no longer available → drop it from the counter and close.
-      // The interceptor throws a DioException wrapping the ApiException, so unwrap
-      // before inspecting the status (a bare `e is ApiException` never matches).
+      // A 402 (no withdrawal limit) or 409 (pool empty) means NOTHING was sold — surface
+      // the backend's message and let the operator retry (same idempotency key) or back
+      // out. Do NOT close as consumed: no card left the pool.
       final apiErr = ApiException.from(e);
-      if (apiErr?.statusCode == 409) {
-        widget.onConsumed();
-        widget.onPrinted();
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(apiErr?.message ?? l.posHomePrintFailed(e.toString())),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _revealing = false);
     }
@@ -597,8 +582,12 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
     final cs = Theme.of(context).colorScheme;
     final l = AppLocalizations.of(context)!;
 
-    final revealed = _revealed;
-    final p = _sent ?? widget.product;
+    // Pre-sale: a lean card (SKU + price + pool count) + the Sell button. The full
+    // template-driven receipt only renders AFTER the draw, when we hold the real card.
+    if (_sent == null) return _preRevealSheet(l, cs);
+
+    final revealed = _sent != null; // always true past the guard above
+    final p = _sent!;
     final def = p.productDefinition;
     final t = def.template;
 
@@ -800,6 +789,96 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
           ],
         ),
       ),
+      ),
+    );
+  }
+
+  // Pre-sale sheet: the store does not hold the card yet — show the SKU, price, and pool
+  // availability, plus the Sell action that draws a card from the parent Main Agent's pool.
+  Widget _preRevealSheet(AppLocalizations l, ColorScheme cs) {
+    final s = widget.sku;
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.only(
+          bottom: 24 + MediaQuery.of(context).viewInsets.bottom,
+          left: 24,
+          right: 24,
+          top: 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(color: cs.outline, borderRadius: BorderRadius.circular(2)),
+            ),
+            const SizedBox(height: 20),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 360),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(22, 24, 22, 22),
+                decoration: BoxDecoration(
+                  color: cs.surface,
+                  borderRadius: BorderRadius.circular(IntesharRadii.lg),
+                  boxShadow: IntesharShadows.elev2,
+                ),
+                child: Column(
+                  children: [
+                    IntesharStar(size: 36, color: cs.onSurface),
+                    const SizedBox(height: 12),
+                    if ((s.companyName ?? '').trim().isNotEmpty) ...[
+                      Text(
+                        s.companyName!.trim().toUpperCase(),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: 'CodecPro',
+                          fontSize: 14,
+                          color: cs.onSurface,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                    ],
+                    Text(
+                      s.name,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'CodecPro',
+                        fontSize: 22,
+                        color: cs.onSurface,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.4,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      Formatters.iqd(s.price),
+                      style: IntesharType.mono(17, color: IntesharColors.saffronDeep, w: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 16),
+                    _LockedQr(label: l.posPinHidden),
+                    const SizedBox(height: 14),
+                    Text(
+                      Localizations.localeOf(context).languageCode == 'ar'
+                          ? 'المتوفر في مخزن الوكيل: ${s.available}'
+                          : 'In main-agent pool: ${s.available}',
+                      style: TextStyle(
+                        fontFamily: 'CodecPro',
+                        fontSize: 12,
+                        color: cs.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            _buildRevealActions(l, cs),
+          ],
+        ),
       ),
     );
   }

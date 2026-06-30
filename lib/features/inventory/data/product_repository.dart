@@ -33,6 +33,39 @@ class RevealResult {
   });
 }
 
+/// One sellable (SKU × governorate) option on the POS draw-on-print screen: a voucher kind
+/// the store can draw from its parent Main Agent's pool. [price] is the store's cost (its
+/// parent's effective price), [available] is the pool count, and [affordable] is how many of
+/// those the store's withdrawal limit can cover.
+class SellableSku {
+  final String sku;
+  final String name;
+  final String? companyName;
+  final String? governorate; // null/"" = untagged (region-free)
+  final num price;
+  final int available;
+  final int affordable;
+  const SellableSku({
+    required this.sku,
+    required this.name,
+    this.companyName,
+    this.governorate,
+    this.price = 0,
+    this.available = 0,
+    this.affordable = 0,
+  });
+
+  factory SellableSku.fromJson(Map<String, dynamic> m) => SellableSku(
+        sku: m['sku'] as String? ?? '',
+        name: m['name'] as String? ?? '',
+        companyName: m['companyName'] as String?,
+        governorate: m['governorate'] as String?,
+        price: (m['price'] as num?) ?? 0,
+        available: (m['available'] as num?)?.toInt() ?? 0,
+        affordable: (m['affordable'] as num?)?.toInt() ?? 0,
+      );
+}
+
 class ProductRepository {
   final ApiClient _api;
   ProductRepository(this._api);
@@ -155,6 +188,64 @@ class ProductRepository {
         categoryName: m['categoryName'] as String?,
       );
     });
+  }
+
+  /// Draw-on-print: the SKUs this entity can sell from its parent Main Agent's pool — each
+  /// with the store's cost, the pool's available count, and how many its withdrawal limit
+  /// can afford. Pass [entityId] to view another account (HQ/ancestor); omit for the
+  /// caller's own. Calls `GET /api/inventory/product/sellable`.
+  Future<List<SellableSku>> sellable({String? entityId}) async {
+    final response = await _api.get(Endpoints.productSellable, params: {
+      if (entityId != null && entityId.isNotEmpty) 'entityId': entityId,
+    });
+    return _api.unwrap(response, (d) {
+      final list = (d as List<dynamic>? ?? const []);
+      return list
+          .map((e) => SellableSku.fromJson(e as Map<String, dynamic>))
+          .toList();
+    });
+  }
+
+  /// Draw + sell one voucher of [sku] (optional [governorate] bucket) from the parent pool:
+  /// atomic claim + per-tier withdrawal-limit debit, returns the decrypted PIN + receipt
+  /// (same shape as a reveal). [clientRef] is a per-attempt idempotency key so a retry over
+  /// a flaky link returns the SAME sale instead of burning a second card.
+  /// Calls `POST /api/inventory/product/draw`.
+  Future<RevealResult> draw({
+    required String sku,
+    String? governorate,
+    String? clientRef,
+  }) async {
+    final response = await _api.post(Endpoints.productDraw, params: {
+      'sku': sku,
+      if (governorate != null && governorate.isNotEmpty) 'governorate': governorate,
+      if (clientRef != null && clientRef.isNotEmpty) 'clientRef': clientRef,
+    });
+    return _api.unwrap(response, _revealFromJson);
+  }
+
+  /// Recover a drawn voucher whose response was lost: re-returns the SAME PIN + receipt for
+  /// the seller, never a new card or debit. Looks up by the idempotency [clientRef]
+  /// (preferred) or the [productId] from a partial response.
+  /// Calls `POST /api/inventory/product/draw/recover`.
+  Future<RevealResult> drawRecover({String? clientRef, String? productId}) async {
+    final response = await _api.post(Endpoints.productDrawRecover, params: {
+      if (clientRef != null && clientRef.isNotEmpty) 'clientRef': clientRef,
+      if (productId != null && productId.isNotEmpty) 'productId': productId,
+    });
+    return _api.unwrap(response, _revealFromJson);
+  }
+
+  RevealResult _revealFromJson(dynamic d) {
+    final m = d as Map<String, dynamic>;
+    return RevealResult(
+      product: Product.fromJson(m['product'] as Map<String, dynamic>? ?? {}),
+      receiptNo: (m['receiptNo'] as num?)?.toInt() ?? 0,
+      agentLogoUrl: m['agentLogoUrl'] as String?,
+      companyLogoUrl: m['companyLogoUrl'] as String?,
+      companyName: m['companyName'] as String?,
+      categoryName: m['categoryName'] as String?,
+    );
   }
 
   /// Print-operations (sales) for the inspection screen. HQ may pass [storeId] to

@@ -57,10 +57,18 @@ system Chrome with software GL so it renders headless).
 |------|--------|
 | `01-login.spec.js` | HQ logs in through the real login screen and lands on the dashboard. |
 | `02-hq-navigation.spec.js` | Every HQ section (main/sub agents, stores, inventory, batch, transactions, hierarchy, print-ops, reallocation, catalog, templates, companies) loads and renders. |
+| `03-pos-sell.spec.js` | POS operator logs in → PIN unlock → sees the SKU sourced from the parent Main Agent pool → **Sell**. With `E2E_DRAW=1` it completes the **draw-on-print** sale (claims a card from the pool, debits the limit, reveals PIN + serial + QR + receipt). Default stops before the irreversible Reveal. |
+| `04-create-main-agent.spec.js` | HQ creates a Main Agent through the 2-step wizard (Details → Users). UI-driven; the result is confirmed via the API (see a11y note). |
+| `05-negative.spec.js` | **Fail scenarios** — wrong password rejected at login; wrong POS PIN doesn't unlock; the Main Agent wizard won't advance without a name. |
+
+> **a11y note for assertions:** the nav rail AND the entity list cards are custom-painted —
+> their text (nav labels, agent names) is *not* in the semantics tree. So we navigate by URL
+> hash and, for create assertions, confirm the created entity via the API. Adding
+> `Semantics(label:)` to those widgets would make them fully UI-assertable.
 
 ### Planned (next)
 
-- `03-pos-sell.spec.js` — POS operator logs in, passes the PIN gate, sees a sellable SKU
-  from the parent pool, taps **Sell** → draw-on-print reveals the PIN + prints.
-- `04-create-and-fund.spec.js` — HQ creates a main agent → sub-agent → store and grants
-  withdrawal limits (the full hierarchy-build flow).
+- Funding flows: grant withdrawal limits down the chain (HQ/agent dashboard → child), plus
+  sub-agent + store creation (same wizard pattern as `04`).
+- More negatives: insufficient-limit draw (`402`), invalid batch import, over-balance grant,
+  duplicate-phone entity create.

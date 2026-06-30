@@ -13,7 +13,7 @@ String _fmtTs(DateTime t) =>
 /// exactly what the Store prints.
 Future<List<int>> buildVoucherReceipt({
   required VoucherTemplate template,
-  required String companyName,
+  required String headerFallback,
   required String shopName,
   required String posLabel,
   required String operatorPhone,
@@ -24,6 +24,8 @@ Future<List<int>> buildVoucherReceipt({
   required DateTime timestamp,
   img.Image? agentLogo,
   img.Image? companyLogo,
+  String? companyName,
+  String? categoryName,
   String? expiry,
   int? receiptNo,
 }) async {
@@ -39,7 +41,7 @@ Future<List<int>> buildVoucherReceipt({
 
   final header = template.headerText.trim().isNotEmpty
       ? template.headerText.trim()
-      : companyName;
+      : headerFallback;
   out.addAll(g.text(header,
       styles: const PosStyles(
           align: PosAlign.center,
@@ -54,6 +56,22 @@ Future<List<int>> buildVoucherReceipt({
   if (template.showCompanyLogo && companyLogo != null) {
     out.addAll(g.imageRaster(companyLogo, align: PosAlign.center));
     out.addAll(g.feed(1));
+  }
+
+  // Telecom company name (e.g. Asiacell) then the category name beneath it,
+  // each gated by its template flag (and only when a value is present).
+  if (template.showCompanyName &&
+      companyName != null &&
+      companyName.trim().isNotEmpty) {
+    out.addAll(g.text(companyName.trim(),
+        styles: const PosStyles(
+            align: PosAlign.center, bold: true, height: PosTextSize.size2)));
+  }
+  if (template.showCategoryName &&
+      categoryName != null &&
+      categoryName.trim().isNotEmpty) {
+    out.addAll(g.text(categoryName.trim(),
+        styles: const PosStyles(align: PosAlign.center, bold: true)));
   }
 
   if (template.showProductName) {

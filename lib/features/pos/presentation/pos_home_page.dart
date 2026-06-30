@@ -493,6 +493,10 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
   int _receiptNo = 0;
   String? _agentLogoUrl;
   String? _companyLogoUrl;
+  // Resolved from the reveal response: the telecom company name (e.g. Asiacell)
+  // and the human-readable category name (the product-definition name).
+  String? _companyName;
+  String? _categoryName;
   bool _revealing = false;
   bool _printing = false;
 
@@ -513,6 +517,8 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
           _receiptNo = full.receiptNo;
           _agentLogoUrl = full.agentLogoUrl;
           _companyLogoUrl = full.companyLogoUrl;
+          _companyName = full.companyName;
+          _categoryName = full.categoryName;
         });
         // Warm the logo cache now (off the print's critical path) so the eventual
         // print is instant and works even if the link drops by then.
@@ -553,7 +559,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
           t.showCompanyLogo ? await loadReceiptLogo(_companyLogoUrl) : null;
       final bytes = await buildVoucherReceipt(
         template: t,
-        companyName: 'Inteshar Platform',
+        headerFallback: 'Inteshar Platform',
         shopName: auth?.entity.meta.name ?? 'Store',
         posLabel: 'Counter 1',
         operatorPhone: auth?.entity.users.firstOrNull?.phone ?? '',
@@ -564,6 +570,8 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
         timestamp: DateTime.now(),
         agentLogo: agentLogo,
         companyLogo: companyLogo,
+        companyName: _companyName,
+        categoryName: _categoryName ?? def.name,
         expiry: revealed.expiryDate,
         receiptNo: _receiptNo,
       );
@@ -645,6 +653,37 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                         fontWeight: FontWeight.w900,
                       ),
                     ),
+                    // Telecom company name (resolved on reveal) then the category
+                    // name beneath it — each gated by its template flag.
+                    if (t.showCompanyName &&
+                        (_companyName ?? '').trim().isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _companyName!.trim().toUpperCase(),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: 'CodecPro',
+                          fontSize: 15,
+                          color: cs.onSurface,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                    ],
+                    if (t.showCategoryName &&
+                        (_categoryName ?? def.name).trim().isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        (_categoryName ?? def.name).trim(),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: 'CodecPro',
+                          fontSize: 13,
+                          color: cs.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                     if (t.showProductName) ...[
                       const SizedBox(height: 16),
                       Text(

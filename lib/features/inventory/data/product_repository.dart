@@ -17,11 +17,19 @@ class RevealResult {
   final int receiptNo;
   final String? agentLogoUrl;
   final String? companyLogoUrl;
+
+  /// Telecom company name (Company.name resolved via ProductDefinition.companyId).
+  final String? companyName;
+
+  /// Human-readable category name (the ProductDefinition.name).
+  final String? categoryName;
   const RevealResult({
     required this.product,
     this.receiptNo = 0,
     this.agentLogoUrl,
     this.companyLogoUrl,
+    this.companyName,
+    this.categoryName,
   });
 }
 
@@ -143,6 +151,8 @@ class ProductRepository {
         receiptNo: (m['receiptNo'] as num?)?.toInt() ?? 0,
         agentLogoUrl: m['agentLogoUrl'] as String?,
         companyLogoUrl: m['companyLogoUrl'] as String?,
+        companyName: m['companyName'] as String?,
+        categoryName: m['categoryName'] as String?,
       );
     });
   }

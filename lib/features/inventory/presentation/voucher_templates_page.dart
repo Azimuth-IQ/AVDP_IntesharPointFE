@@ -18,6 +18,8 @@ import 'package:qr_flutter/qr_flutter.dart';
 const _sampleSerial = 'SN-2024-0001-8842';
 const _samplePin = '7041 8823 1907';
 const _sampleCompany = 'Inteshar';
+// Sample telecom company name used to preview the COMPANY NAME receipt line.
+const _sampleCompanyName = 'Asiacell';
 
 // ─── Main page ───────────────────────────────────────────────────────────────
 
@@ -668,6 +670,9 @@ class _TemplateEditor extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
+    // These two toggles have no l10n keys yet, so label them inline matching the
+    // app's bilingual fallback pattern (see pos_home_page Expiry/Receipt labels).
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
 
     Widget content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -744,6 +749,20 @@ class _TemplateEditor extends StatelessWidget {
                 label: l.vtShowPrice,
                 value: edited.showPrice,
                 onChanged: (v) => onToggle(edited.copyWith(showPrice: v)),
+              ),
+              Divider(height: 1, color: cs.outline),
+              _BrandSwitch(
+                label: isAr ? 'إظهار اسم الشركة' : 'Show company name',
+                value: edited.showCompanyName,
+                onChanged: (v) =>
+                    onToggle(edited.copyWith(showCompanyName: v)),
+              ),
+              Divider(height: 1, color: cs.outline),
+              _BrandSwitch(
+                label: isAr ? 'إظهار اسم الفئة' : 'Show category name',
+                value: edited.showCategoryName,
+                onChanged: (v) =>
+                    onToggle(edited.copyWith(showCategoryName: v)),
               ),
             ],
           ),
@@ -995,6 +1014,26 @@ class _ReceiptPreview extends StatelessWidget {
                 style: IntesharType.mono(13, color: Colors.black54, w: FontWeight.w700, letterSpacing: 0.4),
               ),
               const SizedBox(height: 8),
+            ],
+
+            // ── Company name (telecom) ───────────────────────────────────
+            if (template.showCompanyName) ...[
+              Text(
+                _sampleCompanyName,
+                textAlign: TextAlign.center,
+                style: IntesharType.mono(13, color: Colors.black, w: FontWeight.w700, letterSpacing: 0.6),
+              ),
+              const SizedBox(height: 4),
+            ],
+
+            // ── Category name (product-definition name) ──────────────────
+            if (template.showCategoryName) ...[
+              Text(
+                def.name,
+                textAlign: TextAlign.center,
+                style: IntesharType.mono(11, color: Colors.black54),
+              ),
+              const SizedBox(height: 4),
             ],
 
             // ── Product name ─────────────────────────────────────────────

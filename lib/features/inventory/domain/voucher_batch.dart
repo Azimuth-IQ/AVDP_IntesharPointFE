@@ -37,6 +37,14 @@ class VoucherBatch {
   /// is still held by HQ (no handover happened, or a withdraw was performed).
   final String? assignedTo;
 
+  /// Earliest expiry date (ISO yyyy-MM-dd) across the batch's imported vouchers,
+  /// or null when no imported row carried an expiry.
+  final String? minExpiryDate;
+
+  /// Latest expiry date (ISO yyyy-MM-dd) across the batch's imported vouchers,
+  /// or null when no imported row carried an expiry.
+  final String? maxExpiryDate;
+
   const VoucherBatch({
     required this.id,
     required this.sku,
@@ -52,6 +60,8 @@ class VoucherBatch {
     this.createdAt = '',
     this.originId,
     this.assignedTo,
+    this.minExpiryDate,
+    this.maxExpiryDate,
   });
 
   bool get paused => status == BatchStatus.PAUSED;
@@ -77,5 +87,7 @@ class VoucherBatch {
         createdAt: j['createdAt']?.toString() ?? '',
         originId: j['originId'] as String?,
         assignedTo: j['assignedTo'] as String?,
+        minExpiryDate: j['minExpiryDate'] as String?,
+        maxExpiryDate: j['maxExpiryDate'] as String?,
       );
 }

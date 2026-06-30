@@ -37,6 +37,12 @@ class VoucherTemplate {
   /// Print the voucher expiry date below the code.
   final bool showExpiry;
 
+  /// Print the telecom company name (e.g. Asiacell) below the header.
+  final bool showCompanyName;
+
+  /// Print the category name (the product-definition name) below the company.
+  final bool showCategoryName;
+
   const VoucherTemplate({
     this.headerText = '',
     this.footerText = '',
@@ -52,6 +58,8 @@ class VoucherTemplate {
     this.showAgentLogo = true,
     this.showCompanyLogo = true,
     this.showExpiry = true,
+    this.showCompanyName = true,
+    this.showCategoryName = true,
   });
 
   factory VoucherTemplate.fromJson(Map<String, dynamic>? j) {
@@ -71,6 +79,8 @@ class VoucherTemplate {
       showAgentLogo: j['showAgentLogo'] as bool? ?? true,
       showCompanyLogo: j['showCompanyLogo'] as bool? ?? true,
       showExpiry: j['showExpiry'] as bool? ?? true,
+      showCompanyName: j['showCompanyName'] as bool? ?? true,
+      showCategoryName: j['showCategoryName'] as bool? ?? true,
     );
   }
 
@@ -89,6 +99,8 @@ class VoucherTemplate {
         'showAgentLogo': showAgentLogo,
         'showCompanyLogo': showCompanyLogo,
         'showExpiry': showExpiry,
+        'showCompanyName': showCompanyName,
+        'showCategoryName': showCategoryName,
       };
 
   /// Builds the QR payload from a voucher's pin/serial using the configured
@@ -114,6 +126,8 @@ class VoucherTemplate {
     bool? showAgentLogo,
     bool? showCompanyLogo,
     bool? showExpiry,
+    bool? showCompanyName,
+    bool? showCategoryName,
   }) =>
       VoucherTemplate(
         headerText: headerText ?? this.headerText,
@@ -130,5 +144,7 @@ class VoucherTemplate {
         showAgentLogo: showAgentLogo ?? this.showAgentLogo,
         showCompanyLogo: showCompanyLogo ?? this.showCompanyLogo,
         showExpiry: showExpiry ?? this.showExpiry,
+        showCompanyName: showCompanyName ?? this.showCompanyName,
+        showCategoryName: showCategoryName ?? this.showCategoryName,
       );
 }

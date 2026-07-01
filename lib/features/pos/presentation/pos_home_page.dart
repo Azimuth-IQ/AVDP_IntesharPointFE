@@ -625,6 +625,26 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                 ),
                 child: Column(
                   children: [
+                    // Branding logos actually printed on the receipt, gated by the template
+                    // toggles: the owning Main Agent's logo, then the SKU's company logo.
+                    if (t.showAgentLogo && (_agentLogoUrl ?? '').trim().isNotEmpty) ...[
+                      Image.network(
+                        _agentLogoUrl!,
+                        height: 44,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    if (t.showCompanyLogo && (_companyLogoUrl ?? '').trim().isNotEmpty) ...[
+                      Image.network(
+                        _companyLogoUrl!,
+                        height: 36,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                     IntesharStar(size: 36, color: cs.onSurface),
                     const SizedBox(height: 10),
                     Text(

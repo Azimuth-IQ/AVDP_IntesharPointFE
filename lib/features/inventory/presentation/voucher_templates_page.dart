@@ -764,6 +764,18 @@ class _TemplateEditor extends StatelessWidget {
                 onChanged: (v) =>
                     onToggle(edited.copyWith(showCategoryName: v)),
               ),
+              Divider(height: 1, color: cs.outline),
+              _BrandSwitch(
+                label: isAr ? 'طباعة شعار الوكيل الرئيسي' : 'Print main agent logo',
+                value: edited.showAgentLogo,
+                onChanged: (v) => onToggle(edited.copyWith(showAgentLogo: v)),
+              ),
+              Divider(height: 1, color: cs.outline),
+              _BrandSwitch(
+                label: isAr ? 'طباعة شعار الشركة (الفئة)' : 'Print company (category) logo',
+                value: edited.showCompanyLogo,
+                onChanged: (v) => onToggle(edited.copyWith(showCompanyLogo: v)),
+              ),
             ],
           ),
         ),
@@ -973,6 +985,35 @@ class _BrandSwitch extends StatelessWidget {
   }
 }
 
+/// A dashed placeholder box shown in the template preview where a logo will print. The real
+/// image (owning main agent's logo / SKU company logo) is filled in at sale time.
+class _LogoPlaceholder extends StatelessWidget {
+  final String label;
+  const _LogoPlaceholder({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 40,
+      constraints: const BoxConstraints(minWidth: 110),
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.black26),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.image_outlined, size: 14, color: Colors.black38),
+          const SizedBox(width: 5),
+          Text(label, style: const TextStyle(fontSize: 9.5, color: Colors.black45)),
+        ],
+      ),
+    );
+  }
+}
+
 // ─── 58mm thermal receipt preview ────────────────────────────────────────────
 
 class _ReceiptPreview extends StatelessWidget {
@@ -999,6 +1040,26 @@ class _ReceiptPreview extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
+            // ── Branding logos ──────────────────────────────────────────
+            // Placeholders: the OWNING main agent's logo is resolved per-sale (not known
+            // here), and the company logo comes from the SKU's company. The real images
+            // print on the receipt + show on the POS reveal.
+            if (template.showAgentLogo) ...[
+              _LogoPlaceholder(
+                label: Localizations.localeOf(context).languageCode == 'ar'
+                    ? 'شعار الوكيل الرئيسي'
+                    : 'Main agent logo',
+              ),
+              const SizedBox(height: 8),
+            ],
+            if (template.showCompanyLogo) ...[
+              _LogoPlaceholder(
+                label: Localizations.localeOf(context).languageCode == 'ar'
+                    ? 'شعار الشركة'
+                    : 'Company logo',
+              ),
+              const SizedBox(height: 8),
+            ],
             // ── Header ──────────────────────────────────────────────────
             if (template.headerText.isNotEmpty) ...[
               Text(

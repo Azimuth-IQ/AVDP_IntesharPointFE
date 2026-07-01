@@ -60,6 +60,13 @@ system Chrome with software GL so it renders headless).
 | `03-pos-sell.spec.js` | POS operator logs in → PIN unlock → sees the SKU sourced from the parent Main Agent pool → **Sell**. With `E2E_DRAW=1` it completes the **draw-on-print** sale (claims a card from the pool, debits the limit, reveals PIN + serial + QR + receipt). Default stops before the irreversible Reveal. |
 | `04-create-main-agent.spec.js` | HQ creates a Main Agent through the 2-step wizard (Details → Users). UI-driven; the result is confirmed via the API (see a11y note). |
 | `05-negative.spec.js` | **Fail scenarios** — wrong password rejected at login; wrong POS PIN doesn't unlock; the Main Agent wizard won't advance without a name. |
+| `06-agent1-navigation.spec.js` | **Main Agent (AGENT1)** role — logs in and reaches all 6 sections (home/entities/inventory/transactions/pricing/stores). |
+| `07-agent2-navigation.spec.js` | **Sub-Agent (AGENT2)** role — logs in and reaches all 5 sections (home/entities/inventory/transactions/stores). |
+| `08-store-navigation.spec.js` | **Store admin (STORE, ADMIN→/store)** role — logs in and reaches home/inventory/transactions. |
+
+**Role logins (disposable E2E accounts, all `FMg557ory`):** HQ `07705371953`/`root`; Main Agent
+`07960226000`; Sub-Agent `07959111000`; Store-admin `07959222000`; POS `07703333333` (PIN `1111`).
+Override per-spec via the `*_PHONE`/`*_PASS` env vars.
 
 > **a11y note for assertions:** the nav rail AND the entity list cards are custom-painted —
 > their text (nav labels, agent names) is *not* in the semantics tree. So we navigate by URL

@@ -611,6 +611,13 @@ class _TreeNode extends ConsumerWidget {
       isScrollControlled: true,
       builder: (ctx) => ManageUsersSheet(
         entity: entity,
+        onResetPassword: (phone, newPass) async {
+          await EntityRepository(ref.read(apiClientProvider))
+              .resetPassword(entity.id, phone, newPass);
+        },
+        onResetTotp: (phone) async {
+          await EntityRepository(ref.read(apiClientProvider)).resetUserTotp(phone);
+        },
         onSave: (updatedUsers) async {
           final api = ref.read(apiClientProvider);
           final repo = EntityRepository(api);

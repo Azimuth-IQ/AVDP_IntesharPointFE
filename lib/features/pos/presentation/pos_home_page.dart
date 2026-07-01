@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
-import 'package:inteshar/core/api/api_exception.dart';
 import 'package:inteshar/core/printing/bluetooth_service.dart';
 import 'package:inteshar/core/printing/escpos_builder.dart';
 import 'package:inteshar/core/printing/logo_loader.dart';
@@ -514,14 +514,12 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
       }
     } catch (e) {
       if (!mounted) return;
-      final l = AppLocalizations.of(context)!;
-      // A 402 (no withdrawal limit) or 409 (pool empty) means NOTHING was sold — surface
-      // the backend's message and let the operator retry (same idempotency key) or back
-      // out. Do NOT close as consumed: no card left the pool.
-      final apiErr = ApiException.from(e);
+      // A 402 (no withdrawal limit) or 409 (pool empty) means NOTHING was sold — show a
+      // friendly message (the mapper surfaces the backend's 402/409 text) and let the
+      // operator retry (same idempotency key) or back out. Do NOT close as consumed.
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(apiErr?.message ?? l.posHomePrintFailed(e.toString())),
+          content: Text(friendlyError(e, context)),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );

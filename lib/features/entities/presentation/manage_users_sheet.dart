@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:inteshar/app/theme.dart';
+import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
@@ -9,8 +10,17 @@ import 'package:inteshar/shared/widgets/design_system.dart';
 class ManageUsersSheet extends StatefulWidget {
   final Entity entity;
   final Future<void> Function(List<EntityUser> users) onSave;
+  // Manage EXISTING users in place (the tree is the single management surface):
+  final Future<void> Function(String phone, String newPassword) onResetPassword;
+  final Future<void> Function(String phone) onResetTotp;
 
-  const ManageUsersSheet({super.key, required this.entity, required this.onSave});
+  const ManageUsersSheet({
+    super.key,
+    required this.entity,
+    required this.onSave,
+    required this.onResetPassword,
+    required this.onResetTotp,
+  });
 
   @override
   State<ManageUsersSheet> createState() => _ManageUsersSheetState();
@@ -70,6 +80,71 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
 
   void _removeUser(EntityUser u) {
     setState(() => _users.removeWhere((x) => x.id == u.id && x.phone == u.phone));
+  }
+
+  bool get _ar => Localizations.localeOf(context).languageCode == 'ar';
+
+  Future<void> _resetPassword(EntityUser u) async {
+    final ctrl = TextEditingController();
+    final pass = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(_ar ? 'كلمة مرور جديدة لـ ${u.phone}' : 'New password for ${u.phone}'),
+        content: TextField(
+          controller: ctrl,
+          obscureText: true,
+          autofocus: true,
+          decoration: InputDecoration(labelText: _ar ? 'كلمة المرور' : 'Password'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(_ar ? 'إلغاء' : 'Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: Text(_ar ? 'حفظ' : 'Save')),
+        ],
+      ),
+    );
+    if (pass == null) return;
+    if (pass.length < 6) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(AppLocalizations.of(context)!.passwordTooShort)));
+      }
+      return;
+    }
+    try {
+      await widget.onResetPassword(u.phone, pass);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(_ar ? 'تمت إعادة تعيين كلمة المرور' : 'Password reset')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+    }
+  }
+
+  Future<void> _resetTotp(EntityUser u) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(_ar ? 'إعادة تعيين المصادقة الثنائية' : 'Reset 2FA'),
+        content: Text(_ar
+            ? 'سيُطلب من ${u.phone} إعادة التسجيل في المصادقة الثنائية عند الدخول التالي.'
+            : '${u.phone} will re-enroll in two-factor authentication on next login.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(_ar ? 'إلغاء' : 'Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(_ar ? 'إعادة تعيين' : 'Reset')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await widget.onResetTotp(u.phone);
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(_ar ? 'تمت إعادة تعيين المصادقة الثنائية' : '2FA reset')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+    }
   }
 
   Future<void> _save() async {
@@ -132,7 +207,13 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
                 child: Text(l.manageUsersEmpty, style: Theme.of(context).textTheme.bodySmall),
               )
             else
-              ..._users.map((u) => _UserRow(user: u, onRemove: () => _removeUser(u))),
+              ..._users.map((u) => _UserRow(
+                    user: u,
+                    canReset: widget.entity.users.any((x) => x.phone == u.phone),
+                    onRemove: () => _removeUser(u),
+                    onResetPassword: () => _resetPassword(u),
+                    onResetTotp: () => _resetTotp(u),
+                  )),
 
             const SizedBox(height: 16),
             Container(height: 1, color: cs.outline),
@@ -204,8 +285,17 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
 
 class _UserRow extends StatelessWidget {
   final EntityUser user;
+  final bool canReset;
   final VoidCallback onRemove;
-  const _UserRow({required this.user, required this.onRemove});
+  final VoidCallback onResetPassword;
+  final VoidCallback onResetTotp;
+  const _UserRow({
+    required this.user,
+    required this.canReset,
+    required this.onRemove,
+    required this.onResetPassword,
+    required this.onResetTotp,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -228,10 +318,32 @@ class _UserRow extends StatelessWidget {
             ),
             StampPill(label: user.role.name, color: color),
             const SizedBox(width: 4),
-            IconButton(
-              icon: Icon(Icons.delete_outline, color: cs.error, size: 18),
-              onPressed: onRemove,
-            ),
+            if (canReset)
+              PopupMenuButton<String>(
+                icon: Icon(Icons.more_vert, size: 18, color: cs.onSurfaceVariant),
+                onSelected: (v) {
+                  if (v == 'pass') {
+                    onResetPassword();
+                  } else if (v == 'totp') {
+                    onResetTotp();
+                  } else if (v == 'remove') {
+                    onRemove();
+                  }
+                },
+                itemBuilder: (ctx) {
+                  final ar = Localizations.localeOf(ctx).languageCode == 'ar';
+                  return [
+                    PopupMenuItem(value: 'pass', child: Text(ar ? 'إعادة تعيين كلمة المرور' : 'Reset password')),
+                    PopupMenuItem(value: 'totp', child: Text(ar ? 'إعادة تعيين المصادقة الثنائية' : 'Reset 2FA')),
+                    PopupMenuItem(value: 'remove', child: Text(ar ? 'حذف المستخدم' : 'Remove user')),
+                  ];
+                },
+              )
+            else
+              IconButton(
+                icon: Icon(Icons.delete_outline, color: cs.error, size: 18),
+                onPressed: onRemove,
+              ),
           ],
         ),
       ),

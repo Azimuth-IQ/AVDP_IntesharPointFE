@@ -150,6 +150,13 @@ class EntityRepository {
     await _api.post(Endpoints.entityUserResetTotp, params: {'phone': phone});
   }
 
+  /// Reset a user's password to [newPassword] (the backend hashes it + forces a change
+  /// on next login). Used from the hierarchy's Manage-Users sheet.
+  Future<void> resetPassword(String entityId, String phone, String newPassword) async {
+    await _api.post(Endpoints.entityResetPassword,
+        params: {'id': entityId, 'phone': phone, 'newPassword': newPassword});
+  }
+
   /// Re-links a child to its parent's childrenIds list.
   /// The backend has a known bug where creating a child does not always append
   /// its id to the parent's childrenIds — this workaround handles that.

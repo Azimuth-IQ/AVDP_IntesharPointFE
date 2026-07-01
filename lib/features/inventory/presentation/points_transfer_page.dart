@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
@@ -505,7 +506,7 @@ class _PointsTransferPageState extends ConsumerState<PointsTransferPage> {
             key: ValueKey('qty-${_effectiveSource?.id}-$_sku-$_gov-$_withdraw'),
             initialValue: _qty.toString(),
             keyboardType: TextInputType.number,
-            style: IntesharType.mono(14, color: cs.onSurface),
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],            style: IntesharType.mono(14, color: cs.onSurface),
             decoration: InputDecoration(
               labelText: isAr ? 'الكمية' : 'Quantity',
               isDense: true,

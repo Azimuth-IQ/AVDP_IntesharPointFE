@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:inteshar/core/api/error_mapper.dart';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
@@ -464,7 +465,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         TextField(
           controller: _contactPhone,
           keyboardType: TextInputType.phone,
-          decoration: InputDecoration(labelText: s.fieldPhone),
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11)],          decoration: InputDecoration(labelText: s.fieldPhone),
         ),
         const SizedBox(height: 12),
         TextField(
@@ -618,7 +619,7 @@ class _UserCard extends StatelessWidget {
           TextField(
             controller: draft.phone,
             keyboardType: TextInputType.phone,
-            decoration: InputDecoration(labelText: s.fieldUserPhone, isDense: true),
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11)],            decoration: InputDecoration(labelText: s.fieldUserPhone, isDense: true),
           ),
           const SizedBox(height: 10),
           TextField(

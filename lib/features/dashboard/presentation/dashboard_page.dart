@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -1049,7 +1050,7 @@ class _TransferSheetState extends ConsumerState<_TransferSheet> {
           TextField(
             controller: _amount,
             keyboardType: TextInputType.number,
-            decoration: InputDecoration(labelText: ar ? 'المبلغ' : 'Amount', suffixText: 'IQD'),
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],            decoration: InputDecoration(labelText: ar ? 'المبلغ' : 'Amount', suffixText: 'IQD'),
           ),
           if (_error != null) ...[
             const SizedBox(height: 10),

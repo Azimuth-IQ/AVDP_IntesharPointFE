@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
@@ -358,7 +359,7 @@ class _PriceField extends StatelessWidget {
           child: TextField(
             controller: ctrl,
             keyboardType: TextInputType.number,
-            style: IntesharType.mono(14, color: cs.onSurface),
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],            style: IntesharType.mono(14, color: cs.onSurface),
             decoration: InputDecoration(labelText: label, isDense: true),
           ),
         ),

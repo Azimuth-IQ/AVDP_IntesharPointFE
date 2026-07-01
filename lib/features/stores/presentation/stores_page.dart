@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
@@ -682,7 +683,7 @@ class _StoreFormState extends ConsumerState<StoreForm> {
               TextFormField(
                 controller: _phone,
                 keyboardType: TextInputType.phone,
-                decoration: InputDecoration(labelText: s.loginPhone),
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11)],                decoration: InputDecoration(labelText: s.loginPhone),
                 validator: (v) => (v == null || v.trim().isEmpty) ? s.required : null,
               ),
               const SizedBox(height: 14),

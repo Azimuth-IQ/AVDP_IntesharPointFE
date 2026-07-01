@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
@@ -62,6 +63,14 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
     }
     if (pass.isEmpty) {
       setState(() => _addError = l.manageUsersPasswordRequired);
+      return;
+    }
+    if (!RegExp(r'^07\d{9}$').hasMatch(phone)) {
+      setState(() => _addError = l.invalidPhone);
+      return;
+    }
+    if (pass.length < 6) {
+      setState(() => _addError = l.passwordTooShort);
       return;
     }
     if (_users.any((u) => u.phone == phone)) {
@@ -227,7 +236,7 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
             TextField(
               controller: _phoneCtrl,
               keyboardType: TextInputType.phone,
-              style: GoogleFonts.jetBrainsMono(fontSize: 14, color: cs.onSurface, letterSpacing: 0.6),
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11)],              style: GoogleFonts.jetBrainsMono(fontSize: 14, color: cs.onSurface, letterSpacing: 0.6),
               decoration: InputDecoration(labelText: l.manageUsersPhone),
             ),
             const SizedBox(height: 12),

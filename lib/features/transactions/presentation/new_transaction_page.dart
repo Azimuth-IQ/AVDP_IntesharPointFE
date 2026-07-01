@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -686,7 +687,7 @@ class _LineCard extends StatelessWidget {
                   key: ValueKey('qty-$index-${line.def.sku}'),
                   initialValue: line.amount.toString(),
                   keyboardType: TextInputType.number,
-                  style: IntesharType.mono(14, color: cs.onSurface),
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],                  style: IntesharType.mono(14, color: cs.onSurface),
                   decoration: InputDecoration(
                     labelText: l.newTxnQty,
                     isDense: true,
@@ -709,7 +710,7 @@ class _LineCard extends StatelessWidget {
                   key: ValueKey('price-$index-${line.def.sku}'),
                   initialValue: line.price ?? line.def.defaultPrice,
                   keyboardType: TextInputType.number,
-                  style: IntesharType.mono(14, color: cs.onSurface),
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],                  style: IntesharType.mono(14, color: cs.onSurface),
                   decoration: InputDecoration(labelText: l.newTxnUnitPrice, isDense: true),
                   onChanged: (v) => onChanged(line.copyWith(price: v)),
                 ),

@@ -22,7 +22,10 @@ import 'package:inteshar/shared/widgets/working_hours_editor.dart';
 
 String _genId(String prefix) {
   final rand = Random.secure();
-  final hex = List.generate(6, (_) => rand.nextInt(16).toRadixString(16)).join();
+  final hex = List.generate(
+    6,
+    (_) => rand.nextInt(16).toRadixString(16),
+  ).join();
   return '$prefix-${DateTime.now().millisecondsSinceEpoch}-$hex';
 }
 
@@ -63,7 +66,8 @@ class _AgentFormState extends ConsumerState<AgentForm> {
   List<EntitySummaryRow> _parentOptions = [];
   String? _parentId;
   bool _loadingParents = false;
-  Set<String>? _allowedGovernorates; // limits the governorate choices to the parent's
+  Set<String>?
+  _allowedGovernorates; // limits the governorate choices to the parent's
 
   // Step 2 — users
   final List<_UserDraft> _users = [];
@@ -118,8 +122,17 @@ class _AgentFormState extends ConsumerState<AgentForm> {
   @override
   void dispose() {
     for (final c in [
-      _name, _logo, _ownerName, _documents, _landmark, _lat, _lng,
-      _contactPhone, _contactEmail, _primary, _secondary,
+      _name,
+      _logo,
+      _ownerName,
+      _documents,
+      _landmark,
+      _lat,
+      _lng,
+      _contactPhone,
+      _contactEmail,
+      _primary,
+      _secondary,
     ]) {
       c.dispose();
     }
@@ -173,7 +186,8 @@ class _AgentFormState extends ConsumerState<AgentForm> {
   }
 
   bool _validateStep1(AgentStrings s) {
-    if (tier.requiresParentPicker && (_parentId == null || _parentId!.isEmpty)) {
+    if (tier.requiresParentPicker &&
+        (_parentId == null || _parentId!.isEmpty)) {
       setState(() => _error = s.errParentRequired);
       return false;
     }
@@ -217,13 +231,15 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         setState(() => _error = s.errUserPassword);
         return;
       }
-      users.add(EntityUser(
-        id: d.id.isNotEmpty ? d.id : _genId('u'),
-        phone: phone,
-        password: pwd,
-        role: d.preset.role,
-        capabilities: _capsFor(d.preset),
-      ));
+      users.add(
+        EntityUser(
+          id: d.id.isNotEmpty ? d.id : _genId('u'),
+          phone: phone,
+          password: pwd,
+          role: d.preset.role,
+          capabilities: _capsFor(d.preset),
+        ),
+      );
     }
     final adminCount = users.where((u) => u.role == UserRole.ADMIN).length;
     if (adminCount != 1) {
@@ -272,21 +288,30 @@ class _AgentFormState extends ConsumerState<AgentForm> {
 
     try {
       if (existing != null) {
-        await repo.update(existing.copyWith(meta: meta, profile: profile, parent: parentId, users: users));
+        await repo.update(
+          existing.copyWith(
+            meta: meta,
+            profile: profile,
+            parent: parentId,
+            users: users,
+          ),
+        );
       } else {
-        await repo.create(Entity(
-          id: _genId(tier == AgentTier.sub ? 'subagent' : 'agent'),
-          meta: meta,
-          profile: profile,
-          parent: parentId,
-          type: tier.entityType,
-          users: users,
-        ));
+        await repo.create(
+          Entity(
+            id: _genId(tier == AgentTier.sub ? 'subagent' : 'agent'),
+            meta: meta,
+            profile: profile,
+            parent: parentId,
+            type: tier.entityType,
+            users: users,
+          ),
+        );
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_isEdit ? s.saved : s.created)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_isEdit ? s.saved : s.created)));
         Navigator.of(context).pop(true);
       }
     } catch (e) {
@@ -324,7 +349,10 @@ class _AgentFormState extends ConsumerState<AgentForm> {
               child: InkCard(
                 ruleColor: cs.error,
                 padding: const EdgeInsets.all(12),
-                child: Text(_error!, style: IntesharType.sans(13, color: cs.onSurface)),
+                child: Text(
+                  _error!,
+                  style: IntesharType.sans(13, color: cs.onSurface),
+                ),
               ),
             ),
           const Hairline(),
@@ -351,7 +379,11 @@ class _AgentFormState extends ConsumerState<AgentForm> {
                   FilledButton.icon(
                     onPressed: _saving ? null : _submit,
                     icon: _saving
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
                         : const Icon(Icons.check, size: 18),
                     label: Text(_isEdit ? s.save : s.create),
                   ),
@@ -371,10 +403,16 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         if (tier.requiresParentPicker) ...[
           SectionLabel(s.sectionParent),
           const SizedBox(height: 4),
-          Text(s.parentHint, style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+          Text(
+            s.parentHint,
+            style: IntesharType.sans(12.5, color: cs.onSurfaceVariant),
+          ),
           const SizedBox(height: 10),
           if (_loadingParents)
-            const Padding(padding: EdgeInsets.all(8), child: LinearProgressIndicator())
+            const Padding(
+              padding: EdgeInsets.all(8),
+              child: LinearProgressIndicator(),
+            )
           else if (_parentOptions.isEmpty)
             Text(s.noMainAgents, style: IntesharType.sans(13, color: cs.error))
           else
@@ -383,7 +421,9 @@ class _AgentFormState extends ConsumerState<AgentForm> {
               isExpanded: true,
               decoration: InputDecoration(labelText: s.fieldParent),
               items: _parentOptions
-                  .map((p) => DropdownMenuItem(value: p.id, child: Text(p.label)))
+                  .map(
+                    (p) => DropdownMenuItem(value: p.id, child: Text(p.label)),
+                  )
                   .toList(),
               onChanged: (v) => setState(() {
                 _parentId = v;
@@ -394,7 +434,10 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         ],
         SectionLabel(s.sectionIdentity),
         const SizedBox(height: 8),
-        TextField(controller: _name, decoration: InputDecoration(labelText: s.fieldName)),
+        TextField(
+          controller: _name,
+          decoration: InputDecoration(labelText: s.fieldName),
+        ),
         const SizedBox(height: 12),
         ImageUploadField(
           value: _logo.text.isEmpty ? null : _logo.text,
@@ -405,7 +448,10 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         const SizedBox(height: 22),
         SectionLabel(s.sectionGovernorates),
         const SizedBox(height: 4),
-        Text(s.governoratesHint, style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+        Text(
+          s.governoratesHint,
+          style: IntesharType.sans(12.5, color: cs.onSurfaceVariant),
+        ),
         const SizedBox(height: 10),
         GovernorateMultiSelect(
           selected: _governorates,
@@ -413,7 +459,11 @@ class _AgentFormState extends ConsumerState<AgentForm> {
           onChanged: (v) => setState(() => _governorates = v),
         ),
         const SizedBox(height: 22),
-        SectionLabel(Localizations.localeOf(context).languageCode == 'ar' ? 'ساعات الدخول' : 'Login hours'),
+        SectionLabel(
+          Localizations.localeOf(context).languageCode == 'ar'
+              ? 'ساعات الدخول'
+              : 'Login hours',
+        ),
         const SizedBox(height: 8),
         WorkingHoursEditor(
           value: _workingHours,
@@ -422,7 +472,10 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         const SizedBox(height: 22),
         SectionLabel(s.sectionOwner),
         const SizedBox(height: 8),
-        TextField(controller: _ownerName, decoration: InputDecoration(labelText: s.fieldOwnerName)),
+        TextField(
+          controller: _ownerName,
+          decoration: InputDecoration(labelText: s.fieldOwnerName),
+        ),
         const SizedBox(height: 12),
         ImageUploadField(
           value: null,
@@ -440,14 +493,20 @@ class _AgentFormState extends ConsumerState<AgentForm> {
           decoration: InputDecoration(labelText: s.fieldDocuments),
         ),
         const SizedBox(height: 12),
-        TextField(controller: _landmark, decoration: InputDecoration(labelText: s.fieldLandmark)),
+        TextField(
+          controller: _landmark,
+          decoration: InputDecoration(labelText: s.fieldLandmark),
+        ),
         const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
               child: TextField(
                 controller: _lat,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                  signed: true,
+                ),
                 decoration: InputDecoration(labelText: s.fieldLat),
               ),
             ),
@@ -455,7 +514,10 @@ class _AgentFormState extends ConsumerState<AgentForm> {
             Expanded(
               child: TextField(
                 controller: _lng,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                  signed: true,
+                ),
                 decoration: InputDecoration(labelText: s.fieldLng),
               ),
             ),
@@ -465,7 +527,11 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         TextField(
           controller: _contactPhone,
           keyboardType: TextInputType.phone,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11)],          decoration: InputDecoration(labelText: s.fieldPhone),
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(11),
+          ],
+          decoration: InputDecoration(labelText: s.fieldPhone),
         ),
         const SizedBox(height: 12),
         TextField(
@@ -479,9 +545,21 @@ class _AgentFormState extends ConsumerState<AgentForm> {
           const SizedBox(height: 8),
           Row(
             children: [
-              Expanded(child: ColorHexField(controller: _primary, label: s.fieldPrimary, hint: '#F5B100')),
+              Expanded(
+                child: ColorHexField(
+                  controller: _primary,
+                  label: s.fieldPrimary,
+                  hint: '#F5B100',
+                ),
+              ),
               const SizedBox(width: 12),
-              Expanded(child: ColorHexField(controller: _secondary, label: s.fieldSecondary, hint: '#2C3A55')),
+              Expanded(
+                child: ColorHexField(
+                  controller: _secondary,
+                  label: s.fieldSecondary,
+                  hint: '#2C3A55',
+                ),
+              ),
             ],
           ),
         ],
@@ -495,20 +573,27 @@ class _AgentFormState extends ConsumerState<AgentForm> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(s.usersSubtitle, style: IntesharType.sans(13, color: cs.onSurfaceVariant)),
+        Text(
+          s.usersSubtitle,
+          style: IntesharType.sans(13, color: cs.onSurfaceVariant),
+        ),
         const SizedBox(height: 14),
-        ..._users.asMap().entries.map((e) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _UserCard(
-                index: e.key,
-                draft: e.value,
-                s: s,
-                showPreset: showPreset,
-                effectiveCaps: _capsFor(e.value.preset),
-                onChanged: () => setState(() {}),
-                onRemove: (_users.length > 1) ? () => setState(() => _users.removeAt(e.key)) : null,
-              ),
-            )),
+        ..._users.asMap().entries.map(
+          (e) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _UserCard(
+              index: e.key,
+              draft: e.value,
+              s: s,
+              showPreset: showPreset,
+              effectiveCaps: _capsFor(e.value.preset),
+              onChanged: () => setState(() {}),
+              onRemove: (_users.length > 1)
+                  ? () => setState(() => _users.removeAt(e.key))
+                  : null,
+            ),
+          ),
+        ),
         if (_users.length < tier.maxUsers)
           OutlinedButton.icon(
             onPressed: _addUser,
@@ -531,9 +616,24 @@ class _StepHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
       child: Row(
         children: [
-          _StepPill(active: step == 0, done: step > 0, index: 1, label: s.stepDetails),
-          Expanded(child: Container(height: 2, color: Theme.of(context).colorScheme.outlineVariant)),
-          _StepPill(active: step == 1, done: false, index: 2, label: s.stepUsers),
+          _StepPill(
+            active: step == 0,
+            done: step > 0,
+            index: 1,
+            label: s.stepDetails,
+          ),
+          Expanded(
+            child: Container(
+              height: 2,
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
+          ),
+          _StepPill(
+            active: step == 1,
+            done: false,
+            index: 2,
+            label: s.stepUsers,
+          ),
         ],
       ),
     );
@@ -545,7 +645,12 @@ class _StepPill extends StatelessWidget {
   final bool done;
   final int index;
   final String label;
-  const _StepPill({required this.active, required this.done, required this.index, required this.label});
+  const _StepPill({
+    required this.active,
+    required this.done,
+    required this.index,
+    required this.label,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -564,10 +669,24 @@ class _StepPill extends StatelessWidget {
           ),
           child: done
               ? const Icon(Icons.check, size: 15, color: IntesharColors.ink)
-              : Text('$index', style: IntesharType.sans(12, w: FontWeight.w800, color: on ? IntesharColors.ink : cs.onSurfaceVariant)),
+              : Text(
+                  '$index',
+                  style: IntesharType.sans(
+                    12,
+                    w: FontWeight.w800,
+                    color: on ? IntesharColors.ink : cs.onSurfaceVariant,
+                  ),
+                ),
         ),
         const SizedBox(width: 8),
-        Text(label, style: IntesharType.sans(13, w: FontWeight.w700, color: on ? cs.onSurface : cs.onSurfaceVariant)),
+        Text(
+          label,
+          style: IntesharType.sans(
+            13,
+            w: FontWeight.w700,
+            color: on ? cs.onSurface : cs.onSurfaceVariant,
+          ),
+        ),
         const SizedBox(width: 10),
       ],
     );
@@ -598,14 +717,22 @@ class _UserCard extends StatelessWidget {
     final locale = s.ar ? 'ar' : 'en';
     return InkCard(
       padding: const EdgeInsets.all(14),
-      ruleColor: draft.preset == AgentUserPreset.admin ? IntesharColors.saffron : cs.outline,
+      ruleColor: draft.preset == AgentUserPreset.admin
+          ? IntesharColors.saffron
+          : cs.outline,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Text(showPreset ? s.userN(index + 1) : s.adminUserLabel,
-                  style: IntesharType.sans(13, w: FontWeight.w800, color: cs.onSurface)),
+              Text(
+                showPreset ? s.userN(index + 1) : s.adminUserLabel,
+                style: IntesharType.sans(
+                  13,
+                  w: FontWeight.w800,
+                  color: cs.onSurface,
+                ),
+              ),
               const Spacer(),
               if (onRemove != null)
                 IconButton(
@@ -619,14 +746,23 @@ class _UserCard extends StatelessWidget {
           TextField(
             controller: draft.phone,
             keyboardType: TextInputType.phone,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11)],            decoration: InputDecoration(labelText: s.fieldUserPhone, isDense: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(11),
+            ],
+            decoration: InputDecoration(
+              labelText: s.fieldUserPhone,
+              isDense: true,
+            ),
           ),
           const SizedBox(height: 10),
           TextField(
             controller: draft.password,
             obscureText: true,
             decoration: InputDecoration(
-              labelText: draft.existingPassword.isNotEmpty ? s.fieldUserPasswordKeep : s.fieldUserPassword,
+              labelText: draft.existingPassword.isNotEmpty
+                  ? s.fieldUserPasswordKeep
+                  : s.fieldUserPassword,
               isDense: true,
             ),
           ),
@@ -635,9 +771,17 @@ class _UserCard extends StatelessWidget {
             DropdownButtonFormField<AgentUserPreset>(
               initialValue: draft.preset,
               isExpanded: true,
-              decoration: InputDecoration(labelText: s.fieldPreset, isDense: true),
+              decoration: InputDecoration(
+                labelText: s.fieldPreset,
+                isDense: true,
+              ),
               items: AgentUserPreset.values
-                  .map((p) => DropdownMenuItem(value: p, child: Text(p.label(locale))))
+                  .map(
+                    (p) => DropdownMenuItem(
+                      value: p,
+                      child: Text(p.label(locale)),
+                    ),
+                  )
                   .toList(),
               onChanged: (v) {
                 if (v != null) {
@@ -652,7 +796,13 @@ class _UserCard extends StatelessWidget {
             spacing: 6,
             runSpacing: 6,
             children: effectiveCaps
-                .map((c) => StampPill(label: c.label(locale), color: cs.outline, filled: false))
+                .map(
+                  (c) => StampPill(
+                    label: c.label(locale),
+                    color: cs.outline,
+                    filled: false,
+                  ),
+                )
                 .toList(),
           ),
         ],
@@ -666,22 +816,30 @@ class _UserDraft {
   final TextEditingController phone;
   final TextEditingController password;
   AgentUserPreset preset;
-  final String existingPassword; // hashed password from an existing user, '' for new
+  final String
+  existingPassword; // hashed password from an existing user, '' for new
 
-  _UserDraft({required this.id, required String phoneText, required this.preset, this.existingPassword = ''})
-      : phone = TextEditingController(text: phoneText),
-        password = TextEditingController();
+  _UserDraft({
+    required this.id,
+    required String phoneText,
+    required this.preset,
+    this.existingPassword = '',
+  }) : phone = TextEditingController(text: phoneText),
+       password = TextEditingController();
 
   factory _UserDraft.blank(AgentUserPreset preset) =>
       _UserDraft(id: '', phoneText: '', preset: preset);
 
   factory _UserDraft.fromUser(EntityUser u) => _UserDraft(
-        id: u.id,
-        phoneText: u.phone,
-        preset: presetForCapabilities(u.role, u.capabilities) ??
-            (u.role == UserRole.ADMIN ? AgentUserPreset.admin : AgentUserPreset.monitoring),
-        existingPassword: u.password,
-      );
+    id: u.id,
+    phoneText: u.phone,
+    preset:
+        presetForCapabilities(u.role, u.capabilities) ??
+        (u.role == UserRole.ADMIN
+            ? AgentUserPreset.admin
+            : AgentUserPreset.monitoring),
+    existingPassword: u.password,
+  );
 
   void dispose() {
     phone.dispose();

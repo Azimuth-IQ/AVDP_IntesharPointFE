@@ -17,7 +17,8 @@ import 'package:inteshar/features/inventory/domain/product_definition.dart';
 import 'package:inteshar/features/pricing/data/pricing_repository.dart';
 import 'package:inteshar/features/transactions/data/transaction_repository.dart';
 import 'package:inteshar/features/transactions/domain/transaction.dart';
-import 'package:inteshar/features/transactions/domain/tx_preflight.dart' as preflight;
+import 'package:inteshar/features/transactions/domain/tx_preflight.dart'
+    as preflight;
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/brand_cta.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
@@ -91,8 +92,9 @@ class _NewTransactionPageState extends ConsumerState<NewTransactionPage> {
       } catch (_) {
         // Pricing is optional; fall back to definition default prices.
       }
-      final sellableDefs =
-          defs.where((d) => (availableBySku[d.sku] ?? 0) > 0).toList();
+      final sellableDefs = defs
+          .where((d) => (availableBySku[d.sku] ?? 0) > 0)
+          .toList();
 
       if (mounted) {
         setState(() {
@@ -103,11 +105,9 @@ class _NewTransactionPageState extends ConsumerState<NewTransactionPage> {
           if (children.isNotEmpty) _destination = children.first;
           if (sellableDefs.isNotEmpty && _lines.isEmpty) {
             final first = sellableDefs.first;
-            _lines.add(_LineItem(
-              def: first,
-              amount: 1,
-              price: _defaultPriceFor(first),
-            ));
+            _lines.add(
+              _LineItem(def: first, amount: 1, price: _defaultPriceFor(first)),
+            );
           }
           _loading = false;
         });
@@ -189,7 +189,8 @@ class _NewTransactionPageState extends ConsumerState<NewTransactionPage> {
     return (price * l.amount).toString();
   }
 
-  int get _grandTotal => _lines.fold(0, (s, l) => s + (int.tryParse(_lineTotal(l)) ?? 0));
+  int get _grandTotal =>
+      _lines.fold(0, (s, l) => s + (int.tryParse(_lineTotal(l)) ?? 0));
   int get _totalUnits => _lines.fold(0, (s, l) => s + l.amount);
 
   /// Default unit price for [def]: the agent effective price when set, else the
@@ -233,8 +234,8 @@ class _NewTransactionPageState extends ConsumerState<NewTransactionPage> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _result != null
-              ? _ResultView(result: _result!)
-              : _buildForm(),
+          ? _ResultView(result: _result!)
+          : _buildForm(),
     );
   }
 
@@ -251,12 +252,18 @@ class _NewTransactionPageState extends ConsumerState<NewTransactionPage> {
           children: [
             Text(
               l.newTxnIssueStock,
-              style: IntesharType.display(32, color: cs.onSurface, w: FontWeight.w900),
+              style: IntesharType.display(
+                32,
+                color: cs.onSurface,
+                w: FontWeight.w900,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               l.newTxnIssueStockHint,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
             ),
             const SizedBox(height: 24),
             // Source/Destination paired cards
@@ -276,13 +283,15 @@ class _NewTransactionPageState extends ConsumerState<NewTransactionPage> {
                 onPressed: _sellableDefs.isEmpty
                     ? null
                     : () => setState(() {
-                          final d = _sellableDefs.first;
-                          _lines.add(_LineItem(
+                        final d = _sellableDefs.first;
+                        _lines.add(
+                          _LineItem(
                             def: d,
                             amount: 1,
                             price: _defaultPriceFor(d),
-                          ));
-                        }),
+                          ),
+                        );
+                      }),
                 icon: const Icon(Icons.add, size: 16),
                 label: Text(l.newTxnAddLine),
               ),
@@ -295,10 +304,9 @@ class _NewTransactionPageState extends ConsumerState<NewTransactionPage> {
                   isAr
                       ? 'لا يوجد مخزون متاح للإصدار من هذا المصدر.'
                       : 'No sellable stock available at the source.',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: cs.onSurfaceVariant),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
                 ),
               ),
             ..._lines.asMap().entries.map((entry) {
@@ -322,7 +330,9 @@ class _NewTransactionPageState extends ConsumerState<NewTransactionPage> {
                     }
                     _lines[i] = next;
                   }),
-                  onRemove: _lines.length > 1 ? () => setState(() => _lines.removeAt(i)) : null,
+                  onRemove: _lines.length > 1
+                      ? () => setState(() => _lines.removeAt(i))
+                      : null,
                 ),
               );
             }),
@@ -348,7 +358,10 @@ class _NewTransactionPageState extends ConsumerState<NewTransactionPage> {
                   const SizedBox(width: 12),
                   Text(
                     l.newTxnUnitsCount(_totalUnits),
-                    style: IntesharType.mono(12, color: IntesharColors.ink.withValues(alpha: 0.65)),
+                    style: IntesharType.mono(
+                      12,
+                      color: IntesharColors.ink.withValues(alpha: 0.65),
+                    ),
                   ),
                   const Spacer(),
                   Text(
@@ -378,7 +391,12 @@ class _NewTransactionPageState extends ConsumerState<NewTransactionPage> {
                   children: [
                     Icon(Icons.error_outline, size: 18, color: cs.error),
                     const SizedBox(width: 10),
-                    Expanded(child: Text(_error!, style: TextStyle(color: cs.onSurface))),
+                    Expanded(
+                      child: Text(
+                        _error!,
+                        style: TextStyle(color: cs.onSurface),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -414,7 +432,8 @@ class _NewTransactionPageState extends ConsumerState<NewTransactionPage> {
               label: _submitting ? l.newTxnPosting : l.newTxnSubmit,
               leading: _submitting ? null : Icons.send,
               loading: _submitting,
-              onPressed: (_submitting ||
+              onPressed:
+                  (_submitting ||
                       _destination == null ||
                       _lines.isEmpty ||
                       _hasOverAllocation)
@@ -514,23 +533,36 @@ class _RouteEndpoint extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(eyebrow.toUpperCase(), style: IntesharType.overline(color: accent)),
+              Text(
+                eyebrow.toUpperCase(),
+                style: IntesharType.overline(color: accent),
+              ),
               const Spacer(),
               ?badge,
             ],
           ),
           const SizedBox(height: 12),
-          if (child != null) child! else ...[
+          if (child != null)
+            child!
+          else ...[
             Text(
               name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: IntesharType.sans(20, color: cs.onSurface, w: FontWeight.w700),
+              style: IntesharType.sans(
+                20,
+                color: cs.onSurface,
+                w: FontWeight.w700,
+              ),
             ),
             const SizedBox(height: 4),
             SelectableText(
               subtitle,
-              style: IntesharType.mono(11, color: cs.onSurfaceVariant, letterSpacing: 0.4),
+              style: IntesharType.mono(
+                11,
+                color: cs.onSurfaceVariant,
+                letterSpacing: 0.4,
+              ),
             ),
           ],
         ],
@@ -543,7 +575,11 @@ class _DestPicker extends StatelessWidget {
   final List<Entity> children;
   final Entity? destination;
   final ValueChanged<Entity?> onChanged;
-  const _DestPicker({required this.children, required this.destination, required this.onChanged});
+  const _DestPicker({
+    required this.children,
+    required this.destination,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -567,9 +603,12 @@ class _DestPicker extends StatelessWidget {
       child: Theme(
         data: Theme.of(context).copyWith(
           inputDecorationTheme: Theme.of(context).inputDecorationTheme.copyWith(
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              ),
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 10,
+            ),
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -578,23 +617,27 @@ class _DestPicker extends StatelessWidget {
               initialValue: d,
               isExpanded: true,
               icon: const Icon(Icons.unfold_more, size: 18),
-              decoration: InputDecoration(
-                labelText: l.newTxnChooseEntity,
-              ),
+              decoration: InputDecoration(labelText: l.newTxnChooseEntity),
               // `children` == readDirectChildren output: the correct downstream
               // tier only.  Do not filter or broaden this list here.
               items: children
-                  .map((e) => DropdownMenuItem(
-                        value: e,
-                        child: Text('${e.meta.name} (${e.type.label})'),
-                      ))
+                  .map(
+                    (e) => DropdownMenuItem(
+                      value: e,
+                      child: Text('${e.meta.name} (${e.type.label})'),
+                    ),
+                  )
                   .toList(),
               onChanged: onChanged,
             ),
             const SizedBox(height: 8),
             SelectableText(
               d.id,
-              style: IntesharType.mono(11, color: cs.onSurfaceVariant, letterSpacing: 0.4),
+              style: IntesharType.mono(
+                11,
+                color: cs.onSurfaceVariant,
+                letterSpacing: 0.4,
+              ),
             ),
           ],
         ),
@@ -649,7 +692,12 @@ class _LineCard extends StatelessWidget {
                 ),
                 child: Text(
                   (index + 1).toString().padLeft(2, '0'),
-                  style: IntesharType.mono(12, color: cs.onSurfaceVariant, w: FontWeight.w700, letterSpacing: 0.4),
+                  style: IntesharType.mono(
+                    12,
+                    color: cs.onSurfaceVariant,
+                    w: FontWeight.w700,
+                    letterSpacing: 0.4,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -657,12 +705,17 @@ class _LineCard extends StatelessWidget {
                 child: DropdownButtonFormField<ProductDefinition>(
                   initialValue: line.def,
                   isExpanded: true,
-                  decoration: InputDecoration(labelText: l.newTxnProduct, isDense: true),
+                  decoration: InputDecoration(
+                    labelText: l.newTxnProduct,
+                    isDense: true,
+                  ),
                   items: defs
-                      .map((d) => DropdownMenuItem(
-                            value: d,
-                            child: Text('${d.name} (${d.sku})'),
-                          ))
+                      .map(
+                        (d) => DropdownMenuItem(
+                          value: d,
+                          child: Text('${d.name} (${d.sku})'),
+                        ),
+                      )
                       .toList(),
                   onChanged: (d) {
                     if (d != null) onChanged(line.copyWith(def: d));
@@ -687,7 +740,8 @@ class _LineCard extends StatelessWidget {
                   key: ValueKey('qty-$index-${line.def.sku}'),
                   initialValue: line.amount.toString(),
                   keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],                  style: IntesharType.mono(14, color: cs.onSurface),
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  style: IntesharType.mono(14, color: cs.onSurface),
                   decoration: InputDecoration(
                     labelText: l.newTxnQty,
                     isDense: true,
@@ -696,11 +750,14 @@ class _LineCard extends StatelessWidget {
                     helperMaxLines: 1,
                     // TODO(l10n): promote to ARB key newTxnOnlyNAvailable.
                     errorText: overAllocated
-                        ? (isAr ? 'المتاح فقط $available' : 'Only $available available')
+                        ? (isAr
+                              ? 'المتاح فقط $available'
+                              : 'Only $available available')
                         : null,
                     errorMaxLines: 2,
                   ),
-                  onChanged: (v) => onChanged(line.copyWith(amount: int.tryParse(v) ?? 1)),
+                  onChanged: (v) =>
+                      onChanged(line.copyWith(amount: int.tryParse(v) ?? 1)),
                 ),
               ),
               const SizedBox(width: 10),
@@ -710,14 +767,21 @@ class _LineCard extends StatelessWidget {
                   key: ValueKey('price-$index-${line.def.sku}'),
                   initialValue: line.price ?? line.def.defaultPrice,
                   keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],                  style: IntesharType.mono(14, color: cs.onSurface),
-                  decoration: InputDecoration(labelText: l.newTxnUnitPrice, isDense: true),
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  style: IntesharType.mono(14, color: cs.onSurface),
+                  decoration: InputDecoration(
+                    labelText: l.newTxnUnitPrice,
+                    isDense: true,
+                  ),
                   onChanged: (v) => onChanged(line.copyWith(price: v)),
                 ),
               ),
               const SizedBox(width: 10),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: cs.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(IntesharRadii.xs),
@@ -726,11 +790,18 @@ class _LineCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(l.newTxnLineTotal, style: IntesharType.overline(color: cs.onSurfaceVariant)),
+                    Text(
+                      l.newTxnLineTotal,
+                      style: IntesharType.overline(color: cs.onSurfaceVariant),
+                    ),
                     const SizedBox(height: 2),
                     Text(
                       Formatters.iqd(total),
-                      style: IntesharType.mono(13, color: cs.onSurface, w: FontWeight.w700),
+                      style: IntesharType.mono(
+                        13,
+                        color: cs.onSurface,
+                        w: FontWeight.w700,
+                      ),
                     ),
                   ],
                 ),
@@ -757,32 +828,33 @@ class _ResultView extends StatelessWidget {
     final completed = result.status == TransactionStatus.COMPLETED;
     // Poll budget exhausted while the processor is still draining: neutral
     // 'still processing', NOT a red 'declined'. FAILED stays declined.
-    final stillProcessing = result.status == TransactionStatus.PENDING ||
+    final stillProcessing =
+        result.status == TransactionStatus.PENDING ||
         result.status == TransactionStatus.PROCESSING;
     final tone = completed
         ? IntesharColors.sage
         : stillProcessing
-            ? IntesharColors.saffronDeep
-            : cs.error;
+        ? IntesharColors.saffronDeep
+        : cs.error;
     final icon = completed
         ? Icons.check
         : stillProcessing
-            ? Icons.schedule
-            : Icons.close;
+        ? Icons.schedule
+        : Icons.close;
     // TODO(l10n): promote 'still processing' title/subtitle to ARB keys
     // newTxnStillProcessing / newTxnResultStillProcessing.
     final title = completed
         ? l.newTxnPostedToLedger
         : stillProcessing
-            ? (isAr ? 'قيد المعالجة' : 'Still processing')
-            : l.newTxnDeclined;
+        ? (isAr ? 'قيد المعالجة' : 'Still processing')
+        : l.newTxnDeclined;
     final subtitle = completed
         ? l.newTxnResultPosted
         : stillProcessing
-            ? (isAr
-                ? 'لم تكتمل بعد — تحقق من قائمة المعاملات'
-                : 'Not settled yet — check the transactions list')
-            : l.newTxnResultDeclined;
+        ? (isAr
+              ? 'لم تكتمل بعد — تحقق من قائمة المعاملات'
+              : 'Not settled yet — check the transactions list')
+        : l.newTxnResultDeclined;
 
     return Center(
       child: ConstrainedBox(
@@ -836,7 +908,11 @@ class _ResultView extends StatelessWidget {
                 Center(
                   child: Text(
                     l.newTxnRef(result.id),
-                    style: IntesharType.mono(11, color: cs.onSurfaceVariant, letterSpacing: 0.2),
+                    style: IntesharType.mono(
+                      11,
+                      color: cs.onSurfaceVariant,
+                      letterSpacing: 0.2,
+                    ),
                   ),
                 ),
                 if (result.processMessage.isNotEmpty) ...[
@@ -850,7 +926,11 @@ class _ResultView extends StatelessWidget {
                     ),
                     child: Text(
                       result.processMessage,
-                      style: IntesharType.mono(12, color: cs.onSurface, letterSpacing: 0).copyWith(height: 1.5),
+                      style: IntesharType.mono(
+                        12,
+                        color: cs.onSurface,
+                        letterSpacing: 0,
+                      ).copyWith(height: 1.5),
                     ),
                   ),
                 ],
@@ -916,7 +996,11 @@ class _LineItem {
   const _LineItem({required this.def, required this.amount, this.price});
 
   _LineItem copyWith({ProductDefinition? def, int? amount, String? price}) =>
-      _LineItem(def: def ?? this.def, amount: amount ?? this.amount, price: price ?? this.price);
+      _LineItem(
+        def: def ?? this.def,
+        amount: amount ?? this.amount,
+        price: price ?? this.price,
+      );
 }
 
 // ── Transaction poll helper ──────────────────────────────────────────────────
@@ -932,6 +1016,7 @@ const Duration _kTxPollInterval = Duration(milliseconds: 1500);
 /// Extracted as a top-level function so it can be unit-tested without a
 /// widget harness. [elapsed] is the time since the first poll attempt;
 /// [deadline] defaults to the 30 s wall-clock budget ([_kTxPollDeadline]).
-bool txPollShouldContinue(Duration elapsed,
-    {Duration deadline = _kTxPollDeadline}) =>
-    elapsed < deadline;
+bool txPollShouldContinue(
+  Duration elapsed, {
+  Duration deadline = _kTxPollDeadline,
+}) => elapsed < deadline;

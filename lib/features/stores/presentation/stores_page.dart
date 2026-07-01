@@ -44,7 +44,9 @@ class _StoresPageState extends ConsumerState<StoresPage> {
   bool get _isHq => _viewer?.type == EntityType.INTESHAR;
   bool get _canAdd {
     final t = _viewer?.type;
-    return t == EntityType.INTESHAR || t == EntityType.AGENT1 || t == EntityType.AGENT2;
+    return t == EntityType.INTESHAR ||
+        t == EntityType.AGENT1 ||
+        t == EntityType.AGENT2;
   }
 
   @override
@@ -92,7 +94,9 @@ class _StoresPageState extends ConsumerState<StoresPage> {
         existing = await _repo.read(editId);
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
         }
         return;
       }
@@ -105,14 +109,17 @@ class _StoresPageState extends ConsumerState<StoresPage> {
         parentOptions = await _repo.listParentAgents(viewer.id);
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
         }
         return;
       }
       if (parentOptions.isEmpty) {
         if (mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text(StoreStrings.of(context).noParentAgents)));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(StoreStrings.of(context).noParentAgents)),
+          );
         }
         return;
       }
@@ -121,7 +128,11 @@ class _StoresPageState extends ConsumerState<StoresPage> {
     final parentId = parentOptions?.first.id ?? existing?.parent ?? viewer.id;
     final ok = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => StoreForm(parentId: parentId, existing: existing, parentOptions: parentOptions),
+        builder: (_) => StoreForm(
+          parentId: parentId,
+          existing: existing,
+          parentOptions: parentOptions,
+        ),
       ),
     );
     if (ok == true) _reload();
@@ -183,7 +194,11 @@ class _StoresPageState extends ConsumerState<StoresPage> {
         padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
         itemCount: _items.length,
         separatorBuilder: (_, _) => const SizedBox(height: 10),
-        itemBuilder: (_, i) => _StoreCard(store: _items[i], s: s, onTap: () => _openDetail(_items[i])),
+        itemBuilder: (_, i) => _StoreCard(
+          store: _items[i],
+          s: s,
+          onTap: () => _openDetail(_items[i]),
+        ),
       ),
     );
   }
@@ -216,7 +231,11 @@ class _StoreCard extends StatelessWidget {
                   store.meta.name.isEmpty ? store.id : store.meta.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: IntesharType.sans(17, color: cs.onSurface, w: FontWeight.w800),
+                  style: IntesharType.sans(
+                    17,
+                    color: cs.onSurface,
+                    w: FontWeight.w800,
+                  ),
                 ),
               ),
               StampPill(
@@ -227,29 +246,54 @@ class _StoreCard extends StatelessWidget {
           ),
           if (owner.isNotEmpty) ...[
             const SizedBox(height: 6),
-            Row(children: [
-              Icon(Icons.person_outline, size: 14, color: cs.onSurfaceVariant),
-              const SizedBox(width: 5),
-              Expanded(
-                child: Text(owner,
+            Row(
+              children: [
+                Icon(
+                  Icons.person_outline,
+                  size: 14,
+                  color: cs.onSurfaceVariant,
+                ),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    owner,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
-              ),
-            ]),
+                    style: IntesharType.sans(12.5, color: cs.onSurfaceVariant),
+                  ),
+                ),
+              ],
+            ),
           ],
           if (phone.isNotEmpty) ...[
             const SizedBox(height: 4),
-            Row(children: [
-              Icon(Icons.phone_outlined, size: 14, color: cs.onSurfaceVariant),
-              const SizedBox(width: 5),
-              Text(phone, style: IntesharType.mono(12, color: cs.onSurfaceVariant)),
-              const SizedBox(width: 14),
-              Icon(Icons.place_outlined, size: 14, color: cs.onSurfaceVariant),
-              const SizedBox(width: 4),
-              Text(govs.isEmpty ? s.noRegion : governorateLabel(govs.first, locale),
-                  style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
-            ]),
+            Row(
+              children: [
+                Icon(
+                  Icons.phone_outlined,
+                  size: 14,
+                  color: cs.onSurfaceVariant,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  phone,
+                  style: IntesharType.mono(12, color: cs.onSurfaceVariant),
+                ),
+                const SizedBox(width: 14),
+                Icon(
+                  Icons.place_outlined,
+                  size: 14,
+                  color: cs.onSurfaceVariant,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  govs.isEmpty
+                      ? s.noRegion
+                      : governorateLabel(govs.first, locale),
+                  style: IntesharType.sans(12.5, color: cs.onSurfaceVariant),
+                ),
+              ],
+            ),
           ],
         ],
       ),
@@ -283,6 +327,7 @@ class _StoreDetailSheetState extends ConsumerState<StoreDetailSheet> {
     final a = ref.read(authStateProvider).valueOrNull;
     return a is AuthAuthenticated ? a.entity.id : '';
   }
+
   PosStats? _stats;
   bool _busy = false;
 
@@ -329,9 +374,15 @@ class _StoreDetailSheetState extends ConsumerState<StoreDetailSheet> {
   }
 
   Future<void> _resetPassword(StoreStrings s) async {
-    final phone = widget.store.users.isNotEmpty ? widget.store.users.first.phone : '';
+    final phone = widget.store.users.isNotEmpty
+        ? widget.store.users.first.phone
+        : '';
     if (phone.isEmpty) return;
-    final pass = await _promptText(s.resetPassword, s.newPassword, obscure: true);
+    final pass = await _promptText(
+      s.resetPassword,
+      s.newPassword,
+      obscure: true,
+    );
     if (pass == null || pass.trim().isEmpty) return;
     setState(() => _busy = true);
     try {
@@ -359,8 +410,9 @@ class _StoreDetailSheetState extends ConsumerState<StoreDetailSheet> {
       // (a zero-balance store could never be topped up).
       final auth = ref.read(authStateProvider).valueOrNull;
       final grantorId = auth is AuthAuthenticated ? auth.entity.id : null;
-      final avail =
-          grantorId != null ? (await pricing.balance(entityId: grantorId)).available : null;
+      final avail = grantorId != null
+          ? (await pricing.balance(entityId: grantorId)).available
+          : null;
       if (avail != null && amount > avail) {
         if (mounted) setState(() => _busy = false);
         _toast(s.insufficientBalance);
@@ -384,12 +436,23 @@ class _StoreDetailSheetState extends ConsumerState<StoreDetailSheet> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(s.deleteTitle(widget.store.meta.name.isEmpty ? widget.store.id : widget.store.meta.name)),
+        title: Text(
+          s.deleteTitle(
+            widget.store.meta.name.isEmpty
+                ? widget.store.id
+                : widget.store.meta.name,
+          ),
+        ),
         content: Text(s.deleteBody),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.cancel)),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(s.cancel),
+          ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(s.delete),
           ),
@@ -407,7 +470,12 @@ class _StoreDetailSheetState extends ConsumerState<StoreDetailSheet> {
     }
   }
 
-  Future<String?> _promptText(String title, String label, {bool obscure = false, bool number = false}) {
+  Future<String?> _promptText(
+    String title,
+    String label, {
+    bool obscure = false,
+    bool number = false,
+  }) {
     final ctrl = TextEditingController();
     final s = StoreStrings.of(context);
     return showDialog<String>(
@@ -418,12 +486,20 @@ class _StoreDetailSheetState extends ConsumerState<StoreDetailSheet> {
           controller: ctrl,
           autofocus: true,
           obscureText: obscure,
-          keyboardType: number ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+          keyboardType: number
+              ? const TextInputType.numberWithOptions(decimal: true)
+              : TextInputType.text,
           decoration: InputDecoration(labelText: label),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(s.cancel)),
-          FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text), child: Text(s.save)),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(s.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text),
+            child: Text(s.save),
+          ),
         ],
       ),
     );
@@ -453,25 +529,39 @@ class _StoreDetailSheetState extends ConsumerState<StoreDetailSheet> {
               children: [
                 Expanded(
                   child: Text(
-                    widget.store.meta.name.isEmpty ? widget.store.id : widget.store.meta.name,
-                    style: IntesharType.serif(20, color: cs.onSurface, w: FontWeight.w800),
+                    widget.store.meta.name.isEmpty
+                        ? widget.store.id
+                        : widget.store.meta.name,
+                    style: IntesharType.serif(
+                      20,
+                      color: cs.onSurface,
+                      w: FontWeight.w800,
+                    ),
                   ),
                 ),
-                StampPill(label: _active ? s.active : s.disabled, color: _active ? IntesharColors.sage : cs.outline),
+                StampPill(
+                  label: _active ? s.active : s.disabled,
+                  color: _active ? IntesharColors.sage : cs.outline,
+                ),
               ],
             ),
             const SizedBox(height: 16),
             Row(
               children: [
-                _Stat(label: s.balance, value: (st?.balanceAvailable ?? 0).toStringAsFixed(0)),
+                _Stat(
+                  label: s.balance,
+                  value: (st?.balanceAvailable ?? 0).toStringAsFixed(0),
+                ),
                 _Stat(label: s.available, value: '${st?.availableCount ?? 0}'),
                 _Stat(label: s.sold, value: '${st?.printedCount ?? 0}'),
               ],
             ),
             const SizedBox(height: 14),
             _kv(cs, s.lastSeen, _fmtTs(st?.lastSeenAt, s)),
-            if ((st?.lastDeviceModel ?? '').isNotEmpty) _kv(cs, s.device, st!.lastDeviceModel!),
-            if ((st?.lastAppVersion ?? '').isNotEmpty) _kv(cs, s.appVersion, st!.lastAppVersion!),
+            if ((st?.lastDeviceModel ?? '').isNotEmpty)
+              _kv(cs, s.device, st!.lastDeviceModel!),
+            if ((st?.lastAppVersion ?? '').isNotEmpty)
+              _kv(cs, s.appVersion, st!.lastAppVersion!),
             const SizedBox(height: 18),
             if (_busy) const LinearProgressIndicator(minHeight: 2),
             const SizedBox(height: 6),
@@ -481,7 +571,10 @@ class _StoreDetailSheetState extends ConsumerState<StoreDetailSheet> {
               children: [
                 OutlinedButton.icon(
                   onPressed: _busy ? null : () => _toggleActive(s),
-                  icon: Icon(_active ? Icons.block : Icons.check_circle_outline, size: 18),
+                  icon: Icon(
+                    _active ? Icons.block : Icons.check_circle_outline,
+                    size: 18,
+                  ),
                   label: Text(_active ? s.deactivate : s.activate),
                 ),
                 OutlinedButton.icon(
@@ -495,7 +588,10 @@ class _StoreDetailSheetState extends ConsumerState<StoreDetailSheet> {
                 if (widget.store.parent == _viewerId)
                   OutlinedButton.icon(
                     onPressed: _busy ? null : () => _transfer(s),
-                    icon: const Icon(Icons.account_balance_wallet_outlined, size: 18),
+                    icon: const Icon(
+                      Icons.account_balance_wallet_outlined,
+                      size: 18,
+                    ),
                     label: Text(s.transfer),
                   ),
                 OutlinedButton.icon(
@@ -519,14 +615,26 @@ class _StoreDetailSheetState extends ConsumerState<StoreDetailSheet> {
   }
 
   Widget _kv(ColorScheme cs, String k, String v) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3),
-        child: Row(
-          children: [
-            Text('$k: ', style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
-            Expanded(child: Text(v, style: IntesharType.sans(12.5, color: cs.onSurface, w: FontWeight.w600))),
-          ],
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Row(
+      children: [
+        Text(
+          '$k: ',
+          style: IntesharType.sans(12.5, color: cs.onSurfaceVariant),
         ),
-      );
+        Expanded(
+          child: Text(
+            v,
+            style: IntesharType.sans(
+              12.5,
+              color: cs.onSurface,
+              w: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _Stat extends StatelessWidget {
@@ -559,7 +667,12 @@ class StoreForm extends ConsumerStatefulWidget {
   /// When non-empty (HQ creating a POS), the operator must pick the parent agent
   /// from these descendant AGENT1/AGENT2 entities; [parentId] is the default.
   final List<Entity>? parentOptions;
-  const StoreForm({super.key, required this.parentId, this.existing, this.parentOptions});
+  const StoreForm({
+    super.key,
+    required this.parentId,
+    this.existing,
+    this.parentOptions,
+  });
 
   @override
   ConsumerState<StoreForm> createState() => _StoreFormState();
@@ -578,7 +691,8 @@ class _StoreFormState extends ConsumerState<StoreForm> {
   bool _saving = false;
 
   bool get _isEdit => widget.existing != null;
-  bool get _showParentPicker => !_isEdit && (widget.parentOptions?.isNotEmpty ?? false);
+  bool get _showParentPicker =>
+      !_isEdit && (widget.parentOptions?.isNotEmpty ?? false);
 
   @override
   void initState() {
@@ -587,10 +701,14 @@ class _StoreFormState extends ConsumerState<StoreForm> {
     final e = widget.existing;
     _name = TextEditingController(text: e?.meta.name ?? '');
     _owner = TextEditingController(text: e?.profile?.ownerName ?? '');
-    _phone = TextEditingController(text: e != null && e.users.isNotEmpty ? e.users.first.phone : '');
+    _phone = TextEditingController(
+      text: e != null && e.users.isNotEmpty ? e.users.first.phone : '',
+    );
     _password = TextEditingController();
     _landmark = TextEditingController(text: e?.profile?.nearestLandmark ?? '');
-    _gov = (e?.meta.governorates.isNotEmpty ?? false) ? e!.meta.governorates.first : null;
+    _gov = (e?.meta.governorates.isNotEmpty ?? false)
+        ? e!.meta.governorates.first
+        : null;
     _workingHours = e?.meta.workingHours;
   }
 
@@ -613,9 +731,15 @@ class _StoreFormState extends ConsumerState<StoreForm> {
       if (_isEdit) {
         final e = widget.existing!;
         final updated = e.copyWith(
-          meta: e.meta.copyWith(name: _name.text.trim(), governorates: govs, workingHours: _workingHours),
-          profile: (e.profile ?? const EntityProfile())
-              .copyWith(ownerName: _owner.text.trim(), nearestLandmark: _landmark.text.trim()),
+          meta: e.meta.copyWith(
+            name: _name.text.trim(),
+            governorates: govs,
+            workingHours: _workingHours,
+          ),
+          profile: (e.profile ?? const EntityProfile()).copyWith(
+            ownerName: _owner.text.trim(),
+            nearestLandmark: _landmark.text.trim(),
+          ),
         );
         await repo.update(updated);
       } else {
@@ -623,23 +747,37 @@ class _StoreFormState extends ConsumerState<StoreForm> {
           id: 'store-${DateTime.now().millisecondsSinceEpoch}',
           type: EntityType.STORE,
           parent: _parentId,
-          meta: EntityMeta(name: _name.text.trim(), governorates: govs, workingHours: _workingHours),
+          meta: EntityMeta(
+            name: _name.text.trim(),
+            governorates: govs,
+            workingHours: _workingHours,
+          ),
           profile: EntityProfile(
             ownerName: _owner.text.trim(),
             nearestLandmark: _landmark.text.trim(),
             contactPhone: _phone.text.trim(),
           ),
-          users: [EntityUser(phone: _phone.text.trim(), password: _password.text, role: UserRole.USER)],
+          users: [
+            EntityUser(
+              phone: _phone.text.trim(),
+              password: _password.text,
+              role: UserRole.USER,
+            ),
+          ],
         );
         await repo.createStore(store);
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_isEdit ? s.updated : s.created)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_isEdit ? s.updated : s.created)));
       Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
       }
     }
   }
@@ -660,11 +798,15 @@ class _StoreFormState extends ConsumerState<StoreForm> {
                 isExpanded: true,
                 decoration: InputDecoration(labelText: s.parentAgent),
                 items: widget.parentOptions!
-                    .map((a) => DropdownMenuItem(
-                          value: a.id,
-                          child: Text('${a.meta.name.isEmpty ? a.id : a.meta.name} (${a.type.label})',
-                              overflow: TextOverflow.ellipsis),
-                        ))
+                    .map(
+                      (a) => DropdownMenuItem(
+                        value: a.id,
+                        child: Text(
+                          '${a.meta.name.isEmpty ? a.id : a.meta.name} (${a.type.label})',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
                     .toList(),
                 onChanged: (v) => setState(() => _parentId = v ?? _parentId),
                 validator: (v) => (v == null || v.isEmpty) ? s.required : null,
@@ -674,24 +816,49 @@ class _StoreFormState extends ConsumerState<StoreForm> {
             TextFormField(
               controller: _name,
               decoration: InputDecoration(labelText: s.shopName),
-              validator: (v) => (v == null || v.trim().isEmpty) ? s.required : null,
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? s.required : null,
             ),
             const SizedBox(height: 14),
-            TextFormField(controller: _owner, decoration: InputDecoration(labelText: s.ownerName)),
+            TextFormField(
+              controller: _owner,
+              decoration: InputDecoration(labelText: s.ownerName),
+            ),
             const SizedBox(height: 14),
             if (!_isEdit) ...[
               TextFormField(
                 controller: _phone,
                 keyboardType: TextInputType.phone,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11)],                decoration: InputDecoration(labelText: s.loginPhone),
-                validator: (v) => (v == null || v.trim().isEmpty) ? s.required : null,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(11),
+                ],
+                decoration: InputDecoration(labelText: s.loginPhone),
+                validator: (v) {
+                  final t = (v ?? '').trim();
+                  if (t.isEmpty) return s.required;
+                  if (!RegExp(r'^07\d{9}$').hasMatch(t)) {
+                    return s.ar
+                        ? 'رقم هاتف غير صحيح (مثال 07XXXXXXXXX)'
+                        : 'Invalid phone (e.g. 07XXXXXXXXX)';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 14),
               TextFormField(
                 controller: _password,
                 obscureText: true,
                 decoration: InputDecoration(labelText: s.password),
-                validator: (v) => (v == null || v.isEmpty) ? s.required : null,
+                validator: (v) {
+                  if (v == null || v.isEmpty) return s.required;
+                  if (v.length < 6) {
+                    return s.ar
+                        ? 'كلمة المرور 6 أحرف على الأقل'
+                        : 'Password must be at least 6 characters';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 14),
             ],
@@ -702,7 +869,10 @@ class _StoreFormState extends ConsumerState<StoreForm> {
               onChanged: (v) => setState(() => _gov = v),
             ),
             const SizedBox(height: 14),
-            TextFormField(controller: _landmark, decoration: InputDecoration(labelText: s.landmark)),
+            TextFormField(
+              controller: _landmark,
+              decoration: InputDecoration(labelText: s.landmark),
+            ),
             const SizedBox(height: 20),
             WorkingHoursEditor(
               value: _workingHours,
@@ -712,7 +882,11 @@ class _StoreFormState extends ConsumerState<StoreForm> {
             FilledButton(
               onPressed: _saving ? null : () => _save(s),
               child: _saving
-                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                   : Text(s.save),
             ),
           ],

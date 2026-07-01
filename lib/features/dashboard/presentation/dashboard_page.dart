@@ -30,7 +30,8 @@ class _DashData {
   final List<AppTransaction> allTxns;
   final Map<String, String> entityNames; // id → meta.name
   final int childCount; // direct children, counted via parent links
-  final List<Entity> children; // direct children (for the balance transfer picker)
+  final List<Entity>
+  children; // direct children (for the balance transfer picker)
   final AgentBalance balance;
 
   const _DashData({
@@ -119,7 +120,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
     if (entity == null) return const SizedBox.shrink();
 
-    final canTransfer = auth is AuthAuthenticated &&
+    final canTransfer =
+        auth is AuthAuthenticated &&
         auth.can({Capability.CREATE_TRANSACTIONS, Capability.MANAGE_POS});
 
     return MaxWidthBox(
@@ -128,12 +130,15 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         child: _loading
             ? const Center(child: CircularProgressIndicator())
             : _error != null
-                ? ListView(
-                    children: [
-                      ErrorState(error: _error!, onRetry: _load),
-                    ],
-                  )
-                : _DashContent(entity: entity, data: _data!, onRefresh: _load, canTransfer: canTransfer),
+            ? ListView(
+                children: [ErrorState(error: _error!, onRetry: _load)],
+              )
+            : _DashContent(
+                entity: entity,
+                data: _data!,
+                onRefresh: _load,
+                canTransfer: canTransfer,
+              ),
       ),
     );
   }
@@ -147,20 +152,30 @@ class _DashContent extends StatelessWidget {
   final VoidCallback onRefresh;
   final bool canTransfer;
 
-  const _DashContent({required this.entity, required this.data, required this.onRefresh, required this.canTransfer});
+  const _DashContent({
+    required this.entity,
+    required this.data,
+    required this.onRefresh,
+    required this.canTransfer,
+  });
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
 
     // Compute KPI values
-    final availableProducts = data.products.where((p) => p.status == ProductStatus.AVAILABLE).toList();
-    final availableSkus = <String>{for (final p in availableProducts) p.productDefinition.sku};
+    final availableProducts = data.products
+        .where((p) => p.status == ProductStatus.AVAILABLE)
+        .toList();
+    final availableSkus = <String>{
+      for (final p in availableProducts) p.productDefinition.sku,
+    };
 
     // Group available count by SKU
     final availableCountBySku = <String, int>{};
     for (final p in availableProducts) {
-      availableCountBySku[p.productDefinition.sku] = (availableCountBySku[p.productDefinition.sku] ?? 0) + 1;
+      availableCountBySku[p.productDefinition.sku] =
+          (availableCountBySku[p.productDefinition.sku] ?? 0) + 1;
     }
 
     // Low stock: SKUs below this account's configured threshold (falls back to
@@ -250,8 +265,8 @@ class _SlimHeader extends StatelessWidget {
     final subtitle = entity.type == EntityType.INTESHAR
         ? l.dashPlatformOverview
         : entity.meta.slogan.isNotEmpty
-            ? entity.meta.slogan
-            : entity.type.label;
+        ? entity.meta.slogan
+        : entity.type.label;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -262,7 +277,11 @@ class _SlimHeader extends StatelessWidget {
             children: [
               Text(
                 entity.meta.name,
-                style: IntesharType.display(28, color: cs.onSurface, w: FontWeight.w800),
+                style: IntesharType.display(
+                  28,
+                  color: cs.onSurface,
+                  w: FontWeight.w800,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
@@ -324,7 +343,9 @@ class _KpiRow extends StatelessWidget {
       _KpiTile(
         label: l.dashKpiLowStock,
         value: lowStockCount.toString(),
-        caption: lowStockCount == 0 ? l.dashKpiAllHealthy : l.dashKpiNeedsAttention,
+        caption: lowStockCount == 0
+            ? l.dashKpiAllHealthy
+            : l.dashKpiNeedsAttention,
         icon: Icons.warning_amber_rounded,
         tint: IntesharColors.oxblood,
       ),
@@ -332,17 +353,25 @@ class _KpiRow extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (ctx, c) {
-        final cols = c.maxWidth >= 980 ? 4 : c.maxWidth >= 560 ? 2 : 1;
+        final cols = c.maxWidth >= 980
+            ? 4
+            : c.maxWidth >= 560
+            ? 2
+            : 1;
         if (cols == 1) {
           // Stretch each card to the full column width. Without this the Column
           // centers cards at their own content width, so on phones they render
           // ragged — different widths and heights per card.
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: tiles.map((t) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: t,
-            )).toList(),
+            children: tiles
+                .map(
+                  (t) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: t,
+                  ),
+                )
+                .toList(),
           );
         }
         // Build wrapped rows
@@ -429,14 +458,21 @@ class _KpiTile extends StatelessWidget {
                   label,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: IntesharType.sans(12,
-                      color: IntesharColors.inkSoft, w: FontWeight.w600),
+                  style: IntesharType.sans(
+                    12,
+                    color: IntesharColors.inkSoft,
+                    w: FontWeight.w600,
+                  ),
                 ),
               ),
               const SizedBox(height: 10),
               Text(
                 value,
-                style: IntesharType.display(30, color: cs.onSurface, w: FontWeight.w900),
+                style: IntesharType.display(
+                  30,
+                  color: cs.onSurface,
+                  w: FontWeight.w900,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
@@ -455,11 +491,11 @@ class _KpiTile extends StatelessWidget {
 
 /// Route prefix for the signed-in role, used to deep-link into sections.
 String _rolePrefix(EntityType type) => switch (type) {
-      EntityType.INTESHAR => '/hq',
-      EntityType.AGENT1 => '/agent1',
-      EntityType.AGENT2 => '/agent2',
-      EntityType.STORE => '/store',
-    };
+  EntityType.INTESHAR => '/hq',
+  EntityType.AGENT1 => '/agent1',
+  EntityType.AGENT2 => '/agent2',
+  EntityType.STORE => '/store',
+};
 
 class _BodyRow extends StatelessWidget {
   final Entity entity;
@@ -499,13 +535,7 @@ class _BodyRow extends StatelessWidget {
             ],
           );
         }
-        return Column(
-          children: [
-            txnCard,
-            const SizedBox(height: 16),
-            lowCard,
-          ],
-        );
+        return Column(children: [txnCard, const SizedBox(height: 16), lowCard]);
       },
     );
   }
@@ -531,34 +561,45 @@ class _RecentTransactionsCard extends StatelessWidget {
   Color _statusColor(TransactionStatus s) {
     return switch (s) {
       TransactionStatus.COMPLETED => IntesharColors.sage,
-      TransactionStatus.FAILED    => IntesharColors.oxblood,
-      _                           => IntesharColors.saffronDeep,
+      TransactionStatus.FAILED => IntesharColors.oxblood,
+      _ => IntesharColors.saffronDeep,
     };
   }
 
   String _statusLabel(TransactionStatus s, AppLocalizations l) {
     return switch (s) {
-      TransactionStatus.COMPLETED  => l.txnStatusComplete,
-      TransactionStatus.PENDING    => l.txnStatusPending,
+      TransactionStatus.COMPLETED => l.txnStatusComplete,
+      TransactionStatus.PENDING => l.txnStatusPending,
       TransactionStatus.PROCESSING => l.txnStatusProcessing,
-      TransactionStatus.FAILED     => l.txnStatusFailed,
+      TransactionStatus.FAILED => l.txnStatusFailed,
     };
   }
 
-  ({String route, String meta, String skuLabel, int qty, int amount, TransactionStatus status}) _rowData(int i) {
+  ({
+    String route,
+    String meta,
+    String skuLabel,
+    int qty,
+    int amount,
+    TransactionStatus status,
+  })
+  _rowData(int i) {
     final tx = txns[i];
     final shortId = tx.id.length > 8 ? tx.id.substring(0, 8) : tx.id;
     final skuLabel = tx.lines.isEmpty
         ? '—'
         : tx.lines.length == 1
-            ? tx.lines.first.sku
-            : '${tx.lines.length} SKUs';
+        ? tx.lines.first.sku
+        : '${tx.lines.length} SKUs';
     return (
       route: '${_resolveName(tx.sourceId)} → ${_resolveName(tx.destinationId)}',
       meta: '#$shortId · ${tx.date} ${tx.time}',
       skuLabel: skuLabel,
       qty: tx.lines.fold(0, (s, ln) => s + (int.tryParse(ln.amount) ?? 0)),
-      amount: tx.lines.fold(0, (s, ln) => s + (int.tryParse(ln.lineTotal) ?? 0)),
+      amount: tx.lines.fold(
+        0,
+        (s, ln) => s + (int.tryParse(ln.lineTotal) ?? 0),
+      ),
       status: tx.status,
     );
   }
@@ -585,7 +626,11 @@ class _RecentTransactionsCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         l.dashRecentTransactions,
-                        style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700),
+                        style: IntesharType.sans(
+                          14,
+                          color: cs.onSurface,
+                          w: FontWeight.w700,
+                        ),
                       ),
                     ),
                     _ViewAllLink(label: l.dashViewAll, onTap: onViewAll),
@@ -597,26 +642,32 @@ class _RecentTransactionsCard extends StatelessWidget {
               if (txns.isEmpty)
                 _InlineEmpty(message: l.dashNoTransactions)
               else if (compact)
-                ...List.generate(txns.length, (i) => _CompactTxnRow(
-                      data: _rowData(i),
-                      last: i == txns.length - 1,
-                      statusLabel: _statusLabel,
-                      statusColor: _statusColor,
-                      l: l,
-                    ))
+                ...List.generate(
+                  txns.length,
+                  (i) => _CompactTxnRow(
+                    data: _rowData(i),
+                    last: i == txns.length - 1,
+                    statusLabel: _statusLabel,
+                    statusColor: _statusColor,
+                    l: l,
+                  ),
+                )
               else ...[
                 Padding(
                   padding: const EdgeInsetsDirectional.fromSTEB(20, 10, 20, 10),
                   child: _TxnHeaderRow(l: l),
                 ),
                 const Hairline(),
-                ...List.generate(txns.length, (i) => _ColumnarTxnRow(
-                      data: _rowData(i),
-                      last: i == txns.length - 1,
-                      statusLabel: _statusLabel,
-                      statusColor: _statusColor,
-                      l: l,
-                    )),
+                ...List.generate(
+                  txns.length,
+                  (i) => _ColumnarTxnRow(
+                    data: _rowData(i),
+                    last: i == txns.length - 1,
+                    statusLabel: _statusLabel,
+                    statusColor: _statusColor,
+                    l: l,
+                  ),
+                ),
               ],
             ],
           );
@@ -626,7 +677,14 @@ class _RecentTransactionsCard extends StatelessWidget {
   }
 }
 
-typedef _TxnRowData = ({String route, String meta, String skuLabel, int qty, int amount, TransactionStatus status});
+typedef _TxnRowData = ({
+  String route,
+  String meta,
+  String skuLabel,
+  int qty,
+  int amount,
+  TransactionStatus status,
+});
 
 /// Tappable "View all →" link with proper hover/focus/pressed feedback.
 class _ViewAllLink extends StatelessWidget {
@@ -644,9 +702,20 @@ class _ViewAllLink extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(label, style: IntesharType.sans(12, color: IntesharColors.saffronDeep, w: FontWeight.w700)),
+            Text(
+              label,
+              style: IntesharType.sans(
+                12,
+                color: IntesharColors.saffronDeep,
+                w: FontWeight.w700,
+              ),
+            ),
             const SizedBox(width: 2),
-            const Icon(Icons.chevron_right, size: 16, color: IntesharColors.saffronDeep),
+            const Icon(
+              Icons.chevron_right,
+              size: 16,
+              color: IntesharColors.saffronDeep,
+            ),
           ],
         ),
       ),
@@ -674,13 +743,21 @@ class _InlineEmpty extends StatelessWidget {
               color: cs.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Icon(Icons.receipt_long_outlined, size: 18, color: cs.onSurfaceVariant),
+            child: Icon(
+              Icons.receipt_long_outlined,
+              size: 18,
+              color: cs.onSurfaceVariant,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               message,
-              style: IntesharType.sans(13, color: cs.onSurfaceVariant, w: FontWeight.w500),
+              style: IntesharType.sans(
+                13,
+                color: cs.onSurfaceVariant,
+                w: FontWeight.w500,
+              ),
             ),
           ),
         ],
@@ -719,13 +796,21 @@ class _CompactTxnRow extends StatelessWidget {
                   Expanded(
                     child: Text(
                       data.route,
-                      style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w600),
+                      style: IntesharType.sans(
+                        13,
+                        color: cs.onSurface,
+                        w: FontWeight.w600,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   const SizedBox(width: 8),
-                  StampPill(label: statusLabel(data.status, l), color: statusColor(data.status), fontSize: 10),
+                  StampPill(
+                    label: statusLabel(data.status, l),
+                    color: statusColor(data.status),
+                    fontSize: 10,
+                  ),
                 ],
               ),
               const SizedBox(height: 6),
@@ -734,7 +819,10 @@ class _CompactTxnRow extends StatelessWidget {
                   Expanded(
                     child: Text(
                       data.meta,
-                      style: IntesharType.mono(10, color: IntesharColors.inkSoft),
+                      style: IntesharType.mono(
+                        10,
+                        color: IntesharColors.inkSoft,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -742,7 +830,11 @@ class _CompactTxnRow extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     Formatters.iqd(data.amount),
-                    style: IntesharType.mono(12, color: cs.onSurface, w: FontWeight.w700),
+                    style: IntesharType.mono(
+                      12,
+                      color: cs.onSurface,
+                      w: FontWeight.w700,
+                    ),
                   ),
                 ],
               ),
@@ -786,14 +878,21 @@ class _ColumnarTxnRow extends StatelessWidget {
                   children: [
                     Text(
                       data.route,
-                      style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w600),
+                      style: IntesharType.sans(
+                        13,
+                        color: cs.onSurface,
+                        w: FontWeight.w600,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
                     Text(
                       data.meta,
-                      style: IntesharType.mono(10, color: IntesharColors.inkSoft),
+                      style: IntesharType.mono(
+                        10,
+                        color: IntesharColors.inkSoft,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -854,8 +953,11 @@ class _TxnHeaderRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = IntesharType.sans(11,
-        color: IntesharColors.inkSoft, w: FontWeight.w700);
+    final style = IntesharType.sans(
+      11,
+      color: IntesharColors.inkSoft,
+      w: FontWeight.w700,
+    );
     return Row(
       children: [
         Expanded(child: Text(l.dashColRoute, style: style)),
@@ -913,12 +1015,22 @@ class _BalanceCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: IntesharType.overline(color: IntesharColors.ink.withValues(alpha: 0.75))),
+                Text(
+                  label,
+                  style: IntesharType.overline(
+                    color: IntesharColors.ink.withValues(alpha: 0.75),
+                  ),
+                ),
                 const SizedBox(height: 4),
                 Text(
                   Formatters.iqd(balance.available.round()),
                   style: const TextStyle(
-                      fontFamily: 'CodecPro', fontSize: 30, fontWeight: FontWeight.w900, color: IntesharColors.ink, height: 1),
+                    fontFamily: 'CodecPro',
+                    fontSize: 30,
+                    fontWeight: FontWeight.w900,
+                    color: IntesharColors.ink,
+                    height: 1,
+                  ),
                 ),
               ],
             ),
@@ -932,7 +1044,11 @@ class _BalanceCard extends StatelessWidget {
               onPressed: () => showModalBottomSheet<void>(
                 context: context,
                 isScrollControlled: true,
-                builder: (_) => _TransferSheet(children: children, balance: balance, onGranted: onGranted),
+                builder: (_) => _TransferSheet(
+                  children: children,
+                  balance: balance,
+                  onGranted: onGranted,
+                ),
               ),
               icon: const Icon(Icons.north_east, size: 16),
               label: Text(ar ? 'تحويل رصيد' : 'Transfer'),
@@ -947,7 +1063,11 @@ class _TransferSheet extends ConsumerStatefulWidget {
   final List<Entity> children;
   final AgentBalance balance;
   final VoidCallback onGranted;
-  const _TransferSheet({required this.children, required this.balance, required this.onGranted});
+  const _TransferSheet({
+    required this.children,
+    required this.balance,
+    required this.onGranted,
+  });
 
   @override
   ConsumerState<_TransferSheet> createState() => _TransferSheetState();
@@ -977,13 +1097,17 @@ class _TransferSheetState extends ConsumerState<_TransferSheet> {
     final amount = num.tryParse(_amount.text.trim());
     if (dest == null) return;
     if (amount == null || amount <= 0) {
-      setState(() => _error = ar ? 'أدخل مبلغاً صحيحاً' : 'Enter a valid amount');
+      setState(
+        () => _error = ar ? 'أدخل مبلغاً صحيحاً' : 'Enter a valid amount',
+      );
       return;
     }
     if (amount > widget.balance.available) {
-      setState(() => _error = ar
-          ? 'الرصيد غير كافٍ (المتاح ${Formatters.iqd(widget.balance.available.round())})'
-          : 'Insufficient balance (available ${Formatters.iqd(widget.balance.available.round())})');
+      setState(
+        () => _error = ar
+            ? 'الرصيد غير كافٍ (المتاح ${Formatters.iqd(widget.balance.available.round())})'
+            : 'Insufficient balance (available ${Formatters.iqd(widget.balance.available.round())})',
+      );
       return;
     }
     setState(() {
@@ -991,12 +1115,16 @@ class _TransferSheetState extends ConsumerState<_TransferSheet> {
       _error = null;
     });
     try {
-      await PricingRepository(ref.read(apiClientProvider)).grant(destId: dest.id, amount: amount);
+      await PricingRepository(
+        ref.read(apiClientProvider),
+      ).grant(destId: dest.id, amount: amount);
       if (mounted) {
         Navigator.pop(context);
         widget.onGranted();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(ar ? 'تم تحويل الرصيد' : 'Balance transferred')),
+          SnackBar(
+            content: Text(ar ? 'تم تحويل الرصيد' : 'Balance transferred'),
+          ),
         );
       }
     } catch (e) {
@@ -1028,7 +1156,10 @@ class _TransferSheetState extends ConsumerState<_TransferSheet> {
             child: Container(
               width: 36,
               height: 4,
-              decoration: BoxDecoration(color: cs.outline, borderRadius: BorderRadius.circular(2)),
+              decoration: BoxDecoration(
+                color: cs.outline,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -1039,10 +1170,12 @@ class _TransferSheetState extends ConsumerState<_TransferSheet> {
             isExpanded: true,
             decoration: InputDecoration(labelText: ar ? 'إلى' : 'To'),
             items: widget.children
-                .map((e) => DropdownMenuItem(
-                      value: e,
-                      child: Text('${e.meta.name} (${e.type.label})'),
-                    ))
+                .map(
+                  (e) => DropdownMenuItem(
+                    value: e,
+                    child: Text('${e.meta.name} (${e.type.label})'),
+                  ),
+                )
                 .toList(),
             onChanged: (v) => setState(() => _dest = v),
           ),
@@ -1050,7 +1183,11 @@ class _TransferSheetState extends ConsumerState<_TransferSheet> {
           TextField(
             controller: _amount,
             keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],            decoration: InputDecoration(labelText: ar ? 'المبلغ' : 'Amount', suffixText: 'IQD'),
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: InputDecoration(
+              labelText: ar ? 'المبلغ' : 'Amount',
+              suffixText: 'IQD',
+            ),
           ),
           if (_error != null) ...[
             const SizedBox(height: 10),
@@ -1062,7 +1199,11 @@ class _TransferSheetState extends ConsumerState<_TransferSheet> {
             child: FilledButton(
               onPressed: _saving ? null : _submit,
               child: _saving
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                   : Text(ar ? 'تحويل' : 'Transfer'),
             ),
           ),
@@ -1094,7 +1235,11 @@ class _LowStockCard extends StatelessWidget {
             padding: const EdgeInsetsDirectional.fromSTEB(20, 18, 20, 14),
             child: Text(
               l.dashLowStock,
-              style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700),
+              style: IntesharType.sans(
+                14,
+                color: cs.onSurface,
+                w: FontWeight.w700,
+              ),
             ),
           ),
           const Hairline(),
@@ -1110,14 +1255,21 @@ class _LowStockCard extends StatelessWidget {
                       color: IntesharColors.sage.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    child: const Icon(Icons.check_circle_outline_rounded,
-                        size: 18, color: IntesharColors.sage),
+                    child: const Icon(
+                      Icons.check_circle_outline_rounded,
+                      size: 18,
+                      color: IntesharColors.sage,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       l.dashAllHealthy,
-                      style: IntesharType.sans(13, color: IntesharColors.sage, w: FontWeight.w600),
+                      style: IntesharType.sans(
+                        13,
+                        color: IntesharColors.sage,
+                        w: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
@@ -1130,13 +1282,22 @@ class _LowStockCard extends StatelessWidget {
               return Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsetsDirectional.fromSTEB(20, 12, 20, 12),
+                    padding: const EdgeInsetsDirectional.fromSTEB(
+                      20,
+                      12,
+                      20,
+                      12,
+                    ),
                     child: Row(
                       children: [
                         Expanded(
                           child: Text(
                             e.value.name,
-                            style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w600),
+                            style: IntesharType.sans(
+                              13,
+                              color: cs.onSurface,
+                              w: FontWeight.w600,
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -1144,8 +1305,11 @@ class _LowStockCard extends StatelessWidget {
                         const SizedBox(width: 8),
                         Text(
                           '${e.value.count} ${l.dashUnitsLeft}',
-                          style: IntesharType.sans(12,
-                              color: IntesharColors.oxblood, w: FontWeight.w700),
+                          style: IntesharType.sans(
+                            12,
+                            color: IntesharColors.oxblood,
+                            w: FontWeight.w700,
+                          ),
                         ),
                       ],
                     ),

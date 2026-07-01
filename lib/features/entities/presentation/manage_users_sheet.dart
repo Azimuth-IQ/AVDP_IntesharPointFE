@@ -49,8 +49,9 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
     super.dispose();
   }
 
-  List<UserRole> get _allowedRoles =>
-      widget.entity.type == EntityType.STORE ? UserRole.values : [UserRole.ADMIN];
+  List<UserRole> get _allowedRoles => widget.entity.type == EntityType.STORE
+      ? UserRole.values
+      : [UserRole.ADMIN];
 
   void _tryAddUser() {
     final l = AppLocalizations.of(context)!;
@@ -80,7 +81,9 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
 
     final id = 'u-$phone-${DateTime.now().millisecondsSinceEpoch}';
     setState(() {
-      _users.add(EntityUser(id: id, phone: phone, password: pass, role: _selectedRole));
+      _users.add(
+        EntityUser(id: id, phone: phone, password: pass, role: _selectedRole),
+      );
       _addError = null;
     });
     _phoneCtrl.clear();
@@ -88,7 +91,9 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
   }
 
   void _removeUser(EntityUser u) {
-    setState(() => _users.removeWhere((x) => x.id == u.id && x.phone == u.phone));
+    setState(
+      () => _users.removeWhere((x) => x.id == u.id && x.phone == u.phone),
+    );
   }
 
   bool get _ar => Localizations.localeOf(context).languageCode == 'ar';
@@ -98,24 +103,37 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
     final pass = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(_ar ? 'كلمة مرور جديدة لـ ${u.phone}' : 'New password for ${u.phone}'),
+        title: Text(
+          _ar ? 'كلمة مرور جديدة لـ ${u.phone}' : 'New password for ${u.phone}',
+        ),
         content: TextField(
           controller: ctrl,
           obscureText: true,
           autofocus: true,
-          decoration: InputDecoration(labelText: _ar ? 'كلمة المرور' : 'Password'),
+          decoration: InputDecoration(
+            labelText: _ar ? 'كلمة المرور' : 'Password',
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(_ar ? 'إلغاء' : 'Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: Text(_ar ? 'حفظ' : 'Save')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(_ar ? 'إلغاء' : 'Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+            child: Text(_ar ? 'حفظ' : 'Save'),
+          ),
         ],
       ),
     );
     if (pass == null) return;
     if (pass.length < 6) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(AppLocalizations.of(context)!.passwordTooShort)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!.passwordTooShort),
+          ),
+        );
       }
       return;
     }
@@ -123,10 +141,19 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
       await widget.onResetPassword(u.phone, pass);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(_ar ? 'تمت إعادة تعيين كلمة المرور' : 'Password reset')));
+          SnackBar(
+            content: Text(
+              _ar ? 'تمت إعادة تعيين كلمة المرور' : 'Password reset',
+            ),
+          ),
+        );
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+      }
     }
   }
 
@@ -135,12 +162,20 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(_ar ? 'إعادة تعيين المصادقة الثنائية' : 'Reset 2FA'),
-        content: Text(_ar
-            ? 'سيُطلب من ${u.phone} إعادة التسجيل في المصادقة الثنائية عند الدخول التالي.'
-            : '${u.phone} will re-enroll in two-factor authentication on next login.'),
+        content: Text(
+          _ar
+              ? 'سيُطلب من ${u.phone} إعادة التسجيل في المصادقة الثنائية عند الدخول التالي.'
+              : '${u.phone} will re-enroll in two-factor authentication on next login.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(_ar ? 'إلغاء' : 'Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(_ar ? 'إعادة تعيين' : 'Reset')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(_ar ? 'إلغاء' : 'Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(_ar ? 'إعادة تعيين' : 'Reset'),
+          ),
         ],
       ),
     );
@@ -148,11 +183,20 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
     try {
       await widget.onResetTotp(u.phone);
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(_ar ? 'تمت إعادة تعيين المصادقة الثنائية' : '2FA reset')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _ar ? 'تمت إعادة تعيين المصادقة الثنائية' : '2FA reset',
+            ),
+          ),
+        );
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+      }
     }
   }
 
@@ -167,7 +211,9 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
       await widget.onSave(List.unmodifiable(_users));
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l.manageUsersErrorSaving)));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l.manageUsersErrorSaving)));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -178,7 +224,9 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    final entityName = widget.entity.meta.name.isNotEmpty ? widget.entity.meta.name : widget.entity.id;
+    final entityName = widget.entity.meta.name.isNotEmpty
+        ? widget.entity.meta.name
+        : widget.entity.id;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -196,7 +244,10 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
               child: Container(
                 width: 36,
                 height: 4,
-                decoration: BoxDecoration(color: cs.outline, borderRadius: BorderRadius.circular(2)),
+                decoration: BoxDecoration(
+                  color: cs.outline,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -206,23 +257,33 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
               style: IntesharType.display(26, color: cs.onSurface),
             ),
             const SizedBox(height: 4),
-            Text(entityName, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
+            Text(
+              entityName,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+            ),
             const SizedBox(height: 18),
 
             // Existing users
             if (_users.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Text(l.manageUsersEmpty, style: Theme.of(context).textTheme.bodySmall),
+                child: Text(
+                  l.manageUsersEmpty,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               )
             else
-              ..._users.map((u) => _UserRow(
-                    user: u,
-                    canReset: widget.entity.users.any((x) => x.phone == u.phone),
-                    onRemove: () => _removeUser(u),
-                    onResetPassword: () => _resetPassword(u),
-                    onResetTotp: () => _resetTotp(u),
-                  )),
+              ..._users.map(
+                (u) => _UserRow(
+                  user: u,
+                  canReset: widget.entity.users.any((x) => x.phone == u.phone),
+                  onRemove: () => _removeUser(u),
+                  onResetPassword: () => _resetPassword(u),
+                  onResetTotp: () => _resetTotp(u),
+                ),
+              ),
 
             const SizedBox(height: 16),
             Container(height: 1, color: cs.outline),
@@ -236,18 +297,33 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
             TextField(
               controller: _phoneCtrl,
               keyboardType: TextInputType.phone,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11)],              style: GoogleFonts.jetBrainsMono(fontSize: 14, color: cs.onSurface, letterSpacing: 0.6),
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(11),
+              ],
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 14,
+                color: cs.onSurface,
+                letterSpacing: 0.6,
+              ),
               decoration: InputDecoration(labelText: l.manageUsersPhone),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _passCtrl,
               obscureText: _obscurePass,
-              style: GoogleFonts.jetBrainsMono(fontSize: 14, color: cs.onSurface, letterSpacing: 0.8),
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 14,
+                color: cs.onSurface,
+                letterSpacing: 0.8,
+              ),
               decoration: InputDecoration(
                 labelText: l.manageUsersPassword,
                 suffixIcon: IconButton(
-                  icon: Icon(_obscurePass ? Icons.visibility : Icons.visibility_off, size: 18),
+                  icon: Icon(
+                    _obscurePass ? Icons.visibility : Icons.visibility_off,
+                    size: 18,
+                  ),
                   onPressed: () => setState(() => _obscurePass = !_obscurePass),
                 ),
               ),
@@ -256,7 +332,9 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
             DropdownButtonFormField<UserRole>(
               initialValue: _selectedRole,
               decoration: InputDecoration(labelText: l.manageUsersRole),
-              items: _allowedRoles.map((r) => DropdownMenuItem(value: r, child: Text(r.name))).toList(),
+              items: _allowedRoles
+                  .map((r) => DropdownMenuItem(value: r, child: Text(r.name)))
+                  .toList(),
               onChanged: (v) {
                 if (v != null) setState(() => _selectedRole = v);
               },
@@ -280,7 +358,11 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
               child: FilledButton(
                 onPressed: _saving ? null : _save,
                 child: _saving
-                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
                     : Text(l.manageUsersSave),
               ),
             ),
@@ -309,7 +391,9 @@ class _UserRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final color = user.role == UserRole.ADMIN ? cs.onPrimaryContainer : IntesharColors.sage;
+    final color = user.role == UserRole.ADMIN
+        ? cs.onPrimaryContainer
+        : IntesharColors.sage;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: InkCard(
@@ -322,14 +406,22 @@ class _UserRow extends StatelessWidget {
             Expanded(
               child: SelectableText(
                 user.phone,
-                style: GoogleFonts.jetBrainsMono(fontSize: 13, color: cs.onSurface, letterSpacing: 0.4),
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 13,
+                  color: cs.onSurface,
+                  letterSpacing: 0.4,
+                ),
               ),
             ),
             StampPill(label: user.role.name, color: color),
             const SizedBox(width: 4),
             if (canReset)
               PopupMenuButton<String>(
-                icon: Icon(Icons.more_vert, size: 18, color: cs.onSurfaceVariant),
+                icon: Icon(
+                  Icons.more_vert,
+                  size: 18,
+                  color: cs.onSurfaceVariant,
+                ),
                 onSelected: (v) {
                   if (v == 'pass') {
                     onResetPassword();
@@ -342,9 +434,22 @@ class _UserRow extends StatelessWidget {
                 itemBuilder: (ctx) {
                   final ar = Localizations.localeOf(ctx).languageCode == 'ar';
                   return [
-                    PopupMenuItem(value: 'pass', child: Text(ar ? 'إعادة تعيين كلمة المرور' : 'Reset password')),
-                    PopupMenuItem(value: 'totp', child: Text(ar ? 'إعادة تعيين المصادقة الثنائية' : 'Reset 2FA')),
-                    PopupMenuItem(value: 'remove', child: Text(ar ? 'حذف المستخدم' : 'Remove user')),
+                    PopupMenuItem(
+                      value: 'pass',
+                      child: Text(
+                        ar ? 'إعادة تعيين كلمة المرور' : 'Reset password',
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'totp',
+                      child: Text(
+                        ar ? 'إعادة تعيين المصادقة الثنائية' : 'Reset 2FA',
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'remove',
+                      child: Text(ar ? 'حذف المستخدم' : 'Remove user'),
+                    ),
                   ];
                 },
               )

@@ -365,11 +365,11 @@ class _PointsTransferPageState extends ConsumerState<PointsTransferPage> {
                         : IntesharColors.saffronDeep,
                     text: _movedResult! > 0
                         ? (isAr
-                            ? 'تم نقل $_movedResult كرت بنجاح.'
-                            : 'Moved $_movedResult voucher(s) successfully.')
+                              ? 'تم نقل $_movedResult كرت بنجاح.'
+                              : 'Moved $_movedResult voucher(s) successfully.')
                         : (isAr
-                            ? 'لم يتم نقل أي كرت — لا يوجد مخزون مطابق متاح.'
-                            : 'Nothing moved — no matching available stock.'),
+                              ? 'لم يتم نقل أي كرت — لا يوجد مخزون مطابق متاح.'
+                              : 'Nothing moved — no matching available stock.'),
                   ),
                 ],
                 const SizedBox(height: 22),
@@ -377,8 +377,8 @@ class _PointsTransferPageState extends ConsumerState<PointsTransferPage> {
                   label: _submitting
                       ? (isAr ? 'جارٍ النقل…' : 'Moving…')
                       : _withdraw
-                          ? (isAr ? 'سحب المخزون' : 'Withdraw stock')
-                          : (isAr ? 'نقل المخزون' : 'Transfer stock'),
+                      ? (isAr ? 'سحب المخزون' : 'Withdraw stock')
+                      : (isAr ? 'نقل المخزون' : 'Transfer stock'),
                   leading: _submitting
                       ? null
                       : (_withdraw ? Icons.move_up : Icons.move_down),
@@ -415,21 +415,24 @@ class _PointsTransferPageState extends ConsumerState<PointsTransferPage> {
           isAr
               ? 'لا يوجد مخزون لدى الجهة المصدر المحددة.'
               : 'The selected source holds no inventory.',
-          style:
-              Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
         ),
       );
     }
 
     final loc = Localizations.localeOf(context).languageCode;
     final skuItems = _sourceSummary
-        .map((s) => DropdownMenuItem(
-              value: s.sku,
-              child: Text(
-                '${s.name.isEmpty ? s.sku : s.name} (${s.sku}) · ${s.available}',
-                overflow: TextOverflow.ellipsis,
-              ),
-            ))
+        .map(
+          (s) => DropdownMenuItem(
+            value: s.sku,
+            child: Text(
+              '${s.name.isEmpty ? s.sku : s.name} (${s.sku}) · ${s.available}',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        )
         .toList();
 
     final current = _currentSku;
@@ -438,13 +441,15 @@ class _PointsTransferPageState extends ConsumerState<PointsTransferPage> {
         ? _gov
         : (buckets.isNotEmpty ? buckets.first.governorate : '');
     final govItems = buckets
-        .map((b) => DropdownMenuItem(
-              value: b.governorate,
-              child: Text(
-                '${b.governorate.isEmpty ? (isAr ? 'غير محدد' : 'Untagged') : governorateLabel(b.governorate, loc)} · ${b.available}',
-                overflow: TextOverflow.ellipsis,
-              ),
-            ))
+        .map(
+          (b) => DropdownMenuItem(
+            value: b.governorate,
+            child: Text(
+              '${b.governorate.isEmpty ? (isAr ? 'غير محدد' : 'Untagged') : governorateLabel(b.governorate, loc)} · ${b.available}',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        )
         .toList();
 
     return LayoutBuilder(
@@ -472,11 +477,7 @@ class _PointsTransferPageState extends ConsumerState<PointsTransferPage> {
         );
         if (stacked) {
           return Column(
-            children: [
-              skuField,
-              const SizedBox(height: 12),
-              govField,
-            ],
+            children: [skuField, const SizedBox(height: 12), govField],
           );
         }
         return Row(
@@ -506,14 +507,17 @@ class _PointsTransferPageState extends ConsumerState<PointsTransferPage> {
             key: ValueKey('qty-${_effectiveSource?.id}-$_sku-$_gov-$_withdraw'),
             initialValue: _qty.toString(),
             keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],            style: IntesharType.mono(14, color: cs.onSurface),
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            style: IntesharType.mono(14, color: cs.onSurface),
             decoration: InputDecoration(
               labelText: isAr ? 'الكمية' : 'Quantity',
               isDense: true,
               helperText: isAr ? 'المتاح: $available' : '$available available',
               helperMaxLines: 1,
               errorText: over
-                  ? (isAr ? 'المتاح فقط $available' : 'Only $available available')
+                  ? (isAr
+                        ? 'المتاح فقط $available'
+                        : 'Only $available available')
                   : null,
               errorMaxLines: 2,
             ),
@@ -710,7 +714,10 @@ class _EntityPicker extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(eyebrow.toUpperCase(), style: IntesharType.overline(color: accent)),
+              Text(
+                eyebrow.toUpperCase(),
+                style: IntesharType.overline(color: accent),
+              ),
               const Spacer(),
               if (value != null) RoleBadge(type: value!.type),
             ],
@@ -718,25 +725,29 @@ class _EntityPicker extends StatelessWidget {
           const SizedBox(height: 10),
           Theme(
             data: Theme.of(context).copyWith(
-              inputDecorationTheme:
-                  Theme.of(context).inputDecorationTheme.copyWith(
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 10),
-                      ),
+              inputDecorationTheme: Theme.of(context).inputDecorationTheme
+                  .copyWith(
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                  ),
             ),
             child: DropdownButtonFormField<Entity>(
               initialValue: value,
               isExpanded: true,
               icon: const Icon(Icons.unfold_more, size: 18),
               items: entities
-                  .map((e) => DropdownMenuItem(
-                        value: e,
-                        child: Text(
-                          '${nameOf(e)} · ${e.type.label}',
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ))
+                  .map(
+                    (e) => DropdownMenuItem(
+                      value: e,
+                      child: Text(
+                        '${nameOf(e)} · ${e.type.label}',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  )
                   .toList(),
               onChanged: onChanged,
             ),
@@ -744,7 +755,11 @@ class _EntityPicker extends StatelessWidget {
           const SizedBox(height: 8),
           SelectableText(
             value?.id ?? '—',
-            style: IntesharType.mono(11, color: cs.onSurfaceVariant, letterSpacing: 0.4),
+            style: IntesharType.mono(
+              11,
+              color: cs.onSurfaceVariant,
+              letterSpacing: 0.4,
+            ),
           ),
         ],
       ),
@@ -774,7 +789,9 @@ class _Banner extends StatelessWidget {
         children: [
           Icon(icon, size: 18, color: color),
           const SizedBox(width: 10),
-          Expanded(child: Text(text, style: TextStyle(color: cs.onSurface))),
+          Expanded(
+            child: Text(text, style: TextStyle(color: cs.onSurface)),
+          ),
         ],
       ),
     );

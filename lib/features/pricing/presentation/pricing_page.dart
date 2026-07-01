@@ -17,12 +17,14 @@ import 'package:inteshar/shared/widgets/responsive.dart';
 class _S {
   final bool ar;
   const _S(this.ar);
-  factory _S.of(BuildContext c) => _S(Localizations.localeOf(c).languageCode == 'ar');
+  factory _S.of(BuildContext c) =>
+      _S(Localizations.localeOf(c).languageCode == 'ar');
   String p(String en, String arT) => ar ? arT : en;
 
   String get eyebrow => p('Pricing', 'التسعير');
   String get title => p('Prices', 'الأسعار');
-  String get subtitle => p('Set your selling price per category', 'حدّد سعر بيعك لكل فئة');
+  String get subtitle =>
+      p('Set your selling price per category', 'حدّد سعر بيعك لكل فئة');
   String get balanceLabel => p('Inventory worth', 'قيمة المخزون');
   String unpriced(int n) => p('$n unpriced', '$n بدون سعر');
   String get official => p('Official', 'الرسمي');
@@ -32,11 +34,13 @@ class _S {
   String get save => p('Save prices', 'حفظ الأسعار');
   String get saved => p('Prices saved', 'تم حفظ الأسعار');
   String get uncategorized => p('Uncategorized', 'بدون شركة');
-  String get empty => p('No categories in the catalog yet.', 'لا توجد فئات في الكتالوج بعد.');
+  String get empty =>
+      p('No categories in the catalog yet.', 'لا توجد فئات في الكتالوج بعد.');
   String get byGovernorate => p('By governorate', 'حسب المحافظة');
   String get untagged => p('No region', 'بدون محافظة');
   String get allRegions => p('All regions', 'كل المحافظات');
-  String get unauthorized => p('Pricing access not granted', 'لا تملك صلاحية إدارة الأسعار');
+  String get unauthorized =>
+      p('Pricing access not granted', 'لا تملك صلاحية إدارة الأسعار');
 }
 
 class PricingPage extends ConsumerStatefulWidget {
@@ -63,7 +67,8 @@ class _PricingPageState extends ConsumerState<PricingPage> {
     // user that reaches this route without the capability sees an empty state
     // and the catalog fetch is skipped entirely (no needless server call).
     final auth = ref.read(authStateProvider).valueOrNull;
-    _authorized = auth is AuthAuthenticated && auth.can({Capability.MANAGE_PRICING});
+    _authorized =
+        auth is AuthAuthenticated && auth.can({Capability.MANAGE_PRICING});
     if (_authorized) {
       _load();
     } else {
@@ -93,9 +98,13 @@ class _PricingPageState extends ConsumerState<PricingPage> {
       _ctrls.clear();
       for (final row in catalog.rows) {
         // Base (SKU-wide) field keyed "sku::"; one field per governorate keyed "sku::gov".
-        _ctrls['${row.sku}::'] = TextEditingController(text: _fmt(row.effectivePrice));
+        _ctrls['${row.sku}::'] = TextEditingController(
+          text: _fmt(row.effectivePrice),
+        );
         for (final g in row.governorates) {
-          _ctrls['${row.sku}::${g.governorate}'] = TextEditingController(text: _fmt(g.effectivePrice));
+          _ctrls['${row.sku}::${g.governorate}'] = TextEditingController(
+            text: _fmt(g.effectivePrice),
+          );
         }
       }
       setState(() {
@@ -123,25 +132,37 @@ class _PricingPageState extends ConsumerState<PricingPage> {
       for (final row in catalog.rows) {
         // SKU-wide base price.
         final baseVal = num.tryParse(_ctrls['${row.sku}::']?.text.trim() ?? '');
-        if (baseVal != null && (row.agentPrice == null || row.agentPrice != baseVal)) {
+        if (baseVal != null &&
+            (row.agentPrice == null || row.agentPrice != baseVal)) {
           await _repo.setPrice(entityId: '', sku: row.sku, price: baseVal);
         }
         // Per-governorate (subcategory) overrides.
         for (final g in row.governorates) {
-          final value = num.tryParse(_ctrls['${row.sku}::${g.governorate}']?.text.trim() ?? '');
+          final value = num.tryParse(
+            _ctrls['${row.sku}::${g.governorate}']?.text.trim() ?? '',
+          );
           if (value == null) continue;
           if (g.agentPrice == null || g.agentPrice != value) {
-            await _repo.setPrice(entityId: '', sku: row.sku, governorate: g.governorate, price: value);
+            await _repo.setPrice(
+              entityId: '',
+              sku: row.sku,
+              governorate: g.governorate,
+              price: value,
+            );
           }
         }
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.saved)));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(s.saved)));
       }
       await _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -183,29 +204,42 @@ class _PricingPageState extends ConsumerState<PricingPage> {
     final catalog = _catalog!;
     final cs = Theme.of(context).colorScheme;
     if (catalog.rows.isEmpty) {
-      return Center(child: Text(s.empty, style: IntesharType.sans(14, color: cs.onSurfaceVariant)));
+      return Center(
+        child: Text(
+          s.empty,
+          style: IntesharType.sans(14, color: cs.onSurfaceVariant),
+        ),
+      );
     }
 
     // Group rows by company, preserving the server's (company, name) order.
     final groups = <String, List<CategoryPriceRow>>{};
     for (final row in catalog.rows) {
-      final key = row.companyName.isNotEmpty ? row.companyName : s.uncategorized;
+      final key = row.companyName.isNotEmpty
+          ? row.companyName
+          : s.uncategorized;
       groups.putIfAbsent(key, () => []).add(row);
     }
 
     return Column(
       children: [
-        _BalanceHeader(s: s, worth: catalog.inventoryWorth, unpriced: catalog.unpricedCount),
+        _BalanceHeader(
+          s: s,
+          worth: catalog.inventoryWorth,
+          unpriced: catalog.unpricedCount,
+        ),
         Expanded(
           child: ListView(
             padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 16, 24),
             children: [
               for (final entry in groups.entries) ...[
                 SectionLabel(entry.key),
-                ...entry.value.map((row) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: _PriceRow(row: row, ctrls: _ctrls, s: s),
-                    )),
+                ...entry.value.map(
+                  (row) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: _PriceRow(row: row, ctrls: _ctrls, s: s),
+                  ),
+                ),
                 const SizedBox(height: 8),
               ],
             ],
@@ -220,7 +254,11 @@ class _PricingPageState extends ConsumerState<PricingPage> {
               child: FilledButton.icon(
                 onPressed: _saving ? null : _save,
                 icon: _saving
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
                     : const Icon(Icons.save_outlined, size: 18),
                 label: Text(s.save),
               ),
@@ -236,7 +274,11 @@ class _BalanceHeader extends StatelessWidget {
   final _S s;
   final num worth;
   final int unpriced;
-  const _BalanceHeader({required this.s, required this.worth, required this.unpriced});
+  const _BalanceHeader({
+    required this.s,
+    required this.worth,
+    required this.unpriced,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -253,12 +295,23 @@ class _BalanceHeader extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(s.balanceLabel,
-                  style: IntesharType.overline(color: IntesharColors.ink.withValues(alpha: 0.7))),
+              Text(
+                s.balanceLabel,
+                style: IntesharType.overline(
+                  color: IntesharColors.ink.withValues(alpha: 0.7),
+                ),
+              ),
               const SizedBox(height: 2),
-              Text(Formatters.iqd(worth.round()),
-                  style: const TextStyle(
-                      fontFamily: 'CodecPro', fontSize: 26, fontWeight: FontWeight.w900, color: IntesharColors.ink, height: 1)),
+              Text(
+                Formatters.iqd(worth.round()),
+                style: const TextStyle(
+                  fontFamily: 'CodecPro',
+                  fontSize: 26,
+                  fontWeight: FontWeight.w900,
+                  color: IntesharColors.ink,
+                  height: 1,
+                ),
+              ),
             ],
           ),
           const Spacer(),
@@ -280,7 +333,8 @@ class _PriceRow extends StatelessWidget {
   /// untagged bucket).
   bool get _hasGovBreakdown =>
       row.governorates.length > 1 ||
-      (row.governorates.length == 1 && row.governorates.first.governorate.isNotEmpty);
+      (row.governorates.length == 1 &&
+          row.governorates.first.governorate.isNotEmpty);
 
   @override
   Widget build(BuildContext context) {
@@ -295,10 +349,19 @@ class _PriceRow extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text(row.name, style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w700)),
+                child: Text(
+                  row.name,
+                  style: IntesharType.sans(
+                    15,
+                    color: cs.onSurface,
+                    w: FontWeight.w700,
+                  ),
+                ),
               ),
-              Text('${s.official}: ${Formatters.iqd(row.officialPrice.round())}',
-                  style: IntesharType.mono(11.5, color: cs.onSurfaceVariant)),
+              Text(
+                '${s.official}: ${Formatters.iqd(row.officialPrice.round())}',
+                style: IntesharType.mono(11.5, color: cs.onSurfaceVariant),
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -312,10 +375,15 @@ class _PriceRow extends StatelessWidget {
           ),
           if (_hasGovBreakdown) ...[
             const SizedBox(height: 12),
-            Text(s.byGovernorate, style: IntesharType.overline(color: cs.onSurfaceVariant)),
+            Text(
+              s.byGovernorate,
+              style: IntesharType.overline(color: cs.onSurfaceVariant),
+            ),
             const SizedBox(height: 4),
             ...row.governorates.map((g) {
-              final label = g.governorate.isEmpty ? s.untagged : governorateLabel(g.governorate, loc);
+              final label = g.governorate.isEmpty
+                  ? s.untagged
+                  : governorateLabel(g.governorate, loc);
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: _PriceField(
@@ -359,7 +427,8 @@ class _PriceField extends StatelessWidget {
           child: TextField(
             controller: ctrl,
             keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],            style: IntesharType.mono(14, color: cs.onSurface),
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            style: IntesharType.mono(14, color: cs.onSurface),
             decoration: InputDecoration(labelText: label, isDense: true),
           ),
         ),
@@ -368,11 +437,19 @@ class _PriceField extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text('${s.available}: $available',
-                  style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
+              Text(
+                '${s.available}: $available',
+                style: IntesharType.sans(12, color: cs.onSurfaceVariant),
+              ),
               const SizedBox(height: 2),
-              Text('${s.lineValue}: ${Formatters.iqd(lineValue.round())}',
-                  style: IntesharType.mono(12.5, color: cs.onSurface, w: FontWeight.w700)),
+              Text(
+                '${s.lineValue}: ${Formatters.iqd(lineValue.round())}',
+                style: IntesharType.mono(
+                  12.5,
+                  color: cs.onSurface,
+                  w: FontWeight.w700,
+                ),
+              ),
             ],
           ),
         ),

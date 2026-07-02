@@ -24,8 +24,9 @@ class RovoPrinter {
     await _channel.invokeMethod('printText', {'text': text});
   }
 
-  /// Print an image by absolute file path — the service rasterizes + prints it (image/*).
-  static Future<void> printImage(String path) async {
-    await _channel.invokeMethod('printImage', {'path': path});
+  /// Print a receipt image from PNG [bytes] — the native side writes it to a file the print
+  /// service can read and sends it via an image/* intent (rasterized + printed to paper width).
+  static Future<void> printImage(Uint8List bytes) async {
+    await _channel.invokeMethod('printImage', {'bytes': bytes});
   }
 }

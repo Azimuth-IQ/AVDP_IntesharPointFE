@@ -119,12 +119,18 @@ class MainActivity : FlutterActivity() {
                         }
                     }
                     "printImage" -> {
-                        val path = call.argument<String>("path")
-                        if (path == null) {
-                            result.error("ARG", "path missing", null)
+                        val bytes = call.argument<ByteArray>("bytes")
+                        if (bytes == null) {
+                            result.error("ARG", "bytes missing", null)
                         } else {
                             try {
-                                sendToRovo(path, "image/*")
+                                // The print service reads a FILE path, so persist the PNG to the
+                                // app's external files dir (world-readable on the Rovo's Android)
+                                // and hand it that absolute path.
+                                val dir = getExternalFilesDir(null) ?: cacheDir
+                                val f = java.io.File(dir, "inteshar_receipt.png")
+                                f.writeBytes(bytes)
+                                sendToRovo(f.absolutePath, "image/*")
                                 result.success(true)
                             } catch (e: Exception) {
                                 result.error("PRINT_FAIL", e.message, null)

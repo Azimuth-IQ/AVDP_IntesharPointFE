@@ -1,8 +1,4 @@
-import 'dart:typed_data';
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -472,41 +468,30 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
       final auth = ref.read(authStateProvider).valueOrNull as AuthAuthenticated?;
       final def = revealed.productDefinition;
       final t = def.template;
-      // Rovo/BLD built-in printer prints via an ACTION_SEND intent (no ESC/POS). Snapshot the
-      // on-screen receipt (logos + QR "as it shows") to a PNG and print that; if the capture
-      // fails for any reason, fall back to a plain-text receipt so the PIN still prints.
+      // Rovo/BLD built-in printer prints via an ACTION_SEND intent (no ESC/POS). Print a TEXT
+      // receipt: the text rides IN the intent (EXTRA_TEXT), so — unlike an image — it needs no
+      // shared file for the separate print service (com.bld.settings.print) to read. (The image
+      // path needs the PNG in shared storage; our app-private dir isn't readable by it, which
+      // printed blank paper. TODO: re-enable image once written to a shared/public path.)
       if (ref.read(bluetoothServiceProvider.notifier).isRovo) {
-        Uint8List? png;
-        try {
-          final boundary = _receiptKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-          if (boundary != null) {
-            final image = await boundary.toImage(pixelRatio: 3.0);
-            final bd = await image.toByteData(format: ui.ImageByteFormat.png);
-            png = bd?.buffer.asUint8List();
-          }
-        } catch (_) {}
-        if (png != null) {
-          await RovoPrinter.printImage(png);
-        } else {
-          await RovoPrinter.printText(
-            buildVoucherReceiptText(
-              template: t,
-              headerFallback: 'Inteshar Platform',
-              shopName: auth?.entity.meta.name ?? 'Store',
-              posLabel: 'Counter 1',
-              operatorPhone: auth?.entity.users.firstOrNull?.phone ?? '',
-              productName: def.name,
-              price: Formatters.iqd(def.defaultPrice),
-              serial: revealed.serialNumber,
-              pin: revealed.pin,
-              timestamp: DateTime.now(),
-              companyName: _companyName,
-              categoryName: _categoryName ?? def.name,
-              expiry: revealed.expiryDate,
-              receiptNo: _receiptNo,
-            ),
-          );
-        }
+        await RovoPrinter.printText(
+          buildVoucherReceiptText(
+            template: t,
+            headerFallback: 'Inteshar Platform',
+            shopName: auth?.entity.meta.name ?? 'Store',
+            posLabel: 'Counter 1',
+            operatorPhone: auth?.entity.users.firstOrNull?.phone ?? '',
+            productName: def.name,
+            price: Formatters.iqd(def.defaultPrice),
+            serial: revealed.serialNumber,
+            pin: revealed.pin,
+            timestamp: DateTime.now(),
+            companyName: _companyName,
+            categoryName: _categoryName ?? def.name,
+            expiry: revealed.expiryDate,
+            receiptNo: _receiptNo,
+          ),
+        );
         if (mounted) widget.onPrinted();
         return;
       }

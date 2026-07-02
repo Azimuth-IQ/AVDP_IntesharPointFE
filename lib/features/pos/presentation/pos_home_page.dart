@@ -13,6 +13,8 @@ import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/inventory/data/product_repository.dart';
 import 'package:inteshar/features/inventory/domain/product.dart';
+import 'package:inteshar/features/pricing/data/pricing_repository.dart';
+import 'package:inteshar/features/pricing/domain/pricing_models.dart';
 import 'package:inteshar/features/pos/application/pos_pin_controller.dart';
 import 'package:inteshar/features/pos/presentation/printer_picker_page.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
@@ -32,6 +34,7 @@ class PosHomePage extends ConsumerStatefulWidget {
 
 class _PosHomePageState extends ConsumerState<PosHomePage> {
   List<SellableSku>? _sellable;
+  AgentBalance? _balance;
   Object? _error;
   bool _loading = true;
   String _search = '';
@@ -72,7 +75,18 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
       // pool. Load the SKUs it can sell (the pool's available count + how many its
       // withdrawal limit can afford); a sale draws one card from the pool on reveal.
       final sellable = await repo.sellable(entityId: auth.entity.id);
-      if (mounted) setState(() => _sellable = sellable);
+      // Balance (withdrawal limit) is a nice-to-have on the POS — a failure here must not
+      // block selling, so it's fetched best-effort.
+      AgentBalance? balance;
+      try {
+        balance = await PricingRepository(api).balance(entityId: auth.entity.id);
+      } catch (_) {}
+      if (mounted) {
+        setState(() {
+          _sellable = sellable;
+          _balance = balance;
+        });
+      }
     } catch (e) {
       if (mounted) setState(() => _error = e);
     } finally {
@@ -194,8 +208,6 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
             return s.name.toLowerCase().contains(q) ||
                 s.sku.toLowerCase().contains(q);
           }).toList();
-    final totalAvailable = sellable.fold<int>(0, (a, s) => a + s.available);
-
     final tileExtent = switch (context.screenSize) {
       ScreenSize.desktop => 260.0,
       ScreenSize.tablet => 220.0,
@@ -225,7 +237,7 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
                     ],
                   ),
                 ),
-                _StockTally(stock: totalAvailable),
+                _BalanceTally(balance: _balance),
               ],
             ),
           ),
@@ -302,13 +314,13 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
   }
 }
 
-class _StockTally extends StatelessWidget {
-  final int stock;
-  const _StockTally({required this.stock});
+class _BalanceTally extends StatelessWidget {
+  final AgentBalance? balance;
+  const _BalanceTally({required this.balance});
 
   @override
   Widget build(BuildContext context) {
-    final l = AppLocalizations.of(context)!;
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
@@ -320,7 +332,7 @@ class _StockTally extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Text(
-            l.posHomeInStock,
+            ar ? 'الرصيد' : 'BALANCE',
             style: TextStyle(
               fontFamily: 'CodecPro',
               fontSize: 10,
@@ -331,13 +343,13 @@ class _StockTally extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            stock.toString(),
+            balance == null ? '—' : Formatters.iqd(balance!.available),
             style: TextStyle(
               fontFamily: 'CodecPro',
-              fontSize: 28,
+              fontSize: 19,
               color: IntesharColors.ink,
               fontWeight: FontWeight.w900,
-              letterSpacing: -0.6,
+              letterSpacing: -0.4,
               height: 1,
             ),
           ),
@@ -404,7 +416,9 @@ class _SkuTileState extends State<_SkuTile> {
                         ),
                       ),
                       const Spacer(),
-                      StampPill(label: '× ${s.available}', color: IntesharColors.sage),
+                      // How many THIS POS can print (min of pool stock and what the balance
+                      // affords), not the raw main-agent pool count.
+                      StampPill(label: '× ${s.affordable}', color: IntesharColors.sage),
                     ],
                   ),
                   const Spacer(),
@@ -423,7 +437,11 @@ class _SkuTileState extends State<_SkuTile> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    Formatters.iqd(s.price),
+                    s.price > 0
+                        ? Formatters.iqd(s.price)
+                        : (Localizations.localeOf(context).languageCode == 'ar'
+                            ? 'السعر غير محدَّد'
+                            : 'Price not set'),
                     style: IntesharType.mono(15, color: cs.onSurface, w: FontWeight.w800),
                   ),
                   const SizedBox(height: 10),
@@ -872,7 +890,11 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      Formatters.iqd(s.price),
+                      s.price > 0
+                        ? Formatters.iqd(s.price)
+                        : (Localizations.localeOf(context).languageCode == 'ar'
+                            ? 'السعر غير محدَّد'
+                            : 'Price not set'),
                       style: IntesharType.mono(17, color: IntesharColors.saffronDeep, w: FontWeight.w800),
                     ),
                     const SizedBox(height: 16),

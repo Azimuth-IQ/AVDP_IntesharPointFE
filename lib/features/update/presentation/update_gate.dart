@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-import 'package:inteshar/app/router.dart';
 import 'package:inteshar/features/update/application/update_controller.dart';
 import 'package:inteshar/features/update/domain/app_release.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
@@ -20,7 +19,7 @@ class UpdateGate extends ConsumerStatefulWidget {
 }
 
 class _UpdateGateState extends ConsumerState<UpdateGate> {
-  bool _sheetOpen = false;
+  bool _dismissed = false;
 
   @override
   void initState() {
@@ -40,29 +39,63 @@ class _UpdateGateState extends ConsumerState<UpdateGate> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(updateControllerProvider);
-
-    // Optional update → open the sheet once.
-    ref.listen<UpdateState>(updateControllerProvider, (prev, next) {
-      if (next is UpdateAvailableState && !next.mandatory && !_sheetOpen) {
-        // The UpdateGate lives in MaterialApp.builder — ABOVE the router's Navigator — so
-        // `context` here has no Navigator/Overlay and showModalBottomSheet would silently
-        // fail. Use the shared root navigator key's context instead.
-        final navCtx = rootNavigatorKey.currentContext;
-        if (navCtx == null) return;
-        _sheetOpen = true;
-        showModalBottomSheet<void>(
-          context: navCtx,
-          showDragHandle: true,
-          isScrollControlled: true,
-          builder: (_) => const _UpdateSheet(),
-        ).whenComplete(() => _sheetOpen = false);
-      }
-    });
-
     if (_isMandatory(state)) {
       return _ForcedUpdateScreen(state: state);
     }
-    return widget.child;
+    // Optional update: render the prompt as an IN-TREE overlay above the whole app rather than
+    // a Navigator route. A route (showModalBottomSheet) gets buried when the app navigates
+    // (splash → shell) after the check resolves — leaving the sheet under the nav rail. As a
+    // Stack child of the UpdateGate (which wraps `child` in MaterialApp.builder) it's always on top.
+    final showOptional =
+        state is UpdateAvailableState && !state.mandatory && !_dismissed;
+    return Stack(
+      children: [
+        widget.child,
+        if (showOptional)
+          Positioned.fill(
+            child: _OptionalUpdateOverlay(
+              onDismiss: () {
+                ref.read(updateControllerProvider.notifier).dismiss();
+                if (mounted) setState(() => _dismissed = true);
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Full-screen scrim + bottom card holding the optional-update prompt, rendered in-tree so it
+/// can never be buried by the app's own navigation.
+class _OptionalUpdateOverlay extends StatelessWidget {
+  final VoidCallback onDismiss;
+  const _OptionalUpdateOverlay({required this.onDismiss});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            onTap: onDismiss,
+            child: const ColoredBox(color: Colors.black54),
+          ),
+        ),
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: Material(
+            color: cs.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            clipBehavior: Clip.antiAlias,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: _UpdateSheet(onDismiss: onDismiss),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -113,7 +146,8 @@ class _ForcedUpdateScreen extends ConsumerWidget {
 // ─── Optional update sheet ───────────────────────────────────────────────────
 
 class _UpdateSheet extends ConsumerWidget {
-  const _UpdateSheet();
+  final VoidCallback onDismiss;
+  const _UpdateSheet({required this.onDismiss});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -147,10 +181,7 @@ class _UpdateSheet extends ConsumerWidget {
                 if (state is! UpdateDownloading)
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () {
-                        ref.read(updateControllerProvider.notifier).dismiss();
-                        Navigator.of(context).maybePop();
-                      },
+                      onPressed: onDismiss,
                       child: Text(l.updateLater),
                     ),
                   ),

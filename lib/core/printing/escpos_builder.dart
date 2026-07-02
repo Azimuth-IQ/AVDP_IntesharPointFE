@@ -42,12 +42,17 @@ Future<List<int>> buildVoucherReceipt({
   final header = template.headerText.trim().isNotEmpty
       ? template.headerText.trim()
       : headerFallback;
-  out.addAll(g.text(header,
+  out.addAll(
+    g.text(
+      header,
       styles: const PosStyles(
-          align: PosAlign.center,
-          bold: true,
-          height: PosTextSize.size2,
-          width: PosTextSize.size2)));
+        align: PosAlign.center,
+        bold: true,
+        height: PosTextSize.size2,
+        width: PosTextSize.size2,
+      ),
+    ),
+  );
   out.addAll(g.text(shopName, styles: const PosStyles(align: PosAlign.center)));
   out.addAll(g.text(posLabel, styles: const PosStyles(align: PosAlign.center)));
   out.addAll(g.hr());
@@ -63,36 +68,69 @@ Future<List<int>> buildVoucherReceipt({
   if (template.showCompanyName &&
       companyName != null &&
       companyName.trim().isNotEmpty) {
-    out.addAll(g.text(companyName.trim(),
+    out.addAll(
+      g.text(
+        companyName.trim(),
         styles: const PosStyles(
-            align: PosAlign.center, bold: true, height: PosTextSize.size2)));
+          align: PosAlign.center,
+          bold: true,
+          height: PosTextSize.size2,
+        ),
+      ),
+    );
   }
   if (template.showCategoryName &&
       categoryName != null &&
       categoryName.trim().isNotEmpty) {
-    out.addAll(g.text(categoryName.trim(),
-        styles: const PosStyles(align: PosAlign.center, bold: true)));
+    out.addAll(
+      g.text(
+        categoryName.trim(),
+        styles: const PosStyles(align: PosAlign.center, bold: true),
+      ),
+    );
   }
 
   if (template.showProductName) {
-    out.addAll(g.text(productName,
+    out.addAll(
+      g.text(
+        productName,
         styles: const PosStyles(
-            align: PosAlign.center, bold: true, height: PosTextSize.size2)));
+          align: PosAlign.center,
+          bold: true,
+          height: PosTextSize.size2,
+        ),
+      ),
+    );
   }
   if (template.showPrice) {
-    out.addAll(g.text(price,
-        styles: const PosStyles(align: PosAlign.center, bold: true)));
+    out.addAll(
+      g.text(
+        price,
+        styles: const PosStyles(align: PosAlign.center, bold: true),
+      ),
+    );
   }
   if (template.showProductName || template.showPrice) out.addAll(g.feed(1));
 
   if (template.showSerial) {
-    out.addAll(g.text('Serial: $serial',
-        styles: const PosStyles(align: PosAlign.center)));
+    out.addAll(
+      g.text(
+        'Serial: $serial',
+        styles: const PosStyles(align: PosAlign.center),
+      ),
+    );
   }
   if (template.showPin) {
-    out.addAll(g.text('PIN: $pin',
+    out.addAll(
+      g.text(
+        'PIN: $pin',
         styles: const PosStyles(
-            align: PosAlign.center, bold: true, height: PosTextSize.size2)));
+          align: PosAlign.center,
+          bold: true,
+          height: PosTextSize.size2,
+        ),
+      ),
+    );
   }
 
   if (template.qrEnabled) {
@@ -102,52 +140,156 @@ Future<List<int>> buildVoucherReceipt({
     final caption = template.redeemInstructions.trim().isNotEmpty
         ? template.redeemInstructions.trim()
         : payload;
-    out.addAll(g.text(caption, styles: const PosStyles(align: PosAlign.center)));
+    out.addAll(
+      g.text(caption, styles: const PosStyles(align: PosAlign.center)),
+    );
   } else if (template.redeemInstructions.trim().isNotEmpty) {
     out.addAll(g.feed(1));
-    out.addAll(g.text(template.redeemInstructions.trim(),
-        styles: const PosStyles(align: PosAlign.center)));
+    out.addAll(
+      g.text(
+        template.redeemInstructions.trim(),
+        styles: const PosStyles(align: PosAlign.center),
+      ),
+    );
   }
 
   // Expiry below the code (per the client's note).
   if (template.showExpiry && expiry != null && expiry.trim().isNotEmpty) {
     out.addAll(g.feed(1));
-    out.addAll(g.text('Expiry: ${expiry.trim()}',
-        styles: const PosStyles(align: PosAlign.center, bold: true)));
+    out.addAll(
+      g.text(
+        'Expiry: ${expiry.trim()}',
+        styles: const PosStyles(align: PosAlign.center, bold: true),
+      ),
+    );
   }
 
   out.addAll(g.hr());
   // Operation reference: per-store receipt number + the voucher serial.
   if (receiptNo != null && receiptNo > 0) {
-    out.addAll(g.text('Receipt #$receiptNo',
-        styles: const PosStyles(align: PosAlign.center, bold: true)));
+    out.addAll(
+      g.text(
+        'Receipt #$receiptNo',
+        styles: const PosStyles(align: PosAlign.center, bold: true),
+      ),
+    );
   }
   out.addAll(
-      g.text('Ref: $serial', styles: const PosStyles(align: PosAlign.center)));
+    g.text('Ref: $serial', styles: const PosStyles(align: PosAlign.center)),
+  );
   out.addAll(
-      g.text(_fmtTs(timestamp), styles: const PosStyles(align: PosAlign.center)));
+    g.text(_fmtTs(timestamp), styles: const PosStyles(align: PosAlign.center)),
+  );
   if (operatorPhone.isNotEmpty) {
-    out.addAll(g.text('Op: $operatorPhone',
-        styles: const PosStyles(align: PosAlign.center)));
+    out.addAll(
+      g.text(
+        'Op: $operatorPhone',
+        styles: const PosStyles(align: PosAlign.center),
+      ),
+    );
   }
   if (template.footerText.trim().isNotEmpty) {
     out.addAll(g.feed(1));
-    out.addAll(g.text(template.footerText.trim(),
-        styles: const PosStyles(align: PosAlign.center)));
+    out.addAll(
+      g.text(
+        template.footerText.trim(),
+        styles: const PosStyles(align: PosAlign.center),
+      ),
+    );
   }
   out.addAll(g.feed(2));
   out.addAll(g.cut());
   return out;
 }
 
+/// Plain-text version of the voucher receipt for intent-based printers (Rovo/BLD) that
+/// accept EXTRA_TEXT rather than ESC/POS bytes. Mirrors [buildVoucherReceipt]'s content and
+/// template toggles; logos/QR can't render as text, so the QR payload + redeem instructions
+/// are written out (the PIN — what the customer actually needs — is always shown).
+String buildVoucherReceiptText({
+  required VoucherTemplate template,
+  required String headerFallback,
+  required String shopName,
+  required String posLabel,
+  required String operatorPhone,
+  required String productName,
+  required String price,
+  required String serial,
+  required String pin,
+  required DateTime timestamp,
+  String? companyName,
+  String? categoryName,
+  String? expiry,
+  int? receiptNo,
+}) {
+  final b = StringBuffer();
+  void line([String s = '']) => b.writeln(s);
+  const sep = '--------------------------------';
+
+  line(
+    template.headerText.trim().isNotEmpty
+        ? template.headerText.trim()
+        : headerFallback,
+  );
+  if (shopName.isNotEmpty) line(shopName);
+  if (posLabel.isNotEmpty) line(posLabel);
+  line(sep);
+
+  if (template.showCompanyName && (companyName ?? '').trim().isNotEmpty) {
+    line(companyName!.trim());
+  }
+  if (template.showCategoryName && (categoryName ?? '').trim().isNotEmpty) {
+    line(categoryName!.trim());
+  }
+  if (template.showProductName) line(productName);
+  if (template.showPrice) line(price);
+  if (template.showProductName || template.showPrice) line();
+
+  if (template.showSerial) line('Serial: $serial');
+  if (template.showPin) line('PIN: $pin');
+
+  if (template.qrEnabled) {
+    if (template.redeemInstructions.trim().isNotEmpty) {
+      line(template.redeemInstructions.trim());
+    }
+    line(template.qrPayload(pin: pin, serial: serial));
+  } else if (template.redeemInstructions.trim().isNotEmpty) {
+    line(template.redeemInstructions.trim());
+  }
+
+  if (template.showExpiry && (expiry ?? '').trim().isNotEmpty) {
+    line('Expiry: ${expiry!.trim()}');
+  }
+
+  line(sep);
+  if (receiptNo != null && receiptNo > 0) line('Receipt #$receiptNo');
+  line('Ref: $serial');
+  line(_fmtTs(timestamp));
+  if (operatorPhone.isNotEmpty) line('Op: $operatorPhone');
+  if (template.footerText.trim().isNotEmpty) {
+    line();
+    line(template.footerText.trim());
+  }
+  return b.toString();
+}
+
 Future<List<int>> buildTestReceipt() async {
   final profile = await CapabilityProfile.load();
   final g = Generator(PaperSize.mm58, profile);
   final out = <int>[];
-  out.addAll(g.text('Inteshar Platform',
+  out.addAll(
+    g.text(
+      'Inteshar Platform',
       styles: const PosStyles(
-          align: PosAlign.center, bold: true, height: PosTextSize.size2)));
-  out.addAll(g.text('Printer OK', styles: const PosStyles(align: PosAlign.center)));
+        align: PosAlign.center,
+        bold: true,
+        height: PosTextSize.size2,
+      ),
+    ),
+  );
+  out.addAll(
+    g.text('Printer OK', styles: const PosStyles(align: PosAlign.center)),
+  );
   out.addAll(g.feed(2));
   out.addAll(g.cut());
   return out;

@@ -50,5 +50,8 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Rovo/BLD built-in print service: needed on Android 11+ so we can both detect
+             (getPackageInfo) and send ACTION_SEND intents to it under package visibility. -->
+        <package android:name="com.bld.settings.print"/>
     </queries>
 </manifest>

@@ -20,6 +20,8 @@ class PrinterPickerPage extends ConsumerStatefulWidget {
 class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
   List<ScanResult> _results = [];
   bool _scanning = false;
+  String?
+  _connectingId; // the device id currently being connected (per-row spinner)
   late BluetoothPrinterService _service;
 
   final _macController = TextEditingController();
@@ -49,21 +51,34 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
 
   Future<void> _connectByAddress() async {
     if (!_macFormKey.currentState!.validate()) return;
+    final mac = _macController.text.trim().toUpperCase();
     _service.stopScan();
-    if (mounted) setState(() => _scanning = false);
+    if (mounted) {
+      setState(() {
+        _scanning = false;
+        _connectingId = mac;
+      });
+    }
     try {
-      await _service.connectByAddress(_macController.text.trim().toUpperCase());
+      await _service.connectByAddress(mac);
       if (mounted) {
         final l = AppLocalizations.of(context)!;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l.printerPickerConnectedManual)));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l.printerPickerConnectedManual)));
       }
     } catch (e) {
       if (mounted) {
         final l = AppLocalizations.of(context)!;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l.printerPickerConnectionFailed(e.toString())), backgroundColor: Theme.of(context).colorScheme.error),
+          SnackBar(
+            content: Text(l.printerPickerConnectionFailed(e.toString())),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
         );
       }
+    } finally {
+      if (mounted) setState(() => _connectingId = null);
     }
   }
 
@@ -85,20 +100,34 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
 
   Future<void> _connect(BluetoothDevice device) async {
     _service.stopScan();
-    if (mounted) setState(() => _scanning = false);
+    if (mounted) {
+      setState(() {
+        _scanning = false;
+        _connectingId = device.remoteId.str;
+      });
+    }
     try {
       await _service.connect(device);
       if (mounted) {
         final l = AppLocalizations.of(context)!;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l.printerPickerConnectedTo(device.platformName))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l.printerPickerConnectedTo(device.platformName)),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
         final l = AppLocalizations.of(context)!;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l.printerPickerConnectionFailed(e.toString())), backgroundColor: Theme.of(context).colorScheme.error),
+          SnackBar(
+            content: Text(l.printerPickerConnectionFailed(e.toString())),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
         );
       }
+    } finally {
+      if (mounted) setState(() => _connectingId = null);
     }
   }
 
@@ -108,12 +137,16 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
       await _service.send(bytes);
       if (mounted) {
         final l = AppLocalizations.of(context)!;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l.printerPickerTestPrintSent)));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l.printerPickerTestPrintSent)));
       }
     } catch (e) {
       if (mounted) {
         final l = AppLocalizations.of(context)!;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l.printerPickerPrintError(e.toString()))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l.printerPickerPrintError(e.toString()))),
+        );
       }
     }
   }
@@ -134,7 +167,10 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(l.printerPickerTitle, style: Theme.of(context).appBarTheme.titleTextStyle),
+        title: Text(
+          l.printerPickerTitle,
+          style: Theme.of(context).appBarTheme.titleTextStyle,
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
@@ -144,35 +180,41 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
             spacing: 8,
             runSpacing: 8,
             children: supportedPrinterModels
-                .map((m) => Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: cs.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            m.name,
-                            style: TextStyle(fontFamily: 'CodecPro', 
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: cs.onSurface,
-                            ),
+                .map(
+                  (m) => Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: cs.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          m.name,
+                          style: TextStyle(
+                            fontFamily: 'CodecPro',
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: cs.onSurface,
                           ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '${m.paperMm}mm',
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 10,
-                              color: cs.onSurfaceVariant,
-                              letterSpacing: 0.4,
-                            ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${m.paperMm}mm',
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 10,
+                            color: cs.onSurfaceVariant,
+                            letterSpacing: 0.4,
                           ),
-                        ],
-                      ),
-                    ))
+                        ),
+                      ],
+                    ),
+                  ),
+                )
                 .toList(),
           ),
           const SizedBox(height: 22),
@@ -189,7 +231,11 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
                       color: IntesharColors.sage.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(IntesharRadii.xs),
                     ),
-                    child: const Icon(Icons.bluetooth_connected, color: IntesharColors.sage, size: 18),
+                    child: const Icon(
+                      Icons.bluetooth_connected,
+                      color: IntesharColors.sage,
+                      size: 18,
+                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -198,15 +244,30 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
                       children: [
                         Text(
                           printerState.deviceName ?? l.printerPickerUnknown,
-                          style: IntesharType.serif(18, color: cs.onSurface, w: FontWeight.w600),
+                          style: IntesharType.serif(
+                            18,
+                            color: cs.onSurface,
+                            w: FontWeight.w600,
+                          ),
                         ),
                         const SizedBox(height: 2),
-                        Text(l.printerPickerConnected, style: IntesharType.overline(color: IntesharColors.sage)),
+                        Text(
+                          l.printerPickerConnected,
+                          style: IntesharType.overline(
+                            color: IntesharColors.sage,
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                  TextButton(onPressed: _testPrint, child: Text(l.printerPickerTestPrint)),
-                  TextButton(onPressed: _service.disconnect, child: Text(l.printerPickerDisconnect)),
+                  TextButton(
+                    onPressed: _testPrint,
+                    child: Text(l.printerPickerTestPrint),
+                  ),
+                  TextButton(
+                    onPressed: _service.disconnect,
+                    child: Text(l.printerPickerDisconnect),
+                  ),
                 ],
               ),
             ),
@@ -227,7 +288,11 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
                   child: TextFormField(
                     controller: _macController,
                     validator: validateMac,
-                    style: GoogleFonts.jetBrainsMono(fontSize: 14, color: cs.onSurface, letterSpacing: 1.2),
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 14,
+                      color: cs.onSurface,
+                      letterSpacing: 1.2,
+                    ),
                     decoration: InputDecoration(
                       hintText: 'XX:XX:XX:XX:XX:XX',
                       labelText: l.printerPickerMacLabel,
@@ -241,8 +306,10 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
                 const SizedBox(width: 10),
                 BrandCTAButton(
                   label: l.printerPickerPair,
-                  loading: printerState.status == PrinterStatus.connecting,
-                  onPressed: printerState.status == PrinterStatus.connecting ? null : _connectByAddress,
+                  loading:
+                      _connectingId != null &&
+                      _connectingId == _macController.text.trim().toUpperCase(),
+                  onPressed: _connectingId != null ? null : _connectByAddress,
                   expand: false,
                   height: 46,
                   fontSize: 13,
@@ -254,7 +321,11 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
           SectionLabel(
             l.printerPickerNearbyDevices,
             trailing: _scanning
-                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : TextButton.icon(
                     onPressed: _startScan,
                     icon: const Icon(Icons.refresh, size: 14),
@@ -284,8 +355,14 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            r.device.platformName.isNotEmpty ? r.device.platformName : l.printerPickerUnknown,
-                            style: IntesharType.serif(16, color: cs.onSurface, w: FontWeight.w600),
+                            r.device.platformName.isNotEmpty
+                                ? r.device.platformName
+                                : l.printerPickerUnknown,
+                            style: IntesharType.serif(
+                              16,
+                              color: cs.onSurface,
+                              w: FontWeight.w600,
+                            ),
                           ),
                           const SizedBox(height: 2),
                           Text(
@@ -301,8 +378,10 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
                     ),
                     BrandCTAButton(
                       label: l.printerPickerPair,
-                      loading: printerState.status == PrinterStatus.connecting,
-                      onPressed: printerState.status == PrinterStatus.connecting ? null : () => _connect(r.device),
+                      loading: _connectingId == r.device.remoteId.str,
+                      onPressed: _connectingId != null
+                          ? null
+                          : () => _connect(r.device),
                       expand: false,
                       height: 40,
                       fontSize: 12.5,

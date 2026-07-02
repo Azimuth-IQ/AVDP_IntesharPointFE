@@ -8,6 +8,7 @@ import 'package:inteshar/core/printing/bluetooth_service.dart';
 import 'package:inteshar/core/printing/escpos_builder.dart';
 import 'package:inteshar/core/printing/logo_loader.dart';
 import 'package:inteshar/core/printing/print_queue.dart';
+import 'package:inteshar/core/printing/rovo_printer.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
@@ -79,7 +80,9 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
       // block selling, so it's fetched best-effort.
       AgentBalance? balance;
       try {
-        balance = await PricingRepository(api).balance(entityId: auth.entity.id);
+        balance = await PricingRepository(
+          api,
+        ).balance(entityId: auth.entity.id);
       } catch (_) {}
       if (mounted) {
         setState(() {
@@ -149,23 +152,38 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
                 child: InkWell(
                   borderRadius: BorderRadius.circular(999),
                   onTap: () => Navigator.push<void>(
-                      ctx, MaterialPageRoute(builder: (_) => const PrinterPickerPage())),
+                    ctx,
+                    MaterialPageRoute(
+                      builder: (_) => const PrinterPickerPage(),
+                    ),
+                  ),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     child: Row(
                       children: [
                         Icon(
-                          isConnected ? Icons.bluetooth_connected : Icons.bluetooth_disabled,
+                          isConnected
+                              ? Icons.bluetooth_connected
+                              : Icons.bluetooth_disabled,
                           size: 16,
-                          color: isConnected ? IntesharColors.sage : cs.onSurfaceVariant,
+                          color: isConnected
+                              ? IntesharColors.sage
+                              : cs.onSurfaceVariant,
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          isConnected ? (ps.deviceName ?? l.posPrinterConnected) : l.posHomeSetupPrinter,
+                          isConnected
+                              ? (ps.deviceName ?? l.posPrinterConnected)
+                              : l.posHomeSetupPrinter,
                           style: TextStyle(
                             fontFamily: 'CodecPro',
                             fontSize: 12,
-                            color: isConnected ? IntesharColors.sage : cs.onSurfaceVariant,
+                            color: isConnected
+                                ? IntesharColors.sage
+                                : cs.onSurfaceVariant,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.2,
                           ),
@@ -193,8 +211,8 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? ErrorState(error: _error!, onRetry: _load)
-              : _buildGrid(l),
+          ? ErrorState(error: _error!, onRetry: _load)
+          : _buildGrid(l),
     );
   }
 
@@ -227,12 +245,18 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
                     children: [
                       Text(
                         l.posHomePickDenomination,
-                        style: IntesharType.display(28, color: cs.onSurface, w: FontWeight.w900),
+                        style: IntesharType.display(
+                          28,
+                          color: cs.onSurface,
+                          w: FontWeight.w900,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         l.posHomeCounterSubtitle,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: cs.onSurfaceVariant,
+                        ),
                       ),
                     ],
                   ),
@@ -276,10 +300,7 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
                   itemCount: filtered.length,
                   itemBuilder: (context, i) {
                     final s = filtered[i];
-                    return _SkuTile(
-                      sellable: s,
-                      onTap: () => _showVoucher(s),
-                    );
+                    return _SkuTile(sellable: s, onTap: () => _showVoucher(s));
                   },
                 ),
               ),
@@ -412,13 +433,21 @@ class _SkuTileState extends State<_SkuTile> {
                         ),
                         child: Text(
                           s.sku,
-                          style: IntesharType.mono(13, color: IntesharColors.ink, w: FontWeight.w900, letterSpacing: 0.6),
+                          style: IntesharType.mono(
+                            13,
+                            color: IntesharColors.ink,
+                            w: FontWeight.w900,
+                            letterSpacing: 0.6,
+                          ),
                         ),
                       ),
                       const Spacer(),
                       // How many THIS POS can print (min of pool stock and what the balance
                       // affords), not the raw main-agent pool count.
-                      StampPill(label: '× ${s.affordable}', color: IntesharColors.sage),
+                      StampPill(
+                        label: '× ${s.affordable}',
+                        color: IntesharColors.sage,
+                      ),
                     ],
                   ),
                   const Spacer(),
@@ -440,9 +469,13 @@ class _SkuTileState extends State<_SkuTile> {
                     s.price > 0
                         ? Formatters.iqd(s.price)
                         : (Localizations.localeOf(context).languageCode == 'ar'
-                            ? 'السعر غير محدَّد'
-                            : 'Price not set'),
-                    style: IntesharType.mono(15, color: cs.onSurface, w: FontWeight.w800),
+                              ? 'السعر غير محدَّد'
+                              : 'Price not set'),
+                    style: IntesharType.mono(
+                      15,
+                      color: cs.onSurface,
+                      w: FontWeight.w800,
+                    ),
                   ),
                   const SizedBox(height: 10),
                   BrandCTAButton(
@@ -471,7 +504,11 @@ class _VoucherSheet extends ConsumerStatefulWidget {
   final VoidCallback onConsumed;
   final VoidCallback onPrinted;
 
-  const _VoucherSheet({required this.sku, required this.onConsumed, required this.onPrinted});
+  const _VoucherSheet({
+    required this.sku,
+    required this.onConsumed,
+    required this.onPrinted,
+  });
 
   @override
   ConsumerState<_VoucherSheet> createState() => _VoucherSheetState();
@@ -500,7 +537,8 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
     super.initState();
     // One idempotency key per sheet (per SKU selection), reused across Sell retries so a
     // lost-response retry returns the original sale instead of drawing a second card.
-    _clientRef = 'draw-${widget.sku.sku}-${DateTime.now().microsecondsSinceEpoch}';
+    _clientRef =
+        'draw-${widget.sku.sku}-${DateTime.now().microsecondsSinceEpoch}';
   }
 
   Future<void> _reveal() async {
@@ -551,13 +589,40 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
     if (revealed == null) return; // print is only reachable after reveal
     setState(() => _printing = true);
     try {
-      final auth = ref.read(authStateProvider).valueOrNull as AuthAuthenticated?;
+      final auth =
+          ref.read(authStateProvider).valueOrNull as AuthAuthenticated?;
       final def = revealed.productDefinition;
       final t = def.template;
+      // Rovo/BLD built-in printer: prints via an ACTION_SEND intent with a plain-text
+      // receipt (no ESC/POS bytes, no logo/QR raster). Branch before building ESC/POS.
+      if (ref.read(bluetoothServiceProvider.notifier).isRovo) {
+        final text = buildVoucherReceiptText(
+          template: t,
+          headerFallback: 'Inteshar Platform',
+          shopName: auth?.entity.meta.name ?? 'Store',
+          posLabel: 'Counter 1',
+          operatorPhone: auth?.entity.users.firstOrNull?.phone ?? '',
+          productName: def.name,
+          price: Formatters.iqd(def.defaultPrice),
+          serial: revealed.serialNumber,
+          pin: revealed.pin,
+          timestamp: DateTime.now(),
+          companyName: _companyName,
+          categoryName: _categoryName ?? def.name,
+          expiry: revealed.expiryDate,
+          receiptNo: _receiptNo,
+        );
+        await RovoPrinter.printText(text);
+        if (mounted) widget.onPrinted();
+        return;
+      }
       // Fetch + decode the logos (best-effort; printing proceeds without them on failure).
-      final agentLogo = t.showAgentLogo ? await loadReceiptLogo(_agentLogoUrl) : null;
-      final companyLogo =
-          t.showCompanyLogo ? await loadReceiptLogo(_companyLogoUrl) : null;
+      final agentLogo = t.showAgentLogo
+          ? await loadReceiptLogo(_agentLogoUrl)
+          : null;
+      final companyLogo = t.showCompanyLogo
+          ? await loadReceiptLogo(_companyLogoUrl)
+          : null;
       final bytes = await buildVoucherReceipt(
         template: t,
         headerFallback: 'Inteshar Platform',
@@ -585,7 +650,10 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
       if (mounted) {
         final l = AppLocalizations.of(context)!;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l.posHomePrintFailed(e.toString())), backgroundColor: Theme.of(context).colorScheme.error),
+          SnackBar(
+            content: Text(l.posHomePrintFailed(e.toString())),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
         );
       }
     } finally {
@@ -615,216 +683,248 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
       // a drag-dismiss slips past this guard.
       canPop: !revealed,
       child: SafeArea(
-      child: SingleChildScrollView(
-        padding: EdgeInsets.only(
-          bottom: 24 + MediaQuery.of(context).viewInsets.bottom,
-          left: 24,
-          right: 24,
-          top: 20,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(color: cs.outline, borderRadius: BorderRadius.circular(2)),
-            ),
-            const SizedBox(height: 20),
-            // Receipt preview tile
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 360),
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(22, 24, 22, 22),
+        child: SingleChildScrollView(
+          padding: EdgeInsets.only(
+            bottom: 24 + MediaQuery.of(context).viewInsets.bottom,
+            left: 24,
+            right: 24,
+            top: 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 4,
                 decoration: BoxDecoration(
-                  color: cs.surface,
-                  borderRadius: BorderRadius.circular(IntesharRadii.lg),
-                  boxShadow: IntesharShadows.elev2,
-                ),
-                child: Column(
-                  children: [
-                    // Branding logos actually printed on the receipt, gated by the template
-                    // toggles: the owning Main Agent's logo, then the SKU's company logo.
-                    if (t.showAgentLogo && (_agentLogoUrl ?? '').trim().isNotEmpty) ...[
-                      Image.network(
-                        _agentLogoUrl!,
-                        height: 44,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                    if (t.showCompanyLogo && (_companyLogoUrl ?? '').trim().isNotEmpty) ...[
-                      Image.network(
-                        _companyLogoUrl!,
-                        height: 36,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                    IntesharStar(size: 36, color: cs.onSurface),
-                    const SizedBox(height: 10),
-                    Text(
-                      t.headerText.trim().isNotEmpty
-                          ? t.headerText.trim().toUpperCase()
-                          : 'INTESHAR PLATFORM',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: 'CodecPro',
-                        fontSize: 12,
-                        color: cs.onSurface,
-                        letterSpacing: 2.2,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    // Telecom company name (resolved on reveal) then the category
-                    // name beneath it — each gated by its template flag.
-                    if (t.showCompanyName &&
-                        (_companyName ?? '').trim().isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        _companyName!.trim().toUpperCase(),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontFamily: 'CodecPro',
-                          fontSize: 15,
-                          color: cs.onSurface,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.6,
-                        ),
-                      ),
-                    ],
-                    if (t.showCategoryName &&
-                        (_categoryName ?? def.name).trim().isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        (_categoryName ?? def.name).trim(),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontFamily: 'CodecPro',
-                          fontSize: 13,
-                          color: cs.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                    if (t.showProductName) ...[
-                      const SizedBox(height: 16),
-                      Text(
-                        def.name,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontFamily: 'CodecPro',
-                          fontSize: 22,
-                          color: cs.onSurface,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -0.4,
-                        ),
-                      ),
-                    ],
-                    if (t.showPrice) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        Formatters.iqd(def.defaultPrice),
-                        style: IntesharType.mono(17, color: IntesharColors.saffronDeep, w: FontWeight.w800),
-                      ),
-                    ],
-                    const SizedBox(height: 18),
-                    const _ReceiptDivider(),
-                    const SizedBox(height: 14),
-                    if (t.showSerial) ...[
-                      _ReceiptRow(label: l.posSerial, value: p.serialNumber, monoSize: 13),
-                      const SizedBox(height: 12),
-                    ],
-                    if (t.showPin)
-                      _ReceiptRow(
-                        label: l.posPin,
-                        value: revealed ? p.pin : '•••• •••• ••••',
-                        monoSize: 20,
-                        monoSpacing: 5,
-                      ),
-                    if (t.qrEnabled) ...[
-                      const SizedBox(height: 16),
-                      if (revealed)
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(IntesharRadii.sm),
-                          ),
-                          child: QrImageView(
-                            data: t.qrPayload(pin: p.pin, serial: p.serialNumber),
-                            version: QrVersions.auto,
-                            size: 128,
-                            backgroundColor: Colors.white,
-                            eyeStyle: const QrEyeStyle(
-                              eyeShape: QrEyeShape.square,
-                              color: IntesharColors.ink,
-                            ),
-                            dataModuleStyle: const QrDataModuleStyle(
-                              dataModuleShape: QrDataModuleShape.square,
-                              color: IntesharColors.ink,
-                            ),
-                          ),
-                        )
-                      else
-                        _LockedQr(label: l.posPinHidden),
-                      if (revealed) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          t.redeemInstructions.trim().isNotEmpty
-                              ? t.redeemInstructions.trim()
-                              : t.qrPayload(pin: p.pin, serial: p.serialNumber),
-                          textAlign: TextAlign.center,
-                          style: IntesharType.mono(12, color: cs.onSurface, w: FontWeight.w700),
-                        ),
-                      ],
-                    ],
-                    if (t.showExpiry && (p.expiryDate ?? '').isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      _ReceiptRow(
-                        label: Localizations.localeOf(context).languageCode == 'ar'
-                            ? 'تاريخ الانتهاء'
-                            : 'Expiry',
-                        value: p.expiryDate!,
-                        monoSize: 13,
-                      ),
-                    ],
-                    if (revealed && _receiptNo > 0) ...[
-                      const SizedBox(height: 12),
-                      _ReceiptRow(
-                        label: Localizations.localeOf(context).languageCode == 'ar'
-                            ? 'رقم العملية'
-                            : 'Receipt #',
-                        value: '$_receiptNo',
-                        monoSize: 13,
-                      ),
-                    ],
-                    const SizedBox(height: 14),
-                    const _ReceiptDivider(),
-                    const SizedBox(height: 14),
-                    Text(
-                      t.footerText.trim().isNotEmpty
-                          ? t.footerText.trim()
-                          : l.posHomeScratchNote,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: 'CodecPro',
-                        fontSize: 11.5,
-                        color: cs.onSurfaceVariant,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
+                  color: cs.outline,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-            ),
-            const SizedBox(height: 20),
-            if (!revealed) _buildRevealActions(l, cs) else _buildPrintActions(l, cs),
-          ],
+              const SizedBox(height: 20),
+              // Receipt preview tile
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 360),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(22, 24, 22, 22),
+                  decoration: BoxDecoration(
+                    color: cs.surface,
+                    borderRadius: BorderRadius.circular(IntesharRadii.lg),
+                    boxShadow: IntesharShadows.elev2,
+                  ),
+                  child: Column(
+                    children: [
+                      // Branding logos actually printed on the receipt, gated by the template
+                      // toggles: the owning Main Agent's logo, then the SKU's company logo.
+                      if (t.showAgentLogo &&
+                          (_agentLogoUrl ?? '').trim().isNotEmpty) ...[
+                        Image.network(
+                          _agentLogoUrl!,
+                          height: 44,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                      if (t.showCompanyLogo &&
+                          (_companyLogoUrl ?? '').trim().isNotEmpty) ...[
+                        Image.network(
+                          _companyLogoUrl!,
+                          height: 36,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                      IntesharStar(size: 36, color: cs.onSurface),
+                      const SizedBox(height: 10),
+                      Text(
+                        t.headerText.trim().isNotEmpty
+                            ? t.headerText.trim().toUpperCase()
+                            : 'INTESHAR PLATFORM',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: 'CodecPro',
+                          fontSize: 12,
+                          color: cs.onSurface,
+                          letterSpacing: 2.2,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      // Telecom company name (resolved on reveal) then the category
+                      // name beneath it — each gated by its template flag.
+                      if (t.showCompanyName &&
+                          (_companyName ?? '').trim().isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          _companyName!.trim().toUpperCase(),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: 'CodecPro',
+                            fontSize: 15,
+                            color: cs.onSurface,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                      ],
+                      if (t.showCategoryName &&
+                          (_categoryName ?? def.name).trim().isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          (_categoryName ?? def.name).trim(),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: 'CodecPro',
+                            fontSize: 13,
+                            color: cs.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                      if (t.showProductName) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          def.name,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: 'CodecPro',
+                            fontSize: 22,
+                            color: cs.onSurface,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.4,
+                          ),
+                        ),
+                      ],
+                      if (t.showPrice) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          Formatters.iqd(def.defaultPrice),
+                          style: IntesharType.mono(
+                            17,
+                            color: IntesharColors.saffronDeep,
+                            w: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 18),
+                      const _ReceiptDivider(),
+                      const SizedBox(height: 14),
+                      if (t.showSerial) ...[
+                        _ReceiptRow(
+                          label: l.posSerial,
+                          value: p.serialNumber,
+                          monoSize: 13,
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      if (t.showPin)
+                        _ReceiptRow(
+                          label: l.posPin,
+                          value: revealed ? p.pin : '•••• •••• ••••',
+                          monoSize: 20,
+                          monoSpacing: 5,
+                        ),
+                      if (t.qrEnabled) ...[
+                        const SizedBox(height: 16),
+                        if (revealed)
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(
+                                IntesharRadii.sm,
+                              ),
+                            ),
+                            child: QrImageView(
+                              data: t.qrPayload(
+                                pin: p.pin,
+                                serial: p.serialNumber,
+                              ),
+                              version: QrVersions.auto,
+                              size: 128,
+                              backgroundColor: Colors.white,
+                              eyeStyle: const QrEyeStyle(
+                                eyeShape: QrEyeShape.square,
+                                color: IntesharColors.ink,
+                              ),
+                              dataModuleStyle: const QrDataModuleStyle(
+                                dataModuleShape: QrDataModuleShape.square,
+                                color: IntesharColors.ink,
+                              ),
+                            ),
+                          )
+                        else
+                          _LockedQr(label: l.posPinHidden),
+                        if (revealed) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            t.redeemInstructions.trim().isNotEmpty
+                                ? t.redeemInstructions.trim()
+                                : t.qrPayload(
+                                    pin: p.pin,
+                                    serial: p.serialNumber,
+                                  ),
+                            textAlign: TextAlign.center,
+                            style: IntesharType.mono(
+                              12,
+                              color: cs.onSurface,
+                              w: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ],
+                      if (t.showExpiry && (p.expiryDate ?? '').isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        _ReceiptRow(
+                          label:
+                              Localizations.localeOf(context).languageCode ==
+                                  'ar'
+                              ? 'تاريخ الانتهاء'
+                              : 'Expiry',
+                          value: p.expiryDate!,
+                          monoSize: 13,
+                        ),
+                      ],
+                      if (revealed && _receiptNo > 0) ...[
+                        const SizedBox(height: 12),
+                        _ReceiptRow(
+                          label:
+                              Localizations.localeOf(context).languageCode ==
+                                  'ar'
+                              ? 'رقم العملية'
+                              : 'Receipt #',
+                          value: '$_receiptNo',
+                          monoSize: 13,
+                        ),
+                      ],
+                      const SizedBox(height: 14),
+                      const _ReceiptDivider(),
+                      const SizedBox(height: 14),
+                      Text(
+                        t.footerText.trim().isNotEmpty
+                            ? t.footerText.trim()
+                            : l.posHomeScratchNote,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: 'CodecPro',
+                          fontSize: 11.5,
+                          color: cs.onSurfaceVariant,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              if (!revealed)
+                _buildRevealActions(l, cs)
+              else
+                _buildPrintActions(l, cs),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -847,7 +947,10 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
             Container(
               width: 36,
               height: 4,
-              decoration: BoxDecoration(color: cs.outline, borderRadius: BorderRadius.circular(2)),
+              decoration: BoxDecoration(
+                color: cs.outline,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
             const SizedBox(height: 20),
             ConstrainedBox(
@@ -891,11 +994,16 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                     const SizedBox(height: 6),
                     Text(
                       s.price > 0
-                        ? Formatters.iqd(s.price)
-                        : (Localizations.localeOf(context).languageCode == 'ar'
-                            ? 'السعر غير محدَّد'
-                            : 'Price not set'),
-                      style: IntesharType.mono(17, color: IntesharColors.saffronDeep, w: FontWeight.w800),
+                          ? Formatters.iqd(s.price)
+                          : (Localizations.localeOf(context).languageCode ==
+                                    'ar'
+                                ? 'السعر غير محدَّد'
+                                : 'Price not set'),
+                      style: IntesharType.mono(
+                        17,
+                        color: IntesharColors.saffronDeep,
+                        w: FontWeight.w800,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     _LockedQr(label: l.posPinHidden),
@@ -935,11 +1043,17 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
             decoration: BoxDecoration(
               color: IntesharColors.saffron.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(IntesharRadii.md),
-              border: Border.all(color: IntesharColors.saffron.withValues(alpha: 0.4)),
+              border: Border.all(
+                color: IntesharColors.saffron.withValues(alpha: 0.4),
+              ),
             ),
             child: Row(
               children: [
-                Icon(Icons.info_outline, size: 18, color: IntesharColors.saffronDeep),
+                Icon(
+                  Icons.info_outline,
+                  size: 18,
+                  color: IntesharColors.saffronDeep,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -994,23 +1108,32 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
           return Column(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: isConnected
                       ? IntesharColors.sage.withValues(alpha: 0.10)
                       : cs.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(999),
                   border: Border.all(
-                    color: isConnected ? IntesharColors.sage.withValues(alpha: 0.4) : cs.outline,
+                    color: isConnected
+                        ? IntesharColors.sage.withValues(alpha: 0.4)
+                        : cs.outline,
                   ),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      isConnected ? Icons.bluetooth_connected : Icons.bluetooth_disabled,
+                      isConnected
+                          ? Icons.bluetooth_connected
+                          : Icons.bluetooth_disabled,
                       size: 14,
-                      color: isConnected ? IntesharColors.sage : cs.onSurfaceVariant,
+                      color: isConnected
+                          ? IntesharColors.sage
+                          : cs.onSurfaceVariant,
                     ),
                     const SizedBox(width: 8),
                     Text(
@@ -1021,7 +1144,9 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                         fontFamily: 'CodecPro',
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
-                        color: isConnected ? IntesharColors.sage : cs.onSurfaceVariant,
+                        color: isConnected
+                            ? IntesharColors.sage
+                            : cs.onSurfaceVariant,
                         letterSpacing: 0.2,
                       ),
                     ),
@@ -1035,7 +1160,11 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                   leading: Icons.bluetooth,
                   variant: BrandCTAVariant.outline,
                   onPressed: () => Navigator.push<void>(
-                      ctx, MaterialPageRoute(builder: (_) => const PrinterPickerPage())),
+                    ctx,
+                    MaterialPageRoute(
+                      builder: (_) => const PrinterPickerPage(),
+                    ),
+                  ),
                 ),
               const SizedBox(height: 8),
               Row(
@@ -1108,7 +1237,12 @@ class _ReceiptRow extends StatelessWidget {
   final String value;
   final double monoSize;
   final double monoSpacing;
-  const _ReceiptRow({required this.label, required this.value, this.monoSize = 13, this.monoSpacing = 0});
+  const _ReceiptRow({
+    required this.label,
+    required this.value,
+    this.monoSize = 13,
+    this.monoSpacing = 0,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1128,7 +1262,12 @@ class _ReceiptRow extends StatelessWidget {
         ),
         SelectableText(
           value,
-          style: IntesharType.mono(monoSize, color: cs.onSurface, w: FontWeight.w800, letterSpacing: monoSpacing),
+          style: IntesharType.mono(
+            monoSize,
+            color: cs.onSurface,
+            w: FontWeight.w800,
+            letterSpacing: monoSpacing,
+          ),
         ),
       ],
     );
@@ -1144,7 +1283,9 @@ class _ReceiptDivider extends StatelessWidget {
       height: 1,
       child: CustomPaint(
         size: const Size(double.infinity, 1),
-        painter: _DashedLinePainter(color: Theme.of(context).colorScheme.outline),
+        painter: _DashedLinePainter(
+          color: Theme.of(context).colorScheme.outline,
+        ),
       ),
     );
   }
@@ -1158,7 +1299,9 @@ class _DashedLinePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     const dash = 3.0;
     const gap = 3.0;
-    final paint = Paint()..color = color..strokeWidth = 1;
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1;
     double x = 0;
     while (x < size.width) {
       canvas.drawLine(Offset(x, 0), Offset(x + dash, 0), paint);

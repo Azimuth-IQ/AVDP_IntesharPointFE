@@ -14,6 +14,10 @@ import woyou.aidlservice.jiuiv5.IWoyouService
 
 class MainActivity : FlutterActivity() {
     private val channelName = "inteshar/sunmi_printer"
+    private val rovoChannelName = "inteshar/rovo_printer"
+    // Rovo/BLD devices print via an ACTION_SEND intent to their built-in print service
+    // (text / file-path / image / pdf) — not Bluetooth, not ESC/POS.
+    private val rovoPackage = "com.bld.settings.print"
     private var woyouService: IWoyouService? = null
     private var bindRequested = false
 
@@ -96,6 +100,60 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, rovoChannelName)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "isAvailable" -> result.success(rovoAvailable())
+                    "printText" -> {
+                        val text = call.argument<String>("text")
+                        if (text == null) {
+                            result.error("ARG", "text missing", null)
+                        } else {
+                            try {
+                                sendToRovo(text, "text/plain")
+                                result.success(true)
+                            } catch (e: Exception) {
+                                result.error("PRINT_FAIL", e.message, null)
+                            }
+                        }
+                    }
+                    "printImage" -> {
+                        val path = call.argument<String>("path")
+                        if (path == null) {
+                            result.error("ARG", "path missing", null)
+                        } else {
+                            try {
+                                sendToRovo(path, "image/*")
+                                result.success(true)
+                            } catch (e: Exception) {
+                                result.error("PRINT_FAIL", e.message, null)
+                            }
+                        }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    // True if the built-in Rovo/BLD print service is installed on this device.
+    private fun rovoAvailable(): Boolean = try {
+        packageManager.getPackageInfo(rovoPackage, 0)
+        true
+    } catch (e: Exception) {
+        false
+    }
+
+    // Hands [content] (plain text, or an absolute file path for image/pdf/etc.) to the
+    // built-in print service via ACTION_SEND, exactly per the device's print-intent guide.
+    private fun sendToRovo(content: String, mime: String) {
+        val intent = Intent().apply {
+            action = Intent.ACTION_SEND
+            setPackage(rovoPackage)
+            putExtra(Intent.EXTRA_TEXT, content)
+            type = mime
+        }
+        startActivity(intent)
     }
 
     override fun onDestroy() {

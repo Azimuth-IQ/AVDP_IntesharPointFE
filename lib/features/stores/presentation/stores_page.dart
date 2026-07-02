@@ -4,6 +4,7 @@ import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
+import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/core/geo/governorate_picker.dart';
 import 'package:inteshar/core/geo/governorates.dart';
 import 'package:inteshar/shared/widgets/working_hours_editor.dart';
@@ -550,7 +551,7 @@ class _StoreDetailSheetState extends ConsumerState<StoreDetailSheet> {
               children: [
                 _Stat(
                   label: s.balance,
-                  value: (st?.balanceAvailable ?? 0).toStringAsFixed(0),
+                  value: Formatters.iqd(st?.balanceAvailable ?? 0),
                 ),
                 _Stat(label: s.available, value: '${st?.availableCount ?? 0}'),
                 _Stat(label: s.sold, value: '${st?.printedCount ?? 0}'),

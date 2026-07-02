@@ -31,11 +31,17 @@ import 'package:inteshar/features/transactions/presentation/new_transaction_page
 import 'package:inteshar/features/transactions/presentation/transactions_page.dart';
 import 'package:inteshar/shared/widgets/app_scaffold.dart';
 
+/// The app's root Navigator key. Shared so widgets that live in `MaterialApp.builder`
+/// (above the router's Navigator) — e.g. the UpdateGate — can still push dialogs/sheets
+/// against a real Navigator+Overlay instead of the builder context (which has neither).
+final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
+
 final routerProvider = Provider<GoRouter>((ref) {
   // Watch auth state so the router rebuilds on auth changes.
   final authAsync = ref.watch(authStateProvider);
 
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: '/splash',
     refreshListenable: _AuthStateListenable(ref),
     redirect: (context, state) {

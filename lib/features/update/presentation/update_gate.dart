@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'package:inteshar/app/router.dart';
 import 'package:inteshar/features/update/application/update_controller.dart';
 import 'package:inteshar/features/update/domain/app_release.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
@@ -43,9 +44,14 @@ class _UpdateGateState extends ConsumerState<UpdateGate> {
     // Optional update → open the sheet once.
     ref.listen<UpdateState>(updateControllerProvider, (prev, next) {
       if (next is UpdateAvailableState && !next.mandatory && !_sheetOpen) {
+        // The UpdateGate lives in MaterialApp.builder — ABOVE the router's Navigator — so
+        // `context` here has no Navigator/Overlay and showModalBottomSheet would silently
+        // fail. Use the shared root navigator key's context instead.
+        final navCtx = rootNavigatorKey.currentContext;
+        if (navCtx == null) return;
         _sheetOpen = true;
         showModalBottomSheet<void>(
-          context: context,
+          context: navCtx,
           showDragHandle: true,
           isScrollControlled: true,
           builder: (_) => const _UpdateSheet(),

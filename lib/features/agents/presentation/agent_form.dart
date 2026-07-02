@@ -226,8 +226,10 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         return;
       }
       final typed = d.password.text.trim();
-      final pwd = typed.isNotEmpty ? typed : d.existingPassword;
-      if (pwd.isEmpty) {
+      // An existing user (already has an id) may keep its current password by leaving this
+      // blank: EntityUser.toJson omits a blank password and the backend restores the stored
+      // hash on update. Only a NEW user must set one.
+      if (typed.isEmpty && d.id.isEmpty) {
         setState(() => _error = s.errUserPassword);
         return;
       }
@@ -235,7 +237,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         EntityUser(
           id: d.id.isNotEmpty ? d.id : _genId('u'),
           phone: phone,
-          password: pwd,
+          password: typed,
           role: d.preset.role,
           capabilities: _capsFor(d.preset),
         ),
@@ -760,7 +762,7 @@ class _UserCard extends StatelessWidget {
             controller: draft.password,
             obscureText: true,
             decoration: InputDecoration(
-              labelText: draft.existingPassword.isNotEmpty
+              labelText: draft.id.isNotEmpty
                   ? s.fieldUserPasswordKeep
                   : s.fieldUserPassword,
               isDense: true,
@@ -816,14 +818,11 @@ class _UserDraft {
   final TextEditingController phone;
   final TextEditingController password;
   AgentUserPreset preset;
-  final String
-  existingPassword; // hashed password from an existing user, '' for new
 
   _UserDraft({
     required this.id,
     required String phoneText,
     required this.preset,
-    this.existingPassword = '',
   }) : phone = TextEditingController(text: phoneText),
        password = TextEditingController();
 
@@ -838,7 +837,6 @@ class _UserDraft {
         (u.role == UserRole.ADMIN
             ? AgentUserPreset.admin
             : AgentUserPreset.monitoring),
-    existingPassword: u.password,
   );
 
   void dispose() {

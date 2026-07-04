@@ -25,7 +25,7 @@ class StoreStrings {
   String get noRegion => ar ? 'بدون محافظة' : 'No region';
 
   // Detail
-  String get balance => ar ? 'الرصيد المتوفر' : 'Available balance';
+  String get balance => ar ? 'الرصيد' : 'Balance';
   String get available => ar ? 'متوفرة' : 'Available';
   String get sold => ar ? 'مباعة' : 'Sold';
   String get lastSeen => ar ? 'آخر نشاط' : 'Last seen';

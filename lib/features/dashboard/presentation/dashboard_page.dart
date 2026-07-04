@@ -999,9 +999,9 @@ class _BalanceCard extends StatelessWidget {
     // Inventory-backed tiers (HQ / Main Agent) grant balance down, so it reads as
     // transferable credit. Wallet tiers (Sub Agent / Store) only spend it on
     // withdrawals/prints from the Main Agent's stock, so it reads as a spending cap.
-    final label = balance.inventoryBacked
-        ? (ar ? 'الرصيد المتاح للتحويل' : 'Balance available to transfer')
-        : (ar ? 'حد السحب المتاح' : 'Withdrawal limit');
+    // One canonical term for the virtual balance across the app (POS / dashboard / stores):
+    // "Balance" / "الرصيد".
+    final label = ar ? 'الرصيد' : 'Balance';
     final showTransfer = canTransfer && children.isNotEmpty;
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),

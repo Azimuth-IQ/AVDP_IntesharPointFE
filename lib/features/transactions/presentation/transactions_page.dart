@@ -387,6 +387,24 @@ class _TxCardState extends State<_TxCard> {
                 ),
               ],
             ),
+            // Surface the failure reason inline on FAILED rows (was detail-only) so the
+            // operator sees WHY without opening the sheet.
+            if (tx.status == TransactionStatus.FAILED &&
+                tx.processMessage.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                tx.processMessage,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'CodecPro',
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  height: 1.3,
+                  color: cs.error,
+                ),
+              ),
+            ],
           ],
         ),
       ),

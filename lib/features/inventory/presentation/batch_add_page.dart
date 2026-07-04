@@ -878,14 +878,33 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
               InkCard(
                 ruleColor: IntesharColors.saffronDeep,
                 padding: const EdgeInsets.all(14),
-                child: Text(
-                  _tr(
-                    context,
-                    'تم الاستيراد: ${_result!.imported} • مكرر: ${_result!.skipped} • غير صالح: ${_result!.invalid}',
-                    'Imported: ${_result!.imported} • duplicate: ${_result!.skipped} • invalid: ${_result!.invalid}',
-                  ),
-                  style: IntesharType.sans(13.5,
-                      color: cs.onSurface, w: FontWeight.w700),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _tr(
+                        context,
+                        'تم الاستيراد: ${_result!.imported} • مكرر: ${_result!.skipped} • غير صالح: ${_result!.invalid}',
+                        'Imported: ${_result!.imported} • duplicate: ${_result!.skipped} • invalid: ${_result!.invalid}',
+                      ),
+                      style: IntesharType.sans(13.5,
+                          color: cs.onSurface, w: FontWeight.w700),
+                    ),
+                    // Which serials were skipped as duplicates (first 20) — so the operator can
+                    // reconcile instead of guessing which rows didn't import.
+                    if (_result!.skippedSerials.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        _tr(
+                          context,
+                          'أرقام مكررة: ${_result!.skippedSerials.take(20).join('، ')}${_result!.skippedSerials.length > 20 ? ' …' : ''}',
+                          'Duplicate serials: ${_result!.skippedSerials.take(20).join(', ')}${_result!.skippedSerials.length > 20 ? ' …' : ''}',
+                        ),
+                        style: IntesharType.mono(11.5,
+                            color: cs.onSurfaceVariant, w: FontWeight.w600),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ],

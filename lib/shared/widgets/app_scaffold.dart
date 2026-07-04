@@ -25,13 +25,13 @@ const int _kMaxBottomTabs = 5;
 /// Used by [_GroupHeader] to render bilingual section dividers in the desktop
 /// sidebar. Keys must match the [_NavItem.group] values assigned in [_navFor].
 const Map<String, (String, String)> _kGroupLabels = {
-  'oversight':        ('الإشراف',          'Oversight'),
-  'inventory_stock':  ('المخزون',           'Inventory & Stock'),
-  'distribution':     ('التوزيع',           'Distribution'),
-  'network':          ('الشبكة',            'Network'),
-  'catalog':          ('الكتالوج',          'Catalog'),
-  'administration':   ('الإدارة',           'Administration'),
-  'operations':       ('العمليات',          'Operations'),
+  'oversight': ('الإشراف', 'Oversight'),
+  'inventory_stock': ('المخزون', 'Inventory & Stock'),
+  'distribution': ('التوزيع', 'Distribution'),
+  'network': ('الشبكة', 'Network'),
+  'catalog': ('الكتالوج', 'Catalog'),
+  'administration': ('الإدارة', 'Administration'),
+  'operations': ('العمليات', 'Operations'),
 };
 
 class _NavItem {
@@ -41,12 +41,19 @@ class _NavItem {
   final String route;
   // HQ supervisors are scoped to sections via capabilities; null = always visible.
   final Capability? required;
+
   /// Desktop-sidebar group key — matches a key in [_kGroupLabels].
   /// Null means the item renders without a group header (agents' Notifications,
   /// Store items, action rows). Ignored by the bottom-bar and NavigationRail.
   final String? group;
-  const _NavItem(this.icon, this.selectedIcon, this.label, this.route,
-      {this.required, this.group});
+  const _NavItem(
+    this.icon,
+    this.selectedIcon,
+    this.label,
+    this.route, {
+    this.required,
+    this.group,
+  });
 }
 
 /// Whether a nav item is visible to a user with [caps]. Items with no [required]
@@ -75,14 +82,11 @@ Widget _wrapBadge(Widget icon, String route, int count) {
 class _SidebarEntry {
   /// Non-null for nav items; null for group headers.
   final int? itemIndex;
+
   /// Non-null for group headers; null for nav items.
   final String? groupKey;
-  const _SidebarEntry.item(int index)
-      : itemIndex = index,
-        groupKey = null;
-  const _SidebarEntry.header(String key)
-      : itemIndex = null,
-        groupKey = key;
+  const _SidebarEntry.item(int index) : itemIndex = index, groupKey = null;
+  const _SidebarEntry.header(String key) : itemIndex = null, groupKey = key;
   bool get isHeader => groupKey != null;
 }
 
@@ -150,60 +154,141 @@ class AppShell extends ConsumerWidget {
         //
         // Stock reallocation has no ARB key yet — labelled inline (mirrors the
         // inline-localized strings used by the reallocation page itself).
-        final reallocLabel =
-            l.localeName.startsWith('ar') ? 'إعادة التوزيع' : 'Reallocation';
+        final reallocLabel = l.localeName.startsWith('ar')
+            ? 'إعادة التوزيع'
+            : 'Reallocation';
         return [
-          _NavItem(Icons.monitor_heart_outlined, Icons.monitor_heart,
-              l.navSystemActivity, '/hq/home',
-              required: Capability.VIEW_REPORTS, group: 'oversight'),
-          _NavItem(Icons.warehouse_outlined, Icons.warehouse,
-              l.navInventory, '/hq/inventory',
-              required: Capability.VIEW_REPORTS, group: 'inventory_stock'),
-          _NavItem(Icons.swap_horiz_outlined, Icons.swap_horiz,
-              l.navTransactions, '/hq/transactions',
-              required: Capability.VIEW_REPORTS, group: 'distribution'),
-          _NavItem(Icons.account_tree_outlined, Icons.account_tree,
-              l.navHierarchy, '/hq/entities',
-              required: Capability.VIEW_REPORTS, group: 'network'),
+          _NavItem(
+            Icons.monitor_heart_outlined,
+            Icons.monitor_heart,
+            l.navSystemActivity,
+            '/hq/home',
+            required: Capability.VIEW_REPORTS,
+            group: 'oversight',
+          ),
+          _NavItem(
+            Icons.warehouse_outlined,
+            Icons.warehouse,
+            l.navInventory,
+            '/hq/inventory',
+            required: Capability.VIEW_REPORTS,
+            group: 'inventory_stock',
+          ),
+          _NavItem(
+            Icons.swap_horiz_outlined,
+            Icons.swap_horiz,
+            l.navTransactions,
+            '/hq/transactions',
+            required: Capability.VIEW_REPORTS,
+            group: 'distribution',
+          ),
+          _NavItem(
+            Icons.account_tree_outlined,
+            Icons.account_tree,
+            l.navHierarchy,
+            '/hq/entities',
+            required: Capability.VIEW_REPORTS,
+            group: 'network',
+          ),
           // ── More sheet below ─────────────────────────────────────────────
-          _NavItem(Icons.fact_check_outlined, Icons.fact_check,
-              l.navPrintOps, '/hq/print-operations',
-              required: Capability.VIEW_REPORTS, group: 'oversight'),
-          _NavItem(Icons.upload_file_outlined, Icons.upload_file,
-              l.navBatchAdd, '/hq/batch',
-              required: Capability.MANAGE_CATALOG, group: 'inventory_stock'),
-          _NavItem(Icons.move_down_outlined, Icons.move_down,
-              reallocLabel, '/hq/points-transfer',
-              required: Capability.AGENT_ADMIN, group: 'inventory_stock'),
-          _NavItem(Icons.badge_outlined, Icons.badge,
-              l.navMainAgents, '/hq/main-agents',
-              required: Capability.MANAGE_AGENTS, group: 'network'),
-          _NavItem(Icons.store_outlined, Icons.store,
-              l.navSubAgents, '/hq/sub-agents',
-              required: Capability.MANAGE_AGENTS, group: 'network'),
-          _NavItem(Icons.point_of_sale_outlined, Icons.point_of_sale,
-              l.navStores, '/hq/stores',
-              // Store/POS management is its own section (historically MANAGE_POS) —
-              // distinct from agent/entity CRUD (MANAGE_AGENTS).
-              required: Capability.MANAGE_POS, group: 'network'),
-          _NavItem(Icons.business_outlined, Icons.business,
-              l.navCompanies, '/hq/companies',
-              required: Capability.MANAGE_COMPANIES, group: 'catalog'),
-          _NavItem(Icons.inventory_2_outlined, Icons.inventory_2,
-              l.navCatalog, '/hq/definitions',
-              required: Capability.MANAGE_CATALOG, group: 'catalog'),
-          _NavItem(Icons.receipt_long_outlined, Icons.receipt_long,
-              l.navTemplates, '/hq/templates',
-              required: Capability.MANAGE_CATALOG, group: 'catalog'),
-          _NavItem(Icons.manage_accounts_outlined, Icons.manage_accounts,
-              l.navUsers, '/hq/users',
-              required: Capability.AGENT_ADMIN, group: 'administration'),
-          _NavItem(Icons.schedule_outlined, Icons.schedule,
-              l.navWorkingHours, '/hq/working-hours',
-              required: Capability.AGENT_ADMIN, group: 'administration'),
-          _NavItem(Icons.campaign_outlined, Icons.campaign,
-              l.navNotifications, '/hq/notifications',
-              required: Capability.AGENT_ADMIN, group: 'administration'),
+          _NavItem(
+            Icons.fact_check_outlined,
+            Icons.fact_check,
+            l.navPrintOps,
+            '/hq/print-operations',
+            required: Capability.VIEW_REPORTS,
+            group: 'oversight',
+          ),
+          _NavItem(
+            Icons.upload_file_outlined,
+            Icons.upload_file,
+            l.navBatchAdd,
+            '/hq/batch',
+            required: Capability.MANAGE_CATALOG,
+            group: 'inventory_stock',
+          ),
+          _NavItem(
+            Icons.move_down_outlined,
+            Icons.move_down,
+            reallocLabel,
+            '/hq/points-transfer',
+            required: Capability.AGENT_ADMIN,
+            group: 'inventory_stock',
+          ),
+          _NavItem(
+            Icons.badge_outlined,
+            Icons.badge,
+            l.navMainAgents,
+            '/hq/main-agents',
+            required: Capability.MANAGE_AGENTS,
+            group: 'network',
+          ),
+          _NavItem(
+            Icons.store_outlined,
+            Icons.store,
+            l.navSubAgents,
+            '/hq/sub-agents',
+            required: Capability.MANAGE_AGENTS,
+            group: 'network',
+          ),
+          _NavItem(
+            Icons.point_of_sale_outlined,
+            Icons.point_of_sale,
+            l.navStores,
+            '/hq/stores',
+            // Store/POS management is its own section (historically MANAGE_POS) —
+            // distinct from agent/entity CRUD (MANAGE_AGENTS).
+            required: Capability.MANAGE_POS,
+            group: 'network',
+          ),
+          _NavItem(
+            Icons.business_outlined,
+            Icons.business,
+            l.navCompanies,
+            '/hq/companies',
+            required: Capability.MANAGE_COMPANIES,
+            group: 'catalog',
+          ),
+          _NavItem(
+            Icons.inventory_2_outlined,
+            Icons.inventory_2,
+            l.navCatalog,
+            '/hq/definitions',
+            required: Capability.MANAGE_CATALOG,
+            group: 'catalog',
+          ),
+          _NavItem(
+            Icons.receipt_long_outlined,
+            Icons.receipt_long,
+            l.navTemplates,
+            '/hq/templates',
+            required: Capability.MANAGE_CATALOG,
+            group: 'catalog',
+          ),
+          _NavItem(
+            Icons.manage_accounts_outlined,
+            Icons.manage_accounts,
+            l.navUsers,
+            '/hq/users',
+            required: Capability.AGENT_ADMIN,
+            group: 'administration',
+          ),
+          _NavItem(
+            Icons.schedule_outlined,
+            Icons.schedule,
+            l.navWorkingHours,
+            '/hq/working-hours',
+            required: Capability.AGENT_ADMIN,
+            group: 'administration',
+          ),
+          _NavItem(
+            Icons.campaign_outlined,
+            Icons.campaign,
+            l.navNotifications,
+            '/hq/notifications',
+            required: Capability.AGENT_ADMIN,
+            group: 'administration',
+          ),
         ];
 
       case EntityType.AGENT1:
@@ -211,36 +296,94 @@ class AppShell extends ConsumerWidget {
         // Stores, [Pricing — runtime-appended before Notifications], Notifications (More).
         // Groups: Operations · Network (Notifications ungrouped, always last).
         return [
-          _NavItem(Icons.dashboard_outlined,    Icons.dashboard,
-              l.navDashboard,    '/agent1/home',         group: 'operations'),
-          _NavItem(Icons.swap_horiz_outlined,   Icons.swap_horiz,
-              l.navTransactions, '/agent1/transactions',  group: 'operations'),
-          _NavItem(Icons.warehouse_outlined,    Icons.warehouse,
-              l.navInventory,    '/agent1/inventory',     group: 'operations'),
-          _NavItem(Icons.account_tree_outlined, Icons.account_tree,
-              l.navChildren,     '/agent1/entities',      group: 'network'),
-          _NavItem(Icons.point_of_sale_outlined,Icons.point_of_sale,
-              l.navStores,       '/agent1/stores',        group: 'network'),
+          _NavItem(
+            Icons.dashboard_outlined,
+            Icons.dashboard,
+            l.navDashboard,
+            '/agent1/home',
+            group: 'operations',
+          ),
+          _NavItem(
+            Icons.swap_horiz_outlined,
+            Icons.swap_horiz,
+            l.navTransactions,
+            '/agent1/transactions',
+            group: 'operations',
+          ),
+          _NavItem(
+            Icons.warehouse_outlined,
+            Icons.warehouse,
+            l.navInventory,
+            '/agent1/inventory',
+            group: 'operations',
+          ),
+          _NavItem(
+            Icons.account_tree_outlined,
+            Icons.account_tree,
+            l.navChildren,
+            '/agent1/entities',
+            group: 'network',
+          ),
+          _NavItem(
+            Icons.point_of_sale_outlined,
+            Icons.point_of_sale,
+            l.navStores,
+            '/agent1/stores',
+            group: 'network',
+          ),
           // Pricing is runtime-inserted at (length-1) so it lands before Notifications.
-          _NavItem(Icons.notifications_outlined,Icons.notifications,
-              l.navNotifications,'/agent1/notifications'),
+          _NavItem(
+            Icons.notifications_outlined,
+            Icons.notifications,
+            l.navNotifications,
+            '/agent1/notifications',
+          ),
         ];
 
       case EntityType.AGENT2:
         // Same operational-first rationale as AGENT1 (no Pricing for AGENT2).
         return [
-          _NavItem(Icons.dashboard_outlined,    Icons.dashboard,
-              l.navDashboard,    '/agent2/home',         group: 'operations'),
-          _NavItem(Icons.swap_horiz_outlined,   Icons.swap_horiz,
-              l.navTransactions, '/agent2/transactions',  group: 'operations'),
-          _NavItem(Icons.warehouse_outlined,    Icons.warehouse,
-              l.navInventory,    '/agent2/inventory',     group: 'operations'),
-          _NavItem(Icons.account_tree_outlined, Icons.account_tree,
-              l.navChildren,     '/agent2/entities',      group: 'network'),
-          _NavItem(Icons.point_of_sale_outlined,Icons.point_of_sale,
-              l.navStores,       '/agent2/stores',        group: 'network'),
-          _NavItem(Icons.notifications_outlined,Icons.notifications,
-              l.navNotifications,'/agent2/notifications'),
+          _NavItem(
+            Icons.dashboard_outlined,
+            Icons.dashboard,
+            l.navDashboard,
+            '/agent2/home',
+            group: 'operations',
+          ),
+          _NavItem(
+            Icons.swap_horiz_outlined,
+            Icons.swap_horiz,
+            l.navTransactions,
+            '/agent2/transactions',
+            group: 'operations',
+          ),
+          _NavItem(
+            Icons.warehouse_outlined,
+            Icons.warehouse,
+            l.navInventory,
+            '/agent2/inventory',
+            group: 'operations',
+          ),
+          _NavItem(
+            Icons.account_tree_outlined,
+            Icons.account_tree,
+            l.navChildren,
+            '/agent2/entities',
+            group: 'network',
+          ),
+          _NavItem(
+            Icons.point_of_sale_outlined,
+            Icons.point_of_sale,
+            l.navStores,
+            '/agent2/stores',
+            group: 'network',
+          ),
+          _NavItem(
+            Icons.notifications_outlined,
+            Icons.notifications,
+            l.navNotifications,
+            '/agent2/notifications',
+          ),
         ];
 
       case EntityType.STORE:
@@ -248,14 +391,30 @@ class AppShell extends ConsumerWidget {
         // terminal is a SEPARATE USER-role session (/pos); a /pos/home nav item here would
         // only bounce the store-admin (route prefix mismatch), so it is intentionally omitted.
         return [
-          _NavItem(Icons.warehouse_outlined,    Icons.warehouse,
-              l.navInventory,    '/store/inventory'),
-          _NavItem(Icons.swap_horiz_outlined,   Icons.swap_horiz,
-              l.navTransactions, '/store/transactions'),
-          _NavItem(Icons.dashboard_outlined,    Icons.dashboard,
-              l.navDashboard,    '/store/home'),
-          _NavItem(Icons.notifications_outlined,Icons.notifications,
-              l.navNotifications,'/store/notifications'),
+          _NavItem(
+            Icons.warehouse_outlined,
+            Icons.warehouse,
+            l.navInventory,
+            '/store/inventory',
+          ),
+          _NavItem(
+            Icons.swap_horiz_outlined,
+            Icons.swap_horiz,
+            l.navTransactions,
+            '/store/transactions',
+          ),
+          _NavItem(
+            Icons.dashboard_outlined,
+            Icons.dashboard,
+            l.navDashboard,
+            '/store/home',
+          ),
+          _NavItem(
+            Icons.notifications_outlined,
+            Icons.notifications,
+            l.navNotifications,
+            '/store/notifications',
+          ),
         ];
     }
   }
@@ -297,22 +456,32 @@ class AppShell extends ConsumerWidget {
         auth.can({Capability.MANAGE_PRICING})) {
       base.insert(
         base.length - 1,
-        _NavItem(Icons.sell_outlined, Icons.sell, l.navPrices, '/agent1/pricing',
-            group: 'operations'),
+        _NavItem(
+          Icons.sell_outlined,
+          Icons.sell,
+          l.navPrices,
+          '/agent1/pricing',
+          group: 'operations',
+        ),
       );
     }
 
     // HQ supervisors see only the sections their capabilities allow (empty caps =
     // full access). Never produce an empty nav.
-    final caps = (auth is AuthAuthenticated) ? auth.capabilities : const <Capability>{};
-    final filtered = base.where((it) => _navAllowed(caps, it.required)).toList();
+    final caps = (auth is AuthAuthenticated)
+        ? auth.capabilities
+        : const <Capability>{};
+    final filtered = base
+        .where((it) => _navAllowed(caps, it.required))
+        .toList();
     final items = filtered.isEmpty ? base : filtered;
 
     final location = GoRouterState.of(context).matchedLocation;
     final activeIndex = _activeIndex(items, location);
 
     // Unread notification badge count — fails silently (returns 0 on any error).
-    final unreadCount = ref.watch(notificationsUnreadCountProvider).valueOrNull ?? 0;
+    final unreadCount =
+        ref.watch(notificationsUnreadCountProvider).valueOrNull ?? 0;
 
     void go(int i) {
       final target = items[i].route;
@@ -431,14 +600,20 @@ class _MobileLayout extends StatelessWidget {
     final overflow = items.length > _kMaxBottomTabs;
     final primaryCount = overflow ? _kMaxBottomTabs - 1 : items.length;
     final primary = items.take(primaryCount).toList();
-    final extras = overflow ? items.skip(primaryCount).toList() : const <_NavItem>[];
+    final extras = overflow
+        ? items.skip(primaryCount).toList()
+        : const <_NavItem>[];
     final activeInExtras = activeIndex >= primaryCount;
 
     final destinations = <NavigationDestination>[
       for (final item in primary)
         NavigationDestination(
           icon: _wrapBadge(Icon(item.icon), item.route, unreadCount),
-          selectedIcon: _wrapBadge(Icon(item.selectedIcon), item.route, unreadCount),
+          selectedIcon: _wrapBadge(
+            Icon(item.selectedIcon),
+            item.route,
+            unreadCount,
+          ),
           label: item.label,
           tooltip: item.label,
         ),
@@ -452,14 +627,20 @@ class _MobileLayout extends StatelessWidget {
     ];
 
     final selectedIndex =
-        (overflow && activeInExtras ? primaryCount : activeIndex)
-            .clamp(0, destinations.length - 1);
+        (overflow && activeInExtras ? primaryCount : activeIndex).clamp(
+          0,
+          destinations.length - 1,
+        );
 
     return Container(
       decoration: BoxDecoration(
         color: cs.surfaceContainer,
         boxShadow: const [
-          BoxShadow(blurRadius: 24, offset: Offset(0, -6), color: Color(0x14000000)),
+          BoxShadow(
+            blurRadius: 24,
+            offset: Offset(0, -6),
+            color: Color(0x14000000),
+          ),
         ],
       ),
       child: NavigationBar(
@@ -476,7 +657,11 @@ class _MobileLayout extends StatelessWidget {
     );
   }
 
-  void _openMoreSheet(BuildContext context, List<_NavItem> extras, int primaryCount) {
+  void _openMoreSheet(
+    BuildContext context,
+    List<_NavItem> extras,
+    int primaryCount,
+  ) {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -585,7 +770,11 @@ class _MoreRow extends StatelessWidget {
           child: Row(
             children: [
               _wrapBadge(
-                Icon(active ? item.selectedIcon : item.icon, size: 22, color: fg),
+                Icon(
+                  active ? item.selectedIcon : item.icon,
+                  size: 22,
+                  color: fg,
+                ),
                 item.route,
                 unreadCount,
               ),
@@ -602,7 +791,8 @@ class _MoreRow extends StatelessWidget {
                   ),
                 ),
               ),
-              if (active) IntesharStar(size: 14, color: cs.onSurface, filled: true),
+              if (active)
+                IntesharStar(size: 14, color: cs.onSurface, filled: true),
             ],
           ),
         ),
@@ -646,7 +836,11 @@ class _TabletLayout extends StatelessWidget {
         titleSpacing: 16,
         title: GestureDetector(
           onLongPress: () => context.go('/diagnostics'),
-          child: IntesharLockup(title: title, tagline: 'Inteshar Platform', compact: true),
+          child: IntesharLockup(
+            title: title,
+            tagline: 'Inteshar Platform',
+            compact: true,
+          ),
         ),
         actions: [
           if (entity != null)
@@ -668,7 +862,11 @@ class _TabletLayout extends StatelessWidget {
             decoration: BoxDecoration(
               color: cs.surfaceContainer,
               boxShadow: const [
-                BoxShadow(blurRadius: 20, offset: Offset(2, 0), color: Color(0x0F000000)),
+                BoxShadow(
+                  blurRadius: 20,
+                  offset: Offset(2, 0),
+                  color: Color(0x0F000000),
+                ),
               ],
             ),
             // A rail listing every destination can exceed a short or landscape
@@ -690,8 +888,16 @@ class _TabletLayout extends StatelessWidget {
                       destinations: items
                           .map(
                             (e) => NavigationRailDestination(
-                              icon: _wrapBadge(Icon(e.icon), e.route, unreadCount),
-                              selectedIcon: _wrapBadge(Icon(e.selectedIcon), e.route, unreadCount),
+                              icon: _wrapBadge(
+                                Icon(e.icon),
+                                e.route,
+                                unreadCount,
+                              ),
+                              selectedIcon: _wrapBadge(
+                                Icon(e.selectedIcon),
+                                e.route,
+                                unreadCount,
+                              ),
                               label: Text(e.label),
                             ),
                           )
@@ -754,10 +960,7 @@ class _DesktopLayout extends StatelessWidget {
               unreadCount: unreadCount,
             ),
             Expanded(
-              child: Container(
-                color: cs.surface,
-                child: body,
-              ),
+              child: Container(color: cs.surface, child: body),
             ),
           ],
         ),
@@ -802,7 +1005,11 @@ class _Sidebar extends StatelessWidget {
         decoration: BoxDecoration(
           color: cs.surfaceContainer,
           boxShadow: const [
-            BoxShadow(blurRadius: 22, offset: Offset(2, 0), color: Color(0x12000000)),
+            BoxShadow(
+              blurRadius: 22,
+              offset: Offset(2, 0),
+              color: Color(0x12000000),
+            ),
           ],
         ),
         child: Column(
@@ -835,7 +1042,10 @@ class _Sidebar extends StatelessWidget {
             // selectable indices — so activeIndex / onSelect are unaffected.
             Expanded(
               child: ListView.builder(
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 8,
+                  horizontal: 10,
+                ),
                 itemCount: sidebarEntries.length,
                 itemBuilder: (ctx, e) {
                   final entry = sidebarEntries[e];
@@ -943,16 +1153,23 @@ class _NavRow extends StatefulWidget {
   final int unreadCount;
   final VoidCallback onTap;
 
-  const _NavRow({required this.item, required this.active, required this.onTap, this.unreadCount = 0})
-      : iconOverride = null,
-        labelOverride = null;
+  const _NavRow({
+    required this.item,
+    required this.active,
+    required this.onTap,
+    this.unreadCount = 0,
+  }) : iconOverride = null,
+       labelOverride = null;
 
-  const _NavRow.action({required IconData icon, required String label, required this.onTap})
-      : item = null,
-        iconOverride = icon,
-        labelOverride = label,
-        active = false,
-        unreadCount = 0;
+  const _NavRow.action({
+    required IconData icon,
+    required String label,
+    required this.onTap,
+  }) : item = null,
+       iconOverride = icon,
+       labelOverride = label,
+       active = false,
+       unreadCount = 0;
 
   @override
   State<_NavRow> createState() => _NavRowState();
@@ -979,47 +1196,70 @@ class _NavRowState extends State<_NavRow> {
         : (_hover ? cs.surfaceContainerHighest : Colors.transparent);
 
     final route = widget.item?.route ?? '';
-    final iconWidget = _wrapBadge(Icon(icon, size: 20, color: fg), route, widget.unreadCount);
+    final iconWidget = _wrapBadge(
+      Icon(icon, size: 20, color: fg),
+      route,
+      widget.unreadCount,
+    );
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      cursor: SystemMouseCursors.click,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Material(
-          color: bg,
-          borderRadius: BorderRadius.circular(IntesharRadii.md),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(IntesharRadii.md),
-            onTap: widget.onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              child: Row(
-                children: [
-                  // Active: small star indicator instead of the editorial rule.
-                  if (active)
-                    Padding(
-                      padding: const EdgeInsetsDirectional.only(end: 10),
-                      child: IntesharStar(size: 14, color: cs.onSurface, filled: true),
-                    )
-                  else
-                    const SizedBox(width: 24),
-                  iconWidget,
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        fontFamily: 'CodecPro',
-                        color: fg,
-                        fontSize: 13.5,
-                        fontWeight: active ? FontWeight.w800 : FontWeight.w500,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
+    // Merge the InkWell (tappable) + label Text into ONE labelled button node so the rail is
+    // reachable by screen readers AND findable/tappable by the semantics-driven E2E (the tap
+    // node otherwise carries no label).
+    return MergeSemantics(
+      child: Semantics(
+        button: true,
+        selected: active,
+        label: label,
+        child: MouseRegion(
+          onEnter: (_) => setState(() => _hover = true),
+          onExit: (_) => setState(() => _hover = false),
+          cursor: SystemMouseCursors.click,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Material(
+              color: bg,
+              borderRadius: BorderRadius.circular(IntesharRadii.md),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(IntesharRadii.md),
+                onTap: widget.onTap,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
                   ),
-                ],
+                  child: Row(
+                    children: [
+                      // Active: small star indicator instead of the editorial rule.
+                      if (active)
+                        Padding(
+                          padding: const EdgeInsetsDirectional.only(end: 10),
+                          child: IntesharStar(
+                            size: 14,
+                            color: cs.onSurface,
+                            filled: true,
+                          ),
+                        )
+                      else
+                        const SizedBox(width: 24),
+                      iconWidget,
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            fontFamily: 'CodecPro',
+                            color: fg,
+                            fontSize: 13.5,
+                            fontWeight: active
+                                ? FontWeight.w800
+                                : FontWeight.w500,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -1055,7 +1295,11 @@ void _showAboutSheet(BuildContext context) {
             children: [
               Text(
                 l.aboutVersion,
-                style: GoogleFonts.jetBrainsMono(fontSize: 12, color: cs.onSurfaceVariant, letterSpacing: 0.6),
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 12,
+                  color: cs.onSurfaceVariant,
+                  letterSpacing: 0.6,
+                ),
               ),
               const SizedBox(height: 16),
               SectionLabel(l.aboutSupportedPrinters),
@@ -1064,19 +1308,35 @@ void _showAboutSheet(BuildContext context) {
                   padding: const EdgeInsets.symmetric(vertical: 3),
                   child: Row(
                     children: [
-                      Icon(Icons.print_outlined, size: 14, color: cs.onSurfaceVariant),
+                      Icon(
+                        Icons.print_outlined,
+                        size: 14,
+                        color: cs.onSurfaceVariant,
+                      ),
                       const SizedBox(width: 8),
-                      Expanded(child: Text(m.name, style: Theme.of(ctx).textTheme.bodyMedium)),
+                      Expanded(
+                        child: Text(
+                          m.name,
+                          style: Theme.of(ctx).textTheme.bodyMedium,
+                        ),
+                      ),
                       Text(
                         '${m.paperMm} mm',
-                        style: GoogleFonts.jetBrainsMono(fontSize: 11, color: cs.onSurfaceVariant, letterSpacing: 0.4),
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 11,
+                          color: cs.onSurfaceVariant,
+                          letterSpacing: 0.4,
+                        ),
                       ),
                     ],
                   ),
                 ),
               ),
               const SizedBox(height: 16),
-              Text(l.aboutPrinterNote, style: Theme.of(ctx).textTheme.bodySmall),
+              Text(
+                l.aboutPrinterNote,
+                style: Theme.of(ctx).textTheme.bodySmall,
+              ),
               const SizedBox(height: 16),
               const Divider(height: 1),
               const SizedBox(height: 12),
@@ -1085,7 +1345,10 @@ void _showAboutSheet(BuildContext context) {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l.commonClose)),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(l.commonClose),
+          ),
         ],
       );
     },
@@ -1104,7 +1367,12 @@ class _LanguageSwitcherRow extends ConsumerWidget {
       children: [
         Icon(Icons.translate_outlined, size: 18, color: cs.onSurfaceVariant),
         const SizedBox(width: 10),
-        Expanded(child: Text(l.languageLabel, style: Theme.of(context).textTheme.bodyMedium)),
+        Expanded(
+          child: Text(
+            l.languageLabel,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ),
         SegmentedButton<String>(
           showSelectedIcon: false,
           style: ButtonStyle(
@@ -1170,7 +1438,10 @@ class _AboutDrawer extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 4),
-              child: SectionLabel(l.aboutSupportedPrinters, padding: EdgeInsets.zero),
+              child: SectionLabel(
+                l.aboutSupportedPrinters,
+                padding: EdgeInsets.zero,
+              ),
             ),
             ...supportedPrinterModels.map(
               (m) => ListTile(

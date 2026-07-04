@@ -417,6 +417,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
   String? _categoryName;
   bool _revealing = false;
   bool _printing = false;
+  String? _saleError; // last draw/sale failure — shown as a persistent in-sheet banner
 
   @override
   void initState() {
@@ -427,7 +428,10 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
   }
 
   Future<void> _reveal() async {
-    setState(() => _revealing = true);
+    setState(() {
+      _revealing = true;
+      _saleError = null;
+    });
     try {
       final api = ref.read(apiClientProvider);
       final full = await ProductRepository(api).draw(sku: widget.sku.sku, governorate: widget.sku.governorate, clientRef: _clientRef);
@@ -451,10 +455,10 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
       }
     } catch (e) {
       if (!mounted) return;
-      // A 402 (no withdrawal limit) or 409 (pool empty) means NOTHING was sold — show a
-      // friendly message (the mapper surfaces the backend's 402/409 text) and let the
-      // operator retry (same idempotency key) or back out. Do NOT close as consumed.
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, context)), backgroundColor: Theme.of(context).colorScheme.error));
+      // A 402 (no withdrawal limit) or 409 (pool empty) means NOTHING was sold — surface a
+      // PERSISTENT banner (not a fleeting snackbar) with the friendly reason; the operator can
+      // retry (same idempotency key, never a 2nd card) or back out. Do NOT close as consumed.
+      setState(() => _saleError = friendlyError(e, context));
     } finally {
       if (mounted) setState(() => _revealing = false);
     }
@@ -754,6 +758,32 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
       constraints: const BoxConstraints(maxWidth: 360),
       child: Column(
         children: [
+          // Persistent failure banner: the last sale attempt (402 no-limit / 409 pool-empty /
+          // network) failed and nothing was sold — the operator can Retry (same idempotency
+          // key) or Cancel. Stays until the next attempt succeeds.
+          if (_saleError != null) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: cs.errorContainer,
+                borderRadius: BorderRadius.circular(IntesharRadii.md),
+                border: Border.all(color: cs.error.withValues(alpha: 0.5)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.error_outline, size: 18, color: cs.error),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _saleError!,
+                      style: TextStyle(fontFamily: 'CodecPro', fontSize: 12.5, height: 1.35, fontWeight: FontWeight.w700, color: cs.onErrorContainer),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
@@ -783,7 +813,9 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
               const SizedBox(width: 12),
               Expanded(
                 child: BrandCTAButton(
-                  label: _revealing ? l.posRevealing : l.posReveal,
+                  label: _revealing
+                      ? l.posRevealing
+                      : (_saleError != null ? l.retryButton : l.posReveal),
                   leading: _revealing ? null : Icons.lock_open_outlined,
                   loading: _revealing,
                   onPressed: _revealing ? null : _reveal,

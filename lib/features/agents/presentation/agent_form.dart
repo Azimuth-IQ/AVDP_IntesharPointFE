@@ -199,6 +199,30 @@ class _AgentFormState extends ConsumerState<AgentForm> {
       setState(() => _error = s.errGovRequired);
       return false;
     }
+    // Contact email (optional) — if present it must look like an email.
+    final email = _contactEmail.text.trim();
+    if (email.isNotEmpty &&
+        !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+      setState(() => _error = s.errEmailInvalid);
+      return false;
+    }
+    // Geo (optional) — if present, must be numeric and in range.
+    final lat = _lat.text.trim();
+    if (lat.isNotEmpty) {
+      final v = double.tryParse(lat);
+      if (v == null || v < -90 || v > 90) {
+        setState(() => _error = s.errGeoInvalid);
+        return false;
+      }
+    }
+    final lng = _lng.text.trim();
+    if (lng.isNotEmpty) {
+      final v = double.tryParse(lng);
+      if (v == null || v < -180 || v > 180) {
+        setState(() => _error = s.errGeoInvalid);
+        return false;
+      }
+    }
     setState(() => _error = null);
     return true;
   }

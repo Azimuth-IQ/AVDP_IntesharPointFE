@@ -98,6 +98,8 @@ class AgentStrings {
   // ── Validation / results ──
   String get errNameRequired => pick('Commercial name is required', 'الاسم التجاري مطلوب');
   String get errGovRequired => pick('Select at least one governorate', 'اختر محافظة واحدة على الأقل');
+  String get errEmailInvalid => pick('Enter a valid email address', 'أدخل بريدًا إلكترونيًا صحيحًا');
+  String get errGeoInvalid => pick('Latitude must be -90..90 and longitude -180..180', 'خط العرض بين -90 و90 وخط الطول بين -180 و180');
   String get errUsersRequired => pick('Add at least one user', 'أضف مستخدماً واحداً على الأقل');
   String get errOneAdmin => pick('Exactly one admin user is required', 'مطلوب مستخدم مدير واحد بالضبط');
   String get errMaxUsers => _sub

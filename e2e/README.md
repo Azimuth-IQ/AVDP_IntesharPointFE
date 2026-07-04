@@ -42,11 +42,23 @@ worthwhile a11y improvement to the app itself.
 ```bash
 cd e2e
 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install        # once
+# 1) Flip TOTP OFF on the target backend (login() sends no code) — VM compose:
+#    AUTH_TOTP_ENABLED=false, then recreate the backend. Re-enable it after the run.
+# 2) After a UAT DB wipe (or a first run): (re)create the disposable accounts.
+BASE_URL=http://34.185.153.95 node seed.mjs
+# 3) Run:
 npx playwright test                                   # all specs
 npx playwright test tests/01-login.spec.js            # one spec
 BASE_URL=http://localhost:8080 npx playwright test    # against another backend
 npx playwright show-report                            # HTML report
 ```
+
+> **A DB wipe deletes every entity except HQ, and TOTP is ON in normal operation** — both must
+> be handled before a run: `seed.mjs` recreates the accounts (put the seeded Main Agent in a
+> governorate the create/negative specs don't use — it defaults to Basra so `04`/`05`'s
+> Muthanna/Baghdad stay free), and TOTP must be toggled off for `login()` to get a token.
+> Spec `03` (POS draw) additionally needs the pool rebuilt (SKU `iCASH 5k IQD` + cards + pricing
+> + a grant) and the POS PIN `1111` — see the note printed by `seed.mjs`.
 
 Config: `playwright.config.js` (single worker — the suite is one stateful storyline;
 system Chrome with software GL so it renders headless).

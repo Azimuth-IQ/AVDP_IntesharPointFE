@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
+import 'package:inteshar/core/api/error_mapper.dart';
+import 'package:inteshar/core/files/report_export.dart';
 import 'package:inteshar/core/geo/governorates.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/agents/data/agent_repository.dart';
@@ -74,12 +76,26 @@ class _RS {
   String get tabUploaded => p('Uploaded', 'المرفوعة');
   String get cards => p('Cards', 'الكروت');
   String get store => p('Store', 'المكتب');
+  String get export => p('Export', 'تصدير');
+  String get exported => p('Report exported', 'تم تصدير التقرير');
+  String get nothingToExport => p('Nothing to export', 'لا توجد بيانات للتصدير');
+  String get date => p('Date', 'التاريخ');
+  String get time => p('Time', 'الوقت');
+  String get from => p('From', 'من');
+  String get to => p('To', 'إلى');
 }
 
 class _Tab {
   final String key;
   final String label;
   const _Tab(this.key, this.label);
+}
+
+class _Export {
+  final List<String> headers;
+  final List<List<String>> rows;
+  final String file;
+  const _Export(this.headers, this.rows, this.file);
 }
 
 class _ReportsPageState extends ConsumerState<ReportsPage> {
@@ -188,6 +204,139 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     }
   }
 
+  Future<void> _export(String key, _RS s) async {
+    final loc = Localizations.localeOf(context).languageCode;
+    final messenger = ScaffoldMessenger.of(context);
+    dynamic data;
+    try {
+      data = await _futureFor(key); // resolves instantly from the cache once loaded
+    } catch (e) {
+      if (mounted) messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+      return;
+    }
+    final built = _exportRows(key, data, s, loc);
+    if (!mounted) return;
+    if (built == null || built.rows.isEmpty) {
+      messenger.showSnackBar(SnackBar(content: Text(s.nothingToExport)));
+      return;
+    }
+    try {
+      final path = await exportRowsToXlsx(
+          fileName: built.file, sheetName: built.file, headers: built.headers, rows: built.rows);
+      if (mounted && path != null) messenger.showSnackBar(SnackBar(content: Text(s.exported)));
+    } catch (e) {
+      if (mounted) messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+    }
+  }
+
+  /// Flattens the active tab's loaded data into (headers, rows, filename) for XLSX.
+  _Export? _exportRows(String key, dynamic data, _RS s, String loc) {
+    String gov(String g) => g.isEmpty ? s.untagged : governorateLabel(g, loc);
+    String m(num n) => Formatters.money(n);
+
+    List<(String, num, num?, num)> priceGovs(CategoryPriceRow r) {
+      final has = r.governorates.length > 1 ||
+          (r.governorates.length == 1 && r.governorates.first.governorate.isNotEmpty);
+      if (!has) return [('', r.officialPrice, r.agentPrice, r.effectivePrice)];
+      return [for (final g in r.governorates) (g.governorate, g.officialPrice, g.agentPrice, g.effectivePrice)];
+    }
+
+    List<(String, int, num, num)> detailGovs(CategoryPriceRow r) {
+      final has = r.governorates.length > 1 ||
+          (r.governorates.length == 1 && r.governorates.first.governorate.isNotEmpty);
+      if (!has) return [('', r.available, r.effectivePrice, r.lineValue)];
+      return [for (final g in r.governorates) (g.governorate, g.available, g.effectivePrice, g.lineValue)];
+    }
+
+    switch (key) {
+      case 'prices':
+        final c = data as PricingCatalog?;
+        if (c == null) return null;
+        final rows = [
+          for (final r in c.rows)
+            for (final g in priceGovs(r))
+              [r.companyName, r.name, gov(g.$1), m(g.$2), g.$3 == null ? '' : m(g.$3!), m(g.$4)],
+        ];
+        return _Export([s.company, s.category, s.governorate, s.base, s.agent, s.effective], rows, 'prices');
+      case 'stock':
+        final list = (data as List<SkuSummary>?) ?? const [];
+        final rows = <List<String>>[];
+        for (final sku in list) {
+          final buckets = sku.governorates.isEmpty
+              ? [('', sku.available, sku.total, sku.printed)]
+              : [for (final g in sku.governorates) (g.governorate, g.available, g.total, g.printed)];
+          for (final b in buckets) {
+            rows.add([sku.name, gov(b.$1), '${b.$2}', '${b.$3}', '${b.$4}']);
+          }
+        }
+        return _Export([s.category, s.governorate, s.available, s.total, s.used], rows, 'stock');
+      case 'detailed':
+        final c = data as PricingCatalog?;
+        if (c == null) return null;
+        final rows = [
+          for (final r in c.rows)
+            for (final g in detailGovs(r)) [r.name, gov(g.$1), '${g.$2}', m(g.$3), m(g.$4)],
+        ];
+        rows.add([s.grandTotal, '', '', '', m(c.inventoryWorth)]);
+        return _Export([s.category, s.governorate, s.available, s.effective, s.value], rows, 'detailed');
+      case 'posBalances':
+      case 'agentBalances':
+        final list = (data as List<BalanceRosterRow>?) ?? const [];
+        final rows = [
+          for (final r in list)
+            [r.name, r.ownerName, r.userPhone, gov(r.governorate), r.mainAgentName, r.subAgentName,
+              m(r.available), m(r.ordersSpent), '${r.storeCount}'],
+        ];
+        return _Export(
+            [s.tabPosBalances, s.owner, s.phone, s.governorate, s.mainAgent, s.subAgent, s.balance, s.spent, s.points],
+            rows, key);
+      case 'transfers':
+        final list = (data as List<TransferRow>?) ?? const [];
+        final rows = [
+          for (final r in list)
+            [r.date, r.time, r.sourceName, r.destName, m(r.amount), m(r.balanceAfter),
+              r.destOwnerName, r.destPhone, r.mainAgentName, r.subAgentName],
+        ];
+        return _Export(
+            [s.date, s.time, s.mainAgent, s.tabPosBalances, s.transferAmount, s.balanceAfter, s.owner, s.phone, s.mainAgent, s.subAgent],
+            rows, 'transfers');
+      case 'sold':
+        final list = (data as List<SalesRow>?) ?? const [];
+        final rows = [
+          for (final r in list)
+            [r.storeName, r.ownerName, r.userPhone, gov(r.governorate), r.companyName, r.category,
+              r.mainAgentName, r.subAgentName, '${r.count}'],
+        ];
+        return _Export(
+            [s.store, s.owner, s.phone, s.governorate, s.company, s.category, s.mainAgent, s.subAgent, s.cards],
+            rows, 'sold_cards');
+      case 'totalSold':
+        final list = (data as List<SalesRow>?) ?? const [];
+        final totals = <String, int>{};
+        final meta = <String, SalesRow>{};
+        for (final r in list) {
+          final k = '${r.mainAgentName}|${r.subAgentName}|${r.governorate}|${r.companyName}|${r.category}';
+          totals[k] = (totals[k] ?? 0) + r.count;
+          meta.putIfAbsent(k, () => r);
+        }
+        final rows = [
+          for (final k in totals.keys)
+            [meta[k]!.mainAgentName, meta[k]!.subAgentName, gov(meta[k]!.governorate),
+              meta[k]!.companyName, meta[k]!.category, '${totals[k]}'],
+        ];
+        return _Export([s.mainAgent, s.subAgent, s.governorate, s.company, s.category, s.cards], rows, 'total_sold');
+      case 'uploaded':
+        final list = (data as List<UploadsRow>?) ?? const [];
+        final rows = [
+          for (final r in list)
+            [r.agentName, gov(r.governorate), r.companyName, r.category, '${r.count}'],
+        ];
+        return _Export([s.mainAgent, s.governorate, s.company, s.category, s.cards], rows, 'uploaded');
+      default:
+        return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = _RS.of(context);
@@ -199,7 +348,15 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         children: [
           PageHeader(eyebrow: s.eyebrow, title: s.title, subtitle: s.subtitle),
           if (_isHq && _pickables.length > 1) _targetPicker(s),
-          _tabBar(tabs),
+          Row(children: [
+            Expanded(child: _tabBar(tabs)),
+            IconButton(
+              tooltip: s.export,
+              icon: const Icon(Icons.download_outlined),
+              onPressed: _booting ? null : () => _export(key, s),
+            ),
+            const SizedBox(width: 8),
+          ]),
           if (_isDated(key)) _dateBar(s),
           Expanded(child: _booting ? const Center(child: CircularProgressIndicator()) : _body(s, key)),
         ],

@@ -83,6 +83,9 @@ class _RS {
   String get time => p('Time', 'الوقت');
   String get from => p('From', 'من');
   String get to => p('To', 'إلى');
+  String get address => p('Address', 'العنوان');
+  String get source => p('Source', 'المصدر');
+  String get destination => p('Destination', 'الوجهة');
 }
 
 class _Tab {
@@ -284,21 +287,21 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         final list = (data as List<BalanceRosterRow>?) ?? const [];
         final rows = [
           for (final r in list)
-            [r.name, r.ownerName, r.userPhone, gov(r.governorate), r.mainAgentName, r.subAgentName,
+            [r.name, r.ownerName, r.userPhone, gov(r.governorate), r.address, r.mainAgentName, r.subAgentName,
               m(r.available), m(r.ordersSpent), '${r.storeCount}'],
         ];
         return _Export(
-            [s.tabPosBalances, s.owner, s.phone, s.governorate, s.mainAgent, s.subAgent, s.balance, s.spent, s.points],
+            [s.tabPosBalances, s.owner, s.phone, s.governorate, s.address, s.mainAgent, s.subAgent, s.balance, s.spent, s.points],
             rows, key);
       case 'transfers':
         final list = (data as List<TransferRow>?) ?? const [];
         final rows = [
           for (final r in list)
             [r.date, r.time, r.sourceName, r.destName, m(r.amount), m(r.balanceAfter),
-              r.destOwnerName, r.destPhone, r.mainAgentName, r.subAgentName],
+              r.destOwnerName, r.destPhone, gov(r.destGovernorate), r.mainAgentName, r.subAgentName],
         ];
         return _Export(
-            [s.date, s.time, s.mainAgent, s.tabPosBalances, s.transferAmount, s.balanceAfter, s.owner, s.phone, s.mainAgent, s.subAgent],
+            [s.date, s.time, s.source, s.destination, s.transferAmount, s.balanceAfter, s.owner, s.phone, s.governorate, s.mainAgent, s.subAgent],
             rows, 'transfers');
       case 'sold':
         final list = (data as List<SalesRow>?) ?? const [];
@@ -499,6 +502,7 @@ class _RosterReport extends StatelessWidget {
                 if (r.ownerName.isNotEmpty) _kv(cs, s.owner, r.ownerName),
                 if (r.userPhone.isNotEmpty) _kv(cs, s.phone, r.userPhone),
                 if (r.governorate.isNotEmpty) _kv(cs, s.governorate, governorateLabel(r.governorate, loc)),
+                if (r.address.isNotEmpty) _kv(cs, s.address, r.address),
                 if (r.mainAgentName.isNotEmpty) _kv(cs, s.mainAgent, r.mainAgentName),
                 if (r.subAgentName.isNotEmpty) _kv(cs, s.subAgent, r.subAgentName),
                 if (r.tier == 'AGENT1' || r.tier == 'AGENT2') _kv(cs, s.points, '${r.storeCount}'),
@@ -521,6 +525,7 @@ class _TransfersReport extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     if (rows.isEmpty) return _empty(context, s);
+    final loc = Localizations.localeOf(context).languageCode;
     return ListView(
       padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
       children: [
@@ -544,6 +549,7 @@ class _TransfersReport extends StatelessWidget {
                 const SizedBox(height: 4),
                 if (r.destOwnerName.isNotEmpty) _kv(cs, s.owner, r.destOwnerName),
                 if (r.destPhone.isNotEmpty) _kv(cs, s.phone, r.destPhone),
+                if (r.destGovernorate.isNotEmpty) _kv(cs, s.governorate, governorateLabel(r.destGovernorate, loc)),
                 if (r.mainAgentName.isNotEmpty) _kv(cs, s.mainAgent, r.mainAgentName),
                 if (r.subAgentName.isNotEmpty) _kv(cs, s.subAgent, r.subAgentName),
                 _kv(cs, s.balanceAfter, Formatters.iqd(r.balanceAfter.round())),

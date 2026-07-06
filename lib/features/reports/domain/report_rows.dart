@@ -101,3 +101,80 @@ class TransferRow {
         subAgentName: j['subAgentName'] as String? ?? '',
       );
 }
+
+/// One row of the sold-cards report (#4) from `GET /api/reports/sales`, per
+/// (store × company × category × governorate). The FE rolls these up to #5
+/// (total sold). Mirrors backend `Pricing/DTOs/SalesReportRow`.
+class SalesRow {
+  final String storeId;
+  final String storeName;
+  final String ownerName;
+  final String userPhone;
+  final String governorate;
+  final String companyName;
+  final String category;
+  final String sku;
+  final String mainAgentName;
+  final String subAgentName;
+  final int count;
+
+  const SalesRow({
+    this.storeId = '',
+    this.storeName = '',
+    this.ownerName = '',
+    this.userPhone = '',
+    this.governorate = '',
+    this.companyName = '',
+    this.category = '',
+    this.sku = '',
+    this.mainAgentName = '',
+    this.subAgentName = '',
+    this.count = 0,
+  });
+
+  factory SalesRow.fromJson(Map<String, dynamic> j) => SalesRow(
+        storeId: j['storeId'] as String? ?? '',
+        storeName: j['storeName'] as String? ?? '',
+        ownerName: j['ownerName'] as String? ?? '',
+        userPhone: j['userPhone'] as String? ?? '',
+        governorate: j['governorate'] as String? ?? '',
+        companyName: j['companyName'] as String? ?? '',
+        category: j['category'] as String? ?? '',
+        sku: j['sku'] as String? ?? '',
+        mainAgentName: j['mainAgentName'] as String? ?? '',
+        subAgentName: j['subAgentName'] as String? ?? '',
+        count: (j['count'] as num?)?.toInt() ?? 0,
+      );
+}
+
+/// One row of the uploaded-cards report (#6) from `GET /api/reports/uploads`, per
+/// (main agent × company × category × governorate). Mirrors backend `UploadsReportRow`.
+class UploadsRow {
+  final String agentId;
+  final String agentName;
+  final String governorate;
+  final String companyName;
+  final String category;
+  final String sku;
+  final int count;
+
+  const UploadsRow({
+    this.agentId = '',
+    this.agentName = '',
+    this.governorate = '',
+    this.companyName = '',
+    this.category = '',
+    this.sku = '',
+    this.count = 0,
+  });
+
+  factory UploadsRow.fromJson(Map<String, dynamic> j) => UploadsRow(
+        agentId: j['agentId'] as String? ?? '',
+        agentName: j['agentName'] as String? ?? '',
+        governorate: j['governorate'] as String? ?? '',
+        companyName: j['companyName'] as String? ?? '',
+        category: j['category'] as String? ?? '',
+        sku: j['sku'] as String? ?? '',
+        count: (j['count'] as num?)?.toInt() ?? 0,
+      );
+}

@@ -69,6 +69,11 @@ class _RS {
   String get balanceAfter => p('After (credits)', 'بعد (إيداعات)');
   String get allDates => p('All dates', 'كل التواريخ');
   String get pickRange => p('Date range', 'المدة');
+  String get tabSold => p('Sold cards', 'الكروت المباعة');
+  String get tabTotalSold => p('Total sold', 'إجمالي المباع');
+  String get tabUploaded => p('Uploaded', 'المرفوعة');
+  String get cards => p('Cards', 'الكروت');
+  String get store => p('Store', 'المكتب');
 }
 
 class _Tab {
@@ -100,7 +105,16 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         // #2 agent balances: admin + main agent only.
         if (_isHq || _me?.type == EntityType.AGENT1) _Tab('agentBalances', s.tabAgentBalances),
         _Tab('transfers', s.tabTransfers),
+        _Tab('sold', s.tabSold),
+        _Tab('totalSold', s.tabTotalSold),
+        // #6 uploaded cards: admin + main agent only.
+        if (_isHq || _me?.type == EntityType.AGENT1) _Tab('uploaded', s.tabUploaded),
       ];
+
+  // sold + totalSold share one /sales fetch; everything else is its own source.
+  String _sourceKey(String tab) => (tab == 'sold' || tab == 'totalSold') ? 'sales' : tab;
+  bool _isDated(String key) =>
+      key == 'transfers' || key == 'sold' || key == 'totalSold' || key == 'uploaded';
 
   @override
   void initState() {
@@ -128,25 +142,32 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
 
   void _invalidate() => setState(() => _cache.clear());
 
-  Future<dynamic> _futureFor(String key) => _cache.putIfAbsent(key, () {
-        final id = _effectiveId;
-        switch (key) {
-          case 'prices':
-          case 'detailed':
-            return _repo.priceCatalog(entityId: id);
-          case 'stock':
-            return _repo.stockSummary(entityId: id);
-          case 'posBalances':
-            return _repo.balancesRoster(rootId: id, type: 'STORE');
-          case 'agentBalances':
-            return _repo.balancesRoster(rootId: id).then((rows) =>
-                rows.where((r) => r.tier == 'AGENT1' || r.tier == 'AGENT2').toList());
-          case 'transfers':
-            return _repo.transfers(rootId: id, from: _ymd(_from), to: _ymd(_to));
-          default:
-            return Future.value(null);
-        }
-      });
+  Future<dynamic> _futureFor(String tab) {
+    final src = _sourceKey(tab);
+    return _cache.putIfAbsent(src, () {
+      final id = _effectiveId;
+      switch (src) {
+        case 'prices':
+        case 'detailed':
+          return _repo.priceCatalog(entityId: id);
+        case 'stock':
+          return _repo.stockSummary(entityId: id);
+        case 'posBalances':
+          return _repo.balancesRoster(rootId: id, type: 'STORE');
+        case 'agentBalances':
+          return _repo.balancesRoster(rootId: id).then((rows) =>
+              rows.where((r) => r.tier == 'AGENT1' || r.tier == 'AGENT2').toList());
+        case 'transfers':
+          return _repo.transfers(rootId: id, from: _ymd(_from), to: _ymd(_to));
+        case 'sales':
+          return _repo.sales(rootId: id, from: _ymd(_from), to: _ymd(_to));
+        case 'uploaded':
+          return _repo.uploads(rootId: id, from: _ymd(_from), to: _ymd(_to));
+        default:
+          return Future.value(null);
+      }
+    });
+  }
 
   String? _ymd(DateTime? d) => d == null ? null : '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
@@ -162,7 +183,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
       setState(() {
         _from = range.start;
         _to = range.end;
-        _cache.remove('transfers');
+        _cache.clear(); // date affects transfers + sales + uploads
       });
     }
   }
@@ -179,7 +200,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
           PageHeader(eyebrow: s.eyebrow, title: s.title, subtitle: s.subtitle),
           if (_isHq && _pickables.length > 1) _targetPicker(s),
           _tabBar(tabs),
-          if (key == 'transfers') _dateBar(s),
+          if (_isDated(key)) _dateBar(s),
           Expanded(child: _booting ? const Center(child: CircularProgressIndicator()) : _body(s, key)),
         ],
       ),
@@ -255,7 +276,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
             onPressed: () => setState(() {
               _from = null;
               _to = null;
-              _cache.remove('transfers');
+              _cache.clear();
             }),
           ),
         ],
@@ -271,16 +292,19 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snap.hasError) {
-          return ErrorState(error: snap.error!, onRetry: () => setState(() => _cache.remove(key)));
+          return ErrorState(error: snap.error!, onRetry: () => setState(() => _cache.remove(_sourceKey(key))));
         }
         final data = snap.data;
         return RefreshIndicator(
-          onRefresh: () async => setState(() => _cache.remove(key)),
+          onRefresh: () async => setState(() => _cache.remove(_sourceKey(key))),
           child: switch (key) {
             'prices' => _PricesReport(catalog: data as PricingCatalog, s: s),
             'stock' => _StockReport(summary: (data as List<SkuSummary>?) ?? const [], s: s),
             'detailed' => _DetailedReport(catalog: data as PricingCatalog, s: s),
             'transfers' => _TransfersReport(rows: (data as List<TransferRow>?) ?? const [], s: s),
+            'sold' => _SalesReport(rows: (data as List<SalesRow>?) ?? const [], s: s),
+            'totalSold' => _TotalSoldReport(rows: (data as List<SalesRow>?) ?? const [], s: s),
+            'uploaded' => _UploadsReport(rows: (data as List<UploadsRow>?) ?? const [], s: s),
             _ => _RosterReport(rows: (data as List<BalanceRosterRow>?) ?? const [], s: s),
           },
         );
@@ -368,6 +392,120 @@ class _TransfersReport extends StatelessWidget {
                 _kv(cs, s.balanceAfter, Formatters.iqd(r.balanceAfter.round())),
               ],
             ),
+          ),
+      ],
+    );
+  }
+}
+
+// ── #4 Sold cards ────────────────────────────────────────────────────────────
+class _SalesReport extends StatelessWidget {
+  final List<SalesRow> rows;
+  final _RS s;
+  const _SalesReport({required this.rows, required this.s});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    if (rows.isEmpty) return _empty(context, s);
+    final loc = Localizations.localeOf(context).languageCode;
+    return ListView(
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
+      children: [
+        for (final r in rows)
+          InkCard(
+            padding: const EdgeInsets.all(14),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Expanded(child: Text([r.companyName, r.category].where((x) => x.isNotEmpty).join(' · '),
+                    style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w700))),
+                StampPill(label: '${s.cards}: ${r.count}', color: IntesharColors.saffronDeep),
+              ]),
+              const SizedBox(height: 4),
+              if (r.storeName.isNotEmpty) _kv(cs, s.store, r.storeName),
+              if (r.ownerName.isNotEmpty) _kv(cs, s.owner, r.ownerName),
+              if (r.userPhone.isNotEmpty) _kv(cs, s.phone, r.userPhone),
+              if (r.governorate.isNotEmpty) _kv(cs, s.governorate, governorateLabel(r.governorate, loc)),
+              if (r.mainAgentName.isNotEmpty) _kv(cs, s.mainAgent, r.mainAgentName),
+              if (r.subAgentName.isNotEmpty) _kv(cs, s.subAgent, r.subAgentName),
+            ]),
+          ),
+      ],
+    );
+  }
+}
+
+// ── #5 Total sold (rollup of #4 by agent × gov × company × category) ──────────
+class _TotalSoldReport extends StatelessWidget {
+  final List<SalesRow> rows;
+  final _RS s;
+  const _TotalSoldReport({required this.rows, required this.s});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    if (rows.isEmpty) return _empty(context, s);
+    final loc = Localizations.localeOf(context).languageCode;
+    final totals = <String, int>{};
+    final meta = <String, SalesRow>{};
+    for (final r in rows) {
+      final key = '${r.mainAgentName}|${r.subAgentName}|${r.governorate}|${r.companyName}|${r.category}';
+      totals[key] = (totals[key] ?? 0) + r.count;
+      meta.putIfAbsent(key, () => r);
+    }
+    return ListView(
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
+      children: [
+        for (final key in totals.keys)
+          Builder(builder: (_) {
+            final r = meta[key]!;
+            final agent = [r.mainAgentName, r.subAgentName].where((x) => x.isNotEmpty).join(' / ');
+            return InkCard(
+              padding: const EdgeInsets.all(14),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Expanded(child: Text([r.companyName, r.category].where((x) => x.isNotEmpty).join(' · '),
+                      style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w700))),
+                  StampPill(label: '${s.cards}: ${totals[key]}', color: IntesharColors.saffronDeep),
+                ]),
+                const SizedBox(height: 4),
+                if (agent.isNotEmpty) _kv(cs, s.agent, agent),
+                if (r.governorate.isNotEmpty) _kv(cs, s.governorate, governorateLabel(r.governorate, loc)),
+              ]),
+            );
+          }),
+      ],
+    );
+  }
+}
+
+// ── #6 Uploaded cards ────────────────────────────────────────────────────────
+class _UploadsReport extends StatelessWidget {
+  final List<UploadsRow> rows;
+  final _RS s;
+  const _UploadsReport({required this.rows, required this.s});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    if (rows.isEmpty) return _empty(context, s);
+    final loc = Localizations.localeOf(context).languageCode;
+    return ListView(
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
+      children: [
+        for (final r in rows)
+          InkCard(
+            padding: const EdgeInsets.all(14),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Expanded(child: Text([r.companyName, r.category].where((x) => x.isNotEmpty).join(' · '),
+                    style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w700))),
+                StampPill(label: '${s.cards}: ${r.count}', color: IntesharColors.sage),
+              ]),
+              const SizedBox(height: 4),
+              if (r.agentName.isNotEmpty) _kv(cs, s.mainAgent, r.agentName),
+              if (r.governorate.isNotEmpty) _kv(cs, s.governorate, governorateLabel(r.governorate, loc)),
+            ]),
           ),
       ],
     );

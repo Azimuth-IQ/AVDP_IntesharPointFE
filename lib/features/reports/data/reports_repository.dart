@@ -54,4 +54,31 @@ class ReportsRepository {
       return list.map((e) => TransferRow.fromJson(e as Map<String, dynamic>)).toList();
     });
   }
+
+  /// #4 sold cards (per store×company×category×gov) in the subtree + date window.
+  /// The FE rolls these up to #5 (total sold per agent×gov×company×category).
+  Future<List<SalesRow>> sales({String? rootId, String? from, String? to}) async {
+    final r = await _api.get(Endpoints.reportsSales, params: {
+      if (rootId != null && rootId.isNotEmpty) 'rootId': rootId,
+      if (from != null && from.isNotEmpty) 'from': from,
+      if (to != null && to.isNotEmpty) 'to': to,
+    });
+    return _api.unwrap(r, (d) {
+      final list = (d as List<dynamic>?) ?? const [];
+      return list.map((e) => SalesRow.fromJson(e as Map<String, dynamic>)).toList();
+    });
+  }
+
+  /// #6 uploaded cards (per main-agent×company×category×gov) in the subtree + date window.
+  Future<List<UploadsRow>> uploads({String? rootId, String? from, String? to}) async {
+    final r = await _api.get(Endpoints.reportsUploads, params: {
+      if (rootId != null && rootId.isNotEmpty) 'rootId': rootId,
+      if (from != null && from.isNotEmpty) 'from': from,
+      if (to != null && to.isNotEmpty) 'to': to,
+    });
+    return _api.unwrap(r, (d) {
+      final list = (d as List<dynamic>?) ?? const [];
+      return list.map((e) => UploadsRow.fromJson(e as Map<String, dynamic>)).toList();
+    });
+  }
 }

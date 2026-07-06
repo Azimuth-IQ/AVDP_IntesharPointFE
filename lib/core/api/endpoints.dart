@@ -86,6 +86,8 @@ class Endpoints {
   // Reports (التقارير)
   static const reportsBalances = '/api/reports/balances';
   static const reportsTransfers = '/api/reports/transfers';
+  static const reportsSales = '/api/reports/sales';
+  static const reportsUploads = '/api/reports/uploads';
 
   // Object storage
   static const storageUpload = '/api/storage/upload';

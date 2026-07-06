@@ -61,6 +61,7 @@ class TransferRow {
   final String destName;
   final num amount;
   final num balanceAfter;
+  final num destAvailable;
   final String destGovernorate;
   final String destOwnerName;
   final String destPhone;
@@ -77,6 +78,7 @@ class TransferRow {
     this.destName = '',
     this.amount = 0,
     this.balanceAfter = 0,
+    this.destAvailable = 0,
     this.destGovernorate = '',
     this.destOwnerName = '',
     this.destPhone = '',
@@ -94,6 +96,7 @@ class TransferRow {
         destName: j['destName'] as String? ?? '',
         amount: (j['amount'] as num?) ?? 0,
         balanceAfter: (j['balanceAfter'] as num?) ?? 0,
+        destAvailable: (j['destAvailable'] as num?) ?? 0,
         destGovernorate: j['destGovernorate'] as String? ?? '',
         destOwnerName: j['destOwnerName'] as String? ?? '',
         destPhone: j['destPhone'] as String? ?? '',
@@ -110,6 +113,7 @@ class SalesRow {
   final String storeName;
   final String ownerName;
   final String userPhone;
+  final String operatorPhone;
   final String governorate;
   final String companyName;
   final String category;
@@ -123,6 +127,7 @@ class SalesRow {
     this.storeName = '',
     this.ownerName = '',
     this.userPhone = '',
+    this.operatorPhone = '',
     this.governorate = '',
     this.companyName = '',
     this.category = '',
@@ -137,6 +142,7 @@ class SalesRow {
         storeName: j['storeName'] as String? ?? '',
         ownerName: j['ownerName'] as String? ?? '',
         userPhone: j['userPhone'] as String? ?? '',
+        operatorPhone: j['operatorPhone'] as String? ?? '',
         governorate: j['governorate'] as String? ?? '',
         companyName: j['companyName'] as String? ?? '',
         category: j['category'] as String? ?? '',

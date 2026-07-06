@@ -86,6 +86,9 @@ class _RS {
   String get address => p('Address', 'العنوان');
   String get source => p('Source', 'المصدر');
   String get destination => p('Destination', 'الوجهة');
+  String get user => p('User', 'المستخدم');
+  String get currentBalance => p('Current balance', 'الرصيد الحالي');
+  String get agentLabel => p('Agent', 'الوكيل');
 }
 
 class _Tab {
@@ -138,7 +141,20 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
   @override
   void initState() {
     super.initState();
+    // Default the dated reports to the last 30 days so nothing loads a full history
+    // (the backend applies the same default if these are omitted).
+    final now = DateTime.now();
+    _to = now;
+    _from = now.subtract(const Duration(days: 30));
     _boot();
+  }
+
+  /// Label of the entity the report is currently scoped to (the picked agent, or self).
+  String get _currentAgentLabel {
+    for (final (id, label) in _pickables) {
+      if (id == _effectiveId) return label;
+    }
+    return _me?.meta.name ?? '';
   }
 
   Future<void> _boot() async {
@@ -255,12 +271,13 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
       case 'prices':
         final c = data as PricingCatalog?;
         if (c == null) return null;
+        final agent = _currentAgentLabel;
         final rows = [
           for (final r in c.rows)
             for (final g in priceGovs(r))
-              [r.companyName, r.name, gov(g.$1), m(g.$2), g.$3 == null ? '' : m(g.$3!), m(g.$4)],
+              [agent, r.companyName, r.name, gov(g.$1), m(g.$2), g.$3 == null ? '' : m(g.$3!), m(g.$4)],
         ];
-        return _Export([s.company, s.category, s.governorate, s.base, s.agent, s.effective], rows, 'prices');
+        return _Export([s.agentLabel, s.company, s.category, s.governorate, s.base, s.agent, s.effective], rows, 'prices');
       case 'stock':
         final list = (data as List<SkuSummary>?) ?? const [];
         final rows = <List<String>>[];
@@ -297,21 +314,21 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         final list = (data as List<TransferRow>?) ?? const [];
         final rows = [
           for (final r in list)
-            [r.date, r.time, r.sourceName, r.destName, m(r.amount), m(r.balanceAfter),
+            [r.date, r.time, r.sourceName, r.destName, m(r.amount), m(r.balanceAfter), m(r.destAvailable),
               r.destOwnerName, r.destPhone, gov(r.destGovernorate), r.mainAgentName, r.subAgentName],
         ];
         return _Export(
-            [s.date, s.time, s.source, s.destination, s.transferAmount, s.balanceAfter, s.owner, s.phone, s.governorate, s.mainAgent, s.subAgent],
+            [s.date, s.time, s.source, s.destination, s.transferAmount, s.balanceAfter, s.currentBalance, s.owner, s.phone, s.governorate, s.mainAgent, s.subAgent],
             rows, 'transfers');
       case 'sold':
         final list = (data as List<SalesRow>?) ?? const [];
         final rows = [
           for (final r in list)
-            [r.storeName, r.ownerName, r.userPhone, gov(r.governorate), r.companyName, r.category,
+            [r.storeName, r.ownerName, r.userPhone, r.operatorPhone, gov(r.governorate), r.companyName, r.category,
               r.mainAgentName, r.subAgentName, '${r.count}'],
         ];
         return _Export(
-            [s.store, s.owner, s.phone, s.governorate, s.company, s.category, s.mainAgent, s.subAgent, s.cards],
+            [s.store, s.owner, s.phone, s.user, s.governorate, s.company, s.category, s.mainAgent, s.subAgent, s.cards],
             rows, 'sold_cards');
       case 'totalSold':
         final list = (data as List<SalesRow>?) ?? const [];
@@ -458,7 +475,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         return RefreshIndicator(
           onRefresh: () async => setState(() => _cache.remove(_sourceKey(key))),
           child: switch (key) {
-            'prices' => _PricesReport(catalog: data as PricingCatalog, s: s),
+            'prices' => _PricesReport(catalog: data as PricingCatalog, s: s, agentLabel: _currentAgentLabel),
             'stock' => _StockReport(summary: (data as List<SkuSummary>?) ?? const [], s: s),
             'detailed' => _DetailedReport(catalog: data as PricingCatalog, s: s),
             'transfers' => _TransfersReport(rows: (data as List<TransferRow>?) ?? const [], s: s),
@@ -552,6 +569,7 @@ class _TransfersReport extends StatelessWidget {
                 if (r.destGovernorate.isNotEmpty) _kv(cs, s.governorate, governorateLabel(r.destGovernorate, loc)),
                 if (r.mainAgentName.isNotEmpty) _kv(cs, s.mainAgent, r.mainAgentName),
                 if (r.subAgentName.isNotEmpty) _kv(cs, s.subAgent, r.subAgentName),
+                if (r.destAvailable != 0) _kv(cs, s.currentBalance, Formatters.iqd(r.destAvailable.round())),
                 _kv(cs, s.balanceAfter, Formatters.iqd(r.balanceAfter.round())),
               ],
             ),
@@ -588,6 +606,7 @@ class _SalesReport extends StatelessWidget {
               if (r.storeName.isNotEmpty) _kv(cs, s.store, r.storeName),
               if (r.ownerName.isNotEmpty) _kv(cs, s.owner, r.ownerName),
               if (r.userPhone.isNotEmpty) _kv(cs, s.phone, r.userPhone),
+              if (r.operatorPhone.isNotEmpty) _kv(cs, s.user, r.operatorPhone),
               if (r.governorate.isNotEmpty) _kv(cs, s.governorate, governorateLabel(r.governorate, loc)),
               if (r.mainAgentName.isNotEmpty) _kv(cs, s.mainAgent, r.mainAgentName),
               if (r.subAgentName.isNotEmpty) _kv(cs, s.subAgent, r.subAgentName),
@@ -687,7 +706,8 @@ Widget _kv(ColorScheme cs, String k, String v) => Padding(
 class _PricesReport extends StatelessWidget {
   final PricingCatalog catalog;
   final _RS s;
-  const _PricesReport({required this.catalog, required this.s});
+  final String agentLabel;
+  const _PricesReport({required this.catalog, required this.s, this.agentLabel = ''});
 
   @override
   Widget build(BuildContext context) {
@@ -701,6 +721,11 @@ class _PricesReport extends StatelessWidget {
     return ListView(
       padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
       children: [
+        if (agentLabel.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: _kv(cs, s.agentLabel, agentLabel),
+          ),
         for (final e in groups.entries) ...[
           SectionLabel(e.key),
           for (final row in e.value)

@@ -144,6 +144,7 @@ class AppShell extends ConsumerWidget {
   const AppShell({super.key, required this.child});
 
   List<_NavItem> _navFor(AppLocalizations l, EntityType type) {
+    final reportsLabel = l.localeName.startsWith('ar') ? 'التقارير' : 'Reports';
     switch (type) {
       case EntityType.INTESHAR:
         // Flat order — frequency-first; first 4 = mobile bottom-bar primaries.
@@ -196,6 +197,14 @@ class AppShell extends ConsumerWidget {
             Icons.fact_check,
             l.navPrintOps,
             '/hq/print-operations',
+            required: Capability.VIEW_REPORTS,
+            group: 'oversight',
+          ),
+          _NavItem(
+            Icons.assessment_outlined,
+            Icons.assessment,
+            reportsLabel,
+            '/hq/reports',
             required: Capability.VIEW_REPORTS,
             group: 'oversight',
           ),
@@ -324,6 +333,15 @@ class AppShell extends ConsumerWidget {
             '/agent1/entities',
             group: 'network',
           ),
+          // After the 4 primaries (Dashboard/Transactions/Inventory/Children) so it lands
+          // in the More overflow, not on the phone bar.
+          _NavItem(
+            Icons.assessment_outlined,
+            Icons.assessment,
+            reportsLabel,
+            '/agent1/reports',
+            group: 'network',
+          ),
           _NavItem(
             Icons.point_of_sale_outlined,
             Icons.point_of_sale,
@@ -371,6 +389,14 @@ class AppShell extends ConsumerWidget {
             '/agent2/entities',
             group: 'network',
           ),
+          // After the 4 primaries so it lands in the More overflow, not on the phone bar.
+          _NavItem(
+            Icons.assessment_outlined,
+            Icons.assessment,
+            reportsLabel,
+            '/agent2/reports',
+            group: 'network',
+          ),
           _NavItem(
             Icons.point_of_sale_outlined,
             Icons.point_of_sale,
@@ -402,6 +428,12 @@ class AppShell extends ConsumerWidget {
             Icons.swap_horiz,
             l.navTransactions,
             '/store/transactions',
+          ),
+          _NavItem(
+            Icons.assessment_outlined,
+            Icons.assessment,
+            reportsLabel,
+            '/store/reports',
           ),
           _NavItem(
             Icons.dashboard_outlined,

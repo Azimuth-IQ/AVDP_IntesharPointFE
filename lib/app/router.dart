@@ -25,6 +25,7 @@ import 'package:inteshar/features/pos/presentation/pos_home_page.dart';
 import 'package:inteshar/features/pos/presentation/pos_pin_lock_page.dart';
 import 'package:inteshar/features/pos/presentation/pos_pin_setup_page.dart';
 import 'package:inteshar/features/pricing/presentation/pricing_page.dart';
+import 'package:inteshar/features/reports/presentation/reports_page.dart';
 import 'package:inteshar/features/stores/presentation/stores_page.dart';
 import 'package:inteshar/features/system_activity/presentation/system_activity_page.dart';
 import 'package:inteshar/features/transactions/presentation/new_transaction_page.dart';
@@ -146,6 +147,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/hq/working-hours', builder: (_, _) => const WorkingHoursPage()),
           GoRoute(path: '/hq/notifications', builder: (_, _) => const NotificationsComposePage()),
           GoRoute(path: '/hq/transactions', builder: (_, _) => const TransactionsPage()),
+          GoRoute(path: '/hq/reports', builder: (_, _) => const ReportsPage()),
 
           // Agent1
           GoRoute(path: '/agent1/home', builder: (_, _) => const DashboardPage()),
@@ -153,6 +155,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/agent1/inventory', builder: (_, _) => const InventoryPage(readOnly: true)),
           GoRoute(path: '/agent1/transactions', builder: (_, _) => const TransactionsPage()),
           GoRoute(path: '/agent1/pricing', builder: (_, _) => const PricingPage()),
+          GoRoute(path: '/agent1/reports', builder: (_, _) => const ReportsPage()),
           GoRoute(path: '/agent1/stores', builder: (_, _) => const StoresPage()),
           GoRoute(path: '/agent1/notifications', builder: (_, _) => const NotificationsInboxPage()),
 
@@ -162,12 +165,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/agent2/inventory', builder: (_, _) => const InventoryPage(readOnly: true)),
           GoRoute(path: '/agent2/transactions', builder: (_, _) => const TransactionsPage()),
           GoRoute(path: '/agent2/stores', builder: (_, _) => const StoresPage()),
+          GoRoute(path: '/agent2/reports', builder: (_, _) => const ReportsPage()),
           GoRoute(path: '/agent2/notifications', builder: (_, _) => const NotificationsInboxPage()),
 
           // Store
           GoRoute(path: '/store/home', builder: (_, _) => const DashboardPage()),
           GoRoute(path: '/store/inventory', builder: (_, _) => const InventoryPage(readOnly: true)),
           GoRoute(path: '/store/transactions', builder: (_, _) => const TransactionsPage()),
+          GoRoute(path: '/store/reports', builder: (_, _) => const ReportsPage()),
           GoRoute(path: '/store/notifications', builder: (_, _) => const NotificationsInboxPage()),
         ],
       ),

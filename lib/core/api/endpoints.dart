@@ -83,6 +83,10 @@ class Endpoints {
   static const balanceGrant = '/api/balance/grant';
   static const balanceGrants = '/api/balance/grants';
 
+  // Reports (التقارير)
+  static const reportsBalances = '/api/reports/balances';
+  static const reportsTransfers = '/api/reports/transfers';
+
   // Object storage
   static const storageUpload = '/api/storage/upload';
 

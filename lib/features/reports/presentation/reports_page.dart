@@ -11,13 +11,14 @@ import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/inventory/domain/sku_summary.dart';
 import 'package:inteshar/features/pricing/domain/pricing_models.dart';
 import 'package:inteshar/features/reports/data/reports_repository.dart';
+import 'package:inteshar/features/reports/domain/report_rows.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
-/// The Reports section (client spec `Docs/سستم.xlsx` → التقارير). Phase 1 wires the
-/// three reports whose data already exists on the backend: Prices (#7), Stock (#8),
-/// Detailed (#9). Phases 2-3 add the balance/transfer/sales/upload tabs — see
+/// The Reports section (client spec `Docs/سستم.xlsx` → التقارير). Phase 1 (Prices #7,
+/// Stock #8, Detailed #9) + Phase 2 (POS balances #1, Agent balances #2, Transfers #3).
+/// Sales/upload reports (#4-6) + export land in Phase 3-4 — see
 /// `Docs/REPORTING-MODULE-BUILD-MAP.md`.
 class ReportsPage extends ConsumerStatefulWidget {
   const ReportsPage({super.key});
@@ -34,10 +35,13 @@ class _RS {
 
   String get eyebrow => p('Reports', 'التقارير');
   String get title => p('Reports', 'التقارير');
-  String get subtitle => p('Prices, stock and detailed valuation', 'الأسعار والمخزون والتقييم المفصّل');
+  String get subtitle => p('Balances, transfers, prices and stock', 'الأرصدة والتحويلات والأسعار والمخزون');
   String get tabPrices => p('Prices', 'الأسعار');
   String get tabStock => p('Stock', 'المخزون');
   String get tabDetailed => p('Detailed', 'مفصّل');
+  String get tabPosBalances => p('POS balances', 'أرصدة نقاط البيع');
+  String get tabAgentBalances => p('Agent balances', 'أرصدة الوكلاء');
+  String get tabTransfers => p('Transfers', 'التحويلات');
   String get viewFor => p('Report for', 'التقرير لـ');
   String get self => p('Me', 'أنا');
   String get company => p('Company', 'الشركة');
@@ -53,24 +57,50 @@ class _RS {
   String get untagged => p('No region', 'بدون محافظة');
   String get uncategorized => p('Uncategorized', 'بدون شركة');
   String get empty => p('Nothing to report yet.', 'لا توجد بيانات للتقرير بعد.');
-  String get notSet => p('—', '—');
+  String get owner => p('Owner', 'المالك');
+  String get phone => p('Phone', 'الهاتف');
+  String get balance => p('Balance', 'الرصيد');
+  String get spent => p('Spent', 'المصروف');
+  String get points => p('POS points', 'نقاط البيع');
+  String get mainAgent => p('Main agent', 'الوكيل الرئيسي');
+  String get subAgent => p('Sub agent', 'الوكيل الفرعي');
+  String get governorate => p('Governorate', 'المحافظة');
+  String get transferAmount => p('Transfer', 'التحويل');
+  String get balanceAfter => p('After (credits)', 'بعد (إيداعات)');
+  String get allDates => p('All dates', 'كل التواريخ');
+  String get pickRange => p('Date range', 'المدة');
+}
+
+class _Tab {
+  final String key;
+  final String label;
+  const _Tab(this.key, this.label);
 }
 
 class _ReportsPageState extends ConsumerState<ReportsPage> {
   int _tab = 0;
   String? _targetId; // null = own entity
-  PricingCatalog? _catalog;
-  List<SkuSummary>? _summary;
-  bool _loading = true;
-  Object? _error;
+  DateTime? _from;
+  DateTime? _to;
 
-  // HQ target picker: (id, label) options = self + main + sub agents.
-  List<(String, String)> _pickables = const [];
+  List<(String, String)> _pickables = const []; // (id, label) for the HQ target picker
+  final Map<String, Future<dynamic>> _cache = {}; // per-tab futures, cleared on scope/date change
+  bool _booting = true;
 
   ReportsRepository get _repo => ReportsRepository(ref.read(apiClientProvider));
-
   Entity? get _me => (ref.read(authStateProvider).valueOrNull as AuthAuthenticated?)?.entity;
   bool get _isHq => _me?.type == EntityType.INTESHAR;
+  String get _effectiveId => _targetId ?? _me?.id ?? '';
+
+  List<_Tab> _tabsFor(_RS s) => [
+        _Tab('prices', s.tabPrices),
+        _Tab('stock', s.tabStock),
+        _Tab('detailed', s.tabDetailed),
+        _Tab('posBalances', s.tabPosBalances),
+        // #2 agent balances: admin + main agent only.
+        if (_isHq || _me?.type == EntityType.AGENT1) _Tab('agentBalances', s.tabAgentBalances),
+        _Tab('transfers', s.tabTransfers),
+      ];
 
   @override
   void initState() {
@@ -80,10 +110,8 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
 
   Future<void> _boot() async {
     if (_isHq) {
-      // Capture context-derived values before the async gap.
       final selfLabel = _RS.of(context).self;
       final me = _me;
-      // Load the agent list once so HQ can scope any report to a specific agent.
       try {
         final repo = AgentRepository(ref.read(apiClientProvider));
         final mains = await repo.listAll('AGENT1');
@@ -93,50 +121,66 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
           ...mains.map((e) => (e.id, e.name)),
           ...subs.map((e) => (e.id, e.name)),
         ];
-      } catch (_) {
-        // A failed agent list just leaves the picker at "self" — reports still load.
-      }
+      } catch (_) {}
     }
-    await _load();
+    if (mounted) setState(() => _booting = false);
   }
 
-  String get _effectiveId => _targetId ?? _me?.id ?? '';
+  void _invalidate() => setState(() => _cache.clear());
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final id = _effectiveId;
-      final catalog = await _repo.priceCatalog(entityId: id);
-      final summary = await _repo.stockSummary(entityId: id);
-      if (!mounted) return;
-      setState(() {
-        _catalog = catalog;
-        _summary = summary;
-        _loading = false;
+  Future<dynamic> _futureFor(String key) => _cache.putIfAbsent(key, () {
+        final id = _effectiveId;
+        switch (key) {
+          case 'prices':
+          case 'detailed':
+            return _repo.priceCatalog(entityId: id);
+          case 'stock':
+            return _repo.stockSummary(entityId: id);
+          case 'posBalances':
+            return _repo.balancesRoster(rootId: id, type: 'STORE');
+          case 'agentBalances':
+            return _repo.balancesRoster(rootId: id).then((rows) =>
+                rows.where((r) => r.tier == 'AGENT1' || r.tier == 'AGENT2').toList());
+          case 'transfers':
+            return _repo.transfers(rootId: id, from: _ymd(_from), to: _ymd(_to));
+          default:
+            return Future.value(null);
+        }
       });
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = e;
-          _loading = false;
-        });
-      }
+
+  String? _ymd(DateTime? d) => d == null ? null : '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  Future<void> _pickRange() async {
+    final now = DateTime.now();
+    final range = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(now.year + 1),
+      initialDateRange: (_from != null && _to != null) ? DateTimeRange(start: _from!, end: _to!) : null,
+    );
+    if (range != null) {
+      setState(() {
+        _from = range.start;
+        _to = range.end;
+        _cache.remove('transfers');
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final s = _RS.of(context);
+    final tabs = _tabsFor(s);
+    if (_tab >= tabs.length) _tab = 0;
+    final key = tabs[_tab].key;
     return MaxWidthBox(
       child: Column(
         children: [
           PageHeader(eyebrow: s.eyebrow, title: s.title, subtitle: s.subtitle),
           if (_isHq && _pickables.length > 1) _targetPicker(s),
-          _tabBar(s),
-          Expanded(child: _body(s)),
+          _tabBar(tabs),
+          if (key == 'transfers') _dateBar(s),
+          Expanded(child: _booting ? const Center(child: CircularProgressIndicator()) : _body(s, key)),
         ],
       ),
     );
@@ -146,60 +190,197 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-      child: Row(
+      child: Row(children: [
+        Text('${s.viewFor}: ', style: IntesharType.sans(13, color: cs.onSurfaceVariant)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            initialValue: _effectiveId,
+            isExpanded: true,
+            decoration: const InputDecoration(isDense: true),
+            items: [
+              for (final (id, label) in _pickables)
+                DropdownMenuItem(value: id, child: Text(label, overflow: TextOverflow.ellipsis)),
+            ],
+            onChanged: (v) {
+              if (v == null) return;
+              setState(() => _targetId = v);
+              _invalidate();
+            },
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _tabBar(List<_Tab> tabs) {
+    final cs = Theme.of(context).colorScheme;
+    return SizedBox(
+      height: 44,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
         children: [
-          Text('${s.viewFor}: ', style: IntesharType.sans(13, color: cs.onSurfaceVariant)),
-          const SizedBox(width: 8),
-          Expanded(
-            child: DropdownButtonFormField<String>(
-              initialValue: _effectiveId,
-              isExpanded: true,
-              decoration: const InputDecoration(isDense: true),
-              items: [
-                for (final (id, label) in _pickables)
-                  DropdownMenuItem(value: id, child: Text(label, overflow: TextOverflow.ellipsis)),
-              ],
-              onChanged: (v) {
-                if (v == null) return;
-                setState(() => _targetId = v);
-                _load();
-              },
+          for (var i = 0; i < tabs.length; i++)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+              child: ChoiceChip(
+                label: Text(tabs[i].label),
+                selected: _tab == i,
+                onSelected: (_) => setState(() => _tab = i),
+                labelStyle: IntesharType.sans(12.5,
+                    color: _tab == i ? cs.onSurface : cs.onSurfaceVariant, w: FontWeight.w700),
+              ),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dateBar(_RS s) {
+    final cs = Theme.of(context).colorScheme;
+    final label = (_from != null && _to != null) ? '${_ymd(_from)} → ${_ymd(_to)}' : s.allDates;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+      child: Row(children: [
+        OutlinedButton.icon(
+          onPressed: _pickRange,
+          icon: const Icon(Icons.date_range, size: 16),
+          label: Text(label),
+        ),
+        if (_from != null) ...[
+          const SizedBox(width: 8),
+          IconButton(
+            icon: Icon(Icons.clear, size: 18, color: cs.onSurfaceVariant),
+            onPressed: () => setState(() {
+              _from = null;
+              _to = null;
+              _cache.remove('transfers');
+            }),
           ),
         ],
-      ),
+      ]),
     );
   }
 
-  Widget _tabBar(_RS s) {
-    final labels = [s.tabPrices, s.tabStock, s.tabDetailed];
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      child: SegmentedButton<int>(
-        segments: [
-          for (var i = 0; i < labels.length; i++)
-            ButtonSegment(value: i, label: Text(labels[i])),
-        ],
-        selected: {_tab},
-        showSelectedIcon: false,
-        onSelectionChanged: (sel) => setState(() => _tab = sel.first),
-      ),
-    );
-  }
-
-  Widget _body(_RS s) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
-    if (_error != null) return ErrorState(error: _error!, onRetry: _load);
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: switch (_tab) {
-        0 => _PricesReport(catalog: _catalog!, s: s),
-        1 => _StockReport(summary: _summary ?? const [], s: s),
-        _ => _DetailedReport(catalog: _catalog!, s: s),
+  Widget _body(_RS s, String key) {
+    return FutureBuilder<dynamic>(
+      future: _futureFor(key),
+      builder: (context, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snap.hasError) {
+          return ErrorState(error: snap.error!, onRetry: () => setState(() => _cache.remove(key)));
+        }
+        final data = snap.data;
+        return RefreshIndicator(
+          onRefresh: () async => setState(() => _cache.remove(key)),
+          child: switch (key) {
+            'prices' => _PricesReport(catalog: data as PricingCatalog, s: s),
+            'stock' => _StockReport(summary: (data as List<SkuSummary>?) ?? const [], s: s),
+            'detailed' => _DetailedReport(catalog: data as PricingCatalog, s: s),
+            'transfers' => _TransfersReport(rows: (data as List<TransferRow>?) ?? const [], s: s),
+            _ => _RosterReport(rows: (data as List<BalanceRosterRow>?) ?? const [], s: s),
+          },
+        );
       },
     );
   }
 }
+
+// ── #1/#2 Balances roster ────────────────────────────────────────────────────
+class _RosterReport extends StatelessWidget {
+  final List<BalanceRosterRow> rows;
+  final _RS s;
+  const _RosterReport({required this.rows, required this.s});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    if (rows.isEmpty) return _empty(context, s);
+    final loc = Localizations.localeOf(context).languageCode;
+    return ListView(
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
+      children: [
+        for (final r in rows)
+          InkCard(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Expanded(child: Text(r.name, style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w700))),
+                  Text(Formatters.iqd(r.available.round()),
+                      style: IntesharType.mono(15, color: IntesharColors.saffronDeep, w: FontWeight.w800)),
+                ]),
+                const SizedBox(height: 4),
+                if (r.ownerName.isNotEmpty) _kv(cs, s.owner, r.ownerName),
+                if (r.userPhone.isNotEmpty) _kv(cs, s.phone, r.userPhone),
+                if (r.governorate.isNotEmpty) _kv(cs, s.governorate, governorateLabel(r.governorate, loc)),
+                if (r.mainAgentName.isNotEmpty) _kv(cs, s.mainAgent, r.mainAgentName),
+                if (r.subAgentName.isNotEmpty) _kv(cs, s.subAgent, r.subAgentName),
+                if (r.tier == 'AGENT1' || r.tier == 'AGENT2') _kv(cs, s.points, '${r.storeCount}'),
+                if (r.ordersSpent > 0) _kv(cs, s.spent, Formatters.iqd(r.ordersSpent.round())),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// ── #3 Transfers ─────────────────────────────────────────────────────────────
+class _TransfersReport extends StatelessWidget {
+  final List<TransferRow> rows;
+  final _RS s;
+  const _TransfersReport({required this.rows, required this.s});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    if (rows.isEmpty) return _empty(context, s);
+    return ListView(
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
+      children: [
+        for (final r in rows)
+          InkCard(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Expanded(
+                    child: Text('${r.sourceName} → ${r.destName}',
+                        style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700),
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ),
+                  Text('+${Formatters.iqd(r.amount.round())}',
+                      style: IntesharType.mono(14, color: IntesharColors.sage, w: FontWeight.w800)),
+                ]),
+                const SizedBox(height: 2),
+                Text('${r.date} · ${r.time}', style: IntesharType.mono(11, color: cs.onSurfaceVariant)),
+                const SizedBox(height: 4),
+                if (r.destOwnerName.isNotEmpty) _kv(cs, s.owner, r.destOwnerName),
+                if (r.destPhone.isNotEmpty) _kv(cs, s.phone, r.destPhone),
+                if (r.mainAgentName.isNotEmpty) _kv(cs, s.mainAgent, r.mainAgentName),
+                if (r.subAgentName.isNotEmpty) _kv(cs, s.subAgent, r.subAgentName),
+                _kv(cs, s.balanceAfter, Formatters.iqd(r.balanceAfter.round())),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+Widget _kv(ColorScheme cs, String k, String v) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SizedBox(width: 96, child: Text(k, style: IntesharType.sans(11.5, color: cs.onSurfaceVariant))),
+        Expanded(child: Text(v, style: IntesharType.sans(12.5, color: cs.onSurface, w: FontWeight.w600))),
+      ]),
+    );
 
 // ── #7 Prices ────────────────────────────────────────────────────────────────
 class _PricesReport extends StatelessWidget {
@@ -231,10 +412,7 @@ class _PricesReport extends StatelessWidget {
                   const SizedBox(height: 8),
                   _priceHeader(s, cs),
                   for (final g in _govRows(row))
-                    _priceRow(
-                      g.$1 == '' ? s.untagged : governorateLabel(g.$1, loc),
-                      g.$2, g.$3, g.$4, cs,
-                    ),
+                    _priceRow(g.$1 == '' ? s.untagged : governorateLabel(g.$1, loc), g.$2, g.$3, g.$4, cs),
                 ],
               ),
             ),
@@ -244,16 +422,11 @@ class _PricesReport extends StatelessWidget {
     );
   }
 
-  // (gov, base, agentOrNull, effective) — the SKU-wide row first, then per-gov overrides.
   List<(String, num, num?, num)> _govRows(CategoryPriceRow row) {
     final hasBreakdown = row.governorates.length > 1 ||
         (row.governorates.length == 1 && row.governorates.first.governorate.isNotEmpty);
-    if (!hasBreakdown) {
-      return [('', row.officialPrice, row.agentPrice, row.effectivePrice)];
-    }
-    return [
-      for (final g in row.governorates) (g.governorate, g.officialPrice, g.agentPrice, g.effectivePrice),
-    ];
+    if (!hasBreakdown) return [('', row.officialPrice, row.agentPrice, row.effectivePrice)];
+    return [for (final g in row.governorates) (g.governorate, g.officialPrice, g.agentPrice, g.effectivePrice)];
   }
 
   Widget _priceHeader(_RS s, ColorScheme cs) => Padding(
@@ -340,7 +513,6 @@ class _DetailedReport extends StatelessWidget {
     return ListView(
       padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
       children: [
-        // Grand total = Σ line value = the page's transferable balance (spec).
         Container(
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
@@ -390,13 +562,10 @@ class _DetailedReport extends StatelessWidget {
     );
   }
 
-  // (gov, available, effectivePrice, lineValue)
   List<(String, int, num, num)> _detailRows(CategoryPriceRow row) {
     final hasBreakdown = row.governorates.length > 1 ||
         (row.governorates.length == 1 && row.governorates.first.governorate.isNotEmpty);
-    if (!hasBreakdown) {
-      return [('', row.available, row.effectivePrice, row.lineValue)];
-    }
+    if (!hasBreakdown) return [('', row.available, row.effectivePrice, row.lineValue)];
     return [for (final g in row.governorates) (g.governorate, g.available, g.effectivePrice, g.lineValue)];
   }
 }

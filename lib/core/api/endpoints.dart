@@ -83,6 +83,15 @@ class Endpoints {
   static const balanceGrant = '/api/balance/grant';
   static const balanceGrants = '/api/balance/grants';
 
+  // POS-user quota + management
+  static const posQuota = '/api/pos-quota';
+  static const posQuotaGrant = '/api/pos-quota/grant';
+  static const posQuotaGrants = '/api/pos-quota/grants';
+  static const posUsersOnboard = '/api/pos-users/onboard';
+  static const posUsersRevoke = '/api/pos-users/revoke';
+  static const posUsersResetPin = '/api/pos-users/reset-pin';
+  static const posUsersResetTotp = '/api/pos-users/reset-totp';
+
   // Reports (التقارير)
   static const reportsBalances = '/api/reports/balances';
   static const reportsTransfers = '/api/reports/transfers';

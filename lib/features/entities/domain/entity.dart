@@ -157,8 +157,26 @@ class EntityUser {
   final String password;
   final UserRole role;
   final Set<Capability> capabilities; // fine-grained RBAC permissions
+  // POS-user quota model: a POS is a USER with isPos=true attached to ANY entity. isPos (not the
+  // entity type) drives the POS session. The point-of-sale "full details" live on the user.
+  final bool isPos;
+  final String posName;
+  final String posOwnerName;
+  final String posGovernorate;
+  final String posAddress;
 
-  const EntityUser({this.id = '', required this.phone, this.password = '', required this.role, this.capabilities = const {}});
+  const EntityUser({
+    this.id = '',
+    required this.phone,
+    this.password = '',
+    required this.role,
+    this.capabilities = const {},
+    this.isPos = false,
+    this.posName = '',
+    this.posOwnerName = '',
+    this.posGovernorate = '',
+    this.posAddress = '',
+  });
 
   factory EntityUser.fromJson(Map<String, dynamic> j) => EntityUser(
     id: j['id'] as String? ?? '',
@@ -166,6 +184,11 @@ class EntityUser {
     password: j['password'] as String? ?? '',
     role: UserRole.values.firstWhere((e) => e.name == (j['role'] as String? ?? 'USER'), orElse: () => UserRole.USER),
     capabilities: capabilitiesFromJson(j['capabilities']),
+    isPos: j['isPos'] as bool? ?? false,
+    posName: j['posName'] as String? ?? '',
+    posOwnerName: j['posOwnerName'] as String? ?? '',
+    posGovernorate: j['posGovernorate'] as String? ?? '',
+    posAddress: j['posAddress'] as String? ?? '',
   );
 
   Map<String, dynamic> toJson() {
@@ -182,6 +205,11 @@ class EntityUser {
     password: password ?? this.password,
     role: role ?? this.role,
     capabilities: capabilities ?? this.capabilities,
+    isPos: isPos,
+    posName: posName,
+    posOwnerName: posOwnerName,
+    posGovernorate: posGovernorate,
+    posAddress: posAddress,
   );
 }
 

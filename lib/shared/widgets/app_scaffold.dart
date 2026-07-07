@@ -145,6 +145,7 @@ class AppShell extends ConsumerWidget {
 
   List<_NavItem> _navFor(AppLocalizations l, EntityType type) {
     final reportsLabel = l.localeName.startsWith('ar') ? 'التقارير' : 'Reports';
+    final posLabel = l.localeName.startsWith('ar') ? 'نقاط البيع' : 'POS points';
     switch (type) {
       case EntityType.INTESHAR:
         // Flat order — frequency-first; first 4 = mobile bottom-bar primaries.
@@ -207,6 +208,14 @@ class AppShell extends ConsumerWidget {
             '/hq/reports',
             required: Capability.VIEW_REPORTS,
             group: 'oversight',
+          ),
+          _NavItem(
+            Icons.storefront_outlined,
+            Icons.storefront,
+            posLabel,
+            '/hq/pos-users',
+            required: Capability.MANAGE_POS,
+            group: 'network',
           ),
           _NavItem(
             Icons.upload_file_outlined,
@@ -343,6 +352,13 @@ class AppShell extends ConsumerWidget {
             group: 'network',
           ),
           _NavItem(
+            Icons.storefront_outlined,
+            Icons.storefront,
+            posLabel,
+            '/agent1/pos-users',
+            group: 'network',
+          ),
+          _NavItem(
             Icons.point_of_sale_outlined,
             Icons.point_of_sale,
             l.navStores,
@@ -398,6 +414,13 @@ class AppShell extends ConsumerWidget {
             group: 'network',
           ),
           _NavItem(
+            Icons.storefront_outlined,
+            Icons.storefront,
+            posLabel,
+            '/agent2/pos-users',
+            group: 'network',
+          ),
+          _NavItem(
             Icons.point_of_sale_outlined,
             Icons.point_of_sale,
             l.navStores,
@@ -434,6 +457,12 @@ class AppShell extends ConsumerWidget {
             Icons.assessment,
             reportsLabel,
             '/store/reports',
+          ),
+          _NavItem(
+            Icons.storefront_outlined,
+            Icons.storefront,
+            posLabel,
+            '/store/pos-users',
           ),
           _NavItem(
             Icons.dashboard_outlined,

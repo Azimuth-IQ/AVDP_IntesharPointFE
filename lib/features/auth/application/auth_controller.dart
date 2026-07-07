@@ -100,7 +100,9 @@ class AuthController extends AsyncNotifier<AuthState> {
       final phone = await sessionStorage.getCurrentPhone() ?? '';
       final user = entity.users.where((u) => u.phone == phone).firstOrNull;
       final role = user?.role ?? UserRole.ADMIN;
-      final isPosUser = role == UserRole.USER && entity.type == EntityType.STORE;
+      // POS-user quota model: a POS is any USER flagged isPos (on any entity). Backward-compatible
+      // with the legacy rule (a USER on a STORE) so existing store logins still route to /pos.
+      final isPosUser = (user?.isPos ?? false) || (role == UserRole.USER && entity.type == EntityType.STORE);
       return AuthAuthenticated(entity: entity, role: role, isPosUser: isPosUser, capabilities: user?.capabilities ?? const {});
     } catch (e) {
       debugPrint('[AUTH] error: $e');
@@ -145,12 +147,14 @@ class AuthController extends AsyncNotifier<AuthState> {
     Entity? found;
     UserRole foundRole = UserRole.USER;
     Set<Capability> foundCaps = const {};
+    bool foundIsPos = false;
     for (final e in entities) {
       final user = e.users.where((u) => u.phone == phone).firstOrNull;
       if (user != null) {
         found = e;
         foundRole = user.role;
         foundCaps = user.capabilities;
+        foundIsPos = user.isPos;
         break;
       }
     }
@@ -160,7 +164,8 @@ class AuthController extends AsyncNotifier<AuthState> {
     }
     await sessionStorage.setCurrentEntityId(found.id);
     await sessionStorage.setCurrentEntityType(found.type.name);
-    final isPosUser = foundRole == UserRole.USER && found.type == EntityType.STORE;
+    // isPos (any entity) OR the legacy USER-on-STORE rule → POS session.
+    final isPosUser = foundIsPos || (foundRole == UserRole.USER && found.type == EntityType.STORE);
     state = AsyncValue.data(AuthAuthenticated(
         entity: found, role: foundRole, isPosUser: isPosUser, capabilities: foundCaps));
     return const LoginDone();

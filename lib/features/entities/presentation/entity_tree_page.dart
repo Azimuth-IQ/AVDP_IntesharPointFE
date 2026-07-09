@@ -552,8 +552,8 @@ class _TreeNode extends ConsumerWidget {
     final logoCtrl = TextEditingController(text: entity.meta.logoUrl);
     final backgroundCtrl =
         TextEditingController(text: entity.meta.backgroundUrl);
-    final sliderImagesNotifier = ValueNotifier<List<String>>(
-        List<String>.from(entity.meta.sliderImagesUrl));
+    final sliderImagesNotifier = ValueNotifier<List<SliderImage>>(
+        List<SliderImage>.from(entity.meta.effectiveSliderImages));
     final primaryCtrl = TextEditingController(text: entity.meta.primaryColor);
     final secondaryCtrl =
         TextEditingController(text: entity.meta.secondaryColor);
@@ -587,7 +587,13 @@ class _TreeNode extends ConsumerWidget {
               description: descCtrl.text.trim(),
               logoUrl: logoCtrl.text.trim(),
               backgroundUrl: backgroundCtrl.text.trim(),
-              sliderImagesUrl: sliderImagesNotifier.value,
+              // Structured slider (order + active) is the source of truth; also mirror
+              // the active URLs into the legacy flat list for any old reader.
+              sliderImages: sliderImagesNotifier.value,
+              sliderImagesUrl: sliderImagesNotifier.value
+                  .where((s) => s.active && s.url.trim().isNotEmpty)
+                  .map((s) => s.url)
+                  .toList(),
               primaryColor: primaryCtrl.text.trim(),
               secondaryColor: secondaryCtrl.text.trim(),
               lowStockThreshold: int.tryParse(thresholdCtrl.text.trim()) ?? 0,
@@ -785,11 +791,12 @@ class _Tally extends StatelessWidget {
 
 // ─── Slider gallery ──────────────────────────────────────────────────────────
 
-/// Multi-image upload control for [EntityMeta.sliderImagesUrl].
-/// Renders a [Wrap] of thumbnails, each with an ✕ remove button, plus an
-/// add-image tile that opens the file picker and appends to [notifier].
+/// HQ home-slider manager for [EntityMeta.sliderImages]. Each row = one uploaded
+/// image with: an order badge (#1 = shown first), a drag/move up-down control,
+/// an active toggle (hide without deleting), and remove. An add tile uploads a
+/// new image (appended, active). The list order IS the display order.
 class _SliderGallery extends ConsumerStatefulWidget {
-  final ValueNotifier<List<String>> notifier;
+  final ValueNotifier<List<SliderImage>> notifier;
   const _SliderGallery({required this.notifier});
 
   @override
@@ -800,21 +807,38 @@ class _SliderGalleryState extends ConsumerState<_SliderGallery> {
   bool _uploading = false;
   String? _error;
 
+  void _update(List<SliderImage> next) => widget.notifier.value = next;
+
+  void _move(int from, int to) {
+    final list = List<SliderImage>.from(widget.notifier.value);
+    if (to < 0 || to >= list.length) return;
+    final item = list.removeAt(from);
+    list.insert(to, item);
+    _update(list);
+  }
+
+  void _toggleActive(int idx) {
+    final list = List<SliderImage>.from(widget.notifier.value);
+    list[idx] = list[idx].copyWith(active: !list[idx].active);
+    _update(list);
+  }
+
+  void _remove(int idx) {
+    final list = List<SliderImage>.from(widget.notifier.value)..removeAt(idx);
+    _update(list);
+  }
+
   Future<void> _addImage() async {
     setState(() => _error = null);
     FilePickerResult? result;
     try {
-      result = await FilePicker.platform.pickFiles(
-        type: FileType.image,
-        withData: true,
-      );
+      result = await FilePicker.platform.pickFiles(type: FileType.image, withData: true);
     } catch (e) {
       if (mounted) setState(() => _error = 'Could not open file picker: $e');
       return;
     }
     if (result == null || result.files.isEmpty) return;
-    final file = result.files.first;
-    final bytes = file.bytes;
+    final bytes = result.files.first.bytes;
     if (bytes == null) {
       if (mounted) setState(() => _error = 'Could not read file bytes');
       return;
@@ -822,9 +846,9 @@ class _SliderGalleryState extends ConsumerState<_SliderGallery> {
     setState(() => _uploading = true);
     try {
       final repo = UploadRepository(ref.read(apiClientProvider));
-      final url = await repo.uploadFile(bytes, file.name, 'agent-branding');
+      final url = await repo.uploadFile(bytes, result.files.first.name, 'agent-branding');
       if (mounted) {
-        widget.notifier.value = [...widget.notifier.value, url];
+        _update([...widget.notifier.value, SliderImage(url: url)]);
         setState(() => _uploading = false);
       }
     } catch (e) {
@@ -846,103 +870,178 @@ class _SliderGalleryState extends ConsumerState<_SliderGallery> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          isAr ? 'صور الشريط' : 'Slider Images',
-          style: IntesharType.sans(12,
-              color: cs.onSurfaceVariant, w: FontWeight.w700),
+          isAr ? 'صور الشريط (نقاط البيع)' : 'Home slider images (POS)',
+          style: IntesharType.sans(12, color: cs.onSurfaceVariant, w: FontWeight.w700),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          isAr
+              ? 'اسحب لإعادة الترتيب — الأول يظهر أولاً. فعّل/عطّل لإظهار أو إخفاء صورة.'
+              : 'Reorder to set what shows first; toggle to activate/hide without deleting.',
+          style: IntesharType.sans(11, color: cs.onSurfaceVariant),
         ),
         const SizedBox(height: 8),
-        ValueListenableBuilder<List<String>>(
+        ValueListenableBuilder<List<SliderImage>>(
           valueListenable: widget.notifier,
           builder: (context, images, _) {
-            return Wrap(
-              spacing: 8,
-              runSpacing: 8,
+            return Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                ...images.asMap().entries.map((entry) {
-                  final idx = entry.key;
-                  final url = entry.value;
-                  return Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius:
-                            BorderRadius.circular(IntesharRadii.sm),
-                        child: Image.network(
-                          url,
-                          width: 72,
-                          height: 72,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => Container(
-                            width: 72,
-                            height: 72,
-                            decoration: BoxDecoration(
-                              color: cs.surfaceContainerHighest,
-                              borderRadius:
-                                  BorderRadius.circular(IntesharRadii.sm),
-                            ),
-                            child: Icon(Icons.broken_image_outlined,
-                                size: 22, color: cs.onSurfaceVariant),
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        top: 2,
-                        right: 2,
-                        child: GestureDetector(
-                          onTap: () {
-                            final updated =
-                                List<String>.from(widget.notifier.value)
-                                  ..removeAt(idx);
-                            widget.notifier.value = updated;
-                          },
-                          child: Container(
-                            width: 20,
-                            height: 20,
-                            decoration: BoxDecoration(
-                              color: cs.error,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(Icons.close,
-                                size: 12, color: cs.onError),
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                }),
+                if (images.isNotEmpty)
+                  ReorderableListView.builder(
+                    shrinkWrap: true,
+                    buildDefaultDragHandles: false,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: images.length,
+                    onReorder: (oldIndex, newIndex) {
+                      if (newIndex > oldIndex) newIndex -= 1;
+                      _move(oldIndex, newIndex);
+                    },
+                    itemBuilder: (context, i) {
+                      final img = images[i];
+                      return _SliderRow(
+                        key: ValueKey('${img.url}#$i'),
+                        index: i,
+                        total: images.length,
+                        image: img,
+                        onToggle: () => _toggleActive(i),
+                        onRemove: () => _remove(i),
+                        onUp: i > 0 ? () => _move(i, i - 1) : null,
+                        onDown: i < images.length - 1 ? () => _move(i, i + 1) : null,
+                      );
+                    },
+                  ),
+                const SizedBox(height: 8),
                 if (_uploading)
-                  SizedBox(
-                    width: 72,
-                    height: 72,
-                    child: Center(
-                        child: CircularProgressIndicator(strokeWidth: 2)),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2)),
                   )
                 else
-                  GestureDetector(
-                    onTap: _addImage,
-                    child: Container(
-                      width: 72,
-                      height: 72,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: cs.outline, width: 1.5),
-                        borderRadius:
-                            BorderRadius.circular(IntesharRadii.sm),
-                      ),
-                      child: Icon(
-                        Icons.add_photo_alternate_outlined,
-                        size: 28,
-                        color: cs.onSurfaceVariant,
-                      ),
-                    ),
+                  OutlinedButton.icon(
+                    onPressed: _addImage,
+                    icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
+                    label: Text(isAr ? 'إضافة صورة' : 'Add image'),
                   ),
               ],
             );
           },
         ),
-        if (_error != null) ...[  
+        if (_error != null) ...[
           const SizedBox(height: 4),
           Text(_error!, style: IntesharType.sans(12, color: cs.error)),
         ],
       ],
+    );
+  }
+}
+
+/// One row in the slider manager: order badge, thumbnail, active switch, move
+/// up/down + drag handle, and remove.
+class _SliderRow extends StatelessWidget {
+  final int index;
+  final int total;
+  final SliderImage image;
+  final VoidCallback onToggle;
+  final VoidCallback onRemove;
+  final VoidCallback? onUp;
+  final VoidCallback? onDown;
+  const _SliderRow({
+    required super.key,
+    required this.index,
+    required this.total,
+    required this.image,
+    required this.onToggle,
+    required this.onRemove,
+    required this.onUp,
+    required this.onDown,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final dim = !image.active;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainer,
+        borderRadius: BorderRadius.circular(IntesharRadii.sm),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 22,
+            height: 22,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: IntesharColors.saffron, borderRadius: BorderRadius.circular(11)),
+            child: Text('${index + 1}', style: IntesharType.mono(11, color: IntesharColors.ink, w: FontWeight.w900)),
+          ),
+          const SizedBox(width: 8),
+          Opacity(
+            opacity: dim ? 0.4 : 1,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(IntesharRadii.sm),
+              child: Image.network(
+                image.url,
+                width: 52,
+                height: 52,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => Container(
+                  width: 52,
+                  height: 52,
+                  color: cs.surfaceContainerHighest,
+                  child: Icon(Icons.broken_image_outlined, size: 20, color: cs.onSurfaceVariant),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Active toggle
+          Expanded(
+            child: Row(
+              children: [
+                Switch(value: image.active, onChanged: (_) => onToggle()),
+                Flexible(
+                  child: Text(
+                    image.active
+                        ? (Localizations.localeOf(context).languageCode == 'ar' ? 'مُفعّلة' : 'Active')
+                        : (Localizations.localeOf(context).languageCode == 'ar' ? 'مخفية' : 'Hidden'),
+                    overflow: TextOverflow.ellipsis,
+                    style: IntesharType.sans(11, color: cs.onSurfaceVariant, w: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.keyboard_arrow_up, size: 20),
+            onPressed: onUp,
+            tooltip: 'Up',
+          ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.keyboard_arrow_down, size: 20),
+            onPressed: onDown,
+            tooltip: 'Down',
+          ),
+          ReorderableDragStartListener(
+            index: index,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Icon(Icons.drag_handle, size: 20, color: cs.onSurfaceVariant),
+            ),
+          ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            icon: Icon(Icons.close, size: 18, color: cs.error),
+            onPressed: onRemove,
+            tooltip: 'Remove',
+          ),
+        ],
+      ),
     );
   }
 }
@@ -956,7 +1055,7 @@ class _EntityFormSheet extends StatefulWidget {
   final TextEditingController descCtrl;
   final TextEditingController logoCtrl;
   final TextEditingController backgroundCtrl;
-  final ValueNotifier<List<String>> sliderImagesNotifier;
+  final ValueNotifier<List<SliderImage>> sliderImagesNotifier;
   final TextEditingController primaryCtrl;
   final TextEditingController secondaryCtrl;
   final TextEditingController thresholdCtrl;

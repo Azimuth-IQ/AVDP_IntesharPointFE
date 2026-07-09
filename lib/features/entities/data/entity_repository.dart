@@ -1,6 +1,7 @@
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/endpoints.dart';
 import 'package:inteshar/core/auth/capabilities.dart';
+import 'package:inteshar/features/entities/domain/branding.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 
@@ -11,6 +12,13 @@ class EntityRepository {
   Future<Entity> create(Entity entity, {bool includeUsers = false}) async {
     final response = await _api.post(Endpoints.entityCreate, data: entity.toJson(includeUsers: includeUsers));
     return _api.unwrap(response, (d) => Entity.fromJson(d as Map<String, dynamic>));
+  }
+
+  /// Resolved white-label branding for the caller: the HQ home slider (active,
+  /// ordered) + the caller's Main-Agent (AGENT1) logo/colours. `GET /api/entity/branding`.
+  Future<BrandInfo> branding() async {
+    final response = await _api.get(Endpoints.entityBranding);
+    return _api.unwrap(response, (d) => BrandInfo.fromJson((d as Map).cast<String, dynamic>()));
   }
 
   Future<Entity> read(String id) async {

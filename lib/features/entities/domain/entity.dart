@@ -32,6 +32,24 @@ class WorkingHours {
       );
 }
 
+/// One HQ-managed home-slider image: an uploaded [url] plus an [active] toggle.
+/// Display order is the position within [EntityMeta.sliderImages] (index 0 first).
+class SliderImage {
+  final String url;
+  final bool active;
+  const SliderImage({required this.url, this.active = true});
+
+  factory SliderImage.fromJson(Map<String, dynamic> j) => SliderImage(
+        url: j['url'] as String? ?? '',
+        active: j['active'] as bool? ?? true,
+      );
+
+  Map<String, dynamic> toJson() => {'url': url, 'active': active};
+
+  SliderImage copyWith({String? url, bool? active}) =>
+      SliderImage(url: url ?? this.url, active: active ?? this.active);
+}
+
 class EntityMeta {
   /// App-wide fallback used when an entity hasn't configured its own
   /// [lowStockThreshold]. A SKU with fewer available units is flagged low.
@@ -42,14 +60,21 @@ class EntityMeta {
   final String description;
   final String logoUrl;
   final String backgroundUrl;
-  final List<String> sliderImagesUrl;
+  final List<String> sliderImagesUrl;      // legacy flat list (active URLs, in order)
+  final List<SliderImage> sliderImages;    // structured slider: per-image active + order
   final String primaryColor;   // brand hex (e.g. #F5B100) — white-label
   final String secondaryColor; // accent hex — white-label
   final int lowStockThreshold; // per-account low-stock alert level; 0 = unset → default
   final List<String> governorates; // governorate codes this entity operates in (geo-lock)
   final WorkingHours? workingHours; // per-account login window (BRD FR-03); null = always open
 
-  const EntityMeta({this.name = '', this.slogan = '', this.description = '', this.logoUrl = '', this.backgroundUrl = '', this.sliderImagesUrl = const [], this.primaryColor = '', this.secondaryColor = '', this.lowStockThreshold = 0, this.governorates = const [], this.workingHours});
+  const EntityMeta({this.name = '', this.slogan = '', this.description = '', this.logoUrl = '', this.backgroundUrl = '', this.sliderImagesUrl = const [], this.sliderImages = const [], this.primaryColor = '', this.secondaryColor = '', this.lowStockThreshold = 0, this.governorates = const [], this.workingHours});
+
+  /// The structured slider list, migrating legacy flat [sliderImagesUrl] (all
+  /// active, in order) when no structured list has been saved yet.
+  List<SliderImage> get effectiveSliderImages => sliderImages.isNotEmpty
+      ? sliderImages
+      : sliderImagesUrl.map((u) => SliderImage(url: u)).toList();
 
   /// The threshold to actually apply: the configured value, or the default
   /// when unset (0 or negative).
@@ -63,6 +88,10 @@ class EntityMeta {
     logoUrl: j['logoUrl'] as String? ?? '',
     backgroundUrl: j['backgroundUrl'] as String? ?? '',
     sliderImagesUrl: (j['sliderImagesUrl'] as List<dynamic>?)?.cast<String>() ?? [],
+    sliderImages: (j['sliderImages'] as List<dynamic>?)
+            ?.map((e) => SliderImage.fromJson((e as Map).cast<String, dynamic>()))
+            .toList() ??
+        const [],
     primaryColor: j['primaryColor'] as String? ?? '',
     secondaryColor: j['secondaryColor'] as String? ?? '',
     lowStockThreshold: (j['lowStockThreshold'] as num?)?.toInt() ?? 0,
@@ -77,6 +106,7 @@ class EntityMeta {
     'logoUrl': logoUrl,
     'backgroundUrl': backgroundUrl,
     'sliderImagesUrl': sliderImagesUrl,
+    'sliderImages': sliderImages.map((e) => e.toJson()).toList(),
     'primaryColor': primaryColor,
     'secondaryColor': secondaryColor,
     'lowStockThreshold': lowStockThreshold,
@@ -84,13 +114,14 @@ class EntityMeta {
     if (workingHours != null) 'workingHours': workingHours!.toJson(),
   };
 
-  EntityMeta copyWith({String? name, String? slogan, String? description, String? logoUrl, String? backgroundUrl, List<String>? sliderImagesUrl, String? primaryColor, String? secondaryColor, int? lowStockThreshold, List<String>? governorates, WorkingHours? workingHours}) => EntityMeta(
+  EntityMeta copyWith({String? name, String? slogan, String? description, String? logoUrl, String? backgroundUrl, List<String>? sliderImagesUrl, List<SliderImage>? sliderImages, String? primaryColor, String? secondaryColor, int? lowStockThreshold, List<String>? governorates, WorkingHours? workingHours}) => EntityMeta(
     name: name ?? this.name,
     slogan: slogan ?? this.slogan,
     description: description ?? this.description,
     logoUrl: logoUrl ?? this.logoUrl,
     backgroundUrl: backgroundUrl ?? this.backgroundUrl,
     sliderImagesUrl: sliderImagesUrl ?? this.sliderImagesUrl,
+    sliderImages: sliderImages ?? this.sliderImages,
     primaryColor: primaryColor ?? this.primaryColor,
     secondaryColor: secondaryColor ?? this.secondaryColor,
     lowStockThreshold: lowStockThreshold ?? this.lowStockThreshold,

@@ -7,6 +7,7 @@ import 'package:inteshar/core/auth/capabilities.dart';
 import 'package:inteshar/core/storage/session_storage.dart';
 import 'package:inteshar/features/auth/data/auth_repository.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
+import 'package:inteshar/features/entities/domain/branding.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 
@@ -22,7 +23,11 @@ class AuthAuthenticated extends AuthState {
   final bool isPosUser;
   final Set<Capability> capabilities;
 
-  AuthAuthenticated({required this.entity, required this.role, this.isPosUser = false, this.capabilities = const {}});
+  /// Resolved white-label brand (Main-Agent logo/colours + HQ slider) for this
+  /// session. Empty when unresolved or for HQ.
+  final BrandInfo brand;
+
+  AuthAuthenticated({required this.entity, required this.role, this.isPosUser = false, this.capabilities = const {}, this.brand = const BrandInfo()});
 
   String get homeRoute {
     if (isPosUser) return '/pos/home';
@@ -103,7 +108,8 @@ class AuthController extends AsyncNotifier<AuthState> {
       // POS-user quota model: a POS is any USER flagged isPos (on any entity). Backward-compatible
       // with the legacy rule (a USER on a STORE) so existing store logins still route to /pos.
       final isPosUser = (user?.isPos ?? false) || (role == UserRole.USER && entity.type == EntityType.STORE);
-      return AuthAuthenticated(entity: entity, role: role, isPosUser: isPosUser, capabilities: user?.capabilities ?? const {});
+      final brand = await _loadBrand(api);
+      return AuthAuthenticated(entity: entity, role: role, isPosUser: isPosUser, capabilities: user?.capabilities ?? const {}, brand: brand);
     } catch (e) {
       debugPrint('[AUTH] error: $e');
       await sessionStorage.clear();
@@ -166,9 +172,20 @@ class AuthController extends AsyncNotifier<AuthState> {
     await sessionStorage.setCurrentEntityType(found.type.name);
     // isPos (any entity) OR the legacy USER-on-STORE rule → POS session.
     final isPosUser = foundIsPos || (foundRole == UserRole.USER && found.type == EntityType.STORE);
+    final brand = await _loadBrand(api);
     state = AsyncValue.data(AuthAuthenticated(
-        entity: found, role: foundRole, isPosUser: isPosUser, capabilities: foundCaps));
+        entity: found, role: foundRole, isPosUser: isPosUser, capabilities: foundCaps, brand: brand));
     return const LoginDone();
+  }
+
+  /// Best-effort branding fetch — a failure must never block login, so it falls
+  /// back to an empty [BrandInfo] (the app then uses the entity's own theme).
+  Future<BrandInfo> _loadBrand(ApiClient api) async {
+    try {
+      return await EntityRepository(api).branding();
+    } catch (_) {
+      return const BrandInfo();
+    }
   }
 
   /// Forced password change (auth Phase 4): sets the new password and signs in.

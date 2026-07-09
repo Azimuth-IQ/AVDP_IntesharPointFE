@@ -16,6 +16,9 @@ class AppNotification {
   final String audienceTier;       // AGENT1 | AGENT2 | STORE — only when type == TIER
   final String audienceEntityId;   // only when type == ENTITY
   final String audienceEntityName; // denormalized; may be empty
+  final List<String> audienceTiers;     // multi-tier targeting (audience == TIER)
+  final List<String> audienceEntityIds; // multi-entity targeting (audience == ENTITY)
+  final bool posOnly;                    // narrowed to POS operators within the scope
   final String senderName;
   final DateTime? sentAt;
   final bool isRead;
@@ -28,6 +31,9 @@ class AppNotification {
     this.audienceTier = '',
     this.audienceEntityId = '',
     this.audienceEntityName = '',
+    this.audienceTiers = const [],
+    this.audienceEntityIds = const [],
+    this.posOnly = false,
     this.senderName = '',
     this.sentAt,
     this.isRead = false,
@@ -45,6 +51,9 @@ class AppNotification {
         audienceEntityId: j['entityId'] as String? ?? '',
         // Backend does not denormalize an entity name; left empty for the UI.
         audienceEntityName: j['audienceEntityName'] as String? ?? '',
+        audienceTiers: (j['tierTypes'] as List<dynamic>?)?.cast<String>() ?? const [],
+        audienceEntityIds: (j['entityIds'] as List<dynamic>?)?.cast<String>() ?? const [],
+        posOnly: j['posOnly'] as bool? ?? false,
         senderName: j['createdBy'] as String? ?? '',
         sentAt: j['createdAt'] == null
             ? null
@@ -73,6 +82,9 @@ class AppNotification {
     String? audienceTier,
     String? audienceEntityId,
     String? audienceEntityName,
+    List<String>? audienceTiers,
+    List<String>? audienceEntityIds,
+    bool? posOnly,
     String? senderName,
     DateTime? sentAt,
     bool? isRead,
@@ -85,6 +97,9 @@ class AppNotification {
         audienceTier: audienceTier ?? this.audienceTier,
         audienceEntityId: audienceEntityId ?? this.audienceEntityId,
         audienceEntityName: audienceEntityName ?? this.audienceEntityName,
+        audienceTiers: audienceTiers ?? this.audienceTiers,
+        audienceEntityIds: audienceEntityIds ?? this.audienceEntityIds,
+        posOnly: posOnly ?? this.posOnly,
         senderName: senderName ?? this.senderName,
         sentAt: sentAt ?? this.sentAt,
         isRead: isRead ?? this.isRead,

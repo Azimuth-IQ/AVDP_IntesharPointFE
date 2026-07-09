@@ -37,21 +37,24 @@ class NotificationRepository {
   /// Sends a broadcast notification (HQ-admin only; backend enforces).
   ///
   /// [audienceType] must be `ALL`, `TIER`, or `ENTITY`.
-  /// [audienceTier] is required when [audienceType] == `TIER`.
-  /// [audienceEntityId] is required when [audienceType] == `ENTITY`.
+  /// [tierTypes] carries one or more EntityType names when [audienceType] == `TIER`.
+  /// [entityIds] carries one or more target ids when [audienceType] == `ENTITY`.
+  /// [posOnly] narrows any audience to POS operators (User.isPos) within the scope.
   Future<void> send({
     required String title,
     required String body,
     required String audienceType,
-    String audienceTier = '',
-    String audienceEntityId = '',
+    List<String> tierTypes = const [],
+    List<String> entityIds = const [],
+    bool posOnly = false,
   }) async {
     await _api.post(Endpoints.notificationsSend, data: {
       'title': title,
       'body': body,
       'audience': audienceType,
-      if (audienceTier.isNotEmpty) 'tierType': audienceTier,
-      if (audienceEntityId.isNotEmpty) 'entityId': audienceEntityId,
+      if (tierTypes.isNotEmpty) 'tierTypes': tierTypes,
+      if (entityIds.isNotEmpty) 'entityIds': entityIds,
+      if (posOnly) 'posOnly': true,
     });
   }
 

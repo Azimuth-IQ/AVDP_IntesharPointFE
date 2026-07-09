@@ -41,6 +41,8 @@ class SellableSku {
   final String sku;
   final String name;
   final String? companyName;
+  final String? companyLogoUrl; // telecom company logo (for the Companies step)
+  final String? imageUrl;       // card-type artwork (ProductDefinition.imageUrl)
   final String? governorate; // null/"" = untagged (region-free)
   final num price;
   final int available;
@@ -49,6 +51,8 @@ class SellableSku {
     required this.sku,
     required this.name,
     this.companyName,
+    this.companyLogoUrl,
+    this.imageUrl,
     this.governorate,
     this.price = 0,
     this.available = 0,
@@ -59,6 +63,8 @@ class SellableSku {
         sku: m['sku'] as String? ?? '',
         name: m['name'] as String? ?? '',
         companyName: m['companyName'] as String?,
+        companyLogoUrl: m['companyLogoUrl'] as String?,
+        imageUrl: m['imageUrl'] as String?,
         governorate: m['governorate'] as String?,
         price: (m['price'] as num?) ?? 0,
         available: (m['available'] as num?)?.toInt() ?? 0,

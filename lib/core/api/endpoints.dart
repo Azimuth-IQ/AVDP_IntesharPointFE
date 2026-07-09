@@ -14,6 +14,7 @@ class Endpoints {
   static const entityRead = '/api/entity/read';
   static const entityReadAll = '/api/entity/readall';
   static const entityReadWithChildren = '/api/entity/readwithchildren';
+  static const entityBranding = '/api/entity/branding';
   static const entityUpdate = '/api/entity/update';
   static const entityDelete = '/api/entity/delete';
   // Point (STORE/POS) management

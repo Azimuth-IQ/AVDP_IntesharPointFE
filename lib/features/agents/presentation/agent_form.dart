@@ -51,7 +51,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
   final _name = TextEditingController();
   final _logo = TextEditingController();
   final _ownerName = TextEditingController();
-  final _documents = TextEditingController();
+  List<String> _documentUrls = [];
   final _landmark = TextEditingController();
   final _lat = TextEditingController();
   final _lng = TextEditingController();
@@ -90,7 +90,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
       final p = e.profile;
       if (p != null) {
         _ownerName.text = p.ownerName;
-        _documents.text = p.documentUrls.join(', ');
+        _documentUrls = List.of(p.documentUrls);
         _landmark.text = p.nearestLandmark;
         _lat.text = p.latitude?.toString() ?? '';
         _lng.text = p.longitude?.toString() ?? '';
@@ -125,7 +125,6 @@ class _AgentFormState extends ConsumerState<AgentForm> {
       _name,
       _logo,
       _ownerName,
-      _documents,
       _landmark,
       _lat,
       _lng,
@@ -300,11 +299,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
     );
     final profile = EntityProfile(
       ownerName: _ownerName.text.trim(),
-      documentUrls: _documents.text
-          .split(',')
-          .map((e) => e.trim())
-          .where((e) => e.isNotEmpty)
-          .toList(),
+      documentUrls: List.of(_documentUrls),
       latitude: double.tryParse(_lat.text.trim()),
       longitude: double.tryParse(_lng.text.trim()),
       nearestLandmark: _landmark.text.trim(),
@@ -503,20 +498,11 @@ class _AgentFormState extends ConsumerState<AgentForm> {
           decoration: InputDecoration(labelText: s.fieldOwnerName),
         ),
         const SizedBox(height: 12),
-        ImageUploadField(
-          value: null,
+        MultiImageUploadField(
+          values: _documentUrls,
           label: s.fieldDocuments,
           kind: 'kyc-doc',
-          onChanged: (u) => setState(() {
-            final cur = _documents.text.trim();
-            _documents.text = cur.isEmpty ? u : '$cur, $u';
-          }),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _documents,
-          maxLines: 2,
-          decoration: InputDecoration(labelText: s.fieldDocuments),
+          onChanged: (urls) => setState(() => _documentUrls = urls),
         ),
         const SizedBox(height: 12),
         TextField(

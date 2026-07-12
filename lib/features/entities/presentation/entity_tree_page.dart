@@ -893,6 +893,10 @@ class _SliderGalleryState extends ConsumerState<_SliderGallery> {
                     buildDefaultDragHandles: false,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: images.length,
+                    // CI's newer Flutter deprecates onReorder in favor of
+                    // onReorderItem, which doesn't exist yet on the local
+                    // 3.38.x toolchain — keep onReorder until both align.
+                    // ignore: deprecated_member_use
                     onReorder: (oldIndex, newIndex) {
                       if (newIndex > oldIndex) newIndex -= 1;
                       _move(oldIndex, newIndex);

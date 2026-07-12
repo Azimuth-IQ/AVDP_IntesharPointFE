@@ -436,21 +436,17 @@ class AppShell extends ConsumerWidget {
         ];
 
       case EntityType.STORE:
-        // The STORE-ADMIN manages the shop (inventory / transactions / dashboard). The POS
+        // The STORE-ADMIN manages the shop (dashboard / reports / POS points). The POS
         // terminal is a SEPARATE USER-role session (/pos); a /pos/home nav item here would
         // only bounce the store-admin (route prefix mismatch), so it is intentionally omitted.
+        // The legacy voucher pages (Inventory / Transactions) are gone: since draw-on-print
+        // a store holds no cards, so both were permanently empty.
         return [
           _NavItem(
-            Icons.warehouse_outlined,
-            Icons.warehouse,
-            l.navInventory,
-            '/store/inventory',
-          ),
-          _NavItem(
-            Icons.swap_horiz_outlined,
-            Icons.swap_horiz,
-            l.navTransactions,
-            '/store/transactions',
+            Icons.dashboard_outlined,
+            Icons.dashboard,
+            l.navDashboard,
+            '/store/home',
           ),
           _NavItem(
             Icons.assessment_outlined,
@@ -463,12 +459,6 @@ class AppShell extends ConsumerWidget {
             Icons.storefront,
             posLabel,
             '/store/pos-users',
-          ),
-          _NavItem(
-            Icons.dashboard_outlined,
-            Icons.dashboard,
-            l.navDashboard,
-            '/store/home',
           ),
           _NavItem(
             Icons.notifications_outlined,

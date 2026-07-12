@@ -81,13 +81,14 @@ void main() {
     expect(find.text('Batch Add'), findsOneWidget);
   });
 
-  testWidgets('Store role (6 routes) caps at 5 tabs with a More overflow', (tester) async {
+  testWidgets('Store role (4 routes) shows all tabs without a More overflow', (tester) async {
     await _pumpShell(tester, EntityType.STORE);
 
-    // STORE has 6 destinations now (Inventory, Transactions, Reports, POS points, Dashboard,
-    // Notifications) — over the 5-tab cap, so the bar shows 4 primaries + a "More" overflow.
+    // STORE has 4 destinations (Dashboard, Reports, POS points, Notifications) after the
+    // legacy voucher pages (Inventory / Transactions) were removed — under the 5-tab cap,
+    // so every destination sits on the bar and no "More" overflow is needed.
     final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
-    expect(bar.destinations.length, 5);
-    expect(find.text('More'), findsOneWidget);
+    expect(bar.destinations.length, 4);
+    expect(find.text('More'), findsNothing);
   });
 }

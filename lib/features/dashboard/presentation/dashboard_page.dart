@@ -520,7 +520,9 @@ class _BodyRow extends StatelessWidget {
         final txnCard = _RecentTransactionsCard(
           txns: recentTxns,
           entityNames: entityNames,
-          onViewAll: () => ctx.go('${_rolePrefix(entity.type)}/transactions'),
+          onViewAll: entity.type == EntityType.STORE
+              ? null
+              : () => ctx.go('${_rolePrefix(entity.type)}/transactions'),
           l: l,
         );
         final lowCard = _LowStockCard(lowSkus: lowSkus, l: l);
@@ -546,7 +548,10 @@ class _BodyRow extends StatelessWidget {
 class _RecentTransactionsCard extends StatelessWidget {
   final List<AppTransaction> txns;
   final Map<String, String> entityNames;
-  final VoidCallback onViewAll;
+
+  /// Deep-link to the full transactions page; null hides the link (stores
+  /// have no transactions route — they hold no cards since draw-on-print).
+  final VoidCallback? onViewAll;
   final AppLocalizations l;
 
   const _RecentTransactionsCard({
@@ -633,7 +638,8 @@ class _RecentTransactionsCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    _ViewAllLink(label: l.dashViewAll, onTap: onViewAll),
+                    if (onViewAll != null)
+                      _ViewAllLink(label: l.dashViewAll, onTap: onViewAll!),
                   ],
                 ),
               ),

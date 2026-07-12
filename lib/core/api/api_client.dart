@@ -13,8 +13,8 @@ import 'package:inteshar/core/storage/session_storage.dart';
 /// or [null] if the request must NOT be retried.
 ///
 /// Only idempotent GETs on transport-level failures (no server response) are
-/// eligible — POSTs (login, transaction create, sendForPrinting) are never
-/// retried regardless of error type.
+/// eligible — POSTs (login, transaction create, draw) are never retried
+/// regardless of error type.
 ///
 /// [method]      HTTP verb (case-insensitive).
 /// [hasResponse] true when the server returned any HTTP status (4xx/5xx etc.).

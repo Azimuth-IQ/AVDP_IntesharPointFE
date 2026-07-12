@@ -41,7 +41,6 @@ class Endpoints {
   static const productReadByEntity = '/api/inventory/product/readByEntity';
   static const productSummaryByEntity = '/api/inventory/product/summaryByEntity';
   static const productReadByEntityAndSku = '/api/inventory/product/readByEntityAndSku';
-  static const productSendForPrinting = '/api/inventory/product/sendForPrinting';
   // Draw-on-print (pool model): a POS/sub-agent sells BY SKU, drawing one card from its
   // parent Main Agent's pool and debiting its withdrawal limit. Sellable = the SKUs it can
   // sell; draw = the atomic sale; draw/recover = lost-response idempotency re-fetch.

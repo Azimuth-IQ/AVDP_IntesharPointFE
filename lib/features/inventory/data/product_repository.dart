@@ -176,26 +176,6 @@ class ProductRepository {
         response, (d) => Product.fromJson(d as Map<String, dynamic>));
   }
 
-  /// The single channel that yields a decrypted PIN: atomically marks the voucher
-  /// used (PRINTED) and returns it with the PIN decrypted, PLUS the per-store receipt
-  /// number and the main-agent + company logo URLs for the receipt. Backend authorizes
-  /// that the caller's entity is the product's current owner.
-  Future<RevealResult> sendForPrinting(String id) async {
-    final response =
-        await _api.post(Endpoints.productSendForPrinting, params: {'id': id});
-    return _api.unwrap(response, (d) {
-      final m = d as Map<String, dynamic>;
-      return RevealResult(
-        product: Product.fromJson(m['product'] as Map<String, dynamic>? ?? {}),
-        receiptNo: (m['receiptNo'] as num?)?.toInt() ?? 0,
-        agentLogoUrl: m['agentLogoUrl'] as String?,
-        companyLogoUrl: m['companyLogoUrl'] as String?,
-        companyName: m['companyName'] as String?,
-        categoryName: m['categoryName'] as String?,
-      );
-    });
-  }
-
   /// Draw-on-print: the SKUs this entity can sell from its parent Main Agent's pool — each
   /// with the store's cost, the pool's available count, and how many its withdrawal limit
   /// can afford. Pass [entityId] to view another account (HQ/ancestor); omit for the

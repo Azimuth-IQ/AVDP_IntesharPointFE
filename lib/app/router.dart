@@ -172,10 +172,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/agent2/pos-users', builder: (_, _) => const PosAdminPage()),
           GoRoute(path: '/agent2/notifications', builder: (_, _) => const NotificationsInboxPage()),
 
-          // Store
+          // Store — admin console only. The legacy voucher-ownership pages
+          // (/store/inventory, /store/transactions) are gone: since draw-on-print
+          // a store holds no cards; selling lives in the POS session (/pos/home).
           GoRoute(path: '/store/home', builder: (_, _) => const DashboardPage()),
-          GoRoute(path: '/store/inventory', builder: (_, _) => const InventoryPage(readOnly: true)),
-          GoRoute(path: '/store/transactions', builder: (_, _) => const TransactionsPage()),
           GoRoute(path: '/store/reports', builder: (_, _) => const ReportsPage()),
           GoRoute(path: '/store/pos-users', builder: (_, _) => const PosAdminPage()),
           GoRoute(path: '/store/notifications', builder: (_, _) => const NotificationsInboxPage()),

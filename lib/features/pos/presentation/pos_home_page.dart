@@ -587,15 +587,28 @@ class _HomeSliderState extends State<_HomeSlider> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final height = context.screenSize == ScreenSize.mobile ? 150.0 : 200.0;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(IntesharRadii.lg),
-        child: SizedBox(
-          height: height,
-          child: Stack(
-            children: [
+      child: LayoutBuilder(builder: (context, constraints) {
+        // Slides are cropped 16:9 at upload — render in a matching frame so
+        // nothing gets re-cropped; height-capped (and centered) on wide screens.
+        final height = (constraints.maxWidth * 9 / 16).clamp(0.0, 280.0);
+        return Center(
+          child: SizedBox(
+            width: height * 16 / 9,
+            height: height,
+            child: _frame(cs),
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _frame(ColorScheme cs) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(IntesharRadii.lg),
+      child: Stack(
+        children: [
               PageView.builder(
                 controller: _controller,
                 itemCount: widget.urls.length,
@@ -635,9 +648,7 @@ class _HomeSliderState extends State<_HomeSlider> {
                     }),
                   ),
                 ),
-            ],
-          ),
-        ),
+        ],
       ),
     );
   }

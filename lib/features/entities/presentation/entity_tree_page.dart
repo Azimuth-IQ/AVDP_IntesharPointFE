@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,6 +22,7 @@ import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:inteshar/core/upload/upload_repository.dart';
 import 'package:inteshar/shared/widgets/image_upload_field.dart';
+import 'package:inteshar/shared/widgets/slider_image_crop_dialog.dart';
 import 'package:inteshar/shared/widgets/color_hex_field.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 import 'package:inteshar/shared/widgets/role_badge.dart';
@@ -843,10 +846,21 @@ class _SliderGalleryState extends ConsumerState<_SliderGallery> {
       if (mounted) setState(() => _error = 'Could not read file bytes');
       return;
     }
+    // Spec: slider images are 16:9 and at most 1 MB — crop first, then the
+    // dialog re-encodes to a capped JPEG ready for the slider-image kind.
+    if (!mounted) return;
+    final Uint8List? cropped;
+    try {
+      cropped = await showSliderImageCropDialog(context, bytes);
+    } catch (e) {
+      if (mounted) setState(() => _error = friendlyError(e, context));
+      return;
+    }
+    if (cropped == null) return; // cancelled
     setState(() => _uploading = true);
     try {
       final repo = UploadRepository(ref.read(apiClientProvider));
-      final url = await repo.uploadFile(bytes, result.files.first.name, 'agent-branding');
+      final url = await repo.uploadFile(cropped, 'slide.jpg', 'slider-image');
       if (mounted) {
         _update([...widget.notifier.value, SliderImage(url: url)]);
         setState(() => _uploading = false);

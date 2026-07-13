@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -24,8 +25,8 @@ class LoginPage extends ConsumerStatefulWidget {
 
 class _LoginPageState extends ConsumerState<LoginPage> {
   final _formKey = GlobalKey<FormState>();
-  final _phoneCtrl = TextEditingController(text: '07705371953');
-  final _passCtrl = TextEditingController(text: 'root');
+  final _phoneCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
   bool _obscure = true;
   bool _loading = false;
   String? _error;
@@ -714,15 +715,6 @@ class _LoginForm extends StatelessWidget {
             ),
             validator: (v) => v == null || v.isEmpty ? l.loginFieldRequired : null,
           ),
-          const SizedBox(height: 6),
-          Align(
-            alignment: AlignmentDirectional.centerEnd,
-            child: TextButton.icon(
-              onPressed: onShowUrlSheet,
-              icon: const Icon(Icons.dns_outlined, size: 14),
-              label: Text(l.loginServerUrl),
-            ),
-          ),
           if (error != null) ...[
             const SizedBox(height: 10),
             _Banner(
@@ -742,11 +734,18 @@ class _LoginForm extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 24),
+          // The server-endpoint sheet is intentionally hidden behind a long-press
+          // on the sign-in button (no visible field) — testers/admins can still
+          // reach it to point the app at a different backend.
           BrandCTAButton(
             label: l.loginSignIn,
             trailing: Icons.arrow_forward,
             loading: loading,
             onPressed: loading ? null : onSignIn,
+            onLongPress: () {
+              HapticFeedback.mediumImpact();
+              onShowUrlSheet();
+            },
           ),
           if (isAuthenticated) ...[
             const SizedBox(height: 12),

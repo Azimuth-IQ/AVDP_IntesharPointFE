@@ -15,6 +15,10 @@ class BrandCTAButton extends StatelessWidget {
   final IconData? leading;
   final IconData? trailing;
   final VoidCallback? onPressed;
+
+  /// Optional long-press action. Used to tuck a secondary/hidden affordance
+  /// behind the button (e.g. the server-endpoint sheet on the login screen).
+  final VoidCallback? onLongPress;
   final bool loading;
   final BrandCTAVariant variant;
   final bool expand;
@@ -25,6 +29,7 @@ class BrandCTAButton extends StatelessWidget {
     super.key,
     required this.label,
     this.onPressed,
+    this.onLongPress,
     this.leading,
     this.trailing,
     this.loading = false,
@@ -54,6 +59,7 @@ class BrandCTAButton extends StatelessWidget {
       borderRadius: radius,
       child: InkWell(
         onTap: _enabled ? onPressed : null,
+        onLongPress: (onLongPress != null && !loading) ? onLongPress : null,
         borderRadius: radius,
         splashColor: Colors.black.withValues(alpha: 0.08),
         highlightColor: Colors.black.withValues(alpha: 0.04),

@@ -83,13 +83,20 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           newPass,
         );
     if (!mounted) return;
-    setState(() {
-      _loading = false;
-      if (outcome is LoginFailed) {
-        _error = _friendlyLoginError(outcome.statusCode);
-      }
-      // LoginDone → the authState listener navigates home.
-    });
+    setState(() => _loading = false);
+    if (outcome is LoginPasswordChanged) {
+      // B-011: no session was created — send the user back to sign in with the
+      // new password so the second factor (TOTP/SMS OTP) is enforced by /login.
+      _passCtrl.clear();
+      _resetToCredentials();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(ar
+            ? 'تم تغيير كلمة المرور. سجّل الدخول بكلمة المرور الجديدة.'
+            : 'Password changed. Sign in with your new password.'),
+      ));
+    } else if (outcome is LoginFailed) {
+      setState(() => _error = _friendlyLoginError(outcome.statusCode));
+    }
   }
 
   /// A friendly, localized login error keyed by HTTP status — never the raw backend/
@@ -132,6 +139,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         case LoginNeedsPasswordChange():
           _totpStep = _TotpStep.changePassword;
           _error = null;
+        case LoginPasswordChanged():
+          // Only produced by the change-password flow, never by login(); handled
+          // in _changePassword. No-op here to keep the switch exhaustive.
+          break;
         case LoginFailed(:final statusCode):
           _error = _friendlyLoginError(statusCode);
           _showMongoHint = false;

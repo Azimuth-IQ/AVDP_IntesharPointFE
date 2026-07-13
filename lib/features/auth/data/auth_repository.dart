@@ -77,14 +77,17 @@ class AuthRepository {
   /// sets [newPassword], and returns a fresh JWT so the user is signed in straight
   /// after. The endpoint is public (callable with no token, after a login that
   /// returned mustChangePassword).
-  Future<String> changePassword(String phone, String oldPassword, String newPassword) async {
+  /// Returns normally on success. SECURITY (B-011): the endpoint returns **no
+  /// token** — it verifies only the password, so a token would bypass the second
+  /// factor. The caller must send the user back through [login].
+  Future<void> changePassword(String phone, String oldPassword, String newPassword) async {
     try {
       final response = await _api.post(
         Endpoints.changePassword,
         data: {'phone': phone, 'oldPassword': oldPassword, 'newPassword': newPassword},
       );
       final body = response.data;
-      if (body is Map && body['token'] != null) return body['token'] as String;
+      if (body is Map && body['passwordChanged'] == true) return;
       throw ApiException(
           (body is Map ? body['message'] as String? : null) ?? 'Password change failed');
     } on ApiException {

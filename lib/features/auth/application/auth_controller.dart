@@ -71,6 +71,12 @@ class LoginNeedsPasswordChange extends LoginOutcome {
   const LoginNeedsPasswordChange();
 }
 
+/// The password was changed, but no session was created (B-011: change-password
+/// issues no token). The client must send the user back to sign in.
+class LoginPasswordChanged extends LoginOutcome {
+  const LoginPasswordChanged();
+}
+
 final authStateProvider = AsyncNotifierProvider<AuthController, AuthState>(AuthController.new);
 
 class AuthController extends AsyncNotifier<AuthState> {
@@ -195,8 +201,10 @@ class AuthController extends AsyncNotifier<AuthState> {
     // _completeWithToken sets the authenticated state on success.
     try {
       final api = ref.read(apiClientProvider);
-      final token = await AuthRepository(api).changePassword(phone, oldPassword, newPassword);
-      return await _completeWithToken(api, phone, token);
+      // B-011: change-password returns no token; the user re-authenticates via
+      // login() so the second factor (TOTP/SMS OTP) is enforced.
+      await AuthRepository(api).changePassword(phone, oldPassword, newPassword);
+      return const LoginPasswordChanged();
     } on ApiException catch (e) {
       return LoginFailed(e.message, e.statusCode);
     } catch (e) {

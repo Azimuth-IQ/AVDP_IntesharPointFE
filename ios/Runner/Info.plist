@@ -45,6 +45,10 @@
 		<string>Inteshar Point uses Bluetooth to print vouchers on thermal printers.</string>
 		<key>NSBluetoothPeripheralUsageDescription</key>
 		<string>Inteshar Point uses Bluetooth to print vouchers on thermal printers.</string>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>Inteshar Point needs access to your photos to set slider images, logos, and branding.</string>
+		<key>NSCameraUsageDescription</key>
+		<string>Inteshar Point uses the camera to capture images for branding and documents.</string>
 		<key>CADisableMinimumFrameDurationOnPhone</key>
 		<true/>
 		<key>UIApplicationSupportsIndirectInputEvents</key>

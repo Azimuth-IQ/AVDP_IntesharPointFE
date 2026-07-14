@@ -15,6 +15,11 @@ class Endpoints {
   static const entityReadAll = '/api/entity/readall';
   static const entityReadWithChildren = '/api/entity/readwithchildren';
   static const entityBranding = '/api/entity/branding';
+
+  // POS slider management (HQ-only). The POS itself gets resolved sliders via
+  // entityBranding at login — it never calls these.
+  static const slider = '/api/slider';
+  static const sliderReorder = '/api/slider/reorder';
   static const entityUpdate = '/api/entity/update';
   static const entityDelete = '/api/entity/delete';
   // Point (STORE/POS) management

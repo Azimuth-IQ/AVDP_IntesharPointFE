@@ -16,6 +16,7 @@ import 'package:inteshar/features/inventory/presentation/inventory_page.dart';
 import 'package:inteshar/features/inventory/presentation/points_transfer_page.dart';
 import 'package:inteshar/features/inventory/presentation/child_inventory_page.dart';
 import 'package:inteshar/features/notifications/presentation/notifications_compose_page.dart';
+import 'package:inteshar/features/slider/presentation/slider_management_page.dart';
 import 'package:inteshar/features/notifications/presentation/notifications_inbox_page.dart';
 import 'package:inteshar/features/settings/presentation/working_hours_page.dart';
 import 'package:inteshar/features/agents/presentation/main_agents_page.dart';
@@ -147,6 +148,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/hq/users', builder: (_, _) => const HqUsersPage()),
           GoRoute(path: '/hq/working-hours', builder: (_, _) => const WorkingHoursPage()),
           GoRoute(path: '/hq/notifications', builder: (_, _) => const NotificationsComposePage()),
+          GoRoute(path: '/hq/slider', builder: (_, _) => const SliderManagementPage()),
           GoRoute(path: '/hq/transactions', builder: (_, _) => const TransactionsPage()),
           GoRoute(path: '/hq/reports', builder: (_, _) => const ReportsPage()),
           GoRoute(path: '/hq/pos-users', builder: (_, _) => const PosAdminPage()),

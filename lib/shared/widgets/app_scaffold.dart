@@ -146,6 +146,7 @@ class AppShell extends ConsumerWidget {
   List<_NavItem> _navFor(AppLocalizations l, EntityType type) {
     final reportsLabel = l.localeName.startsWith('ar') ? 'التقارير' : 'Reports';
     final posLabel = l.localeName.startsWith('ar') ? 'نقاط البيع' : 'POS points';
+    final sliderLabel = l.localeName.startsWith('ar') ? 'شريط الصور' : 'Home slider';
     switch (type) {
       case EntityType.INTESHAR:
         // Flat order — frequency-first; first 4 = mobile bottom-bar primaries.
@@ -304,6 +305,14 @@ class AppShell extends ConsumerWidget {
             Icons.campaign,
             l.navNotifications,
             '/hq/notifications',
+            required: Capability.AGENT_ADMIN,
+            group: 'administration',
+          ),
+          _NavItem(
+            Icons.view_carousel_outlined,
+            Icons.view_carousel,
+            sliderLabel,
+            '/hq/slider',
             required: Capability.AGENT_ADMIN,
             group: 'administration',
           ),

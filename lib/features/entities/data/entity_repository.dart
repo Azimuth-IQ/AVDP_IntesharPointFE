@@ -26,6 +26,12 @@ class EntityRepository {
     return _api.unwrap(response, (d) => Entity.fromJson(d as Map<String, dynamic>));
   }
 
+  /// The caller's own entity (B-023) — O(1); used at login instead of [readAll].
+  Future<Entity> me() async {
+    final response = await _api.get(Endpoints.entityMe);
+    return _api.unwrap(response, (d) => Entity.fromJson(d as Map<String, dynamic>));
+  }
+
   Future<List<Entity>> readAll() async {
     final response = await _api.get(Endpoints.entityReadAll);
     return _api.unwrap(response, (d) {

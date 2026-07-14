@@ -264,16 +264,6 @@ class ProductRepository {
         params: {'id': id, 'printed': printed});
   }
 
-  Future<List<Product>> readAll() async {
-    final response = await _api.get(Endpoints.productReadAll);
-    return _api.unwrap(response, (d) {
-      final list = d as List<dynamic>;
-      return list
-          .map((e) => Product.fromJson(e as Map<String, dynamic>))
-          .toList();
-    });
-  }
-
   Future<Product> update(Product product) async {
     final response =
         await _api.put(Endpoints.productUpdate, data: product.toJson());

@@ -12,6 +12,7 @@ class Endpoints {
 
   static const entityCreate = '/api/entity/create';
   static const entityRead = '/api/entity/read';
+  static const entityMe = '/api/entity/me'; // the caller's own entity (B-023)
   static const entityReadAll = '/api/entity/readall';
   static const entityReadWithChildren = '/api/entity/readwithchildren';
   static const entityBranding = '/api/entity/branding';
@@ -42,7 +43,6 @@ class Endpoints {
   static const productCreate = '/api/inventory/product/create';
   static const productBatch = '/api/inventory/product/batch';
   static const productRead = '/api/inventory/product/read';
-  static const productReadAll = '/api/inventory/product/readall';
   static const productReadByEntity = '/api/inventory/product/readByEntity';
   static const productSummaryByEntity = '/api/inventory/product/summaryByEntity';
   static const productReadByEntityAndSku = '/api/inventory/product/readByEntityAndSku';

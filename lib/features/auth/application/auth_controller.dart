@@ -155,25 +155,23 @@ class AuthController extends AsyncNotifier<AuthState> {
     await sessionStorage.setToken(token);
     await sessionStorage.setCurrentPhone(phone);
     final entityRepo = EntityRepository(api);
-    final entities = await entityRepo.readAll();
-    Entity? found;
-    UserRole foundRole = UserRole.USER;
-    Set<Capability> foundCaps = const {};
-    bool foundIsPos = false;
-    for (final e in entities) {
-      final user = e.users.where((u) => u.phone == phone).firstOrNull;
-      if (user != null) {
-        found = e;
-        foundRole = user.role;
-        foundCaps = user.capabilities;
-        foundIsPos = user.isPos;
-        break;
-      }
-    }
-    if (found == null) {
+    // B-023: fetch only the caller's OWN entity (O(1)) instead of readAll-then-find,
+    // which downloaded every entity in the system on each login.
+    final Entity found;
+    try {
+      found = await entityRepo.me();
+    } catch (_) {
       state = AsyncValue.data(AuthUnauthenticated());
       return const LoginFailed('Could not find entity for this user');
     }
+    final user = found.users.where((u) => u.phone == phone).firstOrNull;
+    if (user == null) {
+      state = AsyncValue.data(AuthUnauthenticated());
+      return const LoginFailed('Could not find entity for this user');
+    }
+    final foundRole = user.role;
+    final foundCaps = user.capabilities;
+    final foundIsPos = user.isPos;
     await sessionStorage.setCurrentEntityId(found.id);
     await sessionStorage.setCurrentEntityType(found.type.name);
     // isPos (any entity) OR the legacy USER-on-STORE rule → POS session.

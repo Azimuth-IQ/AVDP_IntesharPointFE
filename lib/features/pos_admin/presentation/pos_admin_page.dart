@@ -8,6 +8,7 @@ import 'package:inteshar/core/geo/governorates.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
+import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/pos_admin/data/pos_admin_repository.dart';
 import 'package:inteshar/features/pos_admin/domain/pos_slot_balance.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
@@ -16,7 +17,8 @@ import 'package:inteshar/shared/widgets/responsive.dart';
 
 /// POS-user quota + lifecycle for the signed-in entity (POS-quota model, Docs/POS-QUOTA-PLAN.md).
 /// Shows total/used/available slots, onboards POS users (consuming a slot), grants slots to a
-/// direct child, and manages each POS user (reset PIN / reset TOTP / revoke).
+/// recipient agent (HQ → any main/sub agent; other tiers → a direct child), and manages each POS
+/// user (reset PIN / reset TOTP / revoke).
 class PosAdminPage extends ConsumerStatefulWidget {
   const PosAdminPage({super.key});
 
@@ -51,7 +53,10 @@ class _S {
   String get cancel => p('Cancel', 'إلغاء');
   String get create => p('Onboard', 'إضافة');
   String get count => p('Number of slots', 'عدد النقاط');
-  String get toChild => p('To (direct child)', 'إلى (تابع مباشر)');
+  String get search => p('Search by name…', 'بحث بالاسم…');
+  String get noMatches => p('No matching agents', 'لا يوجد وكلاء مطابقون');
+  String get mainAgents => p('Main agents', 'الوكلاء الرئيسيون');
+  String get subAgents => p('Sub agents', 'الوكلاء الفرعيون');
   String get done => p('Done', 'تم');
   String get revokeConfirm => p('Revoke this POS user? Their login stops and the slot is returned.',
       'إلغاء هذه النقطة؟ سيتوقف دخولها وتعود النقطة للرصيد.');
@@ -60,7 +65,9 @@ class _S {
 class _PosAdminPageState extends ConsumerState<PosAdminPage> {
   Entity? _entity;
   PosSlotBalance? _quota;
-  List<Entity> _children = const [];
+  // Grant recipients: for HQ, every main/sub agent (bypass channel); for other tiers, the
+  // caller's direct children. The backend enforces the same rule (PosSlotHelper.grantSlots).
+  List<Entity> _recipients = const [];
   bool _loading = true;
   bool _busy = false;
   Object? _error;
@@ -86,10 +93,15 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
       final quota = await _repo.quota(entityId: id);
       final all = await EntityRepository(api).readAll();
       if (!mounted) return;
+      final isHq = entity.type == EntityType.INTESHAR;
+      final recipients = isHq
+          ? all.where((e) => e.type == EntityType.AGENT1 || e.type == EntityType.AGENT2).toList()
+          : all.where((e) => e.parent == id).toList();
+      recipients.sort((a, b) => a.meta.name.toLowerCase().compareTo(b.meta.name.toLowerCase()));
       setState(() {
         _entity = entity;
         _quota = quota;
-        _children = all.where((e) => e.parent == id).toList();
+        _recipients = recipients;
         _loading = false;
       });
     } catch (e) {
@@ -148,7 +160,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
                 label: Text(s.onboard),
               ),
             ),
-            if (_children.isNotEmpty) ...[
+            if (_recipients.isNotEmpty) ...[
               const SizedBox(width: 12),
               Expanded(
                 child: OutlinedButton.icon(
@@ -296,32 +308,93 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
 
   Future<void> _grantDialog(_S s) async {
     final countCtrl = TextEditingController(text: '1');
-    String? childId = _children.isNotEmpty ? _children.first.id : null;
+    final searchCtrl = TextEditingController();
+    // Only HQ sees both tiers (it may grant to any agent), so the Main/Sub filter is
+    // HQ-only; other tiers have a single-tier recipient list (their direct children).
+    final isHq = _entity?.type == EntityType.INTESHAR;
+    final cs = Theme.of(context).colorScheme;
+    EntityType tier = EntityType.AGENT1;
+    String query = '';
+    String? destId;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setD) => AlertDialog(
-          title: Text(s.grant),
-          content: Column(mainAxisSize: MainAxisSize.min, children: [
-            DropdownButtonFormField<String>(
-              initialValue: childId,
-              isExpanded: true,
-              decoration: InputDecoration(labelText: s.toChild, isDense: true),
-              items: [for (final c in _children) DropdownMenuItem(value: c.id, child: Text(c.meta.name, overflow: TextOverflow.ellipsis))],
-              onChanged: (v) => setD(() => childId = v),
+        builder: (ctx, setD) {
+          final q = query.trim().toLowerCase();
+          final filtered = _recipients.where((e) {
+            if (isHq && e.type != tier) return false;
+            if (q.isEmpty) return true;
+            return e.meta.name.toLowerCase().contains(q) || e.id.toLowerCase().contains(q);
+          }).toList();
+          return AlertDialog(
+            title: Text(s.grant),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                if (isHq) ...[
+                  SegmentedButton<EntityType>(
+                    segments: [
+                      ButtonSegment(value: EntityType.AGENT1, label: Text(s.mainAgents)),
+                      ButtonSegment(value: EntityType.AGENT2, label: Text(s.subAgents)),
+                    ],
+                    selected: {tier},
+                    showSelectedIcon: false,
+                    onSelectionChanged: (v) => setD(() {
+                      tier = v.first;
+                      destId = null; // selection may no longer be in the visible tier
+                    }),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                TextField(
+                  controller: searchCtrl,
+                  decoration: InputDecoration(
+                    labelText: s.search,
+                    isDense: true,
+                    prefixIcon: const Icon(Icons.search, size: 18),
+                  ),
+                  onChanged: (v) => setD(() => query = v),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 240,
+                  child: filtered.isEmpty
+                      ? Center(child: Text(s.noMatches, style: IntesharType.sans(13, color: cs.onSurfaceVariant)))
+                      : ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: filtered.length,
+                          itemBuilder: (_, i) {
+                            final e = filtered[i];
+                            final selected = e.id == destId;
+                            return ListTile(
+                              dense: true,
+                              selected: selected,
+                              onTap: () => setD(() => destId = e.id),
+                              title: Text(e.meta.name.isEmpty ? e.id : e.meta.name, overflow: TextOverflow.ellipsis),
+                              subtitle: Text(e.type.label, style: IntesharType.sans(11.5, color: cs.onSurfaceVariant)),
+                              trailing: selected ? Icon(Icons.check_circle, size: 20, color: cs.primary) : null,
+                            );
+                          },
+                        ),
+                ),
+                const SizedBox(height: 8),
+                _field(countCtrl, s.count, keyboard: TextInputType.number, digitsOnly: true),
+              ]),
             ),
-            _field(countCtrl, s.count, keyboard: TextInputType.number, digitsOnly: true),
-          ]),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.cancel)),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.grant)),
-          ],
-        ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.cancel)),
+              FilledButton(
+                onPressed: destId == null ? null : () => Navigator.pop(ctx, true),
+                child: Text(s.grant),
+              ),
+            ],
+          );
+        },
       ),
     );
     final n = int.tryParse(countCtrl.text.trim()) ?? 0;
-    if (ok == true && childId != null && n > 0) {
-      await _run(() => _repo.grantSlots(destId: childId!, count: n), s.done);
+    if (ok == true && destId != null && n > 0) {
+      await _run(() => _repo.grantSlots(destId: destId!, count: n), s.done);
     }
   }
 

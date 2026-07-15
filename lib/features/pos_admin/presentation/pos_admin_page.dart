@@ -11,6 +11,7 @@ import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/pos_admin/data/pos_admin_repository.dart';
 import 'package:inteshar/features/pos_admin/domain/pos_slot_balance.dart';
+import 'package:inteshar/features/pos_admin/presentation/pos_network_view.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
@@ -20,7 +21,11 @@ import 'package:inteshar/shared/widgets/responsive.dart';
 /// recipient agent (HQ → any main/sub agent; other tiers → a direct child), and manages each POS
 /// user (reset PIN / reset TOTP / revoke).
 class PosAdminPage extends ConsumerStatefulWidget {
-  const PosAdminPage({super.key});
+  /// When set (HQ drilling into an agent from the network view), the page manages THAT
+  /// agent's POS points instead of the signed-in entity's. Null = the signed-in entity.
+  final String? targetEntityId;
+  final String? targetName;
+  const PosAdminPage({super.key, this.targetEntityId, this.targetName});
 
   @override
   ConsumerState<PosAdminPage> createState() => _PosAdminPageState();
@@ -74,11 +79,19 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
 
   PosAdminRepository get _repo => PosAdminRepository(ref.read(apiClientProvider));
   String? get _myId => (ref.read(authStateProvider).valueOrNull as AuthAuthenticated?)?.entity.id;
+  EntityType? get _signedInType => (ref.read(authStateProvider).valueOrNull as AuthAuthenticated?)?.entity.type;
+
+  /// HQ drilling into an agent (from the network view) vs managing the signed-in entity.
+  bool get _isDrill => widget.targetEntityId != null;
+  String? get _effectiveId => widget.targetEntityId ?? _myId;
+
+  /// HQ on its own screen shows the network oversight, not a self-management body.
+  bool get _showNetwork => !_isDrill && _signedInType == EntityType.INTESHAR;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    if (!_showNetwork) _load();
   }
 
   Future<void> _load() async {
@@ -87,17 +100,19 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
       _error = null;
     });
     try {
-      final id = _myId ?? '';
+      final id = _effectiveId ?? '';
       final api = ref.read(apiClientProvider);
       final entity = await EntityRepository(api).read(id);
       final quota = await _repo.quota(entityId: id);
-      final all = await EntityRepository(api).readAll();
+      // Grant picker (own mode only): a non-HQ agent grants to its direct children. In drill
+      // mode HQ grants straight to the target agent, so no recipient list is needed.
+      List<Entity> recipients = const [];
+      if (!_isDrill) {
+        final all = await EntityRepository(api).readAll();
+        recipients = all.where((e) => e.parent == id).toList()
+          ..sort((a, b) => a.meta.name.toLowerCase().compareTo(b.meta.name.toLowerCase()));
+      }
       if (!mounted) return;
-      final isHq = entity.type == EntityType.INTESHAR;
-      final recipients = isHq
-          ? all.where((e) => e.type == EntityType.AGENT1 || e.type == EntityType.AGENT2).toList()
-          : all.where((e) => e.parent == id).toList();
-      recipients.sort((a, b) => a.meta.name.toLowerCase().compareTo(b.meta.name.toLowerCase()));
       setState(() {
         _entity = entity;
         _quota = quota;
@@ -127,7 +142,18 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_showNetwork) return const PosNetworkView();
     final s = _S.of(context);
+    // Drill mode is a pushed route — give it its own Scaffold + back button.
+    if (_isDrill) {
+      return Scaffold(
+        appBar: AppBar(title: Text(widget.targetName ?? s.title)),
+        body: MaxWidthBox(
+          maxWidth: 760,
+          child: Column(children: [Expanded(child: _body(s))]),
+        ),
+      );
+    }
     return MaxWidthBox(
       maxWidth: 760,
       child: Column(
@@ -160,11 +186,11 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
                 label: Text(s.onboard),
               ),
             ),
-            if (_recipients.isNotEmpty) ...[
+            if (_isDrill || _recipients.isNotEmpty) ...[
               const SizedBox(width: 12),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: _busy ? null : () => _grantDialog(s),
+                  onPressed: _busy ? null : () => (_isDrill ? _grantToTargetDialog(s) : _grantDialog(s)),
                   icon: const Icon(Icons.card_giftcard, size: 18),
                   label: Text(s.grant),
                 ),
@@ -250,7 +276,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
       ),
     );
     if (ok == true) {
-      await _run(() => _repo.revoke(entityId: _myId ?? '', phone: u.phone), s.done);
+      await _run(() => _repo.revoke(entityId: _effectiveId ?? '', phone: u.phone), s.done);
     }
   }
 
@@ -293,7 +319,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     if (ok == true && phone.text.trim().isNotEmpty && pw.text.isNotEmpty) {
       await _run(
         () => _repo.onboard(
-          entityId: _myId ?? '',
+          entityId: _effectiveId ?? '',
           phone: phone.text.trim(),
           password: pw.text,
           posName: name.text.trim(),
@@ -303,6 +329,26 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
         ),
         s.done,
       );
+    }
+  }
+
+  /// Drill mode: HQ grants slots straight to the target agent (no recipient picker).
+  Future<void> _grantToTargetDialog(_S s) async {
+    final countCtrl = TextEditingController(text: '1');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${s.grant} — ${widget.targetName ?? ''}'.trim()),
+        content: _field(countCtrl, s.count, keyboard: TextInputType.number, digitsOnly: true),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.cancel)),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.grant)),
+        ],
+      ),
+    );
+    final n = int.tryParse(countCtrl.text.trim()) ?? 0;
+    if (ok == true && n > 0) {
+      await _run(() => _repo.grantSlots(destId: _effectiveId ?? '', count: n), s.done);
     }
   }
 

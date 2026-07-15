@@ -1,5 +1,6 @@
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/endpoints.dart';
+import 'package:inteshar/features/pos_admin/domain/pos_network.dart';
 import 'package:inteshar/features/pos_admin/domain/pos_slot_balance.dart';
 
 /// POS-user quota + POS-user lifecycle (onboard / revoke / reset PIN / reset TOTP).
@@ -18,6 +19,30 @@ class PosAdminRepository {
   /// Grant [count] POS-user slots to a DIRECT child. Source = the caller (server-side).
   Future<void> grantSlots({required String destId, required int count}) async {
     await _api.post(Endpoints.posQuotaGrant, data: {'destId': destId, 'count': count});
+  }
+
+  /// HQ network oversight (B-029): network-wide POS-slot totals.
+  Future<PosNetworkSummary> networkSummary() async {
+    final r = await _api.get(Endpoints.posQuotaNetworkSummary);
+    return _api.unwrap(r, (d) => PosNetworkSummary.fromJson((d as Map).cast<String, dynamic>()));
+  }
+
+  /// HQ network oversight (B-029): a page of agent slot rows, optionally filtered by
+  /// name [q] and [tier] (AGENT1|AGENT2).
+  Future<PosNetworkPage> network({String? q, String? tier, int page = 0, int size = 20}) async {
+    final r = await _api.get(Endpoints.posQuotaNetwork, params: {
+      if (q != null && q.isNotEmpty) 'q': q,
+      if (tier != null && tier.isNotEmpty) 'tier': tier,
+      'page': page,
+      'size': size,
+    });
+    return _api.unwrap(r, (d) {
+      final m = (d as Map).cast<String, dynamic>();
+      final items = ((m['items'] as List?) ?? const [])
+          .map((e) => PosNetworkRow.fromJson((e as Map).cast<String, dynamic>()))
+          .toList();
+      return PosNetworkPage(items, m['hasMore'] as bool? ?? false);
+    });
   }
 
   /// Onboard a POS user on [entityId] (consumes one slot).

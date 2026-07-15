@@ -92,6 +92,9 @@ class Endpoints {
   static const posQuota = '/api/pos-quota';
   static const posQuotaGrant = '/api/pos-quota/grant';
   static const posQuotaGrants = '/api/pos-quota/grants';
+  // HQ network oversight (B-029): all agents' POS-slot rollup
+  static const posQuotaNetwork = '/api/pos-quota/network';
+  static const posQuotaNetworkSummary = '/api/pos-quota/network/summary';
   static const posUsersOnboard = '/api/pos-users/onboard';
   static const posUsersRevoke = '/api/pos-users/revoke';
   static const posUsersResetPin = '/api/pos-users/reset-pin';

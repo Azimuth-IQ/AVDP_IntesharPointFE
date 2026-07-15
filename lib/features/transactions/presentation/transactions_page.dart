@@ -381,7 +381,10 @@ class _TxCardState extends State<_TxCard> {
                     children: [
                       Text(l.txnsViewDetails),
                       const SizedBox(width: 4),
-                      Icon(Icons.chevron_right, size: 16, color: _hover ? IntesharColors.saffronDeep : cs.onSurfaceVariant),
+                      Icon(
+                        Directionality.of(context) == TextDirection.rtl ? Icons.chevron_left : Icons.chevron_right,
+                        size: 16,
+                        color: _hover ? IntesharColors.saffronDeep : cs.onSurfaceVariant),
                     ],
                   ),
                 ),
@@ -527,7 +530,11 @@ class _TxDetailSheet extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Icon(Icons.east, size: 22, color: cs.onSurfaceVariant),
+              child: Icon(
+                Directionality.of(context) == TextDirection.rtl ? Icons.west : Icons.east,
+                size: 22,
+                color: cs.onSurfaceVariant,
+              ),
             ),
             Expanded(
               child: _Endpoint(

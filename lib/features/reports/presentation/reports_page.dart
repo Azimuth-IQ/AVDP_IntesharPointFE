@@ -554,7 +554,8 @@ class _TransfersReport extends StatelessWidget {
               children: [
                 Row(children: [
                   Expanded(
-                    child: Text('${r.sourceName} → ${r.destName}',
+                    child: Text(
+                        '${r.sourceName} ${Directionality.of(context) == TextDirection.rtl ? '←' : '→'} ${r.destName}',
                         style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700),
                         maxLines: 1, overflow: TextOverflow.ellipsis),
                   ),

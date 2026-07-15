@@ -225,7 +225,7 @@ class _NewTransactionPageState extends ConsumerState<NewTransactionPage> {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: Icon(Directionality.of(context) == TextDirection.rtl ? Icons.arrow_forward : Icons.arrow_back),
           onPressed: () => context.pop(),
         ),
         titleSpacing: 0,
@@ -496,7 +496,10 @@ class _RouteRow extends StatelessWidget {
             Expanded(child: source),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Icon(Icons.east, color: cs.onSurfaceVariant),
+              child: Icon(
+                Directionality.of(context) == TextDirection.rtl ? Icons.west : Icons.east,
+                color: cs.onSurfaceVariant,
+              ),
             ),
             Expanded(child: dest),
           ],
@@ -937,7 +940,7 @@ class _ResultView extends StatelessWidget {
                 const SizedBox(height: 20),
                 BrandCTAButton(
                   label: l.newTxnReturnToTransactions,
-                  trailing: Icons.arrow_forward,
+                  trailing: Directionality.of(context) == TextDirection.rtl ? Icons.arrow_back : Icons.arrow_forward,
                   onPressed: () => context.pop(),
                 ),
               ],

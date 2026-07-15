@@ -29,6 +29,7 @@ const Map<String, (String, String)> _kGroupLabels = {
   'inventory_stock': ('المخزون', 'Inventory & Stock'),
   'distribution': ('التوزيع', 'Distribution'),
   'network': ('الشبكة', 'Network'),
+  'pos': ('منافذ البيع', 'Points of Sale'),
   'catalog': ('الكتالوج', 'Catalog'),
   'administration': ('الإدارة', 'Administration'),
   'operations': ('العمليات', 'Operations'),
@@ -94,13 +95,34 @@ class _SidebarEntry {
 /// before the first occurrence of each distinct non-null group key, then
 /// appends an [_SidebarEntry.item] for every nav item.
 List<_SidebarEntry> _buildSidebarEntries(List<_NavItem> items) {
-  final seenGroups = <String>{};
-  final entries = <_SidebarEntry>[];
+  // Render one clean, contiguous section per group. Group order = first appearance
+  // in the flat list; within a group, items keep their flat relative order. This
+  // decouples the desktop sidebar's sectioning from the flat order the mobile bottom
+  // bar consumes, so groups don't scatter when the flat list interleaves them
+  // (e.g. oversight items after network ones). Ungrouped items fall to the end.
+  final groupOrder = <String>[];
+  final byGroup = <String, List<int>>{};
+  final ungrouped = <int>[];
   for (var i = 0; i < items.length; i++) {
     final g = items[i].group;
-    if (g != null && seenGroups.add(g)) {
-      entries.add(_SidebarEntry.header(g));
+    if (g == null) {
+      ungrouped.add(i);
+      continue;
     }
+    if (!byGroup.containsKey(g)) {
+      groupOrder.add(g);
+      byGroup[g] = <int>[];
+    }
+    byGroup[g]!.add(i);
+  }
+  final entries = <_SidebarEntry>[];
+  for (final g in groupOrder) {
+    entries.add(_SidebarEntry.header(g));
+    for (final i in byGroup[g]!) {
+      entries.add(_SidebarEntry.item(i));
+    }
+  }
+  for (final i in ungrouped) {
     entries.add(_SidebarEntry.item(i));
   }
   return entries;
@@ -153,7 +175,10 @@ class AppShell extends ConsumerWidget {
         // Oversight is the HQ landing (index 0). Desktop sidebar overlays group
         // headers on top of this flat order (see _kGroupLabels / _buildSidebarEntries).
         //
-        // Groups: Oversight · Inventory & Stock · Distribution · Network · Catalog · Administration
+        // Groups: Oversight · Inventory & Stock · Distribution · Network (agents) ·
+        // Points of Sale · Catalog · Administration. Group SECTIONING on desktop is
+        // handled by _buildSidebarEntries (contiguous per group), independent of this
+        // flat order — so this list stays frequency-first for the mobile bottom bar.
         //
         // Stock reallocation has no ARB key yet — labelled inline (mirrors the
         // inline-localized strings used by the reallocation page itself).
@@ -216,7 +241,7 @@ class AppShell extends ConsumerWidget {
             posLabel,
             '/hq/pos-users',
             required: Capability.MANAGE_POS,
-            group: 'network',
+            group: 'pos',
           ),
           _NavItem(
             Icons.upload_file_outlined,
@@ -232,7 +257,7 @@ class AppShell extends ConsumerWidget {
             reallocLabel,
             '/hq/points-transfer',
             required: Capability.AGENT_ADMIN,
-            group: 'inventory_stock',
+            group: 'distribution',
           ),
           _NavItem(
             Icons.badge_outlined,
@@ -256,9 +281,10 @@ class AppShell extends ConsumerWidget {
             l.navStores,
             '/hq/stores',
             // Store/POS management is its own section (historically MANAGE_POS) —
-            // distinct from agent/entity CRUD (MANAGE_AGENTS).
+            // distinct from agent/entity CRUD (MANAGE_AGENTS). Grouped with POS points
+            // under "Points of Sale" so the two shop-side screens sit together.
             required: Capability.MANAGE_POS,
-            group: 'network',
+            group: 'pos',
           ),
           _NavItem(
             Icons.business_outlined,

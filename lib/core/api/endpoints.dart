@@ -76,6 +76,7 @@ class Endpoints {
   // App self-update (public GETs)
   static const appLatest = '/api/app/latest';
   static const appCheck = '/api/app/check';
+  static const appDownload = '/api/app/download'; // public 302 → latest APK
 
   // Pricing / virtual balance
   static const companyCreate = '/api/company/create';

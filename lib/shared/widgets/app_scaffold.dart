@@ -169,6 +169,7 @@ class AppShell extends ConsumerWidget {
     final reportsLabel = l.localeName.startsWith('ar') ? 'التقارير' : 'Reports';
     final posLabel = l.localeName.startsWith('ar') ? 'نقاط البيع' : 'POS points';
     final sliderLabel = l.localeName.startsWith('ar') ? 'شريط الصور' : 'Home slider';
+    final appDownloadLabel = l.localeName.startsWith('ar') ? 'تحميل التطبيق' : 'Get the app';
     switch (type) {
       case EntityType.INTESHAR:
         // Flat order — frequency-first; first 4 = mobile bottom-bar primaries.
@@ -339,6 +340,14 @@ class AppShell extends ConsumerWidget {
             Icons.view_carousel,
             sliderLabel,
             '/hq/slider',
+            required: Capability.AGENT_ADMIN,
+            group: 'administration',
+          ),
+          _NavItem(
+            Icons.qr_code_2_outlined,
+            Icons.qr_code_2,
+            appDownloadLabel,
+            '/hq/app-download',
             required: Capability.AGENT_ADMIN,
             group: 'administration',
           ),

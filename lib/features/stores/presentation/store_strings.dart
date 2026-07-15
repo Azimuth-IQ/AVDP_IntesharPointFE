@@ -10,7 +10,7 @@ class StoreStrings {
       StoreStrings(Localizations.localeOf(context).languageCode == 'ar');
 
   String get pageEyebrow => ar ? 'الشبكة' : 'NETWORK';
-  String get pageTitle => ar ? 'نقاط البيع' : 'Stores / POS';
+  String get pageTitle => ar ? 'المتاجر' : 'Stores / POS';
   String get pageSubtitle => ar
       ? 'إدارة نقاط البيع: التفعيل والإيقاف، تصفير كلمة المرور، الرصيد والإحصاءات.'
       : 'Manage POS points: enable/disable, reset password, balance and stats.';

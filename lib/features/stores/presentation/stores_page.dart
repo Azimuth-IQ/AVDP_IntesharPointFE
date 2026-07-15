@@ -861,24 +861,28 @@ class _StoreFormState extends ConsumerState<StoreForm> {
                   return null;
                 },
               ),
-              const SizedBox(height: 14),
             ],
-            GovernorateDropdown(
-              value: _gov,
-              labelText: s.region,
-              noneLabel: s.noRegion,
-              onChanged: (v) => setState(() => _gov = v),
-            ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: _landmark,
-              decoration: InputDecoration(labelText: s.landmark),
-            ),
-            const SizedBox(height: 20),
-            WorkingHoursEditor(
-              value: _workingHours,
-              onChanged: (v) => setState(() => _workingHours = v),
-            ),
+            // Keep the create form to the essentials — shop, owner, login. Region,
+            // landmark and working-hours are set afterwards via edit (still available
+            // on the existing store), so onboarding a new POS is fast.
+            if (_isEdit) ...[
+              GovernorateDropdown(
+                value: _gov,
+                labelText: s.region,
+                noneLabel: s.noRegion,
+                onChanged: (v) => setState(() => _gov = v),
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _landmark,
+                decoration: InputDecoration(labelText: s.landmark),
+              ),
+              const SizedBox(height: 20),
+              WorkingHoursEditor(
+                value: _workingHours,
+                onChanged: (v) => setState(() => _workingHours = v),
+              ),
+            ],
             const SizedBox(height: 28),
             FilledButton(
               onPressed: _saving ? null : () => _save(s),

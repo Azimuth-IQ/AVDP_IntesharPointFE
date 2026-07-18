@@ -4,12 +4,14 @@
 /// caller's nearest Main-Agent (AGENT1) brand — empty for HQ.
 class BrandInfo {
   final String agentLogoUrl;
-  final String primaryColor;   // hex, e.g. #E2AD25
-  final String secondaryColor; // hex
+  final String agentBackgroundUrl; // white-label backdrop image (B-049)
+  final String primaryColor;   // hex, e.g. #E2AD25 — main colour
+  final String secondaryColor; // hex — accent colour
   final List<String> sliderUrls;
 
   const BrandInfo({
     this.agentLogoUrl = '',
+    this.agentBackgroundUrl = '',
     this.primaryColor = '',
     this.secondaryColor = '',
     this.sliderUrls = const [],
@@ -19,6 +21,7 @@ class BrandInfo {
 
   factory BrandInfo.fromJson(Map<String, dynamic> j) => BrandInfo(
         agentLogoUrl: j['agentLogoUrl'] as String? ?? '',
+        agentBackgroundUrl: j['agentBackgroundUrl'] as String? ?? '',
         primaryColor: j['agentPrimaryColor'] as String? ?? '',
         secondaryColor: j['agentSecondaryColor'] as String? ?? '',
         sliderUrls: ((j['sliderImagesUrl'] as List<dynamic>?)?.cast<String>() ?? const [])

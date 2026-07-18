@@ -21,6 +21,7 @@ import 'package:inteshar/features/pricing/domain/pricing_models.dart';
 import 'package:inteshar/features/pos/application/pos_pin_controller.dart';
 import 'package:inteshar/features/pos/presentation/printer_picker_page.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
+import 'package:inteshar/shared/widgets/brand_backdrop.dart';
 import 'package:inteshar/shared/widgets/brand_cta.dart';
 import 'package:inteshar/shared/widgets/brand_star.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
@@ -202,11 +203,13 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
           ),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-          ? ErrorState(error: _error!, onRetry: _load)
-          : _buildBody(l),
+      body: BrandBackdrop(
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+            ? ErrorState(error: _error!, onRetry: _load)
+            : _buildBody(l),
+      ),
     );
   }
 

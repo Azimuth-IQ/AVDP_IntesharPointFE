@@ -81,8 +81,12 @@ class AgentStrings {
   String get fieldPhone => pick('Contact phone', 'هاتف التواصل');
   String get fieldEmail => pick('Contact email', 'البريد الإلكتروني');
   String get sectionBranding => pick('Branding (optional)', 'الهوية البصرية (اختياري)');
-  String get fieldPrimary => pick('Primary color (hex)', 'اللون الأساسي (hex)');
-  String get fieldSecondary => pick('Secondary color (hex)', 'اللون الثانوي (hex)');
+  String get brandingHint => pick(
+      'Your logo, colours and background apply across the app and the POS for everyone under you.',
+      'يُطبَّق شعارك وألوانك والخلفية على كامل التطبيق ونقاط البيع لكل من تحتك.');
+  String get fieldPrimary => pick('Main color (hex)', 'اللون الرئيسي (hex)');
+  String get fieldSecondary => pick('Accent color (hex)', 'لون التمييز (hex)');
+  String get fieldBackground => pick('Background image (optional)', 'صورة الخلفية (اختياري)');
 
   String get usersSubtitle => _sub
       ? pick('A single admin user. Sub agents cannot set card prices.', 'مستخدم مدير واحد. لا يمكن للوكلاء الفرعيين تسعير الكروت.')

@@ -62,6 +62,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
   final _contactEmail = TextEditingController();
   final _primary = TextEditingController();
   final _secondary = TextEditingController();
+  final _background = TextEditingController();
   Set<String> _governorates = {};
   WorkingHours? _workingHours;
 
@@ -87,6 +88,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
       _logo.text = e.meta.logoUrl;
       _primary.text = e.meta.primaryColor;
       _secondary.text = e.meta.secondaryColor;
+      _background.text = e.meta.backgroundUrl;
       _governorates = e.meta.governorates.toSet();
       _workingHours = e.meta.workingHours;
       _parentId = e.parent.isEmpty ? null : e.parent;
@@ -148,6 +150,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
       _contactEmail,
       _primary,
       _secondary,
+      _background,
     ]) {
       c.dispose();
     }
@@ -308,6 +311,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
     final meta = (existing?.meta ?? const EntityMeta()).copyWith(
       name: _name.text.trim(),
       logoUrl: _logo.text.trim(),
+      backgroundUrl: _background.text.trim(),
       primaryColor: _primary.text.trim(),
       secondaryColor: _secondary.text.trim(),
       governorates: _governorates.toList(),
@@ -579,7 +583,9 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         if (tier == AgentTier.main) ...[
           const SizedBox(height: 22),
           SectionLabel(s.sectionBranding),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
+          Text(s.brandingHint, style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+          const SizedBox(height: 10),
           Row(
             children: [
               Expanded(
@@ -598,6 +604,13 @@ class _AgentFormState extends ConsumerState<AgentForm> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 12),
+          ImageUploadField(
+            value: _background.text.isEmpty ? null : _background.text,
+            kind: 'agent-branding',
+            label: s.fieldBackground,
+            onChanged: (u) => setState(() => _background.text = u),
           ),
         ],
       ],

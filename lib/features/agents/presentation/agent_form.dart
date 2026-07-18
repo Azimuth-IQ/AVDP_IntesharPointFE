@@ -18,6 +18,7 @@ import 'package:inteshar/shared/widgets/color_hex_field.dart';
 import 'package:inteshar/features/system_activity/domain/feed_rows.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/image_upload_field.dart';
+import 'package:inteshar/shared/widgets/password_field.dart';
 import 'package:inteshar/shared/widgets/working_hours_editor.dart';
 
 String _genId(String prefix) {
@@ -768,15 +769,12 @@ class _UserCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          TextField(
+          PasswordField(
             controller: draft.password,
-            obscureText: true,
-            decoration: InputDecoration(
-              labelText: draft.id.isNotEmpty
-                  ? s.fieldUserPasswordKeep
-                  : s.fieldUserPassword,
-              isDense: true,
-            ),
+            isDense: true,
+            label: draft.id.isNotEmpty
+                ? s.fieldUserPasswordKeep
+                : s.fieldUserPassword,
           ),
           if (showPreset) ...[
             const SizedBox(height: 10),

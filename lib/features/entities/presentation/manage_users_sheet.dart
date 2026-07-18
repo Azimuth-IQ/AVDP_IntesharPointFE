@@ -7,6 +7,7 @@ import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
+import 'package:inteshar/shared/widgets/password_field.dart';
 
 class ManageUsersSheet extends StatefulWidget {
   final Entity entity;
@@ -106,13 +107,10 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
         title: Text(
           _ar ? 'كلمة مرور جديدة لـ ${u.phone}' : 'New password for ${u.phone}',
         ),
-        content: TextField(
+        content: PasswordField(
           controller: ctrl,
-          obscureText: true,
           autofocus: true,
-          decoration: InputDecoration(
-            labelText: _ar ? 'كلمة المرور' : 'Password',
-          ),
+          label: _ar ? 'كلمة المرور' : 'Password',
         ),
         actions: [
           TextButton(

@@ -14,6 +14,7 @@ import 'package:inteshar/features/pos_admin/domain/pos_slot_balance.dart';
 import 'package:inteshar/features/pos_admin/presentation/pos_network_view.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
+import 'package:inteshar/shared/widgets/password_field.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
 /// POS-user quota + lifecycle for the signed-in entity (POS-quota model, Docs/POS-QUOTA-PLAN.md).
@@ -448,13 +449,14 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
       {bool obscure = false, TextInputType? keyboard, bool digitsOnly = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
-      child: TextField(
-        controller: c,
-        obscureText: obscure,
-        keyboardType: keyboard,
-        inputFormatters: digitsOnly ? [FilteringTextInputFormatter.digitsOnly] : null,
-        decoration: InputDecoration(labelText: label, isDense: true),
-      ),
+      child: obscure
+          ? PasswordField(controller: c, label: label, isDense: true)
+          : TextField(
+              controller: c,
+              keyboardType: keyboard,
+              inputFormatters: digitsOnly ? [FilteringTextInputFormatter.digitsOnly] : null,
+              decoration: InputDecoration(labelText: label, isDense: true),
+            ),
     );
   }
 }

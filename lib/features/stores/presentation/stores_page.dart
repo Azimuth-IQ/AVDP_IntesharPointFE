@@ -18,6 +18,7 @@ import 'package:inteshar/features/stores/presentation/store_strings.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
+import 'package:inteshar/shared/widgets/password_field.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
 /// Stores / POS management. Lists the STORE points under the logged-in entity and
@@ -847,10 +848,9 @@ class _StoreFormState extends ConsumerState<StoreForm> {
                 },
               ),
               const SizedBox(height: 14),
-              TextFormField(
+              PasswordField(
                 controller: _password,
-                obscureText: true,
-                decoration: InputDecoration(labelText: s.password),
+                label: s.password,
                 validator: (v) {
                   if (v == null || v.isEmpty) return s.required;
                   if (v.length < 6) {

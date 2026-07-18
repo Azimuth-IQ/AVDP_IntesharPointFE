@@ -12,6 +12,7 @@ import 'package:inteshar/shared/widgets/brand_band.dart';
 import 'package:inteshar/shared/widgets/brand_cta.dart';
 import 'package:inteshar/shared/widgets/brand_star.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
+import 'package:inteshar/shared/widgets/password_field.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
 enum _TotpStep { credentials, enroll, code, changePassword }
@@ -499,16 +500,14 @@ class _ChangePasswordForm extends StatelessWidget {
             style: TextStyle(color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 16),
-          TextField(
+          PasswordField(
             controller: newPassCtrl,
-            obscureText: true,
-            decoration: InputDecoration(labelText: ar ? 'كلمة المرور الجديدة' : 'New password'),
+            label: ar ? 'كلمة المرور الجديدة' : 'New password',
           ),
           const SizedBox(height: 12),
-          TextField(
+          PasswordField(
             controller: confirmPassCtrl,
-            obscureText: true,
-            decoration: InputDecoration(labelText: ar ? 'تأكيد كلمة المرور' : 'Confirm password'),
+            label: ar ? 'تأكيد كلمة المرور' : 'Confirm password',
             onSubmitted: (_) => onSubmit(),
           ),
           if (error != null) ...[

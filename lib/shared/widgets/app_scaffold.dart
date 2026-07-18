@@ -12,6 +12,7 @@ import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/notifications/application/notification_provider.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/brand_band.dart';
+import 'package:inteshar/shared/widgets/brand_masthead.dart';
 import 'package:inteshar/shared/widgets/brand_star.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
@@ -654,9 +655,8 @@ class _MobileLayout extends StatelessWidget {
         titleSpacing: 16,
         title: GestureDetector(
           onLongPress: () => context.go('/diagnostics'),
-          child: IntesharLockup(
-            title: title,
-            tagline: 'Inteshar Platform',
+          child: BrandMasthead(
+            fallbackTitle: title,
             compact: true,
             showTagline: false,
           ),
@@ -927,9 +927,8 @@ class _TabletLayout extends StatelessWidget {
         titleSpacing: 16,
         title: GestureDetector(
           onLongPress: () => context.go('/diagnostics'),
-          child: IntesharLockup(
-            title: title,
-            tagline: 'Inteshar Platform',
+          child: BrandMasthead(
+            fallbackTitle: title,
             compact: true,
           ),
         ),
@@ -1110,12 +1109,14 @@ class _Sidebar extends StatelessWidget {
               behavior: HitTestBehavior.opaque,
               onLongPress: () => context.go('/diagnostics'),
               child: BrandBand(
+                // Fill the masthead with the account's brand colour (tracks
+                // colorScheme.primary; saffron for HQ / unbranded) — B-046.
+                background: Theme.of(context).colorScheme.primary,
                 padding: const EdgeInsets.fromLTRB(22, 22, 22, 22),
                 sparkleSize: 140,
                 sparkleAlignment: const Alignment(1.4, 1.2),
-                child: IntesharLockup(
-                  title: title,
-                  tagline: 'Inteshar Platform',
+                child: BrandMasthead(
+                  fallbackTitle: title,
                   onBrandSurface: true,
                 ),
               ),

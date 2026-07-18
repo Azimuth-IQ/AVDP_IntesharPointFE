@@ -420,6 +420,9 @@ class AppShell extends ConsumerWidget {
 
       case EntityType.AGENT2:
         // Same operational-first rationale as AGENT1 (no Pricing for AGENT2).
+        // No Inventory tab: a sub-agent holds no cards of its own — it draws from
+        // its parent Main Agent's pool at print time (draw-on-print), so an own-
+        // inventory view would always be empty (B-042).
         return [
           _NavItem(
             Icons.dashboard_outlined,
@@ -433,13 +436,6 @@ class AppShell extends ConsumerWidget {
             Icons.swap_horiz,
             l.navTransactions,
             '/agent2/transactions',
-            group: 'operations',
-          ),
-          _NavItem(
-            Icons.warehouse_outlined,
-            Icons.warehouse,
-            l.navInventory,
-            '/agent2/inventory',
             group: 'operations',
           ),
           _NavItem(

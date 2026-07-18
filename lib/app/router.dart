@@ -166,10 +166,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/agent1/stores', builder: (_, _) => const StoresPage()),
           GoRoute(path: '/agent1/notifications', builder: (_, _) => const NotificationsInboxPage()),
 
-          // Agent2
+          // Agent2 — no own-inventory route: a sub-agent holds no cards and draws
+          // from its parent's pool at print time (draw-on-print), B-042.
           GoRoute(path: '/agent2/home', builder: (_, _) => const DashboardPage()),
           GoRoute(path: '/agent2/entities', builder: (_, _) => const EntityTreePage()),
-          GoRoute(path: '/agent2/inventory', builder: (_, _) => const InventoryPage(readOnly: true)),
           GoRoute(path: '/agent2/transactions', builder: (_, _) => const TransactionsPage()),
           GoRoute(path: '/agent2/stores', builder: (_, _) => const StoresPage()),
           GoRoute(path: '/agent2/reports', builder: (_, _) => const ReportsPage()),

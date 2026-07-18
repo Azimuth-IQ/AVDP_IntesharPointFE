@@ -32,6 +32,13 @@ extension EntityTypeX on EntityType {
         return '/store/home';
     }
   }
+
+  /// Whether this tier holds voucher stock of its own. HQ and Main Agents are
+  /// inventory-backed; Sub Agents and Stores hold no cards — they draw from their
+  /// parent Main Agent's pool at print time (draw-on-print). Drives whether any
+  /// inventory/stock UI is shown at all (B-042).
+  bool get inventoryBacked =>
+      this == EntityType.INTESHAR || this == EntityType.AGENT1;
 }
 
 enum UserRole { USER, ADMIN }

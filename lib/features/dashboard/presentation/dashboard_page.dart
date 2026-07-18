@@ -233,6 +233,7 @@ class _DashContent extends StatelessWidget {
             availableSkuCount: availableSkus.length,
             txnCount: myTxns.length,
             lowStockCount: lowSkus.length,
+            showInventory: entity.type.inventoryBacked,
           ),
         ),
 
@@ -306,6 +307,7 @@ class _KpiRow extends StatelessWidget {
   final int availableSkuCount;
   final int txnCount;
   final int lowStockCount;
+  final bool showInventory;
 
   const _KpiRow({
     required this.childCount,
@@ -313,6 +315,7 @@ class _KpiRow extends StatelessWidget {
     required this.availableSkuCount,
     required this.txnCount,
     required this.lowStockCount,
+    required this.showInventory,
   });
 
   @override
@@ -326,13 +329,16 @@ class _KpiRow extends StatelessWidget {
         icon: Icons.account_tree_outlined,
         tint: IntesharColors.saffron,
       ),
-      _KpiTile(
-        label: l.dashKpiStock,
-        value: Formatters.money(availableCount),
-        caption: l.dashKpiSkusCount(availableSkuCount),
-        icon: Icons.inventory_2_outlined,
-        tint: const Color(0xFF2563EB),
-      ),
+      // Stock / low-stock KPIs only for inventory-backed tiers (HQ, Main Agent).
+      // Sub Agents & Stores draw-on-print and hold no cards (B-042).
+      if (showInventory)
+        _KpiTile(
+          label: l.dashKpiStock,
+          value: Formatters.money(availableCount),
+          caption: l.dashKpiSkusCount(availableSkuCount),
+          icon: Icons.inventory_2_outlined,
+          tint: const Color(0xFF2563EB),
+        ),
       _KpiTile(
         label: l.dashKpiTransactions,
         value: Formatters.money(txnCount),
@@ -340,15 +346,16 @@ class _KpiRow extends StatelessWidget {
         icon: Icons.swap_horiz,
         tint: IntesharColors.sage,
       ),
-      _KpiTile(
-        label: l.dashKpiLowStock,
-        value: Formatters.money(lowStockCount),
-        caption: lowStockCount == 0
-            ? l.dashKpiAllHealthy
-            : l.dashKpiNeedsAttention,
-        icon: Icons.warning_amber_rounded,
-        tint: IntesharColors.oxblood,
-      ),
+      if (showInventory)
+        _KpiTile(
+          label: l.dashKpiLowStock,
+          value: Formatters.money(lowStockCount),
+          caption: lowStockCount == 0
+              ? l.dashKpiAllHealthy
+              : l.dashKpiNeedsAttention,
+          icon: Icons.warning_amber_rounded,
+          tint: IntesharColors.oxblood,
+        ),
     ];
 
     return LayoutBuilder(
@@ -525,6 +532,9 @@ class _BodyRow extends StatelessWidget {
               : () => ctx.go('${_rolePrefix(entity.type)}/transactions'),
           l: l,
         );
+        // Low-stock is an inventory concern — only for inventory-backed tiers.
+        // Sub Agents & Stores draw-on-print and hold no cards (B-042).
+        if (!entity.type.inventoryBacked) return txnCard;
         final lowCard = _LowStockCard(lowSkus: lowSkus, l: l);
 
         if (wide) {

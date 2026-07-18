@@ -43,6 +43,13 @@ class _S {
       p('Pricing access not granted', 'لا تملك صلاحية إدارة الأسعار');
 }
 
+/// A SKU is "regional" when its stock is broken down by governorate (a real
+/// governorate bucket, or more than one bucket). Regional SKUs are priced ONLY
+/// per governorate — they get no standalone global/"all regions" price (B-041).
+bool _regionalRow(CategoryPriceRow row) =>
+    row.governorates.length > 1 ||
+    (row.governorates.length == 1 && row.governorates.first.governorate.isNotEmpty);
+
 class PricingPage extends ConsumerStatefulWidget {
   const PricingPage({super.key});
 
@@ -130,13 +137,17 @@ class _PricingPageState extends ConsumerState<PricingPage> {
     setState(() => _saving = true);
     try {
       for (final row in catalog.rows) {
-        // SKU-wide base price.
-        final baseVal = num.tryParse(_ctrls['${row.sku}::']?.text.trim() ?? '');
-        if (baseVal != null &&
-            (row.agentPrice == null || row.agentPrice != baseVal)) {
-          await _repo.setPrice(entityId: '', sku: row.sku, price: baseVal);
+        if (!_regionalRow(row)) {
+          // Non-regional: a single SKU-wide base price.
+          final baseVal = num.tryParse(_ctrls['${row.sku}::']?.text.trim() ?? '');
+          if (baseVal != null &&
+              (row.agentPrice == null || row.agentPrice != baseVal)) {
+            await _repo.setPrice(entityId: '', sku: row.sku, price: baseVal);
+          }
+          continue;
         }
-        // Per-governorate (subcategory) overrides.
+        // Regional: per-governorate prices ONLY (no standalone global price). The
+        // untagged "" bucket, if any, is saved here too via its own governorate row.
         for (final g in row.governorates) {
           final value = num.tryParse(
             _ctrls['${row.sku}::${g.governorate}']?.text.trim() ?? '',
@@ -329,17 +340,11 @@ class _PriceRow extends StatelessWidget {
   final _S s;
   const _PriceRow({required this.row, required this.ctrls, required this.s});
 
-  /// Whether to show the per-governorate subcategory fields (more than just an
-  /// untagged bucket).
-  bool get _hasGovBreakdown =>
-      row.governorates.length > 1 ||
-      (row.governorates.length == 1 &&
-          row.governorates.first.governorate.isNotEmpty);
-
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final loc = Localizations.localeOf(context).languageCode;
+    final regional = _regionalRow(row);
     return InkCard(
       padding: const EdgeInsets.all(14),
       ruleColor: row.priced ? IntesharColors.sage : cs.outline,
@@ -365,16 +370,17 @@ class _PriceRow extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          // SKU-wide base price ("" governorate) — the fallback for any region without its own.
-          _PriceField(
-            label: _hasGovBreakdown ? s.allRegions : s.yourPrice,
-            ctrl: ctrls['${row.sku}::'],
-            available: row.available,
-            lineValue: row.lineValue,
-            s: s,
-          ),
-          if (_hasGovBreakdown) ...[
-            const SizedBox(height: 12),
+          if (!regional)
+            // Non-regional category: one price for all its (untagged) stock.
+            _PriceField(
+              label: s.yourPrice,
+              ctrl: ctrls['${row.sku}::'],
+              available: row.available,
+              lineValue: row.lineValue,
+              s: s,
+            )
+          else ...[
+            // Regional category: price ONLY per governorate — no global price (B-041).
             Text(
               s.byGovernorate,
               style: IntesharType.overline(color: cs.onSurfaceVariant),
@@ -438,7 +444,7 @@ class _PriceField extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '${s.available}: $available',
+                '${s.available}: ${Formatters.money(available)}',
                 style: IntesharType.sans(12, color: cs.onSurfaceVariant),
               ),
               const SizedBox(height: 2),

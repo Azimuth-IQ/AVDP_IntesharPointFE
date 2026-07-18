@@ -55,6 +55,12 @@ class StoreStrings {
   String deleteTitle(String name) => ar ? 'حذف "$name"؟' : 'Delete "$name"?';
   String get deleteBody => ar ? 'لا يمكن التراجع عن هذا الإجراء.' : 'This cannot be undone.';
 
+  String get confirmTransferTitle => ar ? 'تأكيد التحويل' : 'Confirm transfer';
+  String confirmTransferBody(String amount, String name) => ar
+      ? 'سيتم تحويل $amount إلى "$name". لا يمكن التراجع عن هذا الإجراء.'
+      : 'You are about to transfer $amount to "$name". This cannot be undone.';
+  String get send => ar ? 'إرسال' : 'Send';
+
   // Form
   String get formNewTitle => ar ? 'نقطة بيع جديدة' : 'New POS point';
   String get formEditTitle => ar ? 'تعديل نقطة البيع' : 'Edit POS point';

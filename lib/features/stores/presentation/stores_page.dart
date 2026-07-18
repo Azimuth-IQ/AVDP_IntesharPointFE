@@ -420,6 +420,25 @@ class _StoreDetailSheetState extends ConsumerState<StoreDetailSheet> {
         _toast(s.insufficientBalance);
         return;
       }
+      if (!mounted) return;
+      final storeName = widget.store.meta.name.isEmpty
+          ? widget.store.id
+          : widget.store.meta.name;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(s.confirmTransferTitle),
+          content: Text(s.confirmTransferBody(Formatters.iqd(amount.round()), storeName)),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.cancel)),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.send)),
+          ],
+        ),
+      );
+      if (confirmed != true) {
+        if (mounted) setState(() => _busy = false);
+        return;
+      }
       await pricing.grant(destId: widget.store.id, amount: amount);
       if (!mounted) return;
       setState(() => _busy = false);

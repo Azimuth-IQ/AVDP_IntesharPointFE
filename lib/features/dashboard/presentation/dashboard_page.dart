@@ -1116,6 +1116,22 @@ class _TransferSheetState extends ConsumerState<_TransferSheet> {
       );
       return;
     }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(ar ? 'تأكيد التحويل' : 'Confirm transfer'),
+        content: Text(
+          ar
+              ? 'سيتم تحويل ${Formatters.iqd(amount.round())} إلى "${dest.meta.name}". لا يمكن التراجع عن هذا الإجراء.'
+              : 'You are about to transfer ${Formatters.iqd(amount.round())} to "${dest.meta.name}". This cannot be undone.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(ar ? 'إلغاء' : 'Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(ar ? 'إرسال' : 'Send')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
     setState(() {
       _saving = true;
       _error = null;

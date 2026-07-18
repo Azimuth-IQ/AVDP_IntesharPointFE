@@ -70,11 +70,19 @@ class PosAdminRepository {
     await _api.delete(Endpoints.posUsersRevoke, params: {'entityId': entityId, 'phone': phone});
   }
 
-  Future<void> resetPin(String phone) async {
-    await _api.post(Endpoints.posUsersResetPin, params: {'phone': phone});
+  /// Reset a POS user's PIN and return the fresh manager-visible PIN (B-047).
+  Future<String> resetPin(String phone) async {
+    final r = await _api.post(Endpoints.posUsersResetPin, params: {'phone': phone});
+    return _api.unwrap(r, (d) => d as String);
   }
 
   Future<void> resetTotp(String phone) async {
     await _api.post(Endpoints.posUsersResetTotp, params: {'phone': phone});
+  }
+
+  /// Reset a POS user's login password to [password] (B-047).
+  Future<void> resetPassword(String phone, String password) async {
+    await _api.post(Endpoints.posUsersResetPassword,
+        params: {'phone': phone}, data: {'password': password});
   }
 }

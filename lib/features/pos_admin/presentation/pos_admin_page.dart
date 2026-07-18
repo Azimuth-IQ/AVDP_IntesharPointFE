@@ -71,6 +71,14 @@ class _S {
   String get edit => p('Edit', 'تعديل');
   String get editPos => p('Edit POS', 'تعديل نقطة البيع');
   String get save => p('Save', 'حفظ');
+  String get pinResetTitle => p('New POS PIN', 'رمز نقطة البيع الجديد');
+  String get pinResetBody => p('Give this PIN to the operator — it will not be shown again.',
+      'سلّم هذا الرمز للمشغّل — لن يُعرض مرة أخرى.');
+  String get resetPassword => p('Reset password', 'تغيير كلمة المرور');
+  String get newPassword => p('New password', 'كلمة المرور الجديدة');
+  String get passwordTooShort => p('At least 6 characters', '6 أحرف على الأقل');
+  String get passwordResetDone => p('Password changed', 'تم تغيير كلمة المرور');
+  String get close => p('Close', 'إغلاق');
 }
 
 class _PosAdminPageState extends ConsumerState<PosAdminPage> {
@@ -258,7 +266,8 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
         if (u.posGovernorate.isNotEmpty) Text(governorateLabel(u.posGovernorate, loc), style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
         const SizedBox(height: 10),
         Wrap(spacing: 8, runSpacing: 8, children: [
-          OutlinedButton(onPressed: _busy ? null : () => _run(() => _repo.resetPin(u.phone), s.done), child: Text(s.resetPin)),
+          OutlinedButton(onPressed: _busy ? null : () => _resetPin(s, u), child: Text(s.resetPin)),
+          OutlinedButton(onPressed: _busy ? null : () => _resetPassword(s, u), child: Text(s.resetPassword)),
           OutlinedButton(onPressed: _busy ? null : () => _run(() => _repo.resetTotp(u.phone), s.done), child: Text(s.resetTotp)),
           OutlinedButton(
             onPressed: _busy ? null : () => _confirmRevoke(s, u),
@@ -283,6 +292,71 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     );
     if (ok == true) {
       await _run(() => _repo.revoke(entityId: _effectiveId ?? '', phone: u.phone), s.done);
+    }
+  }
+
+  /// Reset the POS PIN and reveal the fresh manager-visible PIN once (B-047).
+  Future<void> _resetPin(_S s, EntityUser u) async {
+    setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final pin = await _repo.resetPin(u.phone);
+      await _load();
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(s.pinResetTitle),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text(s.pinResetBody, style: IntesharType.sans(13, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+            const SizedBox(height: 16),
+            SelectableText(
+              pin,
+              style: const TextStyle(fontFamily: 'CodecPro', fontSize: 40, fontWeight: FontWeight.w900, letterSpacing: 8),
+            ),
+          ]),
+          actions: [
+            FilledButton(onPressed: () => Navigator.pop(ctx), child: Text(s.close)),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (mounted) messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Change a POS user's login password (B-047).
+  Future<void> _resetPassword(_S s, EntityUser u) async {
+    final ctrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${s.resetPassword} — ${u.posName.isNotEmpty ? u.posName : u.phone}'),
+        content: Form(
+          key: formKey,
+          child: PasswordField(
+            controller: ctrl,
+            label: s.newPassword,
+            autofocus: true,
+            validator: (v) => (v == null || v.trim().length < 6) ? s.passwordTooShort : null,
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.cancel)),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState?.validate() ?? false) Navigator.pop(ctx, true);
+            },
+            child: Text(s.save),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await _run(() => _repo.resetPassword(u.phone, ctrl.text.trim()), s.passwordResetDone);
     }
   }
 

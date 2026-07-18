@@ -100,6 +100,7 @@ class Endpoints {
   static const posUsersRevoke = '/api/pos-users/revoke';
   static const posUsersResetPin = '/api/pos-users/reset-pin';
   static const posUsersResetTotp = '/api/pos-users/reset-totp';
+  static const posUsersResetPassword = '/api/pos-users/reset-password';
 
   // Reports (التقارير)
   static const reportsBalances = '/api/reports/balances';

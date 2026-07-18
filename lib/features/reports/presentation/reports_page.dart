@@ -649,7 +649,7 @@ class _TotalSoldReport extends StatelessWidget {
                 Row(children: [
                   Expanded(child: Text([r.companyName, r.category].where((x) => x.isNotEmpty).join(' · '),
                       style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w700))),
-                  StampPill(label: '${s.cards}: ${totals[key]}', color: IntesharColors.saffronDeep),
+                  StampPill(label: '${s.cards}: ${Formatters.money(totals[key] ?? 0)}', color: IntesharColors.saffronDeep),
                 ]),
                 const SizedBox(height: 4),
                 if (agent.isNotEmpty) _kv(cs, s.agent, agent),
@@ -799,7 +799,7 @@ class _StockReport extends StatelessWidget {
               children: [
                 Row(children: [
                   Expanded(child: Text(sku.name, style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w700))),
-                  StampPill(label: '${s.available}: ${sku.available}', color: IntesharColors.sage),
+                  StampPill(label: '${s.available}: ${Formatters.money(sku.available)}', color: IntesharColors.sage),
                 ]),
                 const SizedBox(height: 8),
                 Row(children: [
@@ -813,9 +813,9 @@ class _StockReport extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(vertical: 3),
                     child: Row(children: [
                       Expanded(flex: 3, child: Text(g.governorate.isEmpty ? s.untagged : governorateLabel(g.governorate, loc), style: IntesharType.sans(12.5, color: cs.onSurface))),
-                      Expanded(flex: 2, child: Text('${g.available}', textAlign: TextAlign.end, style: IntesharType.mono(12.5, color: cs.onSurface, w: FontWeight.w700))),
-                      Expanded(flex: 2, child: Text('${g.total}', textAlign: TextAlign.end, style: IntesharType.mono(12.5, color: cs.onSurfaceVariant))),
-                      Expanded(flex: 2, child: Text('${g.printed}', textAlign: TextAlign.end, style: IntesharType.mono(12.5, color: cs.onSurfaceVariant))),
+                      Expanded(flex: 2, child: Text(Formatters.money(g.available), textAlign: TextAlign.end, style: IntesharType.mono(12.5, color: cs.onSurface, w: FontWeight.w700))),
+                      Expanded(flex: 2, child: Text(Formatters.money(g.total), textAlign: TextAlign.end, style: IntesharType.mono(12.5, color: cs.onSurfaceVariant))),
+                      Expanded(flex: 2, child: Text(Formatters.money(g.printed), textAlign: TextAlign.end, style: IntesharType.mono(12.5, color: cs.onSurfaceVariant))),
                     ]),
                   ),
               ],

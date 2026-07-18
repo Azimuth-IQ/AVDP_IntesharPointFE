@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
+import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/pos_admin/data/pos_admin_repository.dart';
 import 'package:inteshar/features/pos_admin/domain/pos_network.dart';
 import 'package:inteshar/features/pos_admin/presentation/pos_admin_page.dart';
@@ -243,12 +244,12 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
                 Text(r.parentName!, style: IntesharType.sans(12, color: cs.onSurfaceVariant), overflow: TextOverflow.ellipsis),
               ],
               const SizedBox(height: 8),
-              Text('${r.used} ${s.used} · ${r.available} ${s.avail} ${s.ofTotal} ${r.total}',
+              Text('${Formatters.money(r.used)} ${s.used} · ${Formatters.money(r.available)} ${s.avail} ${s.ofTotal} ${Formatters.money(r.total)}',
                   style: IntesharType.mono(12.5, color: cs.onSurfaceVariant)),
             ]),
           ),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text('${r.used}', style: const TextStyle(fontFamily: 'CodecPro', fontSize: 24, fontWeight: FontWeight.w900, height: 1)),
+            Text(Formatters.money(r.used), style: const TextStyle(fontFamily: 'CodecPro', fontSize: 24, fontWeight: FontWeight.w900, height: 1)),
             Text(s.points, style: IntesharType.overline(color: cs.onSurfaceVariant)),
           ]),
           const SizedBox(width: 6),

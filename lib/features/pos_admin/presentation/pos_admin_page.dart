@@ -5,6 +5,7 @@ import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:inteshar/core/geo/governorates.dart';
+import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
@@ -233,11 +234,11 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
       decoration: BoxDecoration(color: IntesharColors.saffron, borderRadius: BorderRadius.circular(IntesharRadii.lg)),
       child: Row(children: [
-        _stat(s.available, q.root ? '∞' : '${q.available}'),
+        _stat(s.available, q.root ? '∞' : Formatters.money(q.available)),
         _divider(),
-        _stat(s.used, '${q.used}'),
+        _stat(s.used, Formatters.money(q.used)),
         _divider(),
-        _stat(s.total, q.root ? '∞' : '${q.total}'),
+        _stat(s.total, q.root ? '∞' : Formatters.money(q.total)),
       ]),
     );
   }

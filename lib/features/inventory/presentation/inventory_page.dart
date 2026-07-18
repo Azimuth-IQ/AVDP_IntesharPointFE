@@ -322,7 +322,7 @@ class _InventoryValueCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                availableUnits.toString(),
+                Formatters.money(availableUnits),
                 style: IntesharType.display(20, color: cs.onSurface, w: FontWeight.w800),
               ),
               Text(
@@ -378,7 +378,7 @@ class _TallyChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            value.toString(),
+            Formatters.money(value),
             style: IntesharType.display(18, color: color, w: FontWeight.w900),
           ),
           const SizedBox(width: 6),

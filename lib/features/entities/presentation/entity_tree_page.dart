@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/storage/session_storage.dart';
+import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/agents/domain/agent_tier.dart';
 import 'package:inteshar/features/agents/presentation/agent_form.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
@@ -181,7 +182,7 @@ class _EntityTreePageState extends ConsumerState<EntityTreePage> {
                 subtitle: l.entityTreeSubtitle,
                 trailing: _Tally(
                   l.entityTreeEntities,
-                  totalEntities.toString(),
+                  Formatters.money(totalEntities),
                 ),
               ),
             ),
@@ -438,7 +439,7 @@ class _TreeNode extends ConsumerWidget {
             SizedBox(
               width: 64,
               child: Text(
-                childCount.toString(),
+                Formatters.money(childCount),
                 textAlign: TextAlign.center,
                 style: IntesharType.mono(12, color: cs.onSurface),
               ),
@@ -447,7 +448,7 @@ class _TreeNode extends ConsumerWidget {
             SizedBox(
               width: 64,
               child: Text(
-                entity.productsIds.length.toString(),
+                Formatters.money(entity.productsIds.length),
                 textAlign: TextAlign.center,
                 style: IntesharType.mono(12, color: cs.onSurface),
               ),

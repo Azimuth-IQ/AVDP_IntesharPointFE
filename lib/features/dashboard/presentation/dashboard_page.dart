@@ -321,28 +321,28 @@ class _KpiRow extends StatelessWidget {
     final tiles = [
       _KpiTile(
         label: l.navChildren,
-        value: childCount.toString(),
+        value: Formatters.money(childCount),
         caption: l.dashKpiDirectChildren,
         icon: Icons.account_tree_outlined,
         tint: IntesharColors.saffron,
       ),
       _KpiTile(
         label: l.dashKpiStock,
-        value: availableCount.toString(),
+        value: Formatters.money(availableCount),
         caption: l.dashKpiSkusCount(availableSkuCount),
         icon: Icons.inventory_2_outlined,
         tint: const Color(0xFF2563EB),
       ),
       _KpiTile(
         label: l.dashKpiTransactions,
-        value: txnCount.toString(),
+        value: Formatters.money(txnCount),
         caption: l.dashKpiThisAccount,
         icon: Icons.swap_horiz,
         tint: IntesharColors.sage,
       ),
       _KpiTile(
         label: l.dashKpiLowStock,
-        value: lowStockCount.toString(),
+        value: Formatters.money(lowStockCount),
         caption: lowStockCount == 0
             ? l.dashKpiAllHealthy
             : l.dashKpiNeedsAttention,
@@ -917,7 +917,7 @@ class _ColumnarTxnRow extends StatelessWidget {
               SizedBox(
                 width: 44,
                 child: Text(
-                  data.qty.toString(),
+                  Formatters.money(data.qty),
                   textAlign: TextAlign.end,
                   style: IntesharType.sans(12, color: cs.onSurface),
                 ),

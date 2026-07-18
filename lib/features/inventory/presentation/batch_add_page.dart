@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/files/web_download.dart';
+import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/core/geo/governorate_picker.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
@@ -1516,7 +1517,7 @@ class _CountStat extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          value.toString(),
+          Formatters.money(value),
           style: IntesharType.sans(17, color: color, w: FontWeight.w800),
         ),
         Text(label,

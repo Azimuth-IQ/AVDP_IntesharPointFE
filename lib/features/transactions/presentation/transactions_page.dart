@@ -222,7 +222,7 @@ class _Tally extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            value.toString(),
+            Formatters.money(value),
             style: TextStyle(
               fontFamily: 'CodecPro',
               fontSize: 18,

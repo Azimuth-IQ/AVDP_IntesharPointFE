@@ -1153,7 +1153,7 @@ class _TxnDetailSheet extends StatelessWidget {
                     child: Row(
                       children: [
                         Expanded(child: _ltr(Text(ln.sku, style: IntesharType.mono(12.5, color: cs.onSurface, w: FontWeight.w600)))),
-                        Text('×${ln.amount}', style: IntesharType.sans(12.5, color: IntesharColors.inkSoft)),
+                        Text('×${Formatters.money(ln.amount)}', style: IntesharType.sans(12.5, color: IntesharColors.inkSoft)),
                         const SizedBox(width: 14),
                         Text(Formatters.iqd(ln.lineTotal), style: IntesharType.mono(12.5, color: cs.onSurface, w: FontWeight.w700)),
                       ],

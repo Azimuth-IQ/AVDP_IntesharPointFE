@@ -85,9 +85,9 @@ class _S {
 class _PosAdminPageState extends ConsumerState<PosAdminPage> {
   Entity? _entity;
   PosSlotBalance? _quota;
-  // Grant recipients: for HQ, every main/sub agent (bypass channel); for other tiers, the
-  // caller's direct children. The backend enforces the same rule (PosSlotHelper.grantSlots).
-  List<Entity> _recipients = const [];
+  // B-043: Main/Sub agents may only USE POS points, never grant them on. Only HQ distributes
+  // points (to any account), via the network view — so this page carries no recipient picker.
+  // The one grant here is HQ drilling into a specific agent (see _grantToTargetDialog).
   bool _loading = true;
   bool _busy = false;
   Object? _error;
@@ -119,19 +119,10 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
       final api = ref.read(apiClientProvider);
       final entity = await EntityRepository(api).read(id);
       final quota = await _repo.quota(entityId: id);
-      // Grant picker (own mode only): a non-HQ agent grants to its direct children. In drill
-      // mode HQ grants straight to the target agent, so no recipient list is needed.
-      List<Entity> recipients = const [];
-      if (!_isDrill) {
-        final all = await EntityRepository(api).readAll();
-        recipients = all.where((e) => e.parent == id).toList()
-          ..sort((a, b) => a.meta.name.toLowerCase().compareTo(b.meta.name.toLowerCase()));
-      }
       if (!mounted) return;
       setState(() {
         _entity = entity;
         _quota = quota;
-        _recipients = recipients;
         _loading = false;
       });
     } catch (e) {
@@ -201,11 +192,12 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
                 label: Text(s.onboard),
               ),
             ),
-            if (_isDrill || _recipients.isNotEmpty) ...[
+            // Only HQ drilling into an agent may grant points (B-043).
+            if (_isDrill) ...[
               const SizedBox(width: 12),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: _busy ? null : () => (_isDrill ? _grantToTargetDialog(s) : _grantDialog(s)),
+                  onPressed: _busy ? null : () => _grantToTargetDialog(s),
                   icon: const Icon(Icons.card_giftcard, size: 18),
                   label: Text(s.grant),
                 ),
@@ -510,98 +502,6 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     final n = int.tryParse(countCtrl.text.trim()) ?? 0;
     if (ok == true && n > 0) {
       await _run(() => _repo.grantSlots(destId: _effectiveId ?? '', count: n), s.done);
-    }
-  }
-
-  Future<void> _grantDialog(_S s) async {
-    final countCtrl = TextEditingController(text: '1');
-    final searchCtrl = TextEditingController();
-    // Only HQ sees both tiers (it may grant to any agent), so the Main/Sub filter is
-    // HQ-only; other tiers have a single-tier recipient list (their direct children).
-    final isHq = _entity?.type == EntityType.INTESHAR;
-    final cs = Theme.of(context).colorScheme;
-    EntityType tier = EntityType.AGENT1;
-    String query = '';
-    String? destId;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setD) {
-          final q = query.trim().toLowerCase();
-          final filtered = _recipients.where((e) {
-            if (isHq && e.type != tier) return false;
-            if (q.isEmpty) return true;
-            return e.meta.name.toLowerCase().contains(q) || e.id.toLowerCase().contains(q);
-          }).toList();
-          return AlertDialog(
-            title: Text(s.grant),
-            content: SizedBox(
-              width: double.maxFinite,
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                if (isHq) ...[
-                  SegmentedButton<EntityType>(
-                    segments: [
-                      ButtonSegment(value: EntityType.AGENT1, label: Text(s.mainAgents)),
-                      ButtonSegment(value: EntityType.AGENT2, label: Text(s.subAgents)),
-                    ],
-                    selected: {tier},
-                    showSelectedIcon: false,
-                    onSelectionChanged: (v) => setD(() {
-                      tier = v.first;
-                      destId = null; // selection may no longer be in the visible tier
-                    }),
-                  ),
-                  const SizedBox(height: 10),
-                ],
-                TextField(
-                  controller: searchCtrl,
-                  decoration: InputDecoration(
-                    labelText: s.search,
-                    isDense: true,
-                    prefixIcon: const Icon(Icons.search, size: 18),
-                  ),
-                  onChanged: (v) => setD(() => query = v),
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 240,
-                  child: filtered.isEmpty
-                      ? Center(child: Text(s.noMatches, style: IntesharType.sans(13, color: cs.onSurfaceVariant)))
-                      : ListView.builder(
-                          shrinkWrap: true,
-                          itemCount: filtered.length,
-                          itemBuilder: (_, i) {
-                            final e = filtered[i];
-                            final selected = e.id == destId;
-                            return ListTile(
-                              dense: true,
-                              selected: selected,
-                              onTap: () => setD(() => destId = e.id),
-                              title: Text(e.meta.name.isEmpty ? e.id : e.meta.name, overflow: TextOverflow.ellipsis),
-                              subtitle: Text(e.type.label, style: IntesharType.sans(11.5, color: cs.onSurfaceVariant)),
-                              trailing: selected ? Icon(Icons.check_circle, size: 20, color: cs.primary) : null,
-                            );
-                          },
-                        ),
-                ),
-                const SizedBox(height: 8),
-                _field(countCtrl, s.count, keyboard: TextInputType.number, digitsOnly: true),
-              ]),
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.cancel)),
-              FilledButton(
-                onPressed: destId == null ? null : () => Navigator.pop(ctx, true),
-                child: Text(s.grant),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-    final n = int.tryParse(countCtrl.text.trim()) ?? 0;
-    if (ok == true && destId != null && n > 0) {
-      await _run(() => _repo.grantSlots(destId: destId!, count: n), s.done);
     }
   }
 

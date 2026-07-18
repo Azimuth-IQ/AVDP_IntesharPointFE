@@ -1,10 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
+import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:inteshar/core/utils/formatters.dart';
+import 'package:inteshar/features/entities/data/entity_repository.dart';
+import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/pos_admin/data/pos_admin_repository.dart';
 import 'package:inteshar/features/pos_admin/domain/pos_network.dart';
 import 'package:inteshar/features/pos_admin/presentation/pos_admin_page.dart';
@@ -43,6 +47,14 @@ class _NS {
   String get ofTotal => p('of', 'من');
   String get empty => p('No agents match.', 'لا يوجد وكلاء مطابقون.');
   String get loadMore => p('Load more', 'تحميل المزيد');
+  String get grantAny => p('Grant POS points', 'منح نقاط بيع');
+  String get grantAnySubtitle => p('Give points to any agent or store', 'منح النقاط لأي وكيل أو متجر');
+  String get searchAny => p('Search account by name…', 'بحث عن حساب بالاسم…');
+  String get count => p('Number of points', 'عدد النقاط');
+  String get noMatches => p('No matching accounts', 'لا توجد حسابات مطابقة');
+  String get cancel => p('Cancel', 'إلغاء');
+  String get grant => p('Grant', 'منح');
+  String get done => p('Done', 'تم');
 }
 
 class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
@@ -133,6 +145,97 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
     _reload(); // reflect any grant/onboard/revoke done in the drill
   }
 
+  /// HQ grants POS points directly to ANY account — agent or store (B-043). Fetches
+  /// every entity, lets HQ search + pick one, and grants the chosen number of points.
+  Future<void> _grantAnyDialog(_NS s) async {
+    final cs = Theme.of(context).colorScheme;
+    final all = await EntityRepository(ref.read(apiClientProvider)).readAll();
+    if (!mounted) return;
+    // HQ can't grant points to itself.
+    final accounts = all.where((e) => e.type != EntityType.INTESHAR).toList()
+      ..sort((a, b) => a.meta.name.toLowerCase().compareTo(b.meta.name.toLowerCase()));
+    final countCtrl = TextEditingController(text: '1');
+    String query = '';
+    String? destId;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) {
+          final q = query.trim().toLowerCase();
+          final filtered = accounts.where((e) {
+            if (q.isEmpty) return true;
+            return e.meta.name.toLowerCase().contains(q) || e.id.toLowerCase().contains(q);
+          }).toList();
+          return AlertDialog(
+            title: Text(s.grantAny),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                TextField(
+                  decoration: InputDecoration(
+                    labelText: s.searchAny,
+                    isDense: true,
+                    prefixIcon: const Icon(Icons.search, size: 18),
+                  ),
+                  onChanged: (v) => setD(() => query = v),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 260,
+                  child: filtered.isEmpty
+                      ? Center(child: Text(s.noMatches, style: IntesharType.sans(13, color: cs.onSurfaceVariant)))
+                      : ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: filtered.length,
+                          itemBuilder: (_, i) {
+                            final e = filtered[i];
+                            final selected = e.id == destId;
+                            return ListTile(
+                              dense: true,
+                              selected: selected,
+                              onTap: () => setD(() => destId = e.id),
+                              title: Text(e.meta.name.isEmpty ? e.id : e.meta.name, overflow: TextOverflow.ellipsis),
+                              subtitle: Text(e.type.label, style: IntesharType.sans(11.5, color: cs.onSurfaceVariant)),
+                              trailing: selected ? Icon(Icons.check_circle, size: 20, color: cs.primary) : null,
+                            );
+                          },
+                        ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: countCtrl,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: InputDecoration(labelText: s.count, isDense: true),
+                ),
+              ]),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.cancel)),
+              FilledButton(
+                onPressed: destId == null ? null : () => Navigator.pop(ctx, true),
+                child: Text(s.grant),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    final n = int.tryParse(countCtrl.text.trim()) ?? 0;
+    if (ok != true || destId == null || n <= 0) return;
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await _repo.grantSlots(destId: destId!, count: n);
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(s.done)));
+      _reload();
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = _NS.of(context);
@@ -157,6 +260,17 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
         padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 28),
         children: [
           if (_summary != null) _kpiStrip(s, _summary!),
+          const SizedBox(height: 12),
+          // B-043: HQ is the sole distributor of POS points — grant to ANY account
+          // (agent or store), so a store isn't stranded now that agents can't grant.
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => _grantAnyDialog(s),
+              icon: const Icon(Icons.card_giftcard, size: 18),
+              label: Text(s.grantAny),
+            ),
+          ),
           const SizedBox(height: 14),
           TextField(
             decoration: InputDecoration(

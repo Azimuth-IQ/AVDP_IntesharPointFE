@@ -47,6 +47,7 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
   Object? _error;
   bool _loading = true;
   String _search = '';
+  int _tab = 0; // 0=Store, 1=Printer, 2=Account (bottom nav)
 
   // Drill-down navigation state: Home (companies) → Governorate (only when a
   // company spans >1 region bucket) → Card types. Null [_company] == the home step.
@@ -204,13 +205,40 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
         ],
       ),
       body: BrandBackdrop(
-        child: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : _error != null
-            ? ErrorState(error: _error!, onRetry: _load)
-            : _buildBody(l),
+        child: IndexedStack(
+          index: _tab,
+          children: [
+            _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                ? ErrorState(error: _error!, onRetry: _load)
+                : _buildBody(l),
+            _PrinterPanel(onOpen: _openPrinterPicker),
+            _AccountPanel(onOpenPrinter: _openPrinterPicker, onSignOut: _signOut),
+          ],
+        ),
+      ),
+      // Phase-I POS bottom nav (system Excel mockup image7): the tabs that exist
+      // today — Store (sell), Printer, Account. No dead/placeholder tabs.
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _tab,
+        onDestinationSelected: (i) => setState(() => _tab = i),
+        destinations: [
+          NavigationDestination(icon: const Icon(Icons.storefront_outlined), selectedIcon: const Icon(Icons.storefront), label: _ar ? 'المتجر' : 'Store'),
+          NavigationDestination(icon: const Icon(Icons.print_outlined), selectedIcon: const Icon(Icons.print), label: _ar ? 'الطابعة' : 'Printer'),
+          NavigationDestination(icon: const Icon(Icons.person_outline), selectedIcon: const Icon(Icons.person), label: _ar ? 'الحساب' : 'Account'),
+        ],
       ),
     );
+  }
+
+  void _openPrinterPicker() =>
+      Navigator.push<void>(context, MaterialPageRoute(builder: (_) => const PrinterPickerPage()));
+
+  Future<void> _signOut() async {
+    ref.read(posUnlockedProvider.notifier).state = false;
+    await ref.read(authStateProvider.notifier).logout();
+    if (mounted) context.go('/login');
   }
 
   // ── Drill-down grouping ─────────────────────────────────────────────────────
@@ -520,6 +548,106 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
       // After a sale, re-fetch so the pool counts match the source of truth.
       if (consumed) _load();
     });
+  }
+}
+
+// ── Printer tab ───────────────────────────────────────────────────────────────
+
+class _PrinterPanel extends ConsumerWidget {
+  final VoidCallback onOpen;
+  const _PrinterPanel({required this.onOpen});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final ps = ref.watch(bluetoothServiceProvider);
+    final connected = ps.status == PrinterStatus.connected;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: (connected ? IntesharColors.sage : cs.primary).withValues(alpha: 0.14),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(connected ? Icons.print : Icons.print_disabled_outlined, size: 34, color: connected ? IntesharColors.sage : cs.primary),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                connected ? (ps.deviceName ?? l.posPrinterConnected) : l.posHomePrinterNotConnected,
+                textAlign: TextAlign.center,
+                style: IntesharType.display(18, color: cs.onSurface, w: FontWeight.w800),
+              ),
+              const SizedBox(height: 20),
+              BrandCTAButton(
+                label: connected ? l.posHomeSetupPrinter : l.posConnectPrinter,
+                leading: Icons.bluetooth,
+                onPressed: onOpen,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Account tab ───────────────────────────────────────────────────────────────
+
+class _AccountPanel extends ConsumerWidget {
+  final VoidCallback onOpenPrinter;
+  final Future<void> Function() onSignOut;
+  const _AccountPanel({required this.onOpenPrinter, required this.onSignOut});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    final auth = ref.watch(authStateProvider).valueOrNull;
+    final entity = auth is AuthAuthenticated ? auth.entity : null;
+    final shop = entity?.meta.name ?? '';
+    final phone = entity?.users.firstOrNull?.phone ?? '';
+    final logo = auth is AuthAuthenticated ? auth.brand.agentLogoUrl : '';
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 460),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 8),
+              Center(
+                child: logo.trim().isNotEmpty
+                    ? Image.network(logo, height: 64, fit: BoxFit.contain, errorBuilder: (_, _, _) => IntesharStar(size: 56, color: cs.onSurface))
+                    : IntesharStar(size: 56, color: cs.onSurface),
+              ),
+              const SizedBox(height: 16),
+              Text(shop.isEmpty ? l.posHome : shop, textAlign: TextAlign.center, style: IntesharType.display(22, color: cs.onSurface, w: FontWeight.w900)),
+              if (phone.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(phone, textAlign: TextAlign.center, style: IntesharType.mono(14, color: cs.onSurfaceVariant)),
+              ],
+              const SizedBox(height: 28),
+              BrandCTAButton(label: ar ? 'إعداد الطابعة' : 'Printer setup', leading: Icons.print_outlined, variant: BrandCTAVariant.outline, onPressed: onOpenPrinter),
+              const SizedBox(height: 12),
+              BrandCTAButton(label: l.signOut, leading: Icons.logout_outlined, variant: BrandCTAVariant.outline, onPressed: () => onSignOut()),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

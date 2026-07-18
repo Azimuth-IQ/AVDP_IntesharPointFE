@@ -269,9 +269,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         }
       },
       child: Scaffold(
-        // Mobile = the POS app login: a dark, centred, brand-first screen matching
-        // the system Excel mockup (image5). Web keeps the light two-panel layout.
-        backgroundColor: isWide ? null : const Color(0xFF16181D),
         body: SafeArea(
           child: isWide
               ? Row(
@@ -290,31 +287,19 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     ),
                   ],
                 )
-              : Stack(
+              : Column(
                   children: [
-                    Positioned(
-                      top: -70,
-                      right: -90,
-                      child: Opacity(
-                        opacity: 0.06,
-                        child: IntesharStar(size: 480, color: Colors.white, tilt: -0.3),
-                      ),
+                    GestureDetector(
+                      onLongPress: () => context.go('/diagnostics'),
+                      behavior: HitTestBehavior.opaque,
+                      child: const _MobileBrandHeader(),
                     ),
-                    SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 460),
-                        child: Column(
-                          children: [
-                            const SizedBox(height: 24),
-                            GestureDetector(
-                              onLongPress: () => context.go('/diagnostics'),
-                              behavior: HitTestBehavior.opaque,
-                              child: const _MobileDarkHero(),
-                            ),
-                            const SizedBox(height: 32),
-                            formCard,
-                          ],
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(24),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 460),
+                          child: Center(child: formCard),
                         ),
                       ),
                     ),
@@ -617,44 +602,50 @@ class _BrandPanel extends StatelessWidget {
   }
 }
 
-/// Dark, centred brand hero for the mobile app login (system Excel mockup,
-/// image5): the gold star over the wordmark on the dark backdrop.
-class _MobileDarkHero extends StatelessWidget {
-  const _MobileDarkHero();
+class _MobileBrandHeader extends StatelessWidget {
+  const _MobileBrandHeader();
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IntesharStar(size: 96, color: IntesharColors.saffron),
-        const SizedBox(height: 18),
-        const Text(
-          'Inteshar',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontFamily: 'CodecPro',
-            color: Colors.white,
-            fontSize: 40,
-            fontWeight: FontWeight.w900,
-            letterSpacing: -1.4,
-            height: 1.0,
+    return BrandBand(
+      padding: const EdgeInsets.fromLTRB(28, 32, 28, 32),
+      sparkleSize: 200,
+      sparkleAlignment: const Alignment(1.4, 1.2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IntesharStar(size: 48, color: IntesharColors.ink),
+          const SizedBox(height: 16),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: AlignmentDirectional.centerStart,
+            child: const Text(
+              'Inteshar Platform.',
+              style: TextStyle(
+                fontFamily: 'CodecPro',
+                color: IntesharColors.ink,
+                fontSize: 40,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -1.4,
+                height: 1.0,
+              ),
+            ),
           ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          l.loginBrandTaglineShort,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontFamily: 'CodecPro',
-            fontSize: 13.5,
-            color: Colors.white.withValues(alpha: 0.6),
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.4,
+          const SizedBox(height: 8),
+          Text(
+            l.loginBrandTaglineShort,
+            style: TextStyle(
+              fontFamily: 'CodecPro',
+              fontSize: 14.5,
+              color: IntesharColors.ink.withValues(alpha: 0.72),
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.1,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

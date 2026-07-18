@@ -1,17 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_exception.dart';
 import 'package:inteshar/features/pos/application/pos_pin_controller.dart';
-import 'package:inteshar/features/pos/presentation/widgets/pin_pad_scaffold.dart';
+import 'package:inteshar/shared/widgets/brand_band.dart';
+import 'package:inteshar/shared/widgets/brand_cta.dart';
+import 'package:inteshar/shared/widgets/brand_star.dart';
 
-/// Full-screen POS PIN setup — a dark, brand-aware keypad (system Excel mockup,
-/// image6). Used for first-time setup (enter → confirm) and, when
-/// [requireCurrent] is true, the change-PIN flow (current → new → confirm).
+/// Full-screen POS PIN setup page. Used for:
+/// - First-time setup (no existing PIN): [requireCurrent] = false (default).
+/// - Change-PIN flow: [requireCurrent] = true shows a "current PIN" field.
 ///
 /// On success the session is unlocked ([posUnlockedProvider] = true) and the
 /// router navigates to `/pos/home`.
 class PosPinSetupPage extends ConsumerStatefulWidget {
+  /// When true an extra "current PIN" field is shown at the top. Pass this
+  /// flag when the operator deliberately navigates to change their PIN.
   final bool requireCurrent;
 
   const PosPinSetupPage({super.key, this.requireCurrent = false});
@@ -20,81 +26,57 @@ class PosPinSetupPage extends ConsumerStatefulWidget {
   ConsumerState<PosPinSetupPage> createState() => _PosPinSetupPageState();
 }
 
-enum _Step { current, newPin, confirmPin }
-
 class _PosPinSetupPageState extends ConsumerState<PosPinSetupPage> {
-  late _Step _step = widget.requireCurrent ? _Step.current : _Step.newPin;
-  String _current = '';
-  String _new = '';
-  String _confirm = '';
+  final _currentCtrl = TextEditingController();
+  final _pinCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
+
+  bool _obscureCurrent = true;
+  bool _obscurePin = true;
+  bool _obscureConfirm = true;
   bool _loading = false;
   String? _error;
 
-  static const _maxLen = 6;
+  @override
+  void dispose() {
+    _currentCtrl.dispose();
+    _pinCtrl.dispose();
+    _confirmCtrl.dispose();
+    super.dispose();
+  }
 
   bool get _ar => Localizations.localeOf(context).languageCode == 'ar';
 
-  String get _buffer => switch (_step) {
-        _Step.current => _current,
-        _Step.newPin => _new,
-        _Step.confirmPin => _confirm,
-      };
+  Future<void> _submit() async {
+    final pin = _pinCtrl.text.trim();
+    final confirm = _confirmCtrl.text.trim();
 
-  set _buffer(String v) => setState(() {
-        switch (_step) {
-          case _Step.current:
-            _current = v;
-          case _Step.newPin:
-            _new = v;
-          case _Step.confirmPin:
-            _confirm = v;
-        }
-      });
-
-  void _onDigit(String d) {
-    if (_buffer.length >= _maxLen) return;
-    _error = null;
-    _buffer = _buffer + d;
-  }
-
-  void _onBackspace() {
-    if (_buffer.isEmpty) return;
-    _buffer = _buffer.substring(0, _buffer.length - 1);
-  }
-
-  Future<void> _onConfirm() async {
-    if (_buffer.length < 4) {
-      setState(() => _error = _ar ? 'الرمز 4 أرقام على الأقل' : 'PIN must be at least 4 digits');
+    if (pin.length < 4) {
+      setState(() => _error = _ar ? 'يجب أن يكون الرمز 4 أرقام على الأقل' : 'PIN must be at least 4 digits');
       return;
     }
-    switch (_step) {
-      case _Step.current:
-        setState(() => _step = _Step.newPin);
-      case _Step.newPin:
-        setState(() => _step = _Step.confirmPin);
-      case _Step.confirmPin:
-        if (_confirm != _new) {
-          setState(() {
-            _error = _ar ? 'الرمزان غير متطابقان' : 'PINs do not match';
-            _confirm = '';
-            _step = _Step.newPin;
-            _new = '';
-          });
-          return;
-        }
-        await _save();
+    if (pin != confirm) {
+      setState(() => _error = _ar ? 'الرمزان غير متطابقان' : 'PINs do not match');
+      return;
     }
-  }
+    if (widget.requireCurrent && _currentCtrl.text.trim().isEmpty) {
+      setState(() => _error = _ar ? 'أدخل الرمز الحالي' : 'Enter your current PIN');
+      return;
+    }
 
-  Future<void> _save() async {
     setState(() {
       _loading = true;
       _error = null;
     });
+
     try {
       final repo = ref.read(posPinRepositoryProvider);
-      await repo.setPin(_new, currentPin: widget.requireCurrent ? _current : null);
+      await repo.setPin(
+        pin,
+        currentPin: widget.requireCurrent ? _currentCtrl.text.trim() : null,
+      );
       if (!mounted) return;
+      // Unlock the session and go to POS home
       ref.read(posUnlockedProvider.notifier).state = true;
       context.go('/pos/home');
     } catch (e) {
@@ -103,38 +85,405 @@ class _PosPinSetupPageState extends ConsumerState<PosPinSetupPage> {
       setState(() {
         _error = apiErr?.message ?? (_ar ? 'حدث خطأ' : 'An error occurred');
         _loading = false;
-        // On a rejected current-PIN, restart at the current step.
-        if (widget.requireCurrent) {
-          _step = _Step.current;
-          _current = '';
-          _new = '';
-          _confirm = '';
-        }
       });
     }
   }
 
-  String get _title => switch (_step) {
-        _Step.current => _ar ? 'أدخل رمزك الحالي' : 'Enter your current PIN',
-        _Step.newPin => _ar ? 'قم بتعيين رمز نقطة البيع' : 'Set your POS PIN',
-        _Step.confirmPin => _ar ? 'أعد إدخال الرمز للتأكيد' : 'Re-enter the PIN to confirm',
-      };
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isWide = MediaQuery.of(context).size.width > 700;
+
+    final form = _PinSetupForm(
+      requireCurrent: widget.requireCurrent,
+      currentCtrl: _currentCtrl,
+      pinCtrl: _pinCtrl,
+      confirmCtrl: _confirmCtrl,
+      obscureCurrent: _obscureCurrent,
+      obscurePin: _obscurePin,
+      obscureConfirm: _obscureConfirm,
+      onToggleCurrent: () => setState(() => _obscureCurrent = !_obscureCurrent),
+      onTogglePin: () => setState(() => _obscurePin = !_obscurePin),
+      onToggleConfirm: () => setState(() => _obscureConfirm = !_obscureConfirm),
+      loading: _loading,
+      error: _error,
+      cs: cs,
+      onSubmit: _submit,
+    );
+
+    return Scaffold(
+      backgroundColor: cs.surface,
+      body: SafeArea(
+        child: isWide
+            ? Row(
+                children: [
+                  Expanded(child: _BrandPanel()),
+                  Expanded(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 460),
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(32),
+                          child: form,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            : Column(
+                children: [
+                  const _MobileBrandHeader(),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 460),
+                        child: Center(child: form),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+// ── Shared brand panels (mirrors login_page pattern) ────────────────────────
+
+class _BrandPanel extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    return BrandBand(
+      padding: const EdgeInsets.fromLTRB(56, 56, 56, 56),
+      sparkleSize: 360,
+      sparkleAlignment: const Alignment(1.3, 1.4),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          IntesharStar(size: 72, color: IntesharColors.ink),
+          const SizedBox(height: 28),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: AlignmentDirectional.centerStart,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  'Inteshar',
+                  style: TextStyle(
+                    fontFamily: 'CodecPro',
+                    color: IntesharColors.ink,
+                    fontSize: 96,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -3.5,
+                    height: 1.0,
+                  ),
+                ),
+                Text(
+                  'Platform.',
+                  style: TextStyle(
+                    fontFamily: 'CodecPro',
+                    color: IntesharColors.ink,
+                    fontSize: 96,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -3.5,
+                    height: 1.0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 28),
+          Text(
+            ar ? 'نقطة البيع الآمنة' : 'Secure POS Terminal',
+            style: TextStyle(
+              fontFamily: 'CodecPro',
+              color: IntesharColors.ink.withValues(alpha: 0.78),
+              fontSize: 17,
+              height: 1.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MobileBrandHeader extends StatelessWidget {
+  const _MobileBrandHeader();
 
   @override
   Widget build(BuildContext context) {
-    return PinPadScaffold(
-      title: _title,
-      subtitle: _ar ? 'رمز مكوّن من 4 إلى 6 أرقام' : 'A 4–6 digit code',
-      entered: _buffer.length,
-      error: _error,
-      loading: _loading,
-      onDigit: _onDigit,
-      onBackspace: _onBackspace,
-      onClear: _buffer.isEmpty ? null : () => _buffer = '',
-      onConfirm: _onConfirm,
-      confirmLabel: _step == _Step.confirmPin
-          ? (_ar ? 'تأكيد' : 'Confirm')
-          : (_ar ? 'التالي' : 'Next'),
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    return BrandBand(
+      padding: const EdgeInsets.fromLTRB(28, 28, 28, 28),
+      sparkleSize: 200,
+      sparkleAlignment: const Alignment(1.4, 1.2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IntesharStar(size: 40, color: IntesharColors.ink),
+          const SizedBox(height: 12),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: AlignmentDirectional.centerStart,
+            child: const Text(
+              'Inteshar Platform.',
+              style: TextStyle(
+                fontFamily: 'CodecPro',
+                color: IntesharColors.ink,
+                fontSize: 36,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -1.2,
+                height: 1.0,
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            ar ? 'نقطة البيع الآمنة' : 'Secure POS Terminal',
+            style: TextStyle(
+              fontFamily: 'CodecPro',
+              fontSize: 13,
+              color: IntesharColors.ink.withValues(alpha: 0.72),
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Setup form ───────────────────────────────────────────────────────────────
+
+class _PinSetupForm extends StatelessWidget {
+  final bool requireCurrent;
+  final TextEditingController currentCtrl;
+  final TextEditingController pinCtrl;
+  final TextEditingController confirmCtrl;
+  final bool obscureCurrent;
+  final bool obscurePin;
+  final bool obscureConfirm;
+  final VoidCallback onToggleCurrent;
+  final VoidCallback onTogglePin;
+  final VoidCallback onToggleConfirm;
+  final bool loading;
+  final String? error;
+  final ColorScheme cs;
+  final VoidCallback onSubmit;
+
+  const _PinSetupForm({
+    required this.requireCurrent,
+    required this.currentCtrl,
+    required this.pinCtrl,
+    required this.confirmCtrl,
+    required this.obscureCurrent,
+    required this.obscurePin,
+    required this.obscureConfirm,
+    required this.onToggleCurrent,
+    required this.onTogglePin,
+    required this.onToggleConfirm,
+    required this.loading,
+    required this.error,
+    required this.cs,
+    required this.onSubmit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: IntesharColors.saffron,
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: const Icon(Icons.lock_outline, color: IntesharColors.ink, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    ar
+                        ? (requireCurrent ? 'تغيير رمز نقطة البيع' : 'إعداد رمز نقطة البيع')
+                        : (requireCurrent ? 'Change POS PIN' : 'Set POS PIN'),
+                    style: IntesharType.display(22, color: cs.onSurface, w: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    ar
+                        ? 'رمز مكوّن من 4–6 أرقام يحمي جلسة البيع'
+                        : '4–6 digit code that protects your POS session',
+                    style: TextStyle(
+                      fontFamily: 'CodecPro',
+                      fontSize: 13,
+                      color: cs.onSurfaceVariant,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 28),
+
+        if (requireCurrent) ...[
+          TextField(
+            controller: currentCtrl,
+            obscureText: obscureCurrent,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            maxLength: 6,
+            style: IntesharType.mono(18, color: cs.onSurface, letterSpacing: 8),
+            decoration: InputDecoration(
+              labelText: ar ? 'الرمز الحالي' : 'Current PIN',
+              counterText: '',
+              prefixIcon: const Icon(Icons.lock_clock_outlined, size: 18),
+              suffixIcon: IconButton(
+                icon: Icon(
+                  obscureCurrent ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                  size: 18,
+                ),
+                onPressed: onToggleCurrent,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
+
+        TextField(
+          controller: pinCtrl,
+          obscureText: obscurePin,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          maxLength: 6,
+          style: IntesharType.mono(18, color: cs.onSurface, letterSpacing: 8),
+          decoration: InputDecoration(
+            labelText: ar ? 'الرمز الجديد' : 'New PIN',
+            counterText: '',
+            prefixIcon: const Icon(Icons.pin_outlined, size: 18),
+            suffixIcon: IconButton(
+              icon: Icon(
+                obscurePin ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                size: 18,
+              ),
+              onPressed: onTogglePin,
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        TextField(
+          controller: confirmCtrl,
+          obscureText: obscureConfirm,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          maxLength: 6,
+          style: IntesharType.mono(18, color: cs.onSurface, letterSpacing: 8),
+          decoration: InputDecoration(
+            labelText: ar ? 'تأكيد الرمز' : 'Confirm PIN',
+            counterText: '',
+            prefixIcon: const Icon(Icons.pin_outlined, size: 18),
+            suffixIcon: IconButton(
+              icon: Icon(
+                obscureConfirm ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                size: 18,
+              ),
+              onPressed: onToggleConfirm,
+            ),
+          ),
+          onSubmitted: (_) => onSubmit(),
+        ),
+
+        if (error != null) ...[
+          const SizedBox(height: 14),
+          _ErrorBanner(message: error!, cs: cs),
+        ],
+
+        const SizedBox(height: 24),
+        BrandCTAButton(
+          label: loading
+              ? (ar ? 'جارٍ الحفظ...' : 'Saving…')
+              : (ar
+                  ? (requireCurrent ? 'تغيير الرمز' : 'تعيين الرمز')
+                  : (requireCurrent ? 'Change PIN' : 'Set PIN')),
+          trailing: loading ? null : Icons.arrow_forward,
+          loading: loading,
+          onPressed: loading ? null : onSubmit,
+        ),
+
+        const SizedBox(height: 16),
+        Center(
+          child: Text(
+            ar
+                ? 'يُستخدم هذا الرمز لقفل جلسة نقطة البيع'
+                : 'This PIN gates entry to each POS session',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'CodecPro',
+              fontSize: 12,
+              color: cs.onSurfaceVariant,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Error banner ─────────────────────────────────────────────────────────────
+
+class _ErrorBanner extends StatelessWidget {
+  final String message;
+  final ColorScheme cs;
+  const _ErrorBanner({required this.message, required this.cs});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cs.errorContainer,
+        borderRadius: BorderRadius.circular(IntesharRadii.md),
+        border: Border.all(color: cs.error.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline, size: 16, color: cs.error),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                fontFamily: 'CodecPro',
+                fontSize: 13,
+                color: cs.onErrorContainer,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

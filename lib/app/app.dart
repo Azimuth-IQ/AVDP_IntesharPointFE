@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/router.dart';
 import 'package:inteshar/app/theme_provider.dart';
+import 'package:inteshar/core/api/session_expiry_gate.dart';
 import 'package:inteshar/core/locale/locale_controller.dart';
 import 'package:inteshar/features/update/presentation/update_gate.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
@@ -24,7 +25,9 @@ class IntesharApp extends ConsumerWidget {
       routerConfig: router,
       // App-wide update gate: a mandatory update replaces the whole UI; an
       // optional one surfaces a dismissible sheet. No-op off Android.
-      builder: (context, child) => UpdateGate(child: child ?? const SizedBox.shrink()),
+      builder: (context, child) => UpdateGate(
+        child: SessionExpiryGate(child: child ?? const SizedBox.shrink()),
+      ),
       locale: locale,
       supportedLocales: appSupportedLocales,
       localizationsDelegates: const [

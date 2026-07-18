@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:inteshar/app/theme.dart';
+import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/brand_cta.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
@@ -15,10 +16,9 @@ class ErrorState extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    final msg = error
-        .toString()
-        .replaceFirst('ApiException', 'Error')
-        .replaceAll(RegExp(r'\(\d+\): '), ': ');
+    // Friendly, localized message (backend message for 400/402/409, a keyed fallback for
+    // auth/permission/server) — never a raw DioException / ApiException dump.
+    final msg = friendlyError(error, context);
 
     return Center(
       child: ConstrainedBox(

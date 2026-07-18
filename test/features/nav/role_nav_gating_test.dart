@@ -7,7 +7,9 @@
 //   * Neither agent tier sees HQ-only sections (Companies/Catalog/Templates).
 //
 // Both agent tiers have >5 destinations, so the phone bar shows 4 primaries
-// (Dashboard, Transactions, Inventory, Children) + a "More" overflow.
+// + a "More" overflow. AGENT1's primaries are Dashboard, Transactions,
+// Inventory, Children; AGENT2 has NO Inventory (draw-on-print, B-042), so its
+// primaries are Dashboard, Transactions, Children, Reports.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -83,22 +85,26 @@ void main() {
     expect(find.text('Stores'), findsOneWidget);
   });
 
-  testWidgets('AGENT2 bar: 4 primaries + More; NO Prices anywhere', (tester) async {
+  testWidgets('AGENT2 bar: no Inventory (draw-on-print); NO Prices anywhere', (tester) async {
     await _pumpShell(tester, EntityType.AGENT2, 'agent2');
 
     final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
     expect(bar.destinations.length, 5,
         reason: 'AGENT2 has >5 destinations → 4 primary + More');
 
-    for (final label in ['Dashboard', 'Transactions', 'Inventory', 'Children', 'More']) {
+    // B-042: a Sub-Agent holds no stock (it draws from its parent's pool at
+    // print time), so — unlike AGENT1 — it has NO Inventory destination.
+    for (final label in ['Dashboard', 'Transactions', 'Children', 'More']) {
       expect(find.text(label), findsWidgets, reason: '$label should be on the bar');
     }
+    expect(find.text('Inventory'), findsNothing, reason: 'AGENT2 has no inventory (B-042)');
     expect(find.text('Companies'), findsNothing, reason: 'Companies is HQ-only');
 
     // The RBAC line that matters: AGENT2 must NOT have Pricing, even in overflow.
     await tester.tap(find.text('More'));
     await tester.pumpAndSettle();
     expect(find.text('Prices'), findsNothing, reason: 'Pricing is AGENT1-only');
+    expect(find.text('Inventory'), findsNothing, reason: 'no inventory in the overflow either');
     expect(find.text('Stores'), findsOneWidget);
   });
 }

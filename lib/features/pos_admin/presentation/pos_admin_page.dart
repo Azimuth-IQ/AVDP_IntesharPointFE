@@ -266,6 +266,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
         if (u.posGovernorate.isNotEmpty) Text(governorateLabel(u.posGovernorate, loc), style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
         const SizedBox(height: 10),
         Wrap(spacing: 8, runSpacing: 8, children: [
+          OutlinedButton(onPressed: _busy ? null : () => _editDialog(s, u), child: Text(s.edit)),
           OutlinedButton(onPressed: _busy ? null : () => _resetPin(s, u), child: Text(s.resetPin)),
           OutlinedButton(onPressed: _busy ? null : () => _resetPassword(s, u), child: Text(s.resetPassword)),
           OutlinedButton(onPressed: _busy ? null : () => _run(() => _repo.resetTotp(u.phone), s.done), child: Text(s.resetTotp)),
@@ -425,6 +426,65 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
           posName: name.text.trim(),
           posOwnerName: owner.text.trim(),
           posGovernorate: gov,
+          posAddress: addr.text.trim(),
+        ),
+        s.done,
+      );
+    }
+  }
+
+  /// Edit an existing POS user's profile (B-045). Phone + credentials are unchanged
+  /// (the phone is shown read-only; use the reset actions for the password/PIN).
+  Future<void> _editDialog(_S s, EntityUser u) async {
+    final name = TextEditingController(text: u.posName);
+    final owner = TextEditingController(text: u.posOwnerName);
+    final addr = TextEditingController(text: u.posAddress);
+    String? gov = u.posGovernorate.isEmpty ? null : u.posGovernorate;
+    final formKey = GlobalKey<FormState>();
+    final loc = Localizations.localeOf(context).languageCode;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          title: Text('${s.editPos} — ${u.phone}'),
+          content: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                _field(name, s.posName, validator: _req(s)),
+                _field(owner, s.ownerName, validator: _req(s)),
+                DropdownButtonFormField<String>(
+                  initialValue: gov,
+                  isExpanded: true,
+                  decoration: InputDecoration(labelText: s.governorate, isDense: true),
+                  items: [for (final g in kGovernorates) DropdownMenuItem(value: g.code, child: Text(governorateLabel(g.code, loc)))],
+                  validator: (v) => (v == null || v.isEmpty) ? s.required : null,
+                  onChanged: (v) => setD(() => gov = v),
+                ),
+                _field(addr, s.address, validator: _req(s)),
+              ]),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.cancel)),
+            FilledButton(
+              onPressed: () {
+                if (formKey.currentState?.validate() ?? false) Navigator.pop(ctx, true);
+              },
+              child: Text(s.save),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (ok == true) {
+      await _run(
+        () => _repo.update(
+          phone: u.phone,
+          posName: name.text.trim(),
+          posOwnerName: owner.text.trim(),
+          posGovernorate: gov ?? '',
           posAddress: addr.text.trim(),
         ),
         s.done,

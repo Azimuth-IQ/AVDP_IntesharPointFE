@@ -65,6 +65,22 @@ class PosAdminRepository {
     });
   }
 
+  /// Edit an existing POS user's profile (B-045). Phone/password/PIN are unchanged.
+  Future<void> update({
+    required String phone,
+    required String posName,
+    required String posOwnerName,
+    required String posGovernorate,
+    required String posAddress,
+  }) async {
+    await _api.post(Endpoints.posUsersUpdate, params: {'phone': phone}, data: {
+      'posName': posName,
+      'posOwnerName': posOwnerName,
+      'posGovernorate': posGovernorate,
+      'posAddress': posAddress,
+    });
+  }
+
   /// Revoke a POS user (removes the login + releases the slot).
   Future<void> revoke({required String entityId, required String phone}) async {
     await _api.delete(Endpoints.posUsersRevoke, params: {'entityId': entityId, 'phone': phone});

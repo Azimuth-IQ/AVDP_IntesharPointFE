@@ -77,6 +77,7 @@ class AgentStrings {
   String get fieldLandmark => pick('Nearest landmark', 'أقرب نقطة دالة');
   String get fieldLat => pick('Latitude', 'خط العرض');
   String get fieldLng => pick('Longitude', 'خط الطول');
+  String get pickOnMap => pick('Pick on map', 'اختر على الخريطة');
   String get fieldPhone => pick('Contact phone', 'هاتف التواصل');
   String get fieldEmail => pick('Contact email', 'البريد الإلكتروني');
   String get sectionBranding => pick('Branding (optional)', 'الهوية البصرية (اختياري)');

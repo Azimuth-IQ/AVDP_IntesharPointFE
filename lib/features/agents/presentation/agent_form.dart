@@ -18,8 +18,10 @@ import 'package:inteshar/shared/widgets/color_hex_field.dart';
 import 'package:inteshar/features/system_activity/domain/feed_rows.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/image_upload_field.dart';
+import 'package:inteshar/shared/widgets/map_location_picker.dart';
 import 'package:inteshar/shared/widgets/password_field.dart';
 import 'package:inteshar/shared/widgets/working_hours_editor.dart';
+import 'package:latlong2/latlong.dart';
 
 String _genId(String prefix) {
   final rand = Random.secure();
@@ -118,6 +120,19 @@ class _AgentFormState extends ConsumerState<AgentForm> {
     if (tier.requiresParentPicker) {
       _loadParents();
     }
+  }
+
+  /// Pick the entity's location on a map (B-037) and fill the lat/lng fields.
+  Future<void> _pickOnMap() async {
+    final lat = double.tryParse(_lat.text.trim());
+    final lng = double.tryParse(_lng.text.trim());
+    final initial = (lat != null && lng != null) ? LatLng(lat, lng) : null;
+    final picked = await pickLocationOnMap(context, initial: initial);
+    if (picked == null) return;
+    setState(() {
+      _lat.text = picked.latitude.toStringAsFixed(6);
+      _lng.text = picked.longitude.toStringAsFixed(6);
+    });
   }
 
   @override
@@ -535,6 +550,15 @@ class _AgentFormState extends ConsumerState<AgentForm> {
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: OutlinedButton.icon(
+            onPressed: _pickOnMap,
+            icon: const Icon(Icons.map_outlined, size: 18),
+            label: Text(s.pickOnMap),
+          ),
         ),
         const SizedBox(height: 12),
         TextField(

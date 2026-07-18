@@ -1420,7 +1420,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get navCompanies => 'الشركات';
 
   @override
-  String get navStores => 'نقاط البيع';
+  String get navStores => 'المتاجر';
 
   @override
   String get navPrices => 'الأسعار';

@@ -66,6 +66,11 @@ class _S {
   String get done => p('Done', 'تم');
   String get revokeConfirm => p('Revoke this POS user? Their login stops and the slot is returned.',
       'إلغاء هذه النقطة؟ سيتوقف دخولها وتعود النقطة للرصيد.');
+  String get required => p('Required', 'مطلوب');
+  String get invalidPhone => p('Invalid phone (e.g. 07XXXXXXXXX)', 'رقم غير صحيح (مثال 07XXXXXXXXX)');
+  String get edit => p('Edit', 'تعديل');
+  String get editPos => p('Edit POS', 'تعديل نقطة البيع');
+  String get save => p('Save', 'حفظ');
 }
 
 class _PosAdminPageState extends ConsumerState<PosAdminPage> {
@@ -288,6 +293,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     final owner = TextEditingController();
     final addr = TextEditingController();
     String? gov;
+    final formKey = GlobalKey<FormState>();
     final loc = Localizations.localeOf(context).languageCode;
     final ok = await showDialog<bool>(
       context: context,
@@ -295,29 +301,48 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
         builder: (ctx, setD) => AlertDialog(
           title: Text(s.onboard),
           content: SingleChildScrollView(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              _field(phone, s.phone, keyboard: TextInputType.phone, digitsOnly: true),
-              _field(pw, s.password, obscure: true),
-              _field(name, s.posName),
-              _field(owner, s.ownerName),
-              DropdownButtonFormField<String>(
-                initialValue: gov,
-                isExpanded: true,
-                decoration: InputDecoration(labelText: s.governorate, isDense: true),
-                items: [for (final g in kGovernorates) DropdownMenuItem(value: g.code, child: Text(governorateLabel(g.code, loc)))],
-                onChanged: (v) => setD(() => gov = v),
-              ),
-              _field(addr, s.address),
-            ]),
+            child: Form(
+              key: formKey,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                // B-044: every field is mandatory — nothing optional.
+                _field(phone, s.phone,
+                    keyboard: TextInputType.phone,
+                    digitsOnly: true,
+                    validator: (v) {
+                      final t = v?.trim() ?? '';
+                      if (t.isEmpty) return s.required;
+                      if (!RegExp(r'^07\d{9}$').hasMatch(t)) return s.invalidPhone;
+                      return null;
+                    }),
+                _field(pw, s.password, obscure: true, validator: _req(s)),
+                _field(name, s.posName, validator: _req(s)),
+                _field(owner, s.ownerName, validator: _req(s)),
+                DropdownButtonFormField<String>(
+                  initialValue: gov,
+                  isExpanded: true,
+                  decoration: InputDecoration(labelText: s.governorate, isDense: true),
+                  items: [for (final g in kGovernorates) DropdownMenuItem(value: g.code, child: Text(governorateLabel(g.code, loc)))],
+                  validator: (v) => (v == null || v.isEmpty) ? s.required : null,
+                  onChanged: (v) => setD(() => gov = v),
+                ),
+                _field(addr, s.address, validator: _req(s)),
+              ]),
+            ),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.cancel)),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.create)),
+            FilledButton(
+              onPressed: () {
+                if (formKey.currentState?.validate() ?? false) Navigator.pop(ctx, true);
+              },
+              child: Text(s.create),
+            ),
           ],
         ),
       ),
     );
-    if (ok == true && phone.text.trim().isNotEmpty && pw.text.isNotEmpty) {
+    if (ok == true) {
       await _run(
         () => _repo.onboard(
           entityId: _effectiveId ?? '',
@@ -446,17 +471,25 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
   }
 
   Widget _field(TextEditingController c, String label,
-      {bool obscure = false, TextInputType? keyboard, bool digitsOnly = false}) {
+      {bool obscure = false,
+      TextInputType? keyboard,
+      bool digitsOnly = false,
+      String? Function(String?)? validator}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: obscure
-          ? PasswordField(controller: c, label: label, isDense: true)
-          : TextField(
+          ? PasswordField(controller: c, label: label, isDense: true, validator: validator)
+          : TextFormField(
               controller: c,
               keyboardType: keyboard,
               inputFormatters: digitsOnly ? [FilteringTextInputFormatter.digitsOnly] : null,
+              validator: validator,
               decoration: InputDecoration(labelText: label, isDense: true),
             ),
     );
   }
+
+  /// Non-empty validator for the required POS fields (B-044 — every field mandatory).
+  String? Function(String?) _req(_S s) =>
+      (v) => (v == null || v.trim().isEmpty) ? s.required : null;
 }

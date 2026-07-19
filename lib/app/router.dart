@@ -13,7 +13,6 @@ import 'package:inteshar/features/inventory/presentation/definitions_page.dart';
 import 'package:inteshar/features/inventory/presentation/print_operations_page.dart';
 import 'package:inteshar/features/inventory/presentation/voucher_templates_page.dart';
 import 'package:inteshar/features/inventory/presentation/inventory_page.dart';
-import 'package:inteshar/features/inventory/presentation/points_transfer_page.dart';
 import 'package:inteshar/features/inventory/presentation/child_inventory_page.dart';
 import 'package:inteshar/features/notifications/presentation/notifications_compose_page.dart';
 import 'package:inteshar/features/slider/presentation/slider_management_page.dart';
@@ -31,8 +30,6 @@ import 'package:inteshar/features/pos_admin/presentation/pos_admin_page.dart';
 import 'package:inteshar/features/reports/presentation/reports_page.dart';
 import 'package:inteshar/features/stores/presentation/stores_page.dart';
 import 'package:inteshar/features/system_activity/presentation/system_activity_page.dart';
-import 'package:inteshar/features/transactions/presentation/new_transaction_page.dart';
-import 'package:inteshar/features/transactions/presentation/transactions_page.dart';
 import 'package:inteshar/shared/widgets/app_scaffold.dart';
 
 /// The app's root Navigator key. Shared so widgets that live in `MaterialApp.builder`
@@ -98,11 +95,6 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // Detail routes (pushed on top, outside the shell) — keep their own
       // back-aware AppBars.
-      GoRoute(path: '/hq/transactions/new', builder: (_, _) => const NewTransactionPage()),
-      GoRoute(path: '/agent1/transactions/new', builder: (_, _) => const NewTransactionPage()),
-      GoRoute(path: '/agent2/transactions/new', builder: (_, _) => const NewTransactionPage()),
-      // No /store/transactions/new: a STORE is the leaf (load + print only), it never
-      // initiates transactions (BRD). The New-Transaction affordance is hidden for stores.
 
       // Child-inventory drill-in (read-only). HQ + Distributor browse a
       // downstream entity's stock; pushed outside the shell with its own AppBar.
@@ -143,7 +135,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/hq/definitions', builder: (_, _) => const DefinitionsPage()),
           GoRoute(path: '/hq/templates', builder: (_, _) => const VoucherTemplatesPage()),
           GoRoute(path: '/hq/inventory', builder: (_, _) => const InventoryPage()),
-          GoRoute(path: '/hq/points-transfer', builder: (_, _) => const PointsTransferPage()),
           GoRoute(path: '/hq/batch', builder: (_, _) => const BatchAddPage()),
           GoRoute(path: '/hq/print-operations', builder: (_, _) => const PrintOperationsPage()),
           GoRoute(path: '/hq/users', builder: (_, _) => const HqUsersPage()),
@@ -151,7 +142,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/hq/notifications', builder: (_, _) => const NotificationsComposePage()),
           GoRoute(path: '/hq/slider', builder: (_, _) => const SliderManagementPage()),
           GoRoute(path: '/hq/app-download', builder: (_, _) => const AppDownloadPage()),
-          GoRoute(path: '/hq/transactions', builder: (_, _) => const TransactionsPage()),
           GoRoute(path: '/hq/reports', builder: (_, _) => const ReportsPage()),
           GoRoute(path: '/hq/pos-users', builder: (_, _) => const PosAdminPage()),
 
@@ -159,7 +149,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/agent1/home', builder: (_, _) => const DashboardPage()),
           GoRoute(path: '/agent1/entities', builder: (_, _) => const EntityTreePage()),
           GoRoute(path: '/agent1/inventory', builder: (_, _) => const InventoryPage(readOnly: true)),
-          GoRoute(path: '/agent1/transactions', builder: (_, _) => const TransactionsPage()),
           GoRoute(path: '/agent1/pricing', builder: (_, _) => const PricingPage()),
           GoRoute(path: '/agent1/reports', builder: (_, _) => const ReportsPage()),
           GoRoute(path: '/agent1/pos-users', builder: (_, _) => const PosAdminPage()),
@@ -170,7 +159,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           // from its parent's pool at print time (draw-on-print), B-042.
           GoRoute(path: '/agent2/home', builder: (_, _) => const DashboardPage()),
           GoRoute(path: '/agent2/entities', builder: (_, _) => const EntityTreePage()),
-          GoRoute(path: '/agent2/transactions', builder: (_, _) => const TransactionsPage()),
           GoRoute(path: '/agent2/stores', builder: (_, _) => const StoresPage()),
           GoRoute(path: '/agent2/reports', builder: (_, _) => const ReportsPage()),
           GoRoute(path: '/agent2/pos-users', builder: (_, _) => const PosAdminPage()),

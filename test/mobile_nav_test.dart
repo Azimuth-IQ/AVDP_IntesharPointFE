@@ -62,7 +62,8 @@ void main() {
 
     // Primary four are present; the three setup routes are NOT on the bar.
     // (HQ home/index-0 is the System Activity oversight screen, not a dashboard.)
-    for (final label in ['System Activity', 'Hierarchy', 'Inventory', 'Transactions', 'More']) {
+    // B-051: Transactions is retired — Print Ops moves up into the primaries.
+    for (final label in ['System Activity', 'Hierarchy', 'Inventory', 'Print Ops', 'More']) {
       expect(find.text(label), findsWidgets, reason: '$label should be on the bar');
     }
     for (final hidden in ['Catalog', 'Templates', 'Batch Add']) {

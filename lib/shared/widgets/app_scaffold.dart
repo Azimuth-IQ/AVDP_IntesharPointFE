@@ -182,11 +182,6 @@ class AppShell extends ConsumerWidget {
         // handled by _buildSidebarEntries (contiguous per group), independent of this
         // flat order — so this list stays frequency-first for the mobile bottom bar.
         //
-        // Stock reallocation has no ARB key yet — labelled inline (mirrors the
-        // inline-localized strings used by the reallocation page itself).
-        final reallocLabel = l.localeName.startsWith('ar')
-            ? 'إعادة التوزيع'
-            : 'Reallocation';
         return [
           _NavItem(
             Icons.monitor_heart_outlined,
@@ -203,14 +198,6 @@ class AppShell extends ConsumerWidget {
             '/hq/inventory',
             required: Capability.VIEW_REPORTS,
             group: 'inventory_stock',
-          ),
-          _NavItem(
-            Icons.swap_horiz_outlined,
-            Icons.swap_horiz,
-            l.navTransactions,
-            '/hq/transactions',
-            required: Capability.VIEW_REPORTS,
-            group: 'distribution',
           ),
           _NavItem(
             Icons.account_tree_outlined,
@@ -252,14 +239,6 @@ class AppShell extends ConsumerWidget {
             '/hq/batch',
             required: Capability.MANAGE_CATALOG,
             group: 'inventory_stock',
-          ),
-          _NavItem(
-            Icons.move_down_outlined,
-            Icons.move_down,
-            reallocLabel,
-            '/hq/points-transfer',
-            required: Capability.AGENT_ADMIN,
-            group: 'distribution',
           ),
           _NavItem(
             Icons.badge_outlined,
@@ -367,13 +346,6 @@ class AppShell extends ConsumerWidget {
             group: 'operations',
           ),
           _NavItem(
-            Icons.swap_horiz_outlined,
-            Icons.swap_horiz,
-            l.navTransactions,
-            '/agent1/transactions',
-            group: 'operations',
-          ),
-          _NavItem(
             Icons.warehouse_outlined,
             Icons.warehouse,
             l.navInventory,
@@ -430,13 +402,6 @@ class AppShell extends ConsumerWidget {
             Icons.dashboard,
             l.navDashboard,
             '/agent2/home',
-            group: 'operations',
-          ),
-          _NavItem(
-            Icons.swap_horiz_outlined,
-            Icons.swap_horiz,
-            l.navTransactions,
-            '/agent2/transactions',
             group: 'operations',
           ),
           _NavItem(

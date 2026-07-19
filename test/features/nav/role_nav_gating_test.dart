@@ -7,9 +7,9 @@
 //   * Neither agent tier sees HQ-only sections (Companies/Catalog/Templates).
 //
 // Both agent tiers have >5 destinations, so the phone bar shows 4 primaries
-// + a "More" overflow. AGENT1's primaries are Dashboard, Transactions,
+// + a "More" overflow. AGENT1's primaries are Dashboard, Inventory,
 // Inventory, Children; AGENT2 has NO Inventory (draw-on-print, B-042), so its
-// primaries are Dashboard, Transactions, Children, Reports.
+// primaries are Dashboard, Children, Reports, POS points (B-051 retired Transactions).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -70,7 +70,7 @@ void main() {
     expect(bar.destinations.length, 5,
         reason: 'AGENT1 has >5 destinations → 4 primary + More');
 
-    for (final label in ['Dashboard', 'Transactions', 'Inventory', 'Children', 'More']) {
+    for (final label in ['Dashboard', 'Inventory', 'Children', 'Reports', 'More']) {
       expect(find.text(label), findsWidgets, reason: '$label should be on the bar');
     }
     // HQ-only sections never appear for an agent.
@@ -94,7 +94,7 @@ void main() {
 
     // B-042: a Sub-Agent holds no stock (it draws from its parent's pool at
     // print time), so — unlike AGENT1 — it has NO Inventory destination.
-    for (final label in ['Dashboard', 'Transactions', 'Children', 'More']) {
+    for (final label in ['Dashboard', 'Children', 'Reports', 'More']) {
       expect(find.text(label), findsWidgets, reason: '$label should be on the bar');
     }
     expect(find.text('Inventory'), findsNothing, reason: 'AGENT2 has no inventory (B-042)');

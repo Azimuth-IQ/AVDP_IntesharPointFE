@@ -17,8 +17,6 @@ import 'package:inteshar/features/inventory/data/product_repository.dart';
 import 'package:inteshar/features/inventory/domain/product.dart';
 import 'package:inteshar/features/pricing/data/pricing_repository.dart';
 import 'package:inteshar/features/pricing/domain/pricing_models.dart';
-import 'package:inteshar/features/transactions/data/transaction_repository.dart';
-import 'package:inteshar/features/transactions/domain/transaction.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
@@ -29,10 +27,9 @@ import 'package:inteshar/shared/widgets/role_badge.dart';
 
 class _DashData {
   final List<Product> products;
-  // Newest transactions visible to this account (server-capped, B-023) — the
-  // dashboard no longer downloads the whole history.
-  final List<AppTransaction> recentTxns;
-  final Map<String, String> entityNames; // id → name (children + txn parties)
+  // Newest balance transfers touching this account (B-051: the transaction
+  // flow is retired — HQ uploads stock directly; value moves as balance).
+  final List<GrantRow> recentTransfers;
   final int childCount; // direct children
   final List<EntitySummaryRow>
   children; // direct children (for the balance transfer picker)
@@ -40,8 +37,7 @@ class _DashData {
 
   const _DashData({
     required this.products,
-    required this.recentTxns,
-    required this.entityNames,
+    required this.recentTransfers,
     required this.childCount,
     required this.children,
     required this.balance,
@@ -81,34 +77,17 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         return;
       }
       final api = ref.read(apiClientProvider);
-      // B-023: recent-N transactions + one page of direct children instead of
-      // downloading every transaction and every entity at each dashboard open.
+      // B-051: the recent-activity card shows balance transfers (the ledger
+      // already carries resolved names), not the retired transaction flow.
       final results = await Future.wait([
         ProductRepository(api).readByEntity(entity.id),
-        TransactionRepository(api).recent(limit: 50),
+        PricingRepository(api).grants(),
         EntityRepository(api).children(entity.id, size: 200),
       ]);
       final products = results[0] as List<Product>;
-      final recentTxns = results[1] as List<AppTransaction>;
+      final transfers = (results[1] as List<GrantRow>).toList()
+        ..sort((a, b) => '${b.date} ${b.time}'.compareTo('${a.date} ${a.time}'));
       final children = (results[2] as Paged<EntitySummaryRow>).items;
-      final entityNames = <String, String>{
-        for (final c in children) c.id: c.name,
-        entity.id: entity.meta.name,
-      };
-      // Resolve any transaction party we don't already know (usually just the
-      // parent) — bounded by the recent list, not the entity collection.
-      final missing = <String>{};
-      for (final t in recentTxns) {
-        for (final id in [t.sourceId, t.destinationId]) {
-          if (id.isNotEmpty && !entityNames.containsKey(id)) missing.add(id);
-        }
-      }
-      final entityRepo = EntityRepository(api);
-      for (final id in missing) {
-        try {
-          entityNames[id] = (await entityRepo.read(id)).meta.name;
-        } catch (_) {}
-      }
       // Balance is best-effort: a failure here must not blank the dashboard.
       AgentBalance balance = const AgentBalance();
       try {
@@ -117,8 +96,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       setState(() {
         _data = _DashData(
           products: products,
-          recentTxns: recentTxns,
-          entityNames: entityNames,
+          recentTransfers: transfers.take(5).toList(),
           childCount: entity.childrenIds.length,
           children: children,
           balance: balance,
@@ -212,16 +190,6 @@ class _DashContent extends StatelessWidget {
       }
     }
 
-    // Transactions involving this entity (within the server-capped recent list)
-    final myTxns = data.recentTxns
-        .where((t) => t.sourceId == entity.id || t.destinationId == entity.id)
-        .toList();
-    // Sort descending by date then time
-    myTxns.sort((a, b) {
-      final dc = b.date.compareTo(a.date);
-      return dc != 0 ? dc : b.time.compareTo(a.time);
-    });
-    final recentTxns = myTxns.take(5).toList();
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(0, 0, 0, 40),
@@ -251,7 +219,6 @@ class _DashContent extends StatelessWidget {
             childCount: data.childCount,
             availableCount: availableProducts.length,
             availableSkuCount: availableSkus.length,
-            txnCount: myTxns.length,
             lowStockCount: lowSkus.length,
             showInventory: entity.type.inventoryBacked,
           ),
@@ -262,8 +229,7 @@ class _DashContent extends StatelessWidget {
           padding: const EdgeInsetsDirectional.fromSTEB(24, 20, 24, 0),
           child: _BodyRow(
             entity: entity,
-            recentTxns: recentTxns,
-            entityNames: data.entityNames,
+            transfers: data.recentTransfers,
             lowSkus: lowSkus,
             l: l,
           ),
@@ -325,7 +291,6 @@ class _KpiRow extends StatelessWidget {
   final int childCount;
   final int availableCount;
   final int availableSkuCount;
-  final int txnCount;
   final int lowStockCount;
   final bool showInventory;
 
@@ -333,7 +298,6 @@ class _KpiRow extends StatelessWidget {
     required this.childCount,
     required this.availableCount,
     required this.availableSkuCount,
-    required this.txnCount,
     required this.lowStockCount,
     required this.showInventory,
   });
@@ -359,13 +323,6 @@ class _KpiRow extends StatelessWidget {
           icon: Icons.inventory_2_outlined,
           tint: const Color(0xFF2563EB),
         ),
-      _KpiTile(
-        label: l.dashKpiTransactions,
-        value: Formatters.money(txnCount),
-        caption: l.dashKpiThisAccount,
-        icon: Icons.swap_horiz,
-        tint: IntesharColors.sage,
-      ),
       if (showInventory)
         _KpiTile(
           label: l.dashKpiLowStock,
@@ -526,15 +483,13 @@ String _rolePrefix(EntityType type) => switch (type) {
 
 class _BodyRow extends StatelessWidget {
   final Entity entity;
-  final List<AppTransaction> recentTxns;
-  final Map<String, String> entityNames;
+  final List<GrantRow> transfers;
   final Map<String, ({String name, int count})> lowSkus;
   final AppLocalizations l;
 
   const _BodyRow({
     required this.entity,
-    required this.recentTxns,
-    required this.entityNames,
+    required this.transfers,
     required this.lowSkus,
     required this.l,
   });
@@ -544,12 +499,16 @@ class _BodyRow extends StatelessWidget {
     return LayoutBuilder(
       builder: (ctx, c) {
         final wide = c.maxWidth >= 900;
-        final txnCard = _RecentTransactionsCard(
-          txns: recentTxns,
-          entityNames: entityNames,
-          onViewAll: entity.type == EntityType.STORE
-              ? null
-              : () => ctx.go('${_rolePrefix(entity.type)}/transactions'),
+        // Only agents have the full transfers page (B-056); HQ/stores see the
+        // card without a deep link.
+        final hasTransfersPage = entity.type == EntityType.AGENT1 ||
+            entity.type == EntityType.AGENT2;
+        final txnCard = _RecentTransfersCard(
+          transfers: transfers,
+          selfId: entity.id,
+          onViewAll: hasTransfersPage
+              ? () => ctx.go('${_rolePrefix(entity.type)}/transfers')
+              : null,
           l: l,
         );
         // Low-stock is an inventory concern — only for inventory-backed tiers.
@@ -573,154 +532,135 @@ class _BodyRow extends StatelessWidget {
   }
 }
 
-// ─── Recent transactions card ─────────────────────────────────────────────────
+// ─── Recent transfers card (B-051) ───────────────────────────────────────────
 
-class _RecentTransactionsCard extends StatelessWidget {
-  final List<AppTransaction> txns;
-  final Map<String, String> entityNames;
+/// Newest balance transfers touching this account, from the grant ledger
+/// (`GET /api/balance/grants` — names resolved server-side). Sent transfers
+/// show the destination, received ones the source.
+class _RecentTransfersCard extends StatelessWidget {
+  final List<GrantRow> transfers;
+  final String selfId;
 
-  /// Deep-link to the full transactions page; null hides the link (stores
-  /// have no transactions route — they hold no cards since draw-on-print).
+  /// Deep-link to the full transfers page (agents only, B-056); null hides it.
   final VoidCallback? onViewAll;
   final AppLocalizations l;
 
-  const _RecentTransactionsCard({
-    required this.txns,
-    required this.entityNames,
+  const _RecentTransfersCard({
+    required this.transfers,
+    required this.selfId,
     required this.onViewAll,
     required this.l,
   });
 
-  String _resolveName(String id) => entityNames[id] ?? id;
-
-  Color _statusColor(TransactionStatus s) {
-    return switch (s) {
-      TransactionStatus.COMPLETED => IntesharColors.sage,
-      TransactionStatus.FAILED => IntesharColors.oxblood,
-      _ => IntesharColors.saffronDeep,
-    };
-  }
-
-  String _statusLabel(TransactionStatus s, AppLocalizations l) {
-    return switch (s) {
-      TransactionStatus.COMPLETED => l.txnStatusComplete,
-      TransactionStatus.PENDING => l.txnStatusPending,
-      TransactionStatus.PROCESSING => l.txnStatusProcessing,
-      TransactionStatus.FAILED => l.txnStatusFailed,
-    };
-  }
-
-  ({
-    String route,
-    String meta,
-    String skuLabel,
-    int qty,
-    int amount,
-    TransactionStatus status,
-  })
-  _rowData(int i) {
-    final tx = txns[i];
-    final shortId = tx.id.length > 8 ? tx.id.substring(0, 8) : tx.id;
-    final skuLabel = tx.lines.isEmpty
-        ? '—'
-        : tx.lines.length == 1
-        ? tx.lines.first.sku
-        : '${tx.lines.length} SKUs';
-    return (
-      route: '${_resolveName(tx.sourceId)} → ${_resolveName(tx.destinationId)}',
-      meta: '#$shortId · ${tx.date} ${tx.time}',
-      skuLabel: skuLabel,
-      qty: tx.lines.fold(0, (s, ln) => s + (int.tryParse(ln.amount) ?? 0)),
-      amount: tx.lines.fold(
-        0,
-        (s, ln) => s + (int.tryParse(ln.lineTotal) ?? 0),
-      ),
-      status: tx.status,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
 
     return InkCard(
       padding: EdgeInsets.zero,
-      child: LayoutBuilder(
-        builder: (context, c) {
-          // The columnar table needs room for the fixed SKU/qty/status/amount
-          // columns; narrower than this it would overflow, so stack each row.
-          final compact = c.maxWidth < 500;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Padding(
-                padding: const EdgeInsetsDirectional.fromSTEB(20, 14, 12, 12),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        l.dashRecentTransactions,
-                        style: IntesharType.sans(
-                          14,
-                          color: cs.onSurface,
-                          w: FontWeight.w700,
-                        ),
-                      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(20, 14, 12, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    ar ? 'آخر التحويلات' : 'Recent transfers',
+                    style: IntesharType.sans(
+                      14,
+                      color: cs.onSurface,
+                      w: FontWeight.w700,
                     ),
-                    if (onViewAll != null)
-                      _ViewAllLink(label: l.dashViewAll, onTap: onViewAll!),
-                  ],
-                ),
-              ),
-              const Hairline(),
-
-              if (txns.isEmpty)
-                _InlineEmpty(message: l.dashNoTransactions)
-              else if (compact)
-                ...List.generate(
-                  txns.length,
-                  (i) => _CompactTxnRow(
-                    data: _rowData(i),
-                    last: i == txns.length - 1,
-                    statusLabel: _statusLabel,
-                    statusColor: _statusColor,
-                    l: l,
-                  ),
-                )
-              else ...[
-                Padding(
-                  padding: const EdgeInsetsDirectional.fromSTEB(20, 10, 20, 10),
-                  child: _TxnHeaderRow(l: l),
-                ),
-                const Hairline(),
-                ...List.generate(
-                  txns.length,
-                  (i) => _ColumnarTxnRow(
-                    data: _rowData(i),
-                    last: i == txns.length - 1,
-                    statusLabel: _statusLabel,
-                    statusColor: _statusColor,
-                    l: l,
                   ),
                 ),
+                if (onViewAll != null)
+                  _ViewAllLink(label: l.dashViewAll, onTap: onViewAll!),
               ],
-            ],
-          );
-        },
+            ),
+          ),
+          const Hairline(),
+          if (transfers.isEmpty)
+            _InlineEmpty(message: ar ? 'لا توجد تحويلات بعد.' : 'No transfers yet.')
+          else
+            ...List.generate(transfers.length, (i) {
+              final g = transfers[i];
+              final sent = g.sourceId == selfId;
+              final other = sent
+                  ? (g.destName.isNotEmpty ? g.destName : g.destId)
+                  : (g.sourceName.isNotEmpty ? g.sourceName : g.sourceId);
+              final tint = sent ? cs.error : IntesharColors.sage;
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding:
+                        const EdgeInsetsDirectional.fromSTEB(20, 10, 20, 10),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            color: tint.withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                          alignment: Alignment.center,
+                          child: Icon(
+                            sent ? Icons.north_east : Icons.south_west,
+                            size: 16,
+                            color: tint,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                sent
+                                    ? (ar ? 'إلى $other' : 'To $other')
+                                    : (ar ? 'من $other' : 'From $other'),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: IntesharType.sans(
+                                  13,
+                                  color: cs.onSurface,
+                                  w: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 1),
+                              Text(
+                                '${g.date} ${g.time}',
+                                style: IntesharType.mono(
+                                  11,
+                                  color: cs.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          '${sent ? '−' : '+'}${Formatters.iqd(g.amount.round())}',
+                          style: IntesharType.mono(
+                            13,
+                            color: tint,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (i != transfers.length - 1) const Hairline(),
+                ],
+              );
+            }),
+        ],
       ),
     );
   }
 }
-
-typedef _TxnRowData = ({
-  String route,
-  String meta,
-  String skuLabel,
-  int qty,
-  int amount,
-  TransactionStatus status,
-});
 
 /// Tappable "View all →" link with proper hover/focus/pressed feedback.
 class _ViewAllLink extends StatelessWidget {
@@ -803,216 +743,6 @@ class _InlineEmpty extends StatelessWidget {
 }
 
 /// Stacked two-line transaction row for narrow widths (phones, side panel).
-class _CompactTxnRow extends StatelessWidget {
-  final _TxnRowData data;
-  final bool last;
-  final String Function(TransactionStatus, AppLocalizations) statusLabel;
-  final Color Function(TransactionStatus) statusColor;
-  final AppLocalizations l;
-  const _CompactTxnRow({
-    required this.data,
-    required this.last,
-    required this.statusLabel,
-    required this.statusColor,
-    required this.l,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(20, 12, 20, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      data.route,
-                      style: IntesharType.sans(
-                        13,
-                        color: cs.onSurface,
-                        w: FontWeight.w600,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  StampPill(
-                    label: statusLabel(data.status, l),
-                    color: statusColor(data.status),
-                    fontSize: 10,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      data.meta,
-                      style: IntesharType.mono(
-                        10,
-                        color: IntesharColors.inkSoft,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    Formatters.iqd(data.amount),
-                    style: IntesharType.mono(
-                      12,
-                      color: cs.onSurface,
-                      w: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        if (!last) const Hairline(),
-      ],
-    );
-  }
-}
-
-/// Columnar transaction row for wide widths (desktop, tablet).
-class _ColumnarTxnRow extends StatelessWidget {
-  final _TxnRowData data;
-  final bool last;
-  final String Function(TransactionStatus, AppLocalizations) statusLabel;
-  final Color Function(TransactionStatus) statusColor;
-  final AppLocalizations l;
-  const _ColumnarTxnRow({
-    required this.data,
-    required this.last,
-    required this.statusLabel,
-    required this.statusColor,
-    required this.l,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(20, 12, 20, 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      data.route,
-                      style: IntesharType.sans(
-                        13,
-                        color: cs.onSurface,
-                        w: FontWeight.w600,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      data.meta,
-                      style: IntesharType.mono(
-                        10,
-                        color: IntesharColors.inkSoft,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(
-                width: 80,
-                child: Text(
-                  data.skuLabel,
-                  style: IntesharType.sans(12, color: cs.onSurface),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              SizedBox(
-                width: 44,
-                child: Text(
-                  Formatters.money(data.qty),
-                  textAlign: TextAlign.end,
-                  style: IntesharType.sans(12, color: cs.onSurface),
-                ),
-              ),
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 96,
-                child: Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: StampPill(
-                    label: statusLabel(data.status, l),
-                    color: statusColor(data.status),
-                    fontSize: 10,
-                  ),
-                ),
-              ),
-              SizedBox(
-                width: 100,
-                child: Text(
-                  Formatters.iqd(data.amount),
-                  textAlign: TextAlign.end,
-                  style: IntesharType.mono(11, color: cs.onSurface),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (!last) const Hairline(),
-      ],
-    );
-  }
-}
-
-class _TxnHeaderRow extends StatelessWidget {
-  final AppLocalizations l;
-  const _TxnHeaderRow({required this.l});
-
-  @override
-  Widget build(BuildContext context) {
-    final style = IntesharType.sans(
-      11,
-      color: IntesharColors.inkSoft,
-      w: FontWeight.w700,
-    );
-    return Row(
-      children: [
-        Expanded(child: Text(l.dashColRoute, style: style)),
-        SizedBox(width: 80, child: Text(l.dashColSku, style: style)),
-        SizedBox(
-          width: 44,
-          child: Text(l.dashColQty, textAlign: TextAlign.end, style: style),
-        ),
-        const SizedBox(width: 8),
-        SizedBox(width: 96, child: Text(l.dashColStatus, style: style)),
-        SizedBox(
-          width: 100,
-          child: Text(l.dashColAmount, textAlign: TextAlign.end, style: style),
-        ),
-      ],
-    );
-  }
-}
-
 // ─── Virtual balance card ─────────────────────────────────────────────────────
 
 class _BalanceCard extends StatelessWidget {

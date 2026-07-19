@@ -47,6 +47,185 @@ class _PS {
   String get inactive => p('Disabled', 'معطّل');
 }
 
+/// Inline, server-searched multi-select entity list (B-023 P1) — the shared
+/// box behind the notification/slider targeting editors. The parent owns
+/// [selectedIds]; this widget owns the debounced search + paged results and
+/// reports toggles via [onToggle]. Rows checked in an earlier search stay
+/// selected (the id set is independent of the visible page).
+class EntityMultiSearchList extends StatefulWidget {
+  const EntityMultiSearchList({
+    super.key,
+    required this.repository,
+    required this.selectedIds,
+    required this.onToggle,
+    this.height = 240,
+  });
+
+  final EntityRepository repository;
+  final Set<String> selectedIds;
+  final void Function(String id, bool selected) onToggle;
+  final double height;
+
+  @override
+  State<EntityMultiSearchList> createState() => _EntityMultiSearchListState();
+}
+
+class _EntityMultiSearchListState extends State<EntityMultiSearchList> {
+  final List<EntitySummaryRow> _rows = [];
+  bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasMore = false;
+  Object? _error;
+  int _page = 0;
+  String _query = '';
+  Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onSearch(String v) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () {
+      _query = v.trim();
+      _reload();
+    });
+  }
+
+  Future<void> _reload() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final page = await widget.repository.search(q: _query);
+      if (!mounted) return;
+      setState(() {
+        _rows
+          ..clear()
+          ..addAll(page.items);
+        _hasMore = page.hasMore;
+        _page = 0;
+        _loading = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e;
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore) return;
+    setState(() => _loadingMore = true);
+    try {
+      final next = _page + 1;
+      final page = await widget.repository.search(q: _query, page: next);
+      if (!mounted) return;
+      setState(() {
+        _rows.addAll(page.items);
+        _hasMore = page.hasMore;
+        _page = next;
+        _loadingMore = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadingMore = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = _PS.of(context);
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          decoration: InputDecoration(
+            labelText: s.search,
+            isDense: true,
+            prefixIcon: const Icon(Icons.search, size: 18),
+          ),
+          onChanged: _onSearch,
+        ),
+        const SizedBox(height: 6),
+        Container(
+          height: widget.height,
+          decoration: BoxDecoration(
+            border: Border.all(color: cs.outlineVariant),
+            borderRadius: BorderRadius.circular(IntesharRadii.sm),
+          ),
+          child: _box(s, cs),
+        ),
+      ],
+    );
+  }
+
+  Widget _box(_PS s, ColorScheme cs) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) {
+      return Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(friendlyError(_error!, context),
+              textAlign: TextAlign.center,
+              style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+          const SizedBox(height: 8),
+          OutlinedButton(onPressed: _reload, child: Text(s.retry)),
+        ]),
+      );
+    }
+    if (_rows.isEmpty) {
+      return Center(
+        child: Text(s.noMatches,
+            style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+      );
+    }
+    return ListView.builder(
+      itemCount: _rows.length + (_hasMore ? 1 : 0),
+      itemBuilder: (ctx, i) {
+        if (i >= _rows.length) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Center(
+              child: _loadingMore
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : TextButton(onPressed: _loadMore, child: Text(s.loadMore)),
+            ),
+          );
+        }
+        final e = _rows[i];
+        return CheckboxListTile(
+          dense: true,
+          controlAffinity: ListTileControlAffinity.leading,
+          value: widget.selectedIds.contains(e.id),
+          onChanged: (v) => widget.onToggle(e.id, v ?? false),
+          title: Text(e.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style:
+                  IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w600)),
+          subtitle: Text(e.type.label,
+              style: IntesharType.sans(11, color: cs.onSurfaceVariant)),
+        );
+      },
+    );
+  }
+}
+
 class _EntitySearchDialog extends StatefulWidget {
   const _EntitySearchDialog({
     required this.repository,

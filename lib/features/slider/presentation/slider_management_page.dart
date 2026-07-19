@@ -8,10 +8,10 @@ import 'package:inteshar/core/geo/governorate_picker.dart';
 import 'package:inteshar/core/geo/governorates.dart';
 import 'package:inteshar/core/upload/upload_repository.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
-import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/slider/data/slider_repository.dart';
 import 'package:inteshar/features/slider/domain/pos_slider.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
+import 'package:inteshar/shared/widgets/entity_search_picker.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/slider_image_crop_dialog.dart';
 
@@ -303,12 +303,6 @@ class _SliderEditorSheetState extends ConsumerState<_SliderEditorSheet> {
   final Set<String> _entityIds = {};
   Set<String> _govs = {};
 
-  List<Entity> _entities = const [];
-  bool _entitiesLoading = false;
-  bool _entitiesLoaded = false;
-  final _searchCtrl = TextEditingController();
-  String _search = '';
-
   bool _uploading = false;
   bool _saving = false;
   String? _error;
@@ -331,33 +325,6 @@ class _SliderEditorSheetState extends ConsumerState<_SliderEditorSheet> {
       _tiers.addAll(e.tierTypes);
       _entityIds.addAll(e.entityIds);
       _govs = e.governorates.toSet();
-    }
-  }
-
-  @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _ensureEntities() async {
-    if (_entitiesLoaded || _entitiesLoading) return;
-    setState(() => _entitiesLoading = true);
-    try {
-      final all = await EntityRepository(ref.read(apiClientProvider)).readAll();
-      all.sort((a, b) {
-        final t = a.type.index.compareTo(b.type.index);
-        return t != 0 ? t : a.meta.name.compareTo(b.meta.name);
-      });
-      if (mounted) {
-        setState(() {
-          _entities = all;
-          _entitiesLoaded = true;
-          _entitiesLoading = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) setState(() => _entitiesLoading = false);
     }
   }
 
@@ -523,10 +490,7 @@ class _SliderEditorSheetState extends ConsumerState<_SliderEditorSheet> {
                 ButtonSegment(value: _Aud.governorate, label: Text(_t(context, 'محافظة', 'Governorate'))),
               ],
               selected: {_aud},
-              onSelectionChanged: (sel) {
-                setState(() => _aud = sel.first);
-                if (_aud == _Aud.entity) _ensureEntities();
-              },
+              onSelectionChanged: (sel) => setState(() => _aud = sel.first),
             ),
             if (_aud == _Aud.tier) _tierPicker(cs),
             if (_aud == _Aud.entity) _entityPicker(cs),
@@ -578,64 +542,25 @@ class _SliderEditorSheetState extends ConsumerState<_SliderEditorSheet> {
     );
   }
 
+  // Server-searched multi-select (B-023): the shared box replaces the old
+  // download-every-entity checkbox list. Selection is an id set, so rows picked
+  // under an earlier search stay selected while the visible page changes.
   Widget _entityPicker(ColorScheme cs) {
-    final q = _search.trim().toLowerCase();
-    final filtered = q.isEmpty
-        ? _entities
-        : _entities
-            .where((e) => e.meta.name.toLowerCase().contains(q) || e.id.toLowerCase().contains(q))
-            .toList();
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextField(
-            controller: _searchCtrl,
-            decoration: InputDecoration(
-              labelText: _t(context, 'بحث', 'Search'),
-              isDense: true,
-              prefixIcon: const Icon(Icons.search, size: 18),
-            ),
-            onChanged: (v) => setState(() => _search = v),
-          ),
           if (_entityIds.isNotEmpty) ...[
-            const SizedBox(height: 6),
             Text(_t(context, 'المحدد: ${_entityIds.length}', 'Selected: ${_entityIds.length}'),
                 style: IntesharType.sans(11.5, color: IntesharColors.saffronDeep, w: FontWeight.w700)),
+            const SizedBox(height: 6),
           ],
-          const SizedBox(height: 6),
-          Container(
-            height: 240,
-            decoration: BoxDecoration(
-              border: Border.all(color: cs.outlineVariant),
-              borderRadius: BorderRadius.circular(IntesharRadii.sm),
-            ),
-            child: _entitiesLoading
-                ? const Center(child: CircularProgressIndicator())
-                : filtered.isEmpty
-                    ? Center(
-                        child: Text(_t(context, 'لا نتائج', 'No results'),
-                            style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)))
-                    : ListView.builder(
-                        itemCount: filtered.length,
-                        itemBuilder: (ctx, i) {
-                          final e = filtered[i];
-                          return CheckboxListTile(
-                            dense: true,
-                            controlAffinity: ListTileControlAffinity.leading,
-                            value: _entityIds.contains(e.id),
-                            onChanged: (v) => setState(
-                                () => (v ?? false) ? _entityIds.add(e.id) : _entityIds.remove(e.id)),
-                            title: Text(e.meta.name.isNotEmpty ? e.meta.name : e.id,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w600)),
-                            subtitle: Text(e.type.name,
-                                style: IntesharType.sans(11, color: cs.onSurfaceVariant)),
-                          );
-                        },
-                      ),
+          EntityMultiSearchList(
+            repository: EntityRepository(ref.read(apiClientProvider)),
+            selectedIds: _entityIds,
+            onToggle: (id, sel) =>
+                setState(() => sel ? _entityIds.add(id) : _entityIds.remove(id)),
           ),
         ],
       ),

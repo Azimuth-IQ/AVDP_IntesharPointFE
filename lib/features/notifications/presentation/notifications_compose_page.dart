@@ -6,10 +6,10 @@ import 'package:intl/intl.dart' hide TextDirection;
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
-import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/notifications/data/notification_repository.dart';
 import 'package:inteshar/features/notifications/domain/app_notification.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
+import 'package:inteshar/shared/widgets/entity_search_picker.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
@@ -201,17 +201,11 @@ class _ComposeCard extends ConsumerStatefulWidget {
 class _ComposeCardState extends ConsumerState<_ComposeCard> {
   final _titleCtrl = TextEditingController();
   final _bodyCtrl = TextEditingController();
-  final _searchCtrl = TextEditingController();
 
   _Mode _mode = _Mode.all;
   final Set<String> _types = {}; // EntityType names
   final Set<String> _entityIds = {};
   bool _posOnly = false;
-
-  List<Entity> _entities = const [];
-  bool _entitiesLoading = false;
-  bool _entitiesLoaded = false;
-  String _search = '';
 
   bool _sending = false;
   String? _error;
@@ -220,28 +214,7 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
   void dispose() {
     _titleCtrl.dispose();
     _bodyCtrl.dispose();
-    _searchCtrl.dispose();
     super.dispose();
-  }
-
-  Future<void> _ensureEntities() async {
-    if (_entitiesLoaded || _entitiesLoading) return;
-    setState(() => _entitiesLoading = true);
-    try {
-      final all = await EntityRepository(ref.read(apiClientProvider)).readAll();
-      all.sort((a, b) {
-        final t = a.type.index.compareTo(b.type.index);
-        return t != 0 ? t : a.meta.name.toLowerCase().compareTo(b.meta.name.toLowerCase());
-      });
-      if (!mounted) return;
-      setState(() {
-        _entities = all;
-        _entitiesLoaded = true;
-        _entitiesLoading = false;
-      });
-    } catch (_) {
-      if (mounted) setState(() => _entitiesLoading = false);
-    }
   }
 
   Future<void> _send() async {
@@ -305,10 +278,7 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
               ButtonSegment(value: _Mode.entity, label: Text(s.modeEntity)),
             ],
             selected: {_mode},
-            onSelectionChanged: (sel) {
-              setState(() => _mode = sel.first);
-              if (_mode == _Mode.entity) _ensureEntities();
-            },
+            onSelectionChanged: (sel) => setState(() => _mode = sel.first),
           ),
           if (_mode == _Mode.type) _typePicker(s, cs),
           if (_mode == _Mode.entity) _entityPicker(s, cs),
@@ -354,56 +324,24 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
         ),
       );
 
+  // Server-searched multi-select (B-023): the shared box replaces the old
+  // download-every-entity checkbox list. Selection is an id set, so rows picked
+  // under an earlier search stay selected while the visible page changes.
   Widget _entityPicker(_S s, ColorScheme cs) {
-    final q = _search.trim().toLowerCase();
-    final filtered = q.isEmpty
-        ? _entities
-        : _entities.where((e) => e.meta.name.toLowerCase().contains(q) || e.id.toLowerCase().contains(q)).toList();
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextField(
-            controller: _searchCtrl,
-            decoration: InputDecoration(
-              labelText: s.searchHint,
-              isDense: true,
-              prefixIcon: const Icon(Icons.search, size: 18),
-            ),
-            onChanged: (v) => setState(() => _search = v),
-          ),
           if (_entityIds.isNotEmpty) ...[
-            const SizedBox(height: 6),
             Text(s.selected(_entityIds.length), style: IntesharType.sans(11.5, color: IntesharColors.saffronDeep, w: FontWeight.w700)),
+            const SizedBox(height: 6),
           ],
-          const SizedBox(height: 6),
-          Container(
-            height: 240,
-            decoration: BoxDecoration(
-              border: Border.all(color: cs.outlineVariant),
-              borderRadius: BorderRadius.circular(IntesharRadii.sm),
-            ),
-            child: _entitiesLoading
-                ? const Center(child: CircularProgressIndicator())
-                : filtered.isEmpty
-                    ? Center(child: Text(s.historyEmpty, style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)))
-                    : ListView.builder(
-                        itemCount: filtered.length,
-                        itemBuilder: (ctx, i) {
-                          final e = filtered[i];
-                          return CheckboxListTile(
-                            dense: true,
-                            controlAffinity: ListTileControlAffinity.leading,
-                            value: _entityIds.contains(e.id),
-                            onChanged: (v) => setState(() => (v ?? false) ? _entityIds.add(e.id) : _entityIds.remove(e.id)),
-                            title: Text(e.meta.name.isNotEmpty ? e.meta.name : e.id,
-                                maxLines: 1, overflow: TextOverflow.ellipsis,
-                                style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w600)),
-                            subtitle: Text(s.tierLabel(e.type.name), style: IntesharType.sans(11, color: cs.onSurfaceVariant)),
-                          );
-                        },
-                      ),
+          EntityMultiSearchList(
+            repository: EntityRepository(ref.read(apiClientProvider)),
+            selectedIds: _entityIds,
+            onToggle: (id, sel) =>
+                setState(() => sel ? _entityIds.add(id) : _entityIds.remove(id)),
           ),
         ],
       ),

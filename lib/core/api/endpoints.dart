@@ -14,6 +14,10 @@ class Endpoints {
   static const entityRead = '/api/entity/read';
   static const entityMe = '/api/entity/me'; // the caller's own entity (B-023)
   static const entityReadAll = '/api/entity/readall';
+  // B-023 P1 paged reads: server-side picker search (HQ global, others own
+  // subtree) and direct children for the load-on-expand hierarchy tree.
+  static const entitySearch = '/api/entity/search';
+  static const entityChildren = '/api/entity/children';
   static const entityReadWithChildren = '/api/entity/readwithchildren';
   static const entityBranding = '/api/entity/branding';
 
@@ -60,6 +64,9 @@ class Endpoints {
   static const transactionCreate = '/api/transactions/create';
   static const transactionRead = '/api/transactions/read';
   static const transactionReadAll = '/api/transactions/readall';
+  // B-023 P1: paged list (same tenancy as readall) + dashboard recent-N.
+  static const transactionPage = '/api/transactions/page';
+  static const transactionRecent = '/api/transactions/recent';
   static const transactionFeed = '/api/transactions/feed';
   static const transactionUpdate = '/api/transactions/update';
   static const transactionDelete = '/api/transactions/delete';

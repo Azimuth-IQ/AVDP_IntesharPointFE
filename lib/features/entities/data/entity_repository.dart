@@ -1,8 +1,10 @@
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/endpoints.dart';
+import 'package:inteshar/core/api/paged.dart';
 import 'package:inteshar/core/auth/capabilities.dart';
 import 'package:inteshar/features/entities/domain/branding.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
+import 'package:inteshar/features/entities/domain/entity_summary_row.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 
 class EntityRepository {
@@ -38,6 +40,42 @@ class EntityRepository {
       final list = d as List<dynamic>;
       return list.map((e) => Entity.fromJson(e as Map<String, dynamic>)).toList();
     });
+  }
+
+  /// Default page size for the paged entity reads; the backend caps it at 200.
+  static const int pageSize = 50;
+
+  /// Server-side picker search (B-023 P1): contains-match on name/id, optional
+  /// tier filter. HQ searches globally; any other caller is scoped to its own
+  /// subtree by the server — the replacement for feeding dropdowns via [readAll].
+  Future<Paged<EntitySummaryRow>> search({
+    String? q,
+    List<EntityType>? types,
+    int page = 0,
+    int size = pageSize,
+  }) async {
+    final params = <String, dynamic>{'page': page, 'size': size};
+    if (q != null && q.trim().isNotEmpty) params['q'] = q.trim();
+    if (types != null && types.isNotEmpty) {
+      params['type'] = types.map((t) => t.name).join(',');
+    }
+    final response = await _api.get(Endpoints.entitySearch, params: params);
+    return _api.unwrap(
+        response, (d) => Paged.from(d, EntitySummaryRow.fromJson, size: size));
+  }
+
+  /// Direct children of one node, paged (B-023 P1) — powers the load-on-expand
+  /// hierarchy tree. Queries by the `parent` field server-side, so it is immune
+  /// to the childrenIds-clearing bug that [readDirectChildren] works around.
+  Future<Paged<EntitySummaryRow>> children(
+    String parentId, {
+    int page = 0,
+    int size = pageSize,
+  }) async {
+    final response = await _api.get(Endpoints.entityChildren,
+        params: {'parentId': parentId, 'page': page, 'size': size});
+    return _api.unwrap(
+        response, (d) => Paged.from(d, EntitySummaryRow.fromJson, size: size));
   }
 
   /// Returns Map keyed by BFS depth level.

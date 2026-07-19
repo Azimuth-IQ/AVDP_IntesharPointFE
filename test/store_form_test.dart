@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:inteshar/features/entities/domain/entity.dart';
+import 'package:inteshar/features/entities/domain/entity_summary_row.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/stores/presentation/stores_page.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
@@ -23,8 +23,8 @@ Future<void> _pumpForm(WidgetTester tester, Widget form) async {
   await tester.pumpAndSettle();
 }
 
-Entity _agent(String id, String name, EntityType type) =>
-    Entity(id: id, meta: EntityMeta(name: name), type: type);
+EntitySummaryRow _agent(String id, String name, EntityType type) =>
+    EntitySummaryRow(id: id, name: name, type: type);
 
 void main() {
   testWidgets('HQ create shows the parent-agent picker defaulting to the first option', (tester) async {

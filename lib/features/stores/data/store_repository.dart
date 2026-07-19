@@ -2,6 +2,7 @@ import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/endpoints.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
+import 'package:inteshar/features/entities/domain/entity_summary_row.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/stores/domain/pos_stats.dart';
 
@@ -26,17 +27,15 @@ class StoreRepository {
     return stores;
   }
 
-  /// The AGENT1/AGENT2 points under [viewerId] that can parent a STORE, sorted by
-  /// name. Used by HQ (which has no single implicit parent) to pick where a new
-  /// POS point attaches.
-  Future<List<Entity>> listParentAgents(String viewerId) async {
-    final tree = await _entities.readAllAsTree(viewerId);
-    final agents = <Entity>[];
-    for (final level in tree.values) {
-      agents.addAll(level.where((e) => e.type == EntityType.AGENT1 || e.type == EntityType.AGENT2));
-    }
-    agents.sort((a, b) => a.meta.name.toLowerCase().compareTo(b.meta.name.toLowerCase()));
-    return agents;
+  /// The AGENT1/AGENT2 points that can parent a STORE, sorted (type, name) by
+  /// the server. Used by HQ (which has no single implicit parent) to pick where
+  /// a new POS point attaches. Server-searched + tier-filtered (B-023) instead
+  /// of downloading the whole subtree; agent counts are bounded, one page covers
+  /// them.
+  Future<List<EntitySummaryRow>> listParentAgents(String viewerId) async {
+    final page = await _entities
+        .search(types: const [EntityType.AGENT1, EntityType.AGENT2], size: 200);
+    return page.items;
   }
 
   Future<Entity> read(String id) => _entities.read(id);

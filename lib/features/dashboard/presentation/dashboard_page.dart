@@ -9,7 +9,9 @@ import 'package:inteshar/core/auth/capabilities.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
+import 'package:inteshar/core/api/paged.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
+import 'package:inteshar/features/entities/domain/entity_summary_row.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/inventory/data/product_repository.dart';
 import 'package:inteshar/features/inventory/domain/product.dart';
@@ -27,16 +29,18 @@ import 'package:inteshar/shared/widgets/role_badge.dart';
 
 class _DashData {
   final List<Product> products;
-  final List<AppTransaction> allTxns;
-  final Map<String, String> entityNames; // id → meta.name
-  final int childCount; // direct children, counted via parent links
-  final List<Entity>
+  // Newest transactions visible to this account (server-capped, B-023) — the
+  // dashboard no longer downloads the whole history.
+  final List<AppTransaction> recentTxns;
+  final Map<String, String> entityNames; // id → name (children + txn parties)
+  final int childCount; // direct children
+  final List<EntitySummaryRow>
   children; // direct children (for the balance transfer picker)
   final AgentBalance balance;
 
   const _DashData({
     required this.products,
-    required this.allTxns,
+    required this.recentTxns,
     required this.entityNames,
     required this.childCount,
     required this.children,
@@ -77,18 +81,34 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         return;
       }
       final api = ref.read(apiClientProvider);
+      // B-023: recent-N transactions + one page of direct children instead of
+      // downloading every transaction and every entity at each dashboard open.
       final results = await Future.wait([
         ProductRepository(api).readByEntity(entity.id),
-        TransactionRepository(api).readAll(),
-        EntityRepository(api).readAll(),
+        TransactionRepository(api).recent(limit: 50),
+        EntityRepository(api).children(entity.id, size: 200),
       ]);
       final products = results[0] as List<Product>;
-      final allTxns = results[1] as List<AppTransaction>;
-      final allEntities = results[2] as List<Entity>;
+      final recentTxns = results[1] as List<AppTransaction>;
+      final children = (results[2] as Paged<EntitySummaryRow>).items;
       final entityNames = <String, String>{
-        for (final e in allEntities) e.id: e.meta.name,
+        for (final c in children) c.id: c.name,
+        entity.id: entity.meta.name,
       };
-      final children = allEntities.where((e) => e.parent == entity.id).toList();
+      // Resolve any transaction party we don't already know (usually just the
+      // parent) — bounded by the recent list, not the entity collection.
+      final missing = <String>{};
+      for (final t in recentTxns) {
+        for (final id in [t.sourceId, t.destinationId]) {
+          if (id.isNotEmpty && !entityNames.containsKey(id)) missing.add(id);
+        }
+      }
+      final entityRepo = EntityRepository(api);
+      for (final id in missing) {
+        try {
+          entityNames[id] = (await entityRepo.read(id)).meta.name;
+        } catch (_) {}
+      }
       // Balance is best-effort: a failure here must not blank the dashboard.
       AgentBalance balance = const AgentBalance();
       try {
@@ -97,9 +117,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       setState(() {
         _data = _DashData(
           products: products,
-          allTxns: allTxns,
+          recentTxns: recentTxns,
           entityNames: entityNames,
-          childCount: children.length,
+          childCount: entity.childrenIds.length,
           children: children,
           balance: balance,
         );
@@ -192,8 +212,8 @@ class _DashContent extends StatelessWidget {
       }
     }
 
-    // Transactions involving this entity
-    final myTxns = data.allTxns
+    // Transactions involving this entity (within the server-capped recent list)
+    final myTxns = data.recentTxns
         .where((t) => t.sourceId == entity.id || t.destinationId == entity.id)
         .toList();
     // Sort descending by date then time
@@ -998,7 +1018,7 @@ class _TxnHeaderRow extends StatelessWidget {
 class _BalanceCard extends StatelessWidget {
   final Entity entity;
   final AgentBalance balance;
-  final List<Entity> children;
+  final List<EntitySummaryRow> children;
   final bool canTransfer;
   final VoidCallback onGranted;
   const _BalanceCard({
@@ -1076,7 +1096,7 @@ class _BalanceCard extends StatelessWidget {
 }
 
 class _TransferSheet extends ConsumerStatefulWidget {
-  final List<Entity> children;
+  final List<EntitySummaryRow> children;
   final AgentBalance balance;
   final VoidCallback onGranted;
   const _TransferSheet({
@@ -1090,7 +1110,7 @@ class _TransferSheet extends ConsumerStatefulWidget {
 }
 
 class _TransferSheetState extends ConsumerState<_TransferSheet> {
-  Entity? _dest;
+  EntitySummaryRow? _dest;
   final _amount = TextEditingController();
   bool _saving = false;
   String? _error;
@@ -1132,8 +1152,8 @@ class _TransferSheetState extends ConsumerState<_TransferSheet> {
         title: Text(ar ? 'تأكيد التحويل' : 'Confirm transfer'),
         content: Text(
           ar
-              ? 'سيتم تحويل ${Formatters.iqd(amount.round())} إلى "${dest.meta.name}". لا يمكن التراجع عن هذا الإجراء.'
-              : 'You are about to transfer ${Formatters.iqd(amount.round())} to "${dest.meta.name}". This cannot be undone.',
+              ? 'سيتم تحويل ${Formatters.iqd(amount.round())} إلى "${dest.label}". لا يمكن التراجع عن هذا الإجراء.'
+              : 'You are about to transfer ${Formatters.iqd(amount.round())} to "${dest.label}". This cannot be undone.',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(ar ? 'إلغاء' : 'Cancel')),
@@ -1197,7 +1217,7 @@ class _TransferSheetState extends ConsumerState<_TransferSheet> {
           const SizedBox(height: 16),
           SectionLabel(ar ? 'تحويل رصيد' : 'Transfer balance'),
           const SizedBox(height: 12),
-          DropdownButtonFormField<Entity>(
+          DropdownButtonFormField<EntitySummaryRow>(
             initialValue: _dest,
             isExpanded: true,
             decoration: InputDecoration(labelText: ar ? 'إلى' : 'To'),
@@ -1205,7 +1225,7 @@ class _TransferSheetState extends ConsumerState<_TransferSheet> {
                 .map(
                   (e) => DropdownMenuItem(
                     value: e,
-                    child: Text('${e.meta.name} (${e.type.label})'),
+                    child: Text('${e.label} (${e.type.label})'),
                   ),
                 )
                 .toList(),

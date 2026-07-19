@@ -10,6 +10,7 @@ import 'package:inteshar/core/geo/governorates.dart';
 import 'package:inteshar/shared/widgets/working_hours_editor.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
+import 'package:inteshar/features/entities/domain/entity_summary_row.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/pricing/data/pricing_repository.dart';
 import 'package:inteshar/features/stores/data/store_repository.dart';
@@ -105,7 +106,7 @@ class _StoresPageState extends ConsumerState<StoresPage> {
     }
     // An agent (AGENT1/AGENT2) parents a new POS under itself; HQ has no implicit
     // parent, so it must pick one of its descendant agents.
-    List<Entity>? parentOptions;
+    List<EntitySummaryRow>? parentOptions;
     if (existing == null && _isHq) {
       try {
         parentOptions = await _repo.listParentAgents(viewer.id);
@@ -687,7 +688,7 @@ class StoreForm extends ConsumerStatefulWidget {
 
   /// When non-empty (HQ creating a POS), the operator must pick the parent agent
   /// from these descendant AGENT1/AGENT2 entities; [parentId] is the default.
-  final List<Entity>? parentOptions;
+  final List<EntitySummaryRow>? parentOptions;
   const StoreForm({
     super.key,
     required this.parentId,
@@ -823,7 +824,7 @@ class _StoreFormState extends ConsumerState<StoreForm> {
                       (a) => DropdownMenuItem(
                         value: a.id,
                         child: Text(
-                          '${a.meta.name.isEmpty ? a.id : a.meta.name} (${a.type.label})',
+                          '${a.label} (${a.type.label})',
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),

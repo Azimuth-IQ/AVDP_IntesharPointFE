@@ -36,13 +36,17 @@ class TransactionRepository {
 
   /// Paged transactions list (B-023 P1) — same visibility as [readAll] (HQ all,
   /// others their own subtree) but paged + status-filterable, newest first.
+  /// [entityId] narrows to transactions touching that one entity (the list
+  /// screen shows "my transactions", even for HQ).
   Future<Paged<AppTransaction>> page({
     String? status,
+    String? entityId,
     int page = 0,
     int size = pageSize,
   }) async {
     final params = <String, dynamic>{'page': page, 'size': size};
     if (status != null && status.isNotEmpty) params['status'] = status;
+    if (entityId != null && entityId.isNotEmpty) params['entityId'] = entityId;
     final response = await _api.get(Endpoints.transactionPage, params: params);
     return _api.unwrap(response,
         (d) => Paged.from(d, AppTransaction.fromJson, size: size));

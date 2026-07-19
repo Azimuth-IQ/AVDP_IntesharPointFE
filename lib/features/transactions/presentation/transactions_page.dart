@@ -28,9 +28,12 @@ class TransactionsPage extends ConsumerStatefulWidget {
 
 class _TransactionsPageState extends ConsumerState<TransactionsPage> {
   List<AppTransaction>? _all;
-  Map<String, Entity> _entityCache = {};
+  final Map<String, Entity> _entityCache = {};
   Object? _error;
   bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasMore = false;
+  int _page = 0;
   String? _currentEntityId;
 
   @override
@@ -52,42 +55,61 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
         _currentEntityId = await sessionStorage.getCurrentEntityId();
       }
 
+      // B-023: server-paged, newest-first, already narrowed to transactions
+      // touching this entity — no more downloading the whole history.
       final api = ref.read(apiClientProvider);
-      final txRepo = TransactionRepository(api);
-      final all = await txRepo.readAll();
-
-      final relevant = all
-          .where((t) => t.sourceId == _currentEntityId || t.destinationId == _currentEntityId)
-          .toList();
-      relevant.sort((a, b) {
-        final da = '${a.date} ${a.time}';
-        final db = '${b.date} ${b.time}';
-        return db.compareTo(da);
-      });
-
-      final entityRepo = EntityRepository(api);
-      final ids = <String>{};
-      for (final t in relevant) {
-        ids.add(t.sourceId);
-        ids.add(t.destinationId);
-      }
-      final cache = <String, Entity>{};
-      for (final id in ids) {
-        try {
-          cache[id] = await entityRepo.read(id);
-        } catch (_) {}
-      }
+      final paged = await TransactionRepository(api)
+          .page(entityId: _currentEntityId, page: 0);
+      await _cacheParties(paged.items);
 
       if (mounted) {
         setState(() {
-          _all = relevant;
-          _entityCache = cache;
+          _all = paged.items;
+          _hasMore = paged.hasMore;
+          _page = 0;
         });
       }
     } catch (e) {
       if (mounted) setState(() => _error = e);
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore) return;
+    setState(() => _loadingMore = true);
+    try {
+      final next = _page + 1;
+      final paged = await TransactionRepository(ref.read(apiClientProvider))
+          .page(entityId: _currentEntityId, page: next);
+      await _cacheParties(paged.items);
+      if (!mounted) return;
+      setState(() {
+        _all = [...?_all, ...paged.items];
+        _hasMore = paged.hasMore;
+        _page = next;
+      });
+    } catch (_) {
+      // Keep what we have; the tail button stays for a retry.
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
+    }
+  }
+
+  /// Resolve names for this page's counterparties we haven't cached yet.
+  Future<void> _cacheParties(List<AppTransaction> txns) async {
+    final entityRepo = EntityRepository(ref.read(apiClientProvider));
+    final ids = <String>{};
+    for (final t in txns) {
+      ids.add(t.sourceId);
+      ids.add(t.destinationId);
+    }
+    for (final id in ids) {
+      if (id.isEmpty || _entityCache.containsKey(id)) continue;
+      try {
+        _entityCache[id] = await entityRepo.read(id);
+      } catch (_) {}
     }
   }
 
@@ -153,8 +175,26 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
                       onRefresh: _load,
                       child: ListView.builder(
                         padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                        itemCount: txns.length,
+                        itemCount: txns.length + (_hasMore ? 1 : 0),
                         itemBuilder: (ctx, i) {
+                          if (i >= txns.length) {
+                            // Server-paged tail (B-023): fetch the next page.
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              child: Center(
+                                child: _loadingMore
+                                    ? const SizedBox(
+                                        width: 22,
+                                        height: 22,
+                                        child: CircularProgressIndicator(strokeWidth: 2.4))
+                                    : OutlinedButton.icon(
+                                        onPressed: _loadMore,
+                                        icon: const Icon(Icons.expand_more, size: 18),
+                                        label: Text(l.inventoryLoadMore),
+                                      ),
+                              ),
+                            );
+                          }
                           final tx = txns[i];
                           return Padding(
                             padding: const EdgeInsets.symmetric(vertical: 6),

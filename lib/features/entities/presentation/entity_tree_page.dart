@@ -10,7 +10,9 @@ import 'package:inteshar/features/agents/domain/agent_tier.dart';
 import 'package:inteshar/features/agents/presentation/agent_form.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
+import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
+import 'package:inteshar/features/entities/domain/entity_summary_row.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/entities/presentation/manage_users_sheet.dart';
 import 'package:inteshar/features/stores/presentation/stores_page.dart';
@@ -83,13 +85,21 @@ class EntityTreePage extends ConsumerStatefulWidget {
 }
 
 class _EntityTreePageState extends ConsumerState<EntityTreePage> {
-  List<Entity>? _allEntities;
-  String? _rootId;
+  EntitySummaryRow? _root;
   Object? _error;
   bool _loading = true;
 
   /// Ids currently expanded in the tree. Root is expanded by default.
   final Set<String> _expanded = {};
+
+  // Lazy children cache (B-023): one `GET /api/entity/children` page per
+  // expanded node instead of downloading the whole forest up front.
+  final Map<String, List<EntitySummaryRow>> _children = {};
+  final Map<String, bool> _hasMore = {};
+  final Map<String, int> _page = {};
+  final Set<String> _loadingNodes = {};
+
+  EntityRepository get _repo => EntityRepository(ref.read(apiClientProvider));
 
   @override
   void initState() {
@@ -101,6 +111,10 @@ class _EntityTreePageState extends ConsumerState<EntityTreePage> {
     setState(() {
       _loading = true;
       _error = null;
+      _expanded.clear();
+      _children.clear();
+      _hasMore.clear();
+      _page.clear();
     });
     try {
       final auth = ref.read(authStateProvider).valueOrNull;
@@ -112,17 +126,21 @@ class _EntityTreePageState extends ConsumerState<EntityTreePage> {
       }
       if (entityId == null) throw Exception('No entity id in session');
 
-      final api = ref.read(apiClientProvider);
-      final repo = EntityRepository(api);
-      final all = await repo.readAll();
-
-      if (mounted) {
-        setState(() {
-          _allEntities = all;
-          _rootId = entityId;
-          _expanded.add(entityId!); // root expanded by default
-        });
-      }
+      // The root row comes from the full entity read (cheap: one document).
+      final me = await _repo.read(entityId);
+      final root = EntitySummaryRow(
+        id: me.id,
+        name: me.meta.name,
+        type: me.type,
+        childrenCount: me.childrenIds.length,
+        productsCount: me.productsIds.length,
+      );
+      if (!mounted) return;
+      setState(() {
+        _root = root;
+        _expanded.add(root.id); // root expanded by default
+      });
+      await _loadChildren(root.id);
     } catch (e) {
       if (mounted) setState(() => _error = e);
     } finally {
@@ -130,45 +148,61 @@ class _EntityTreePageState extends ConsumerState<EntityTreePage> {
     }
   }
 
+  Future<void> _loadChildren(String parentId, {bool more = false}) async {
+    if (_loadingNodes.contains(parentId)) return;
+    setState(() => _loadingNodes.add(parentId));
+    try {
+      final nextPage = more ? (_page[parentId] ?? 0) + 1 : 0;
+      final res = await _repo.children(parentId, page: nextPage);
+      if (!mounted) return;
+      setState(() {
+        final current = more ? (_children[parentId] ?? const []) : const <EntitySummaryRow>[];
+        _children[parentId] = [...current, ...res.items];
+        _hasMore[parentId] = res.hasMore;
+        _page[parentId] = nextPage;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+      }
+    } finally {
+      if (mounted) setState(() => _loadingNodes.remove(parentId));
+    }
+  }
+
+  void _toggle(String id) {
+    setState(() {
+      if (_expanded.contains(id)) {
+        _expanded.remove(id);
+      } else {
+        _expanded.add(id);
+      }
+    });
+    if (_expanded.contains(id) && !_children.containsKey(id)) {
+      _loadChildren(id);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
 
-    if (_loading) {
+    if (_loading && _root == null) {
       return const Center(child: CircularProgressIndicator());
     }
     if (_error != null) {
       return ErrorState(error: _error!, onRetry: _load);
     }
 
-    final all = _allEntities ?? [];
-    final rootId = _rootId;
-    if (rootId == null || all.isEmpty) {
+    final root = _root;
+    if (root == null) {
       return EmptyState(
         message: l.entityTreeNoChildren,
         actionLabel: l.entityTreeRefresh,
         onAction: _load,
       );
     }
-
-    // Find the root entity.
-    final rootEntity = all.firstWhere(
-      (e) => e.id == rootId,
-      orElse: () => all.first,
-    );
-
-    // Build parent → children map (sorted by name).
-    final childrenByParent = <String, List<Entity>>{};
-    for (final e in all) {
-      if (e.parent.isNotEmpty) {
-        childrenByParent.putIfAbsent(e.parent, () => []).add(e);
-      }
-    }
-    for (final list in childrenByParent.values) {
-      list.sort((a, b) => a.meta.name.compareTo(b.meta.name));
-    }
-
-    final totalEntities = all.length;
 
     return MaxWidthBox(
       child: RefreshIndicator(
@@ -180,10 +214,6 @@ class _EntityTreePageState extends ConsumerState<EntityTreePage> {
                 eyebrow: l.navHierarchy,
                 title: l.navHierarchy,
                 subtitle: l.entityTreeSubtitle,
-                trailing: _Tally(
-                  l.entityTreeEntities,
-                  Formatters.money(totalEntities),
-                ),
               ),
             ),
             SliverToBoxAdapter(
@@ -200,22 +230,18 @@ class _EntityTreePageState extends ConsumerState<EntityTreePage> {
                         child: _TableHeader(l: l),
                       ),
                       const Hairline(),
-                      // Recursive tree rows
+                      // Recursive tree rows (children fetched on expand)
                       _TreeSubtree(
-                        node: rootEntity,
-                        childrenByParent: childrenByParent,
+                        node: root,
                         depth: 0,
                         expanded: _expanded,
-                        onToggle: (id) => setState(() {
-                          if (_expanded.contains(id)) {
-                            _expanded.remove(id);
-                          } else {
-                            _expanded.add(id);
-                          }
-                        }),
+                        childrenOf: _children,
+                        hasMore: _hasMore,
+                        loadingNodes: _loadingNodes,
+                        onToggle: _toggle,
+                        onLoadMore: (id) => _loadChildren(id, more: true),
                         onRefresh: _load,
-                        isLast: true,
-                        visitedIds: {rootEntity.id},
+                        visitedIds: {root.id},
                       ),
                     ],
                   ),
@@ -263,34 +289,45 @@ class _TableHeader extends StatelessWidget {
 
 // ─── Recursive subtree ───────────────────────────────────────────────────────
 
-/// Renders a node and — if expanded — all of its children recursively.
+/// Renders a node and — if expanded — its lazily-fetched children (B-023):
+/// the first expand triggers `GET /api/entity/children` for that node; a
+/// spinner row shows while the page loads and a "load more" row appears for
+/// nodes with more children than one page.
 class _TreeSubtree extends ConsumerWidget {
-  final Entity node;
-  final Map<String, List<Entity>> childrenByParent;
+  final EntitySummaryRow node;
   final int depth;
   final Set<String> expanded;
+  final Map<String, List<EntitySummaryRow>> childrenOf;
+  final Map<String, bool> hasMore;
+  final Set<String> loadingNodes;
   final void Function(String id) onToggle;
+  final void Function(String id) onLoadMore;
   final VoidCallback onRefresh;
-  final bool isLast;
   // Cycle guard: ids already rendered on the current root-to-leaf path.
   final Set<String> visitedIds;
 
   const _TreeSubtree({
     required this.node,
-    required this.childrenByParent,
     required this.depth,
     required this.expanded,
+    required this.childrenOf,
+    required this.hasMore,
+    required this.loadingNodes,
     required this.onToggle,
+    required this.onLoadMore,
     required this.onRefresh,
-    required this.isLast,
     required this.visitedIds,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final children = childrenByParent[node.id] ?? [];
-    final isLeaf = children.isEmpty || node.type == EntityType.STORE;
+    final loaded = childrenOf[node.id];
+    // Leaf: stores never expand; other tiers rely on the server-computed count
+    // (or, once loaded, the actual children list).
+    final isLeaf = node.type == EntityType.STORE ||
+        (loaded == null ? node.childrenCount == 0 : loaded.isEmpty);
     final isExpanded = expanded.contains(node.id);
+    final isLoading = loadingNodes.contains(node.id);
 
     final rows = <Widget>[];
 
@@ -300,28 +337,67 @@ class _TreeSubtree extends ConsumerWidget {
       depth: depth,
       isLeaf: isLeaf,
       isExpanded: isExpanded,
-      childCount: children.length,
+      childCount: loaded?.length ?? node.childrenCount,
       onToggle: () => onToggle(node.id),
       onRefresh: onRefresh,
     ));
 
     // Children (only when expanded and not a leaf)
     if (!isLeaf && isExpanded) {
-      for (var i = 0; i < children.length; i++) {
-        final child = children[i];
-        // Cycle guard
-        if (visitedIds.contains(child.id)) continue;
+      if (loaded == null) {
+        // First fetch for this node still in flight.
         rows.add(const Hairline());
-        rows.add(_TreeSubtree(
-          node: child,
-          childrenByParent: childrenByParent,
-          depth: depth + 1,
-          expanded: expanded,
-          onToggle: onToggle,
-          onRefresh: onRefresh,
-          isLast: i == children.length - 1,
-          visitedIds: {...visitedIds, child.id},
+        rows.add(Padding(
+          padding: EdgeInsetsDirectional.only(start: 44.0 + depth * 24.0, top: 10, bottom: 10),
+          child: const Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: SizedBox(
+                width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+          ),
         ));
+      } else {
+        for (final child in loaded) {
+          // Cycle guard
+          if (visitedIds.contains(child.id)) continue;
+          rows.add(const Hairline());
+          rows.add(_TreeSubtree(
+            node: child,
+            depth: depth + 1,
+            expanded: expanded,
+            childrenOf: childrenOf,
+            hasMore: hasMore,
+            loadingNodes: loadingNodes,
+            onToggle: onToggle,
+            onLoadMore: onLoadMore,
+            onRefresh: onRefresh,
+            visitedIds: {...visitedIds, child.id},
+          ));
+        }
+        if (hasMore[node.id] == true) {
+          rows.add(const Hairline());
+          rows.add(Padding(
+            padding: EdgeInsetsDirectional.only(start: 44.0 + depth * 24.0),
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: isLoading
+                  ? const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 10),
+                      child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2)),
+                    )
+                  : TextButton.icon(
+                      onPressed: () => onLoadMore(node.id),
+                      icon: const Icon(Icons.expand_more, size: 16),
+                      label: Text(
+                          Localizations.localeOf(context).languageCode == 'ar'
+                              ? 'تحميل المزيد'
+                              : 'Load more'),
+                    ),
+            ),
+          ));
+        }
       }
     }
 
@@ -336,7 +412,7 @@ class _TreeSubtree extends ConsumerWidget {
 // ─── Single tree row ─────────────────────────────────────────────────────────
 
 class _TreeNode extends ConsumerWidget {
-  final Entity entity;
+  final EntitySummaryRow entity;
   final int depth;
   final bool isLeaf;
   final bool isExpanded;
@@ -418,7 +494,7 @@ class _TreeNode extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    entity.meta.name.isNotEmpty ? entity.meta.name : entity.id,
+                    entity.label,
                     style: IntesharType.sans(13,
                         color: cs.onSurface, w: FontWeight.w700),
                     maxLines: 1,
@@ -444,11 +520,11 @@ class _TreeNode extends ConsumerWidget {
                 style: IntesharType.mono(12, color: cs.onSurface),
               ),
             ),
-            // Vouchers count
+            // Vouchers count (server-computed on the summary row)
             SizedBox(
               width: 64,
               child: Text(
-                Formatters.money(entity.productsIds.length),
+                Formatters.money(entity.productsCount),
                 textAlign: TextAlign.center,
                 style: IntesharType.mono(12, color: cs.onSurface),
               ),
@@ -539,24 +615,37 @@ class _TreeNode extends ConsumerWidget {
     final prefix = _inventoryRoutePrefix(ref);
     if (prefix == null) return;
     context.push(
-      '$prefix/entities/${entity.id}/inventory?name=${Uri.encodeComponent(entity.meta.name)}',
+      '$prefix/entities/${entity.id}/inventory?name=${Uri.encodeComponent(entity.name)}',
     );
   }
 
   Future<void> _showEditSheet(BuildContext context, WidgetRef ref) async {
     final l = AppLocalizations.of(context)!;
-    final nameCtrl = TextEditingController(text: entity.meta.name);
-    final sloganCtrl = TextEditingController(text: entity.meta.slogan);
-    final descCtrl = TextEditingController(text: entity.meta.description);
-    final logoCtrl = TextEditingController(text: entity.meta.logoUrl);
+    // The tree rows are light projections — fetch the full document only when
+    // an edit actually starts (B-023).
+    final Entity full;
+    try {
+      full = await EntityRepository(ref.read(apiClientProvider)).read(entity.id);
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(l.entityTreeErrorSaving)));
+      }
+      return;
+    }
+    if (!context.mounted) return;
+    final nameCtrl = TextEditingController(text: full.meta.name);
+    final sloganCtrl = TextEditingController(text: full.meta.slogan);
+    final descCtrl = TextEditingController(text: full.meta.description);
+    final logoCtrl = TextEditingController(text: full.meta.logoUrl);
     final backgroundCtrl =
-        TextEditingController(text: entity.meta.backgroundUrl);
-    final primaryCtrl = TextEditingController(text: entity.meta.primaryColor);
+        TextEditingController(text: full.meta.backgroundUrl);
+    final primaryCtrl = TextEditingController(text: full.meta.primaryColor);
     final secondaryCtrl =
-        TextEditingController(text: entity.meta.secondaryColor);
+        TextEditingController(text: full.meta.secondaryColor);
     final thresholdCtrl = TextEditingController(
-        text: entity.meta.lowStockThreshold > 0
-            ? entity.meta.lowStockThreshold.toString()
+        text: full.meta.lowStockThreshold > 0
+            ? full.meta.lowStockThreshold.toString()
             : '');
 
     await showModalBottomSheet<void>(
@@ -576,8 +665,8 @@ class _TreeNode extends ConsumerWidget {
         onSave: () async {
           final api = ref.read(apiClientProvider);
           final repo = EntityRepository(api);
-          final updated = entity.copyWith(
-            meta: entity.meta.copyWith(
+          final updated = full.copyWith(
+            meta: full.meta.copyWith(
               name: nameCtrl.text.trim(),
               slogan: sloganCtrl.text.trim(),
               description: descCtrl.text.trim(),
@@ -589,8 +678,8 @@ class _TreeNode extends ConsumerWidget {
             ),
           );
           await repo.updateWithUsers(updated);
-          if (entity.parent.isNotEmpty) {
-            await repo.relinkChildToParent(entity.parent, entity.id);
+          if (full.parent.isNotEmpty) {
+            await repo.relinkChildToParent(full.parent, full.id);
           }
           if (ctx.mounted) Navigator.pop(ctx);
           onRefresh();
@@ -601,11 +690,19 @@ class _TreeNode extends ConsumerWidget {
 
   Future<void> _showManageUsersSheet(
       BuildContext context, WidgetRef ref) async {
+    // Users live on the full document, not the projected row (B-023).
+    final Entity full;
+    try {
+      full = await EntityRepository(ref.read(apiClientProvider)).read(entity.id);
+    } catch (_) {
+      return;
+    }
+    if (!context.mounted) return;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       builder: (ctx) => ManageUsersSheet(
-        entity: entity,
+        entity: full,
         onResetPassword: (phone, newPass) async {
           await EntityRepository(ref.read(apiClientProvider))
               .resetPassword(entity.id, phone, newPass);
@@ -619,7 +716,7 @@ class _TreeNode extends ConsumerWidget {
 
           // Fine-grained diff: avoids the full-entity PUT that clears
           // childrenIds on the backend (EntityHelper.updateEntity bug).
-          final originalByPhone = {for (final u in entity.users) u.phone: u};
+          final originalByPhone = {for (final u in full.users) u.phone: u};
           final updatedByPhone = {for (final u in updatedUsers) u.phone: u};
 
           // Remove users dropped from the sheet.
@@ -703,7 +800,7 @@ class _TreeNode extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         title: Text(l.entityTreeDeleteTitle),
         content: Text(l.entityTreeDeleteConfirm(
-            entity.meta.name.isNotEmpty ? entity.meta.name : entity.id)),
+            entity.label)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -730,51 +827,6 @@ class _TreeNode extends ConsumerWidget {
             SnackBar(content: Text(l.entityTreeDeleteFailed)));
       }
     }
-  }
-}
-
-// ─── Tally chip ──────────────────────────────────────────────────────────────
-
-class _Tally extends StatelessWidget {
-  final String label;
-  final String value;
-  const _Tally(this.label, this.value);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: IntesharColors.saffron.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            value,
-            style: const TextStyle(
-              fontFamily: 'CodecPro',
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-              color: IntesharColors.saffronDeep,
-              height: 1,
-              letterSpacing: -0.3,
-            ),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            label.toLowerCase(),
-            style: const TextStyle(
-              fontFamily: 'CodecPro',
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: IntesharColors.saffronDeep,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 

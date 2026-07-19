@@ -13,6 +13,7 @@ import 'package:inteshar/features/pos_admin/data/pos_admin_repository.dart';
 import 'package:inteshar/features/pos_admin/domain/pos_network.dart';
 import 'package:inteshar/features/pos_admin/presentation/pos_admin_page.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
+import 'package:inteshar/shared/widgets/entity_search_picker.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
@@ -145,88 +146,53 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
     _reload(); // reflect any grant/onboard/revoke done in the drill
   }
 
-  /// HQ grants POS points directly to ANY account — agent or store (B-043). Fetches
-  /// every entity, lets HQ search + pick one, and grants the chosen number of points.
+  /// HQ grants POS points directly to ANY account — agent or store (B-043).
+  /// Server-searched picker (B-023: no more downloading every entity), then a
+  /// count prompt for the chosen account.
   Future<void> _grantAnyDialog(_NS s) async {
-    final cs = Theme.of(context).colorScheme;
-    final all = await EntityRepository(ref.read(apiClientProvider)).readAll();
-    if (!mounted) return;
-    // HQ can't grant points to itself.
-    final accounts = all.where((e) => e.type != EntityType.INTESHAR).toList()
-      ..sort((a, b) => a.meta.name.toLowerCase().compareTo(b.meta.name.toLowerCase()));
+    // HQ can't grant points to itself — offer only agent/store tiers.
+    final picked = await showEntitySearchPicker(
+      context,
+      repository: EntityRepository(ref.read(apiClientProvider)),
+      title: s.grantAny,
+      types: const [EntityType.AGENT1, EntityType.AGENT2, EntityType.STORE],
+    );
+    if (picked == null || !mounted) return;
     final countCtrl = TextEditingController(text: '1');
-    String query = '';
-    String? destId;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setD) {
-          final q = query.trim().toLowerCase();
-          final filtered = accounts.where((e) {
-            if (q.isEmpty) return true;
-            return e.meta.name.toLowerCase().contains(q) || e.id.toLowerCase().contains(q);
-          }).toList();
-          return AlertDialog(
-            title: Text(s.grantAny),
-            content: SizedBox(
-              width: double.maxFinite,
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                TextField(
-                  decoration: InputDecoration(
-                    labelText: s.searchAny,
-                    isDense: true,
-                    prefixIcon: const Icon(Icons.search, size: 18),
-                  ),
-                  onChanged: (v) => setD(() => query = v),
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 260,
-                  child: filtered.isEmpty
-                      ? Center(child: Text(s.noMatches, style: IntesharType.sans(13, color: cs.onSurfaceVariant)))
-                      : ListView.builder(
-                          shrinkWrap: true,
-                          itemCount: filtered.length,
-                          itemBuilder: (_, i) {
-                            final e = filtered[i];
-                            final selected = e.id == destId;
-                            return ListTile(
-                              dense: true,
-                              selected: selected,
-                              onTap: () => setD(() => destId = e.id),
-                              title: Text(e.meta.name.isEmpty ? e.id : e.meta.name, overflow: TextOverflow.ellipsis),
-                              subtitle: Text(e.type.label, style: IntesharType.sans(11.5, color: cs.onSurfaceVariant)),
-                              trailing: selected ? Icon(Icons.check_circle, size: 20, color: cs.primary) : null,
-                            );
-                          },
-                        ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: countCtrl,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: InputDecoration(labelText: s.count, isDense: true),
-                ),
-              ]),
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.cancel)),
-              FilledButton(
-                onPressed: destId == null ? null : () => Navigator.pop(ctx, true),
-                child: Text(s.grant),
-              ),
-            ],
-          );
-        },
+      builder: (ctx) => AlertDialog(
+        title: Text(s.grantAny),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            title: Text(picked.label, overflow: TextOverflow.ellipsis),
+            subtitle: Text(picked.type.label,
+                style: IntesharType.sans(
+                    11.5, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: countCtrl,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: InputDecoration(labelText: s.count, isDense: true),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.cancel)),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.grant)),
+        ],
       ),
     );
     final n = int.tryParse(countCtrl.text.trim()) ?? 0;
-    if (ok != true || destId == null || n <= 0) return;
+    if (ok != true || n <= 0) return;
     if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await _repo.grantSlots(destId: destId!, count: n);
+      await _repo.grantSlots(destId: picked.id, count: n);
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text(s.done)));
       _reload();

@@ -6,9 +6,9 @@ import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
+import 'package:inteshar/shared/widgets/entity_search_picker.dart';
 import 'package:inteshar/features/settings/data/settings_repository.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
-import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 import 'package:inteshar/shared/widgets/working_hours_editor.dart';
 
@@ -79,10 +79,8 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
   bool _globalSaving = false;
   Object? _globalError;
 
-  // ── Entity list (dropdown) ────────────────────────────────────────────────
-  List<Entity> _entities = [];
-  bool _entitiesLoading = true;
-  Object? _entitiesError;
+  // ── Entity selection (server-searched picker, B-023) ──────────────────────
+  bool _entityResolving = false;
 
   // ── Per-entity form ───────────────────────────────────────────────────────
   Entity? _selectedEntity;
@@ -100,7 +98,6 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
   void initState() {
     super.initState();
     _loadGlobal();
-    _loadEntities();
   }
 
   // ── Loaders ───────────────────────────────────────────────────────────────
@@ -127,34 +124,6 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
     }
   }
 
-  Future<void> _loadEntities() async {
-    setState(() {
-      _entitiesLoading = true;
-      _entitiesError = null;
-    });
-    try {
-      final all = await _entityRepo.readAll();
-      if (!mounted) return;
-      // INTESHAR (HQ) first, then alphabetically.
-      all.sort((a, b) {
-        if (a.type == EntityType.INTESHAR) return -1;
-        if (b.type == EntityType.INTESHAR) return 1;
-        return a.meta.name.compareTo(b.meta.name);
-      });
-      setState(() {
-        _entities = all;
-        _entitiesLoading = false;
-      });
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _entitiesError = e;
-          _entitiesLoading = false;
-        });
-      }
-    }
-  }
-
   // ── Actions ───────────────────────────────────────────────────────────────
 
   Future<void> _toggleGlobal(bool value) async {
@@ -174,14 +143,32 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
     }
   }
 
-  void _onEntitySelected(Entity? entity) {
-    if (entity == null) return;
-    setState(() {
-      _selectedEntity = entity;
-      // Seed the editor with the account's current window (or a blank default).
-      _pendingWindow = entity.meta.workingHours ?? const WorkingHours();
-      _windowError = null;
-    });
+  /// Pick an account via the server-searched picker (B-023), then fetch the
+  /// full entity — the picker rows don't carry `meta.workingHours`.
+  Future<void> _pickEntity() async {
+    final picked = await showEntitySearchPicker(
+      context,
+      repository: _entityRepo,
+      title: _S.of(context).selectEntityHint,
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _entityResolving = true);
+    try {
+      final entity = await _entityRepo.read(picked.id);
+      if (!mounted) return;
+      setState(() {
+        _selectedEntity = entity;
+        // Seed the editor with the account's current window (or a blank default).
+        _pendingWindow = entity.meta.workingHours ?? const WorkingHours();
+        _windowError = null;
+        _entityResolving = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _entityResolving = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+    }
   }
 
   Future<void> _saveWindow() async {
@@ -222,10 +209,7 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
           ),
           Expanded(
             child: RefreshIndicator(
-              onRefresh: () async {
-                await _loadGlobal();
-                await _loadEntities();
-              },
+              onRefresh: _loadGlobal,
               child: ListView(
                 padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 32),
                 children: [
@@ -328,27 +312,12 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
         children: [
           SectionLabel(s.entitySection),
 
-          // Entity picker ───────────────────────────────────────────────────
-          if (_entitiesLoading)
-            const Center(child: CircularProgressIndicator())
-          else if (_entitiesError != null)
-            ErrorState(error: _entitiesError!, onRetry: _loadEntities)
-          else
-            DropdownButtonFormField<Entity>(
-              initialValue: _selectedEntity,
-              hint: Text(s.selectEntityHint),
-              isExpanded: true,
-              items: _entities.map((e) {
-                return DropdownMenuItem<Entity>(
-                  value: e,
-                  child: Text(
-                    '${e.meta.name.isNotEmpty ? e.meta.name : e.id}  ·  ${e.type.label}',
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                );
-              }).toList(),
-              onChanged: _onEntitySelected,
+          // Entity picker — server-searched (B-023): tap to search instead of a
+          // dropdown fed by downloading every entity.
+          InkWell(
+            onTap: _entityResolving ? null : _pickEntity,
+            borderRadius: BorderRadius.circular(IntesharRadii.sm),
+            child: InputDecorator(
               decoration: InputDecoration(
                 labelText: s.selectEntityHint,
                 border: const OutlineInputBorder(),
@@ -356,8 +325,30 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
                   horizontal: 14,
                   vertical: 10,
                 ),
+                suffixIcon: _entityResolving
+                    ? const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2)),
+                      )
+                    : const Icon(Icons.search, size: 18),
+              ),
+              child: Text(
+                _selectedEntity == null
+                    ? s.selectEntityHint
+                    : '${_selectedEntity!.meta.name.isNotEmpty ? _selectedEntity!.meta.name : _selectedEntity!.id}  ·  ${_selectedEntity!.type.label}',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: _selectedEntity == null
+                      ? cs.onSurfaceVariant
+                      : null,
+                ),
               ),
             ),
+          ),
 
           const SizedBox(height: 16),
 

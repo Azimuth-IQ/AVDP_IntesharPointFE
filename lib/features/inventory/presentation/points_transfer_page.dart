@@ -7,8 +7,9 @@ import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/geo/governorates.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
-import 'package:inteshar/features/entities/domain/entity.dart';
+import 'package:inteshar/features/entities/domain/entity_summary_row.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
+import 'package:inteshar/shared/widgets/entity_search_picker.dart';
 import 'package:inteshar/features/inventory/data/product_repository.dart';
 import 'package:inteshar/features/inventory/domain/sku_summary.dart';
 import 'package:inteshar/shared/widgets/brand_cta.dart';
@@ -31,9 +32,8 @@ class PointsTransferPage extends ConsumerStatefulWidget {
 }
 
 class _PointsTransferPageState extends ConsumerState<PointsTransferPage> {
-  List<Entity> _entities = [];
-  Entity? _source;
-  Entity? _destination;
+  EntitySummaryRow? _source;
+  EntitySummaryRow? _destination;
 
   /// When true, stock flows DESTINATION → SOURCE (reclaim/reverse). The API call
   /// is the same endpoint with the source/destination ids swapped.
@@ -45,75 +45,37 @@ class _PointsTransferPageState extends ConsumerState<PointsTransferPage> {
   String _gov = ''; // governorate code; '' = the untagged / region-free bucket
   int _qty = 1;
 
-  bool _loadingEntities = true;
   bool _loadingSummary = false;
   bool _submitting = false;
   String? _error;
   int? _movedResult;
 
   /// The entity stock actually leaves: the destination in withdraw mode.
-  Entity? get _effectiveSource => _withdraw ? _destination : _source;
+  EntitySummaryRow? get _effectiveSource => _withdraw ? _destination : _source;
 
   /// The entity stock actually arrives at: the source in withdraw mode.
-  Entity? get _effectiveDest => _withdraw ? _source : _destination;
+  EntitySummaryRow? get _effectiveDest => _withdraw ? _source : _destination;
 
   @override
   void initState() {
     super.initState();
+    // Default the source to the signed-in entity; the destination is picked via
+    // server search (B-023: no more downloading every entity to preselect one).
+    final auth = ref.read(authStateProvider).valueOrNull;
+    if (auth is AuthAuthenticated) {
+      final me = auth.entity;
+      _source = EntitySummaryRow(
+        id: me.id,
+        name: me.meta.name,
+        type: me.type,
+      );
+    }
     _load();
   }
 
   Future<void> _load() async {
-    setState(() {
-      _loadingEntities = true;
-      _error = null;
-    });
-    try {
-      final api = ref.read(apiClientProvider);
-      final entities = await EntityRepository(api).readAll();
-      entities.sort((a, b) {
-        final t = a.type.index.compareTo(b.type.index);
-        if (t != 0) return t;
-        return _name(a).toLowerCase().compareTo(_name(b).toLowerCase());
-      });
-
-      // Default the source to the signed-in HQ entity, the destination to the
-      // first other entity (commonly a Main Agent).
-      final auth = ref.read(authStateProvider).valueOrNull;
-      Entity? self;
-      if (auth is AuthAuthenticated) {
-        for (final e in entities) {
-          if (e.id == auth.entity.id) {
-            self = e;
-            break;
-          }
-        }
-      }
-      final src = self ?? (entities.isNotEmpty ? entities.first : null);
-      Entity? dst;
-      for (final e in entities) {
-        if (src == null || e.id != src.id) {
-          dst = e;
-          break;
-        }
-      }
-
-      if (!mounted) return;
-      setState(() {
-        _entities = entities;
-        _source = src;
-        _destination = dst;
-        _loadingEntities = false;
-      });
-      await _loadSummary();
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = friendlyError(e, context);
-          _loadingEntities = false;
-        });
-      }
-    }
+    setState(() => _error = null);
+    await _loadSummary();
   }
 
   /// Loads the EFFECTIVE source's per-SKU summary and reconciles the current
@@ -206,19 +168,27 @@ class _PointsTransferPageState extends ConsumerState<PointsTransferPage> {
     if (_qty > _available) _qty = _available > 0 ? _available : 1;
   }
 
-  void _onSourceChanged(Entity? e) {
-    if (e == null) return;
+  Future<void> _pickSource() async {
+    final picked = await showEntitySearchPicker(
+      context,
+      repository: EntityRepository(ref.read(apiClientProvider)),
+    );
+    if (picked == null || !mounted) return;
     setState(() {
-      _source = e;
+      _source = picked;
       _movedResult = null;
     });
     _loadSummary();
   }
 
-  void _onDestinationChanged(Entity? e) {
-    if (e == null) return;
+  Future<void> _pickDestination() async {
+    final picked = await showEntitySearchPicker(
+      context,
+      repository: EntityRepository(ref.read(apiClientProvider)),
+    );
+    if (picked == null || !mounted) return;
     setState(() {
-      _destination = e;
+      _destination = picked;
       _movedResult = null;
     });
     _loadSummary();
@@ -303,15 +273,10 @@ class _PointsTransferPageState extends ConsumerState<PointsTransferPage> {
     }
   }
 
-  String _name(Entity e) => e.meta.name.isNotEmpty ? e.meta.name : e.id;
-
   bool get _isAr => Localizations.localeOf(context).languageCode == 'ar';
 
   @override
   Widget build(BuildContext context) {
-    if (_loadingEntities) {
-      return const Center(child: CircularProgressIndicator());
-    }
     final isAr = _isAr;
     return MaxWidthBox(
       maxWidth: 820,
@@ -333,13 +298,11 @@ class _PointsTransferPageState extends ConsumerState<PointsTransferPage> {
                 _ModeToggle(withdraw: _withdraw, onChanged: _onModeChanged),
                 const SizedBox(height: 16),
                 _RouteRow(
-                  entities: _entities,
                   source: _source,
                   destination: _destination,
                   withdraw: _withdraw,
-                  nameOf: _name,
-                  onSourceChanged: _onSourceChanged,
-                  onDestinationChanged: _onDestinationChanged,
+                  onSourceTap: _pickSource,
+                  onDestinationTap: _pickDestination,
                 ),
                 const SizedBox(height: 20),
                 SectionLabel(isAr ? 'المنتج والمنطقة' : 'Product & region'),
@@ -570,8 +533,8 @@ class _PointsTransferPageState extends ConsumerState<PointsTransferPage> {
           : 'Source and destination must differ.';
     }
     return isAr
-        ? 'من ${_name(from)} إلى ${_name(to)}'
-        : 'From ${_name(from)} to ${_name(to)}';
+        ? 'من ${from.label} إلى ${to.label}'
+        : 'From ${from.label} to ${to.label}';
   }
 }
 
@@ -608,21 +571,17 @@ class _ModeToggle extends StatelessWidget {
 // ── Source / Destination route row ────────────────────────────────────────────
 
 class _RouteRow extends StatelessWidget {
-  final List<Entity> entities;
-  final Entity? source;
-  final Entity? destination;
+  final EntitySummaryRow? source;
+  final EntitySummaryRow? destination;
   final bool withdraw;
-  final String Function(Entity) nameOf;
-  final ValueChanged<Entity?> onSourceChanged;
-  final ValueChanged<Entity?> onDestinationChanged;
+  final VoidCallback onSourceTap;
+  final VoidCallback onDestinationTap;
   const _RouteRow({
-    required this.entities,
     required this.source,
     required this.destination,
     required this.withdraw,
-    required this.nameOf,
-    required this.onSourceChanged,
-    required this.onDestinationChanged,
+    required this.onSourceTap,
+    required this.onDestinationTap,
   });
 
   @override
@@ -636,19 +595,15 @@ class _RouteRow extends StatelessWidget {
           eyebrow: isAr ? 'المصدر' : 'Source',
           // In withdraw mode the source RECEIVES (stock returns to it).
           accent: withdraw ? IntesharColors.sage : cs.error,
-          entities: entities,
           value: source,
-          nameOf: nameOf,
-          onChanged: onSourceChanged,
+          onTap: onSourceTap,
         );
         final dst = _EntityPicker(
           eyebrow: isAr ? 'الوجهة' : 'Destination',
           // In withdraw mode the destination is where stock LEAVES.
           accent: withdraw ? cs.error : IntesharColors.sage,
-          entities: entities,
           value: destination,
-          nameOf: nameOf,
-          onChanged: onDestinationChanged,
+          onTap: onDestinationTap,
         );
         // Arrow points to where stock ends up: source→dest normally, dest→source
         // (i.e. pointing back at the source) in withdraw mode.
@@ -690,22 +645,19 @@ class _RouteRow extends StatelessWidget {
 class _EntityPicker extends StatelessWidget {
   final String eyebrow;
   final Color accent;
-  final List<Entity> entities;
-  final Entity? value;
-  final String Function(Entity) nameOf;
-  final ValueChanged<Entity?> onChanged;
+  final EntitySummaryRow? value;
+  final VoidCallback onTap;
   const _EntityPicker({
     required this.eyebrow,
     required this.accent,
-    required this.entities,
     required this.value,
-    required this.nameOf,
-    required this.onChanged,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
     return InkCard(
       ruleColor: accent,
       padding: const EdgeInsets.all(16),
@@ -723,33 +675,29 @@ class _EntityPicker extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          Theme(
-            data: Theme.of(context).copyWith(
-              inputDecorationTheme: Theme.of(context).inputDecorationTheme
-                  .copyWith(
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                  ),
-            ),
-            child: DropdownButtonFormField<Entity>(
-              initialValue: value,
-              isExpanded: true,
-              icon: const Icon(Icons.unfold_more, size: 18),
-              items: entities
-                  .map(
-                    (e) => DropdownMenuItem(
-                      value: e,
-                      child: Text(
-                        '${nameOf(e)} · ${e.type.label}',
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  )
-                  .toList(),
-              onChanged: onChanged,
+          // Server-searched selection (B-023): tapping opens the type-to-search
+          // picker instead of a dropdown fed by downloading every entity.
+          InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(IntesharRadii.sm),
+            child: InputDecorator(
+              decoration: InputDecoration(
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                suffixIcon: const Icon(Icons.search, size: 18),
+              ),
+              child: Text(
+                value == null
+                    ? (isAr ? 'اختر جهة…' : 'Pick an entity…')
+                    : '${value!.label} · ${value!.type.label}',
+                overflow: TextOverflow.ellipsis,
+                style: value == null
+                    ? IntesharType.sans(13.5, color: cs.onSurfaceVariant)
+                    : null,
+              ),
             ),
           ),
           const SizedBox(height: 8),

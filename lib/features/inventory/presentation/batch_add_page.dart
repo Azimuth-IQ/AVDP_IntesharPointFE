@@ -16,7 +16,7 @@ import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/core/geo/governorate_picker.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
-import 'package:inteshar/features/entities/domain/entity.dart';
+import 'package:inteshar/features/entities/domain/entity_summary_row.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/inventory/data/definition_repository.dart';
 import 'package:inteshar/features/inventory/data/product_repository.dart';
@@ -169,8 +169,8 @@ class _ManualTabState extends ConsumerState<_ManualTab> {
 
   ProductDefinition? _selectedDef;
   String? _selectedGovernorate; // null = not geo-locked
-  List<Entity> _agents = []; // Main Agents (AGENT1) the voucher can be added to
-  Entity? _target; // the Main Agent that receives this voucher
+  List<EntitySummaryRow> _agents = []; // Main Agents (AGENT1) the voucher can be added to
+  EntitySummaryRow? _target; // the Main Agent that receives this voucher
   final _serialCtrl = TextEditingController();
   final _pinCtrl = TextEditingController();
   final _serialFocus = FocusNode();
@@ -197,9 +197,11 @@ class _ManualTabState extends ConsumerState<_ManualTab> {
       final api = ref.read(apiClientProvider);
       final repo = DefinitionRepository(api);
       final defs = await repo.readAll();
-      final entities = await EntityRepository(api).readAll();
-      // Stock lands at a Main Agent — offer AGENT1 only (the server enforces this too).
-      final agent1s = entities.where((e) => e.type == EntityType.AGENT1).toList();
+      // Stock lands at a Main Agent — fetch AGENT1 rows only (bounded: one per
+      // governorate) instead of downloading every entity (B-023).
+      final agent1s =
+          (await EntityRepository(api).search(types: const [EntityType.AGENT1]))
+              .items;
       if (mounted) {
         setState(() {
           _defs = defs;
@@ -348,13 +350,13 @@ class _ManualTabState extends ConsumerState<_ManualTab> {
                 ),
               )
             else
-              DropdownButtonFormField<Entity>(
+              DropdownButtonFormField<EntitySummaryRow>(
                 initialValue: _target,
                 isExpanded: true,
                 decoration: InputDecoration(
                     labelText: _tr(context, 'تُضاف إلى الوكيل الرئيسي', 'Add to Main Agent')),
                 items: _agents
-                    .map((e) => DropdownMenuItem(value: e, child: Text(e.meta.name)))
+                    .map((e) => DropdownMenuItem(value: e, child: Text(e.label)))
                     .toList(),
                 onChanged: (v) => setState(() => _target = v),
               ),
@@ -437,8 +439,8 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
 
   List<ProductDefinition> _defs = [];
   ProductDefinition? _selectedDef;
-  List<Entity> _entities = [];
-  Entity? _target; // who receives the vouchers (the agent/warehouse)
+  List<EntitySummaryRow> _entities = [];
+  EntitySummaryRow? _target; // who receives the vouchers (the agent/warehouse)
   String? _selectedGovernorate; // region-lock (NEW only)
   bool _loading = true;
   Object? _loadError;
@@ -470,9 +472,11 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
     try {
       final api = ref.read(apiClientProvider);
       final defs = await DefinitionRepository(api).readAll();
-      final entities = await EntityRepository(api).readAll();
-      // Filter to AGENT1 only — batch target must be a Main Agent (server enforces this too).
-      final agent1s = entities.where((e) => e.type == EntityType.AGENT1).toList();
+      // Batch target must be a Main Agent — fetch AGENT1 rows only (bounded: one
+      // per governorate) instead of downloading every entity (B-023).
+      final agent1s =
+          (await EntityRepository(api).search(types: const [EntityType.AGENT1]))
+              .items;
       if (mounted) {
         setState(() {
           _defs = defs;
@@ -796,13 +800,13 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                 ),
               )
             else
-              DropdownButtonFormField<Entity>(
+              DropdownButtonFormField<EntitySummaryRow>(
                 initialValue: _target,
                 isExpanded: true,
                 decoration: InputDecoration(
                     labelText: _tr(context, 'تُرفع إلى الوكيل الرئيسي', 'Hand to Main Agent')),
                 items: _entities
-                    .map((e) => DropdownMenuItem(value: e, child: Text(e.meta.name)))
+                    .map((e) => DropdownMenuItem(value: e, child: Text(e.label)))
                     .toList(),
                 onChanged: (v) => setState(() => _target = v),
               ),

@@ -23,11 +23,16 @@ class AuthAuthenticated extends AuthState {
   final bool isPosUser;
   final Set<Capability> capabilities;
 
+  /// B-055: the server-resolved capability set from `GET /entity/me` (own caps ∩
+  /// the HQ-set section ceiling on the parent chain, wildcards expanded to an
+  /// explicit list). Authoritative when present — see [can].
+  final Set<Capability>? effectiveCapabilities;
+
   /// Resolved white-label brand (Main-Agent logo/colours + HQ slider) for this
   /// session. Empty when unresolved or for HQ.
   final BrandInfo brand;
 
-  AuthAuthenticated({required this.entity, required this.role, this.isPosUser = false, this.capabilities = const {}, this.brand = const BrandInfo()});
+  AuthAuthenticated({required this.entity, required this.role, this.isPosUser = false, this.capabilities = const {}, this.effectiveCapabilities, this.brand = const BrandInfo()});
 
   String get homeRoute {
     if (isPosUser) return '/pos/home';
@@ -35,9 +40,18 @@ class AuthAuthenticated extends AuthState {
   }
 
   /// Whether the signed-in user may perform an action requiring any of [required].
-  /// ADMIN role and the AGENT_ADMIN capability satisfy everything. UI gating only —
-  /// the backend re-checks every protected request.
-  bool can(Set<Capability> required) => hasAnyCapability(role, capabilities, required);
+  /// When the server provided a resolved effective set (B-055) it is authoritative —
+  /// the ADMIN-role bypass must not resurrect sections HQ hid for this subtree.
+  /// Otherwise the legacy rule applies. UI gating only — the backend re-checks
+  /// every protected request.
+  bool can(Set<Capability> required) {
+    final eff = effectiveCapabilities;
+    if (eff != null) {
+      if (eff.contains(Capability.AGENT_ADMIN)) return true;
+      return required.any(eff.contains);
+    }
+    return hasAnyCapability(role, capabilities, required);
+  }
 }
 
 /// Result of a login attempt — drives the login screen's TOTP step.
@@ -106,7 +120,8 @@ class AuthController extends AsyncNotifier<AuthState> {
       debugPrint('[AUTH] fetching entity...');
       final api = ref.read(apiClientProvider);
       final entityRepo = EntityRepository(api);
-      final entity = await entityRepo.read(entityId);
+      // /me also carries the B-055 resolved effectiveCapabilities for this user.
+      final entity = await entityRepo.me();
       debugPrint('[AUTH] entity fetched: ${entity.id}');
       final phone = await sessionStorage.getCurrentPhone() ?? '';
       final user = entity.users.where((u) => u.phone == phone).firstOrNull;
@@ -115,7 +130,7 @@ class AuthController extends AsyncNotifier<AuthState> {
       // with the legacy rule (a USER on a STORE) so existing store logins still route to /pos.
       final isPosUser = (user?.isPos ?? false) || (role == UserRole.USER && entity.type == EntityType.STORE);
       final brand = await _loadBrand(api);
-      return AuthAuthenticated(entity: entity, role: role, isPosUser: isPosUser, capabilities: user?.capabilities ?? const {}, brand: brand);
+      return AuthAuthenticated(entity: entity, role: role, isPosUser: isPosUser, capabilities: user?.capabilities ?? const {}, effectiveCapabilities: entity.effectiveCapabilities, brand: brand);
     } catch (e) {
       debugPrint('[AUTH] error: $e');
       await sessionStorage.clear();
@@ -178,7 +193,8 @@ class AuthController extends AsyncNotifier<AuthState> {
     final isPosUser = foundIsPos || (foundRole == UserRole.USER && found.type == EntityType.STORE);
     final brand = await _loadBrand(api);
     state = AsyncValue.data(AuthAuthenticated(
-        entity: found, role: foundRole, isPosUser: isPosUser, capabilities: foundCaps, brand: brand));
+        entity: found, role: foundRole, isPosUser: isPosUser, capabilities: foundCaps,
+        effectiveCapabilities: found.effectiveCapabilities, brand: brand));
     return const LoginDone();
   }
 

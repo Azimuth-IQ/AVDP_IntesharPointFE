@@ -66,6 +66,16 @@ class _AgentFormState extends ConsumerState<AgentForm> {
   Set<String> _governorates = {};
   WorkingHours? _workingHours;
 
+  /// B-055 section ceiling. The 4 agent-facing sections; all-on = unrestricted
+  /// (persisted as {AGENT_ADMIN} so "no restriction" round-trips explicitly).
+  static const List<Capability> _sectionChoices = [
+    Capability.VIEW_REPORTS,
+    Capability.MANAGE_PRICING,
+    Capability.MANAGE_POS,
+    Capability.CREATE_TRANSACTIONS,
+  ];
+  Set<Capability> _allowedSections = _sectionChoices.toSet();
+
   // Sub-agent parent (Main Agent) selection
   List<EntitySummaryRow> _parentOptions = [];
   String? _parentId;
@@ -91,6 +101,11 @@ class _AgentFormState extends ConsumerState<AgentForm> {
       _background.text = e.meta.backgroundUrl;
       _governorates = e.meta.governorates.toSet();
       _workingHours = e.meta.workingHours;
+      final ceiling = e.allowedCapabilities;
+      if (ceiling != null && !ceiling.contains(Capability.AGENT_ADMIN)) {
+        _allowedSections =
+            _sectionChoices.where(ceiling.contains).toSet();
+      }
       _parentId = e.parent.isEmpty ? null : e.parent;
       final p = e.profile;
       if (p != null) {
@@ -327,6 +342,12 @@ class _AgentFormState extends ConsumerState<AgentForm> {
       contactEmail: _contactEmail.text.trim(),
     );
 
+    // All sections on → {AGENT_ADMIN} = unrestricted (never null, so an edit
+    // can CLEAR a previous restriction); any subset → that exact ceiling.
+    final ceiling = _allowedSections.length == _sectionChoices.length
+        ? {Capability.AGENT_ADMIN}
+        : Set<Capability>.of(_allowedSections);
+
     try {
       if (existing != null) {
         await repo.update(
@@ -335,6 +356,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
             profile: profile,
             parent: parentId,
             users: users,
+            allowedCapabilities: ceiling,
           ),
         );
       } else {
@@ -346,6 +368,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
             parent: parentId,
             type: tier.entityType,
             users: users,
+            allowedCapabilities: ceiling,
           ),
         );
       }
@@ -473,6 +496,39 @@ class _AgentFormState extends ConsumerState<AgentForm> {
             ),
           const SizedBox(height: 22),
         ],
+        // B-055: which sections this agent — and its ENTIRE subtree (sub-agents,
+        // POS apps) — may see. Server-enforced; the nav simply mirrors it.
+        SectionLabel(Localizations.localeOf(context).languageCode == 'ar'
+            ? 'الأقسام المتاحة'
+            : 'Visible sections'),
+        const SizedBox(height: 4),
+        Text(
+          Localizations.localeOf(context).languageCode == 'ar'
+              ? 'الأقسام المخفية تختفي عن الوكيل وكل حساباته الفرعية ونقاط بيعه.'
+              : 'Hidden sections disappear for this agent and its whole subtree (sub-agents, POS).',
+          style: IntesharType.sans(12.5, color: cs.onSurfaceVariant),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final c in _sectionChoices)
+              if (c != Capability.MANAGE_PRICING || tier == AgentTier.main)
+                FilterChip(
+                  label: Text(c.label(Localizations.localeOf(context).languageCode)),
+                  selected: _allowedSections.contains(c),
+                  onSelected: (v) => setState(() {
+                    if (v) {
+                      _allowedSections.add(c);
+                    } else {
+                      _allowedSections.remove(c);
+                    }
+                  }),
+                ),
+          ],
+        ),
+        const SizedBox(height: 22),
         SectionLabel(s.sectionIdentity),
         const SizedBox(height: 8),
         TextField(

@@ -260,7 +260,15 @@ class Entity {
   final List<EntityUser> users;
   final bool active; // operational on/off — a disabled point's users cannot log in
 
-  const Entity({required this.id, required this.meta, this.profile, this.parent = '', required this.type, this.childrenIds = const [], this.productsIds = const [], this.users = const [], this.active = true});
+  /// B-055 section ceiling HQ set on THIS entity (cascades to its subtree).
+  /// Null = unrestricted; `{AGENT_ADMIN}` also reads as unrestricted.
+  final Set<Capability>? allowedCapabilities;
+
+  /// B-055: the caller USER's resolved capability set from `GET /entity/me`
+  /// (own caps ∩ chain ceiling, wildcards expanded). Null on other reads.
+  final Set<Capability>? effectiveCapabilities;
+
+  const Entity({required this.id, required this.meta, this.profile, this.parent = '', required this.type, this.childrenIds = const [], this.productsIds = const [], this.users = const [], this.active = true, this.allowedCapabilities, this.effectiveCapabilities});
 
   factory Entity.fromJson(Map<String, dynamic> j) => Entity(
     id: j['id'] as String? ?? j['_id'] as String? ?? '',
@@ -272,6 +280,8 @@ class Entity {
     productsIds: (j['productsIds'] as List<dynamic>?)?.cast<String>() ?? [],
     users: (j['users'] as List<dynamic>?)?.map((u) => EntityUser.fromJson(u as Map<String, dynamic>)).toList() ?? [],
     active: j['active'] as bool? ?? true,
+    allowedCapabilities: j['allowedCapabilities'] == null ? null : capabilitiesFromJson(j['allowedCapabilities']),
+    effectiveCapabilities: j['effectiveCapabilities'] == null ? null : capabilitiesFromJson(j['effectiveCapabilities']),
   );
 
   Map<String, dynamic> toJson({bool includeUsers = false}) {
@@ -285,13 +295,17 @@ class Entity {
       'active': active,
     };
     if (profile != null) m['profile'] = profile!.toJson();
+    // Omitted (null) = "no change" server-side; to clear a ceiling send {AGENT_ADMIN}.
+    if (allowedCapabilities != null) {
+      m['allowedCapabilities'] = capabilitiesToJson(allowedCapabilities!);
+    }
     if (includeUsers && users.isNotEmpty) {
       m['users'] = users.map((u) => u.toJson()).toList();
     }
     return m;
   }
 
-  Entity copyWith({String? id, EntityMeta? meta, EntityProfile? profile, String? parent, EntityType? type, List<String>? childrenIds, List<String>? productsIds, List<EntityUser>? users, bool? active}) => Entity(
+  Entity copyWith({String? id, EntityMeta? meta, EntityProfile? profile, String? parent, EntityType? type, List<String>? childrenIds, List<String>? productsIds, List<EntityUser>? users, bool? active, Set<Capability>? allowedCapabilities}) => Entity(
     id: id ?? this.id,
     meta: meta ?? this.meta,
     profile: profile ?? this.profile,
@@ -301,5 +315,7 @@ class Entity {
     productsIds: productsIds ?? this.productsIds,
     users: users ?? this.users,
     active: active ?? this.active,
+    allowedCapabilities: allowedCapabilities ?? this.allowedCapabilities,
+    effectiveCapabilities: effectiveCapabilities,
   );
 }

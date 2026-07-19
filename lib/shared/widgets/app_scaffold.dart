@@ -257,17 +257,6 @@ class AppShell extends ConsumerWidget {
             group: 'network',
           ),
           _NavItem(
-            Icons.point_of_sale_outlined,
-            Icons.point_of_sale,
-            l.navStores,
-            '/hq/stores',
-            // Store/POS management is its own section (historically MANAGE_POS) —
-            // distinct from agent/entity CRUD (MANAGE_AGENTS). Grouped with POS points
-            // under "Points of Sale" so the two shop-side screens sit together.
-            required: Capability.MANAGE_POS,
-            group: 'pos',
-          ),
-          _NavItem(
             Icons.business_outlined,
             Icons.business,
             l.navCompanies,
@@ -375,13 +364,6 @@ class AppShell extends ConsumerWidget {
             '/agent1/pos-users',
             group: 'network',
           ),
-          _NavItem(
-            Icons.point_of_sale_outlined,
-            Icons.point_of_sale,
-            l.navStores,
-            '/agent1/stores',
-            group: 'network',
-          ),
           // Pricing is runtime-inserted at (length-1) so it lands before Notifications.
           _NavItem(
             Icons.notifications_outlined,
@@ -424,13 +406,6 @@ class AppShell extends ConsumerWidget {
             Icons.storefront,
             posLabel,
             '/agent2/pos-users',
-            group: 'network',
-          ),
-          _NavItem(
-            Icons.point_of_sale_outlined,
-            Icons.point_of_sale,
-            l.navStores,
-            '/agent2/stores',
             group: 'network',
           ),
           _NavItem(

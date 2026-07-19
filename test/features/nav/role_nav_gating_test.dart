@@ -82,29 +82,29 @@ void main() {
     await tester.tap(find.text('More'));
     await tester.pumpAndSettle();
     expect(find.text('Prices'), findsOneWidget, reason: 'AGENT1 has the Pricing screen');
-    expect(find.text('Stores'), findsOneWidget);
+    // B-052: the separate Stores screen merged into POS points — no nav item.
+    expect(find.text('Stores'), findsNothing);
   });
 
   testWidgets('AGENT2 bar: no Inventory (draw-on-print); NO Prices anywhere', (tester) async {
     await _pumpShell(tester, EntityType.AGENT2, 'agent2');
 
+    // After B-051 (Transactions retired) + B-052 (Stores merged into POS points)
+    // AGENT2 has exactly 5 destinations — they all fit on the bar, no More sheet.
     final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
     expect(bar.destinations.length, 5,
-        reason: 'AGENT2 has >5 destinations → 4 primary + More');
+        reason: 'AGENT2 has exactly 5 destinations — no overflow');
+    expect(find.text('More'), findsNothing);
 
     // B-042: a Sub-Agent holds no stock (it draws from its parent's pool at
     // print time), so — unlike AGENT1 — it has NO Inventory destination.
-    for (final label in ['Dashboard', 'Children', 'Reports', 'More']) {
+    for (final label in ['Dashboard', 'Children', 'Reports']) {
       expect(find.text(label), findsWidgets, reason: '$label should be on the bar');
     }
     expect(find.text('Inventory'), findsNothing, reason: 'AGENT2 has no inventory (B-042)');
     expect(find.text('Companies'), findsNothing, reason: 'Companies is HQ-only');
-
-    // The RBAC line that matters: AGENT2 must NOT have Pricing, even in overflow.
-    await tester.tap(find.text('More'));
-    await tester.pumpAndSettle();
+    // The RBAC line that matters: AGENT2 must NOT have Pricing anywhere.
     expect(find.text('Prices'), findsNothing, reason: 'Pricing is AGENT1-only');
-    expect(find.text('Inventory'), findsNothing, reason: 'no inventory in the overflow either');
-    expect(find.text('Stores'), findsOneWidget);
+    expect(find.text('Stores'), findsNothing); // B-052: merged into POS points
   });
 }

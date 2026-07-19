@@ -103,6 +103,7 @@ class Endpoints {
   // HQ network oversight (B-029): all agents' POS-slot rollup
   static const posQuotaNetwork = '/api/pos-quota/network';
   static const posQuotaNetworkSummary = '/api/pos-quota/network/summary';
+  static const posUsersList = '/api/pos-users/list'; // STORE children of a host agent (B-052)
   static const posUsersOnboard = '/api/pos-users/onboard';
   static const posUsersUpdate = '/api/pos-users/update';
   static const posUsersRevoke = '/api/pos-users/revoke';

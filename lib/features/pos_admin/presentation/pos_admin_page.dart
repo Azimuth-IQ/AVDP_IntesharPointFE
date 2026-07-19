@@ -7,7 +7,6 @@ import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:inteshar/core/geo/governorates.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
-import 'package:inteshar/features/entities/data/entity_repository.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/pos_admin/data/pos_admin_repository.dart';
@@ -80,10 +79,13 @@ class _S {
   String get passwordTooShort => p('At least 6 characters', '6 أحرف على الأقل');
   String get passwordResetDone => p('Password changed', 'تم تغيير كلمة المرور');
   String get close => p('Close', 'إغلاق');
+  String get activate => p('Activate', 'تفعيل');
+  String get deactivate => p('Deactivate', 'إيقاف');
+  String get disabled => p('Disabled', 'موقوف');
 }
 
 class _PosAdminPageState extends ConsumerState<PosAdminPage> {
-  Entity? _entity;
+  List<Entity> _stores = const [];
   PosSlotBalance? _quota;
   // B-043: Main/Sub agents may only USE POS points, never grant them on. Only HQ distributes
   // points (to any account), via the network view — so this page carries no recipient picker.
@@ -116,12 +118,12 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     });
     try {
       final id = _effectiveId ?? '';
-      final api = ref.read(apiClientProvider);
-      final entity = await EntityRepository(api).read(id);
       final quota = await _repo.quota(entityId: id);
+      // B-052: each POS is a STORE child entity of the host agent.
+      final stores = await _repo.list(entityId: id);
       if (!mounted) return;
       setState(() {
-        _entity = entity;
+        _stores = stores;
         _quota = quota;
         _loading = false;
       });
@@ -130,7 +132,6 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     }
   }
 
-  List<EntityUser> get _posUsers => (_entity?.users ?? const []).where((u) => u.isPos).toList();
 
   Future<void> _run(Future<void> Function() action, String okMsg) async {
     setState(() => _busy = true);
@@ -209,13 +210,13 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
             Text(s.noSlots, style: IntesharType.sans(12, color: cs.error)),
           ],
           const SizedBox(height: 16),
-          if (_posUsers.isEmpty)
+          if (_stores.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 40),
               child: Center(child: Text(s.empty, style: IntesharType.sans(14, color: cs.onSurfaceVariant))),
             )
           else
-            for (final u in _posUsers) _posCard(s, u, loc, cs),
+            for (final st in _stores) _posCard(s, st, loc, cs),
         ],
       ),
     );
@@ -245,26 +246,47 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
 
   Widget _divider() => Container(width: 1, height: 34, color: IntesharColors.ink.withValues(alpha: 0.18));
 
-  Widget _posCard(_S s, EntityUser u, String loc, ColorScheme cs) {
+  /// The shop's single POS operator (isPos) — falls back to the first user.
+  EntityUser? _operator(Entity store) {
+    for (final u in store.users) {
+      if (u.isPos) return u;
+    }
+    return store.users.isNotEmpty ? store.users.first : null;
+  }
+
+  Widget _posCard(_S s, Entity store, String loc, ColorScheme cs) {
+    final op = _operator(store);
+    final phone = op?.phone ?? '';
+    final name = store.meta.name.isNotEmpty ? store.meta.name : phone;
+    final owner = store.profile?.ownerName ?? '';
+    final gov = store.meta.governorates.isNotEmpty ? store.meta.governorates.first : '';
+    final active = store.active;
     return InkCard(
       padding: const EdgeInsets.all(14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Expanded(child: Text(u.posName.isNotEmpty ? u.posName : u.phone, style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w700))),
-          StampPill(label: 'POS', color: IntesharColors.sage),
+          Expanded(child: Text(name, style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w700))),
+          StampPill(
+            label: active ? 'POS' : s.disabled,
+            color: active ? IntesharColors.sage : cs.outline,
+          ),
         ]),
         const SizedBox(height: 4),
-        Text(u.phone, style: IntesharType.mono(12, color: cs.onSurfaceVariant)),
-        if (u.posOwnerName.isNotEmpty) Text(u.posOwnerName, style: IntesharType.sans(12.5, color: cs.onSurface)),
-        if (u.posGovernorate.isNotEmpty) Text(governorateLabel(u.posGovernorate, loc), style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
+        Text(phone, style: IntesharType.mono(12, color: cs.onSurfaceVariant)),
+        if (owner.isNotEmpty) Text(owner, style: IntesharType.sans(12.5, color: cs.onSurface)),
+        if (gov.isNotEmpty) Text(governorateLabel(gov, loc), style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
         const SizedBox(height: 10),
         Wrap(spacing: 8, runSpacing: 8, children: [
-          OutlinedButton(onPressed: _busy ? null : () => _editDialog(s, u), child: Text(s.edit)),
-          OutlinedButton(onPressed: _busy ? null : () => _resetPin(s, u), child: Text(s.resetPin)),
-          OutlinedButton(onPressed: _busy ? null : () => _resetPassword(s, u), child: Text(s.resetPassword)),
-          OutlinedButton(onPressed: _busy ? null : () => _run(() => _repo.resetTotp(u.phone), s.done), child: Text(s.resetTotp)),
+          OutlinedButton(onPressed: _busy ? null : () => _editDialog(s, store), child: Text(s.edit)),
+          OutlinedButton(onPressed: (_busy || phone.isEmpty) ? null : () => _resetPin(s, name, phone), child: Text(s.resetPin)),
+          OutlinedButton(onPressed: (_busy || phone.isEmpty) ? null : () => _resetPassword(s, name, phone), child: Text(s.resetPassword)),
+          OutlinedButton(onPressed: (_busy || phone.isEmpty) ? null : () => _run(() => _repo.resetTotp(phone), s.done), child: Text(s.resetTotp)),
           OutlinedButton(
-            onPressed: _busy ? null : () => _confirmRevoke(s, u),
+            onPressed: _busy ? null : () => _run(() => _repo.setActive(store.id, !active), s.done),
+            child: Text(active ? s.deactivate : s.activate),
+          ),
+          OutlinedButton(
+            onPressed: (_busy || phone.isEmpty) ? null : () => _confirmRevoke(s, phone),
             style: OutlinedButton.styleFrom(foregroundColor: cs.error),
             child: Text(s.revoke),
           ),
@@ -273,7 +295,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     );
   }
 
-  Future<void> _confirmRevoke(_S s, EntityUser u) async {
+  Future<void> _confirmRevoke(_S s, String phone) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -285,16 +307,16 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
       ),
     );
     if (ok == true) {
-      await _run(() => _repo.revoke(entityId: _effectiveId ?? '', phone: u.phone), s.done);
+      await _run(() => _repo.revoke(entityId: _effectiveId ?? '', phone: phone), s.done);
     }
   }
 
   /// Reset the POS PIN and reveal the fresh manager-visible PIN once (B-047).
-  Future<void> _resetPin(_S s, EntityUser u) async {
+  Future<void> _resetPin(_S s, String name, String phone) async {
     setState(() => _busy = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final pin = await _repo.resetPin(u.phone);
+      final pin = await _repo.resetPin(phone);
       await _load();
       if (!mounted) return;
       await showDialog<void>(
@@ -322,13 +344,13 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
   }
 
   /// Change a POS user's login password (B-047).
-  Future<void> _resetPassword(_S s, EntityUser u) async {
+  Future<void> _resetPassword(_S s, String name, String phone) async {
     final ctrl = TextEditingController();
     final formKey = GlobalKey<FormState>();
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('${s.resetPassword} — ${u.posName.isNotEmpty ? u.posName : u.phone}'),
+        title: Text('${s.resetPassword} — $name'),
         content: Form(
           key: formKey,
           child: PasswordField(
@@ -350,7 +372,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
       ),
     );
     if (ok == true) {
-      await _run(() => _repo.resetPassword(u.phone, ctrl.text.trim()), s.passwordResetDone);
+      await _run(() => _repo.resetPassword(phone, ctrl.text.trim()), s.passwordResetDone);
     }
   }
 
@@ -426,20 +448,22 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     }
   }
 
-  /// Edit an existing POS user's profile (B-045). Phone + credentials are unchanged
-  /// (the phone is shown read-only; use the reset actions for the password/PIN).
-  Future<void> _editDialog(_S s, EntityUser u) async {
-    final name = TextEditingController(text: u.posName);
-    final owner = TextEditingController(text: u.posOwnerName);
-    final addr = TextEditingController(text: u.posAddress);
-    String? gov = u.posGovernorate.isEmpty ? null : u.posGovernorate;
+  /// Edit an existing POS profile (B-045, unified B-052: fields live on the STORE
+  /// entity). Phone + credentials are unchanged (use the reset actions for those).
+  Future<void> _editDialog(_S s, Entity store) async {
+    final op = _operator(store);
+    final phone = op?.phone ?? '';
+    final name = TextEditingController(text: store.meta.name);
+    final owner = TextEditingController(text: store.profile?.ownerName ?? '');
+    final addr = TextEditingController(text: store.profile?.address ?? '');
+    String? gov = store.meta.governorates.isNotEmpty ? store.meta.governorates.first : null;
     final formKey = GlobalKey<FormState>();
     final loc = Localizations.localeOf(context).languageCode;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setD) => AlertDialog(
-          title: Text('${s.editPos} — ${u.phone}'),
+          title: Text('${s.editPos} — $phone'),
           content: SingleChildScrollView(
             child: Form(
               key: formKey,
@@ -474,7 +498,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     if (ok == true) {
       await _run(
         () => _repo.update(
-          phone: u.phone,
+          phone: phone,
           posName: name.text.trim(),
           posOwnerName: owner.text.trim(),
           posGovernorate: gov ?? '',

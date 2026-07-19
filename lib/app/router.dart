@@ -28,7 +28,6 @@ import 'package:inteshar/features/pos/presentation/pos_pin_setup_page.dart';
 import 'package:inteshar/features/pricing/presentation/pricing_page.dart';
 import 'package:inteshar/features/pos_admin/presentation/pos_admin_page.dart';
 import 'package:inteshar/features/reports/presentation/reports_page.dart';
-import 'package:inteshar/features/stores/presentation/stores_page.dart';
 import 'package:inteshar/features/system_activity/presentation/system_activity_page.dart';
 import 'package:inteshar/shared/widgets/app_scaffold.dart';
 
@@ -130,7 +129,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/hq/main-agents', builder: (_, _) => const MainAgentsPage()),
           GoRoute(path: '/hq/sub-agents', builder: (_, _) => const SubAgentsPage()),
           GoRoute(path: '/hq/companies', builder: (_, _) => const CompaniesPage()),
-          GoRoute(path: '/hq/stores', builder: (_, _) => const StoresPage()),
           GoRoute(path: '/hq/entities', builder: (_, _) => const EntityTreePage()),
           GoRoute(path: '/hq/definitions', builder: (_, _) => const DefinitionsPage()),
           GoRoute(path: '/hq/templates', builder: (_, _) => const VoucherTemplatesPage()),
@@ -152,14 +150,12 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/agent1/pricing', builder: (_, _) => const PricingPage()),
           GoRoute(path: '/agent1/reports', builder: (_, _) => const ReportsPage()),
           GoRoute(path: '/agent1/pos-users', builder: (_, _) => const PosAdminPage()),
-          GoRoute(path: '/agent1/stores', builder: (_, _) => const StoresPage()),
           GoRoute(path: '/agent1/notifications', builder: (_, _) => const NotificationsInboxPage()),
 
           // Agent2 — no own-inventory route: a sub-agent holds no cards and draws
           // from its parent's pool at print time (draw-on-print), B-042.
           GoRoute(path: '/agent2/home', builder: (_, _) => const DashboardPage()),
           GoRoute(path: '/agent2/entities', builder: (_, _) => const EntityTreePage()),
-          GoRoute(path: '/agent2/stores', builder: (_, _) => const StoresPage()),
           GoRoute(path: '/agent2/reports', builder: (_, _) => const ReportsPage()),
           GoRoute(path: '/agent2/pos-users', builder: (_, _) => const PosAdminPage()),
           GoRoute(path: '/agent2/notifications', builder: (_, _) => const NotificationsInboxPage()),

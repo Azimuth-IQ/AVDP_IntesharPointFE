@@ -1,5 +1,6 @@
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/endpoints.dart';
+import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/pos_admin/domain/pos_network.dart';
 import 'package:inteshar/features/pos_admin/domain/pos_slot_balance.dart';
 
@@ -45,7 +46,22 @@ class PosAdminRepository {
     });
   }
 
-  /// Onboard a POS user on [entityId] (consumes one slot).
+  /// The host agent's POS shops — its STORE children (B-052 unified model).
+  Future<List<Entity>> list({String? entityId}) async {
+    final r = await _api.get(Endpoints.posUsersList,
+        params: {if (entityId != null && entityId.isNotEmpty) 'entityId': entityId});
+    return _api.unwrap(r, (d) {
+      final list = d as List<dynamic>;
+      return list.map((e) => Entity.fromJson(e as Map<String, dynamic>)).toList();
+    });
+  }
+
+  /// Enable/disable a POS shop (its operator can no longer log in when disabled).
+  Future<void> setActive(String storeId, bool active) async {
+    await _api.post(Endpoints.entitySetActive, params: {'id': storeId, 'active': active});
+  }
+
+  /// Onboard a POS on [entityId] — creates a STORE child entity and consumes one slot (B-052).
   Future<void> onboard({
     required String entityId,
     required String phone,

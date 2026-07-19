@@ -138,6 +138,7 @@ class EntityProfile {
   final double? latitude;
   final double? longitude;
   final String nearestLandmark;
+  final String address; // street address text — العنوان (B-052)
   final String contactPhone;
   final String contactEmail;
 
@@ -147,6 +148,7 @@ class EntityProfile {
     this.latitude,
     this.longitude,
     this.nearestLandmark = '',
+    this.address = '',
     this.contactPhone = '',
     this.contactEmail = '',
   });
@@ -157,6 +159,7 @@ class EntityProfile {
         latitude: (j['latitude'] as num?)?.toDouble(),
         longitude: (j['longitude'] as num?)?.toDouble(),
         nearestLandmark: j['nearestLandmark'] as String? ?? '',
+        address: j['address'] as String? ?? '',
         contactPhone: j['contactPhone'] as String? ?? '',
         contactEmail: j['contactEmail'] as String? ?? '',
       );
@@ -167,16 +170,18 @@ class EntityProfile {
         if (latitude != null) 'latitude': latitude,
         if (longitude != null) 'longitude': longitude,
         'nearestLandmark': nearestLandmark,
+        'address': address,
         'contactPhone': contactPhone,
         'contactEmail': contactEmail,
       };
 
-  EntityProfile copyWith({String? ownerName, List<String>? documentUrls, double? latitude, double? longitude, String? nearestLandmark, String? contactPhone, String? contactEmail}) => EntityProfile(
+  EntityProfile copyWith({String? ownerName, List<String>? documentUrls, double? latitude, double? longitude, String? nearestLandmark, String? address, String? contactPhone, String? contactEmail}) => EntityProfile(
         ownerName: ownerName ?? this.ownerName,
         documentUrls: documentUrls ?? this.documentUrls,
         latitude: latitude ?? this.latitude,
         longitude: longitude ?? this.longitude,
         nearestLandmark: nearestLandmark ?? this.nearestLandmark,
+        address: address ?? this.address,
         contactPhone: contactPhone ?? this.contactPhone,
         contactEmail: contactEmail ?? this.contactEmail,
       );

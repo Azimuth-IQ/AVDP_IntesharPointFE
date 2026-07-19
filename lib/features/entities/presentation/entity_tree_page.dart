@@ -15,7 +15,6 @@ import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/domain/entity_summary_row.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/entities/presentation/manage_users_sheet.dart';
-import 'package:inteshar/features/stores/presentation/stores_page.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
@@ -759,9 +758,9 @@ class _TreeNode extends ConsumerWidget {
   }
 
   /// Routes "Add child" to the proper validated onboarding form for the child
-  /// tier instead of the bare meta-only sheet (which produced user-less,
-  /// region-less, non-functional entities). AGENT1/AGENT2 → the two-step
-  /// [AgentForm]; STORE → [StoreForm]. Refreshes the tree on a successful save.
+  /// tier. AGENT1/AGENT2 → the two-step [AgentForm]. POS shops are NOT created
+  /// here (B-052): onboarding a POS consumes a quota slot via the نقاط البيع
+  /// screen, so the STORE case is intentionally absent.
   Future<void> _addChild(BuildContext context, WidgetRef ref) async {
     final childType = _childType(entity.type);
     if (childType == null) return;
@@ -773,7 +772,6 @@ class _TreeNode extends ConsumerWidget {
       case EntityType.AGENT2:
         page = const AgentForm(tier: AgentTier.sub);
       case EntityType.STORE:
-        page = StoreForm(parentId: entity.id);
       case EntityType.INTESHAR:
         return;
     }
@@ -788,7 +786,8 @@ class _TreeNode extends ConsumerWidget {
     return switch (parent) {
       EntityType.INTESHAR => EntityType.AGENT1,
       EntityType.AGENT1 => EntityType.AGENT2,
-      EntityType.AGENT2 => EntityType.STORE,
+      // POS shops are quota-onboarded from the نقاط البيع screen, not the tree.
+      EntityType.AGENT2 => null,
       EntityType.STORE => null,
     };
   }

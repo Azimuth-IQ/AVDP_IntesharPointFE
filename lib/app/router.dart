@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
+import 'package:inteshar/features/balance_transfer/presentation/transfers_page.dart';
 import 'package:inteshar/features/auth/presentation/login_page.dart';
 import 'package:inteshar/features/auth/presentation/splash_page.dart';
 import 'package:inteshar/features/dashboard/presentation/dashboard_page.dart';
@@ -148,6 +149,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/agent1/entities', builder: (_, _) => const EntityTreePage()),
           GoRoute(path: '/agent1/inventory', builder: (_, _) => const InventoryPage(readOnly: true)),
           GoRoute(path: '/agent1/pricing', builder: (_, _) => const PricingPage()),
+          GoRoute(path: '/agent1/transfers', builder: (_, _) => const TransfersPage()),
           GoRoute(path: '/agent1/reports', builder: (_, _) => const ReportsPage()),
           GoRoute(path: '/agent1/pos-users', builder: (_, _) => const PosAdminPage()),
           GoRoute(path: '/agent1/notifications', builder: (_, _) => const NotificationsInboxPage()),
@@ -157,6 +159,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/agent2/home', builder: (_, _) => const DashboardPage()),
           GoRoute(path: '/agent2/entities', builder: (_, _) => const EntityTreePage()),
           GoRoute(path: '/agent2/reports', builder: (_, _) => const ReportsPage()),
+          GoRoute(path: '/agent2/transfers', builder: (_, _) => const TransfersPage()),
           GoRoute(path: '/agent2/pos-users', builder: (_, _) => const PosAdminPage()),
           GoRoute(path: '/agent2/notifications', builder: (_, _) => const NotificationsInboxPage()),
 

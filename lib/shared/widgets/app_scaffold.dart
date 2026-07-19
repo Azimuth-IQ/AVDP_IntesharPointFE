@@ -58,15 +58,6 @@ class _NavItem {
   });
 }
 
-/// Whether a nav item is visible to a user with [caps]. Items with no [required]
-/// capability are always shown; an empty capability set (the platform admin / legacy
-/// users) or the AGENT_ADMIN capability sees everything.
-bool _navAllowed(Set<Capability> caps, Capability? required) {
-  if (required == null) return true;
-  if (caps.isEmpty || caps.contains(Capability.AGENT_ADMIN)) return true;
-  return caps.contains(required);
-}
-
 /// Wraps [icon] in a Material [Badge] when [route] ends with `/notifications`
 /// and [count] > 0. Applied to bottom-bar, rail, sidebar, and the More sheet.
 Widget _wrapBadge(Widget icon, String route, int count) {
@@ -168,6 +159,7 @@ class AppShell extends ConsumerWidget {
 
   List<_NavItem> _navFor(AppLocalizations l, EntityType type) {
     final reportsLabel = l.localeName.startsWith('ar') ? 'التقارير' : 'Reports';
+    final transfersLabel = l.localeName.startsWith('ar') ? 'التحويل' : 'Transfers';
     final posLabel = l.localeName.startsWith('ar') ? 'نقاط البيع' : 'POS points';
     final sliderLabel = l.localeName.startsWith('ar') ? 'شريط الصور' : 'Home slider';
     final appDownloadLabel = l.localeName.startsWith('ar') ? 'تحميل التطبيق' : 'Get the app';
@@ -334,6 +326,15 @@ class AppShell extends ConsumerWidget {
             '/agent1/home',
             group: 'operations',
           ),
+          // B-056: the balance-transfer page takes the retired Transactions slot.
+          _NavItem(
+            Icons.swap_horiz_outlined,
+            Icons.swap_horiz,
+            transfersLabel,
+            '/agent1/transfers',
+            required: Capability.CREATE_TRANSACTIONS,
+            group: 'operations',
+          ),
           _NavItem(
             Icons.warehouse_outlined,
             Icons.warehouse,
@@ -355,6 +356,7 @@ class AppShell extends ConsumerWidget {
             Icons.assessment,
             reportsLabel,
             '/agent1/reports',
+            required: Capability.VIEW_REPORTS,
             group: 'network',
           ),
           _NavItem(
@@ -362,6 +364,7 @@ class AppShell extends ConsumerWidget {
             Icons.storefront,
             posLabel,
             '/agent1/pos-users',
+            required: Capability.MANAGE_POS,
             group: 'network',
           ),
           // Pricing is runtime-inserted at (length-1) so it lands before Notifications.
@@ -386,6 +389,15 @@ class AppShell extends ConsumerWidget {
             '/agent2/home',
             group: 'operations',
           ),
+          // B-056: the balance-transfer page takes the retired Transactions slot.
+          _NavItem(
+            Icons.swap_horiz_outlined,
+            Icons.swap_horiz,
+            transfersLabel,
+            '/agent2/transfers',
+            required: Capability.CREATE_TRANSACTIONS,
+            group: 'operations',
+          ),
           _NavItem(
             Icons.account_tree_outlined,
             Icons.account_tree,
@@ -399,6 +411,7 @@ class AppShell extends ConsumerWidget {
             Icons.assessment,
             reportsLabel,
             '/agent2/reports',
+            required: Capability.VIEW_REPORTS,
             group: 'network',
           ),
           _NavItem(
@@ -406,6 +419,7 @@ class AppShell extends ConsumerWidget {
             Icons.storefront,
             posLabel,
             '/agent2/pos-users',
+            required: Capability.MANAGE_POS,
             group: 'network',
           ),
           _NavItem(
@@ -498,14 +512,15 @@ class AppShell extends ConsumerWidget {
       );
     }
 
-    // HQ supervisors see only the sections their capabilities allow (empty caps =
-    // full access). Never produce an empty nav.
-    final caps = (auth is AuthAuthenticated)
-        ? auth.capabilities
-        : const <Capability>{};
-    final filtered = base
-        .where((it) => _navAllowed(caps, it.required))
-        .toList();
+    // Users see only the sections their capabilities allow. B-055: auth.can() is
+    // ceiling-aware (server-resolved effective set beats the ADMIN-role bypass),
+    // so a section HQ hid for an agent disappears for its whole subtree. Never
+    // produce an empty nav.
+    final filtered = base.where((it) {
+      if (it.required == null) return true;
+      if (auth is! AuthAuthenticated) return false;
+      return auth.can({it.required!});
+    }).toList();
     final items = filtered.isEmpty ? base : filtered;
 
     final location = GoRouterState.of(context).matchedLocation;

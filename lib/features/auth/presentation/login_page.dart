@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:inteshar/app/theme.dart';
+import 'package:inteshar/core/api/api_client.dart';
+import 'package:inteshar/core/api/endpoints.dart';
+import 'package:inteshar/core/locale/locale_controller.dart';
 import 'package:inteshar/core/storage/session_storage.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/auth/application/seed_controller.dart';
@@ -650,7 +653,7 @@ class _MobileBrandHeader extends StatelessWidget {
   }
 }
 
-class _LoginForm extends StatelessWidget {
+class _LoginForm extends ConsumerWidget {
   final GlobalKey<FormState> formKey;
   final TextEditingController phoneCtrl;
   final TextEditingController passCtrl;
@@ -682,13 +685,23 @@ class _LoginForm extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
     return Form(
       key: formKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // A9: ar/en language toggle at the top of the login card.
+          Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: TextButton.icon(
+              onPressed: () => ref.read(localeControllerProvider.notifier).toggle(),
+              icon: const Icon(Icons.language, size: 18),
+              label: Text(ar ? 'English' : 'العربية'),
+            ),
+          ),
           Text(
             l.loginWelcomeBack,
             style: IntesharType.display(34, color: cs.onSurface, w: FontWeight.w900),
@@ -757,6 +770,14 @@ class _LoginForm extends StatelessWidget {
               onShowUrlSheet();
             },
           ),
+          // A8: forgot password → notifies the account's supervisor (the agent).
+          Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: TextButton(
+              onPressed: () => _forgotPassword(context, ref, ar),
+              child: Text(ar ? 'نسيت كلمة المرور؟' : 'Forgot password?'),
+            ),
+          ),
           if (isAuthenticated) ...[
             const SizedBox(height: 12),
             BrandCTAButton(
@@ -769,6 +790,57 @@ class _LoginForm extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// A8: ask the backend to notify the supervisor. Public + rate-limited; the
+  /// response is deliberately the same whether or not the phone exists.
+  Future<void> _forgotPassword(BuildContext context, WidgetRef ref, bool ar) async {
+    final ctrl = TextEditingController(text: phoneCtrl.text.trim());
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(ar ? 'إعادة تعيين كلمة المرور' : 'Reset password'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(
+            ar
+                ? 'أدخل رقم هاتفك وسيصل طلب إلى وكيلك لإعادة تعيين كلمة المرور.'
+                : 'Enter your phone and a reset request will be sent to your agent.',
+            style: Theme.of(ctx).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: ctrl,
+            keyboardType: TextInputType.phone,
+            decoration: InputDecoration(
+              labelText: ar ? 'رقم الهاتف' : 'Phone',
+              hintText: '07701234567',
+            ),
+          ),
+        ]),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(ar ? 'إلغاء' : 'Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(ar ? 'إرسال' : 'Send')),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(apiClientProvider).post(
+            Endpoints.authForgotPassword,
+            data: {'phone': ctrl.text.trim()},
+          );
+    } catch (_) {
+      // Same generic outcome regardless — never reveal whether the phone exists.
+    }
+    messenger.showSnackBar(SnackBar(
+        content: Text(ar
+            ? 'إذا كان الحساب موجوداً، فقد تم إشعار وكيلك.'
+            : 'If the account exists, your agent was notified.')));
   }
 }
 

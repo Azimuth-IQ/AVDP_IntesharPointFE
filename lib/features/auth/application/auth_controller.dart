@@ -234,6 +234,28 @@ class AuthController extends AsyncNotifier<AuthState> {
     state = AsyncValue.data(AuthUnauthenticated());
   }
 
+  /// Re-resolve the signed-in entity from `/entity/me` in place, keeping the
+  /// session (B-054: the POS location gate lifts once the shop confirms). A
+  /// failure leaves the current state untouched.
+  Future<void> refresh() async {
+    final auth = state.valueOrNull;
+    if (auth is! AuthAuthenticated) return;
+    try {
+      final api = ref.read(apiClientProvider);
+      final entity = await EntityRepository(api).me();
+      state = AsyncValue.data(AuthAuthenticated(
+        entity: entity,
+        role: auth.role,
+        isPosUser: auth.isPosUser,
+        capabilities: auth.capabilities,
+        effectiveCapabilities: entity.effectiveCapabilities,
+        brand: auth.brand,
+      ));
+    } catch (_) {
+      // Keep the current session on a transient failure.
+    }
+  }
+
   AuthAuthenticated? get current {
     final v = state.valueOrNull;
     return v is AuthAuthenticated ? v : null;

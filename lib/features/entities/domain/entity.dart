@@ -139,6 +139,11 @@ class EntityProfile {
   final double? longitude;
   final String nearestLandmark;
   final String address; // street address text — العنوان (B-052)
+  // B-054: one-time at-the-shop location confirmation. Selling is blocked
+  // (server + UI gate) until locationConfirmedAt is set.
+  final double? confirmedLatitude;
+  final double? confirmedLongitude;
+  final String? locationConfirmedAt;
   final String contactPhone;
   final String contactEmail;
 
@@ -149,6 +154,9 @@ class EntityProfile {
     this.longitude,
     this.nearestLandmark = '',
     this.address = '',
+    this.confirmedLatitude,
+    this.confirmedLongitude,
+    this.locationConfirmedAt,
     this.contactPhone = '',
     this.contactEmail = '',
   });
@@ -160,6 +168,9 @@ class EntityProfile {
         longitude: (j['longitude'] as num?)?.toDouble(),
         nearestLandmark: j['nearestLandmark'] as String? ?? '',
         address: j['address'] as String? ?? '',
+        confirmedLatitude: (j['confirmedLatitude'] as num?)?.toDouble(),
+        confirmedLongitude: (j['confirmedLongitude'] as num?)?.toDouble(),
+        locationConfirmedAt: j['locationConfirmedAt']?.toString(),
         contactPhone: j['contactPhone'] as String? ?? '',
         contactEmail: j['contactEmail'] as String? ?? '',
       );

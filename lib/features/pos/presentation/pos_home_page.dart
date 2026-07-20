@@ -19,7 +19,14 @@ import 'package:inteshar/features/inventory/domain/product.dart';
 import 'package:inteshar/features/pricing/data/pricing_repository.dart';
 import 'package:inteshar/features/pricing/domain/pricing_models.dart';
 import 'package:inteshar/features/pos/application/pos_pin_controller.dart';
+import 'package:inteshar/core/api/error_mapper.dart' show friendlyError;
+import 'package:inteshar/features/entities/domain/entity_type.dart';
+import 'package:inteshar/features/pos/data/pos_self_repository.dart';
+import 'package:inteshar/features/pos/presentation/pos_account_panel.dart';
+import 'package:inteshar/features/pos/presentation/pos_sales_panel.dart';
+import 'package:inteshar/features/pos/presentation/pos_statement_panel.dart';
 import 'package:inteshar/features/pos/presentation/printer_picker_page.dart';
+import 'package:inteshar/shared/widgets/map_location_picker.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/brand_backdrop.dart';
 import 'package:inteshar/shared/widgets/brand_cta.dart';
@@ -213,20 +220,22 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
                 : _error != null
                 ? ErrorState(error: _error!, onRetry: _load)
                 : _buildBody(l),
-            _PrinterPanel(onOpen: _openPrinterPicker),
-            _AccountPanel(onOpenPrinter: _openPrinterPicker, onSignOut: _signOut),
+            const PosStatementPanel(),
+            const PosSalesPanel(),
+            PosAccountPanel(onOpenPrinter: _openPrinterPicker, onSignOut: _signOut),
           ],
         ),
       ),
-      // Phase-I POS bottom nav (system Excel mockup image7): the tabs that exist
-      // today — Store (sell), Printer, Account. No dead/placeholder tabs.
+      // POS bottom nav (سستم تطبيق A92-A95): Store (sell), الحسابات (statement),
+      // التقارير (purchased cards), الحساب (profile). Printer setup lives inside الحساب.
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
         onDestinationSelected: (i) => setState(() => _tab = i),
         destinations: [
           NavigationDestination(icon: const Icon(Icons.storefront_outlined), selectedIcon: const Icon(Icons.storefront), label: _ar ? 'المتجر' : 'Store'),
-          NavigationDestination(icon: const Icon(Icons.print_outlined), selectedIcon: const Icon(Icons.print), label: _ar ? 'الطابعة' : 'Printer'),
-          NavigationDestination(icon: const Icon(Icons.person_outline), selectedIcon: const Icon(Icons.person), label: _ar ? 'الحساب' : 'Account'),
+          NavigationDestination(icon: const Icon(Icons.account_balance_wallet_outlined), selectedIcon: const Icon(Icons.account_balance_wallet), label: _ar ? 'الحسابات' : 'Account'),
+          NavigationDestination(icon: const Icon(Icons.receipt_long_outlined), selectedIcon: const Icon(Icons.receipt_long), label: _ar ? 'التقارير' : 'Reports'),
+          NavigationDestination(icon: const Icon(Icons.person_outline), selectedIcon: const Icon(Icons.person), label: _ar ? 'الحساب' : 'Profile'),
         ],
       ),
     );
@@ -325,6 +334,18 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
   // ── Step router ─────────────────────────────────────────────────────────────
 
   Widget _buildBody(AppLocalizations l) {
+    // سستم A92: selling is blocked until the shop confirms its location once.
+    final auth = ref.watch(authStateProvider).valueOrNull;
+    final entity = auth is AuthAuthenticated ? auth.entity : null;
+    if (entity != null &&
+        entity.type == EntityType.STORE &&
+        entity.profile?.locationConfirmedAt == null) {
+      return _LocationGate(onConfirmed: () async {
+        // Re-fetch the entity so the gate lifts.
+        await ref.read(authStateProvider.notifier).refresh();
+        if (mounted) _load();
+      });
+    }
     if (_company == null) return _homeStep(l);
     final rows = _companyGroups()[_company] ?? const <SellableSku>[];
     if (!_govChosen && _buckets(rows).length > 1) return _governorateStep(l, rows);
@@ -552,104 +573,6 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
 }
 
 // ── Printer tab ───────────────────────────────────────────────────────────────
-
-class _PrinterPanel extends ConsumerWidget {
-  final VoidCallback onOpen;
-  const _PrinterPanel({required this.onOpen});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
-    final ps = ref.watch(bluetoothServiceProvider);
-    final connected = ps.status == PrinterStatus.connected;
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 72,
-                height: 72,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: (connected ? IntesharColors.sage : cs.primary).withValues(alpha: 0.14),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(connected ? Icons.print : Icons.print_disabled_outlined, size: 34, color: connected ? IntesharColors.sage : cs.primary),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                connected ? (ps.deviceName ?? l.posPrinterConnected) : l.posHomePrinterNotConnected,
-                textAlign: TextAlign.center,
-                style: IntesharType.display(18, color: cs.onSurface, w: FontWeight.w800),
-              ),
-              const SizedBox(height: 20),
-              BrandCTAButton(
-                label: connected ? l.posHomeSetupPrinter : l.posConnectPrinter,
-                leading: Icons.bluetooth,
-                onPressed: onOpen,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Account tab ───────────────────────────────────────────────────────────────
-
-class _AccountPanel extends ConsumerWidget {
-  final VoidCallback onOpenPrinter;
-  final Future<void> Function() onSignOut;
-  const _AccountPanel({required this.onOpenPrinter, required this.onSignOut});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
-    final ar = Localizations.localeOf(context).languageCode == 'ar';
-    final auth = ref.watch(authStateProvider).valueOrNull;
-    final entity = auth is AuthAuthenticated ? auth.entity : null;
-    final shop = entity?.meta.name ?? '';
-    final phone = entity?.users.firstOrNull?.phone ?? '';
-    final logo = auth is AuthAuthenticated ? auth.brand.agentLogoUrl : '';
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 460),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 8),
-              Center(
-                child: logo.trim().isNotEmpty
-                    ? Image.network(logo, height: 64, fit: BoxFit.contain, errorBuilder: (_, _, _) => IntesharStar(size: 56, color: cs.onSurface))
-                    : IntesharStar(size: 56, color: cs.onSurface),
-              ),
-              const SizedBox(height: 16),
-              Text(shop.isEmpty ? l.posHome : shop, textAlign: TextAlign.center, style: IntesharType.display(22, color: cs.onSurface, w: FontWeight.w900)),
-              if (phone.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(phone, textAlign: TextAlign.center, style: IntesharType.mono(14, color: cs.onSurfaceVariant)),
-              ],
-              const SizedBox(height: 28),
-              BrandCTAButton(label: ar ? 'إعداد الطابعة' : 'Printer setup', leading: Icons.print_outlined, variant: BrandCTAVariant.outline, onPressed: onOpenPrinter),
-              const SizedBox(height: 12),
-              BrandCTAButton(label: l.signOut, leading: Icons.logout_outlined, variant: BrandCTAVariant.outline, onPressed: () => onSignOut()),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _BalanceTally extends StatelessWidget {
   final AgentBalance? balance;
@@ -1022,6 +945,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
   late final String _clientRef;
   Product? _sent;
   int _receiptNo = 0;
+  String? _operationId; // B-054: this sale's PrintOperation id, for confirmPrint
   // Wraps the on-screen receipt preview so a Rovo/intent print can capture it to a PNG.
   final GlobalKey _receiptKey = GlobalKey();
   String? _agentLogoUrl;
@@ -1057,6 +981,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
         setState(() {
           _sent = full.product;
           _receiptNo = full.receiptNo;
+          _operationId = full.operationId;
           _agentLogoUrl = full.agentLogoUrl;
           _companyLogoUrl = full.companyLogoUrl;
           _companyName = full.companyName;
@@ -1111,6 +1036,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
             receiptNo: _receiptNo,
           ),
         );
+        await _confirmPrinted();
         if (mounted) widget.onPrinted();
         return;
       }
@@ -1139,6 +1065,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
       // rapid/concurrent prints never interleave bytes) with retry on transient
       // printer failures.
       await ref.read(printQueueProvider).enqueue(bytes);
+      await _confirmPrinted();
       if (mounted) widget.onPrinted();
     } catch (e) {
       if (mounted) {
@@ -1148,6 +1075,17 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
     } finally {
       if (mounted) setState(() => _printing = false);
     }
+  }
+
+  /// B-054: confirm this sale's physical print outcome (best-effort — a failure
+  /// leaves the op as "not printed", visible in the التقارير tab for a reprint).
+  Future<void> _confirmPrinted() async {
+    final id = _operationId;
+    if (id == null || id.isEmpty) return;
+    try {
+      await ProductRepository(ref.read(apiClientProvider))
+          .confirmPrint(id, printed: true);
+    } catch (_) {}
   }
 
   @override
@@ -1605,4 +1543,74 @@ class _DashedLinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DashedLinePainter old) => old.color != color;
+}
+
+/// سستم A92: a full-panel, one-time mandatory location confirmation. The shop
+/// picks its spot on the map; selling stays blocked until it is confirmed.
+class _LocationGate extends ConsumerStatefulWidget {
+  const _LocationGate({required this.onConfirmed});
+  final Future<void> Function() onConfirmed;
+
+  @override
+  ConsumerState<_LocationGate> createState() => _LocationGateState();
+}
+
+class _LocationGateState extends ConsumerState<_LocationGate> {
+  bool _busy = false;
+
+  Future<void> _confirm() async {
+    final picked = await pickLocationOnMap(context);
+    if (picked == null || !mounted) return;
+    setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await PosSelfRepository(ref.read(apiClientProvider))
+          .confirmLocation(latitude: picked.latitude, longitude: picked.longitude);
+      await widget.onConfirmed();
+    } catch (e) {
+      if (mounted) {
+        messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    final cs = Theme.of(context).colorScheme;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.location_on_outlined, size: 56, color: cs.primary),
+            const SizedBox(height: 16),
+            Text(
+              ar ? 'ثبّت موقع نقطة البيع' : 'Confirm your shop location',
+              textAlign: TextAlign.center,
+              style: IntesharType.display(20, color: cs.onSurface, w: FontWeight.w900),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              ar
+                  ? 'مطلوب مرة واحدة عند الوصول إلى مكان عملك، ولا يمكن بيع أي بطاقة قبل التثبيت.'
+                  : 'Required once, at your workplace. You cannot sell any card until this is confirmed.',
+              textAlign: TextAlign.center,
+              style: IntesharType.sans(13.5, color: cs.onSurfaceVariant),
+            ),
+            const SizedBox(height: 22),
+            BrandCTAButton(
+              label: ar ? 'تحديد الموقع على الخريطة' : 'Pick location on map',
+              leading: Icons.map_outlined,
+              loading: _busy,
+              onPressed: _busy ? null : _confirm,
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
 }

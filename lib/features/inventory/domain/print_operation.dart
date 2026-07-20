@@ -16,6 +16,10 @@ class PrintOperation {
   final String? companyLogoUrl;
   final String? operatorPhone;
   final String createdAt;
+  // B-054: the price this store's wallet was debited (null pre-B054 / self-sale)
+  // and whether the app confirmed the physical print.
+  final double? soldPrice;
+  final bool printed;
 
   const PrintOperation({
     required this.id,
@@ -32,6 +36,8 @@ class PrintOperation {
     this.companyLogoUrl,
     this.operatorPhone,
     this.createdAt = '',
+    this.soldPrice,
+    this.printed = false,
   });
 
   factory PrintOperation.fromJson(Map<String, dynamic> j) => PrintOperation(
@@ -49,5 +55,7 @@ class PrintOperation {
         companyLogoUrl: j['companyLogoUrl'] as String?,
         operatorPhone: j['operatorPhone'] as String?,
         createdAt: j['createdAt']?.toString() ?? '',
+        soldPrice: (j['soldPrice'] as num?)?.toDouble(),
+        printed: j['printed'] as bool? ?? false,
       );
 }

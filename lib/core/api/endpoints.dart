@@ -4,6 +4,8 @@ class Endpoints {
   static const changePassword = '/api/auth/change-password';
   static const authSetPin = '/api/auth/set-pin';
   static const authVerifyPin = '/api/auth/verify-pin';
+  // B-054 (A8): public, rate-limited; notifies the shop's parent agent.
+  static const authForgotPassword = '/api/auth/forgot-password';
 
   static const healthGeneral = '/api/health/general';
   static const healthRam = '/api/health/ram';
@@ -110,6 +112,9 @@ class Endpoints {
   static const posUsersResetPin = '/api/pos-users/reset-pin';
   static const posUsersResetTotp = '/api/pos-users/reset-totp';
   static const posUsersResetPassword = '/api/pos-users/reset-password';
+  // B-054 POS self endpoints (STORE-scoped server-side)
+  static const posConfirmLocation = '/api/pos/confirm-location';
+  static const posStatement = '/api/pos/statement';
 
   // Reports (التقارير)
   static const reportsBalances = '/api/reports/balances';

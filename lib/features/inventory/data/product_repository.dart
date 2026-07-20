@@ -15,6 +15,10 @@ import 'package:inteshar/features/inventory/domain/voucher_import.dart';
 class RevealResult {
   final Product product;
   final int receiptNo;
+
+  /// B-054: the sale's PrintOperation id — confirmPrint reports the physical
+  /// print outcome against it.
+  final String? operationId;
   final String? agentLogoUrl;
   final String? companyLogoUrl;
 
@@ -26,6 +30,7 @@ class RevealResult {
   const RevealResult({
     required this.product,
     this.receiptNo = 0,
+    this.operationId,
     this.agentLogoUrl,
     this.companyLogoUrl,
     this.companyName,
@@ -227,6 +232,7 @@ class ProductRepository {
     return RevealResult(
       product: Product.fromJson(m['product'] as Map<String, dynamic>? ?? {}),
       receiptNo: (m['receiptNo'] as num?)?.toInt() ?? 0,
+      operationId: m['operationId'] as String?,
       agentLogoUrl: m['agentLogoUrl'] as String?,
       companyLogoUrl: m['companyLogoUrl'] as String?,
       companyName: m['companyName'] as String?,
@@ -240,12 +246,16 @@ class ProductRepository {
   Future<List<PrintOperation>> printOperations({
     String? storeId,
     String? q,
+    String? from, // YYYY-MM-DD Baghdad-local day (inclusive), B-054
+    String? to,
     int page = 0,
     int size = 50,
   }) async {
     final response = await _api.get(Endpoints.productPrintOperations, params: {
       if (storeId != null && storeId.isNotEmpty) 'storeId': storeId,
       if (q != null && q.isNotEmpty) 'q': q,
+      if (from != null && from.isNotEmpty) 'from': from,
+      if (to != null && to.isNotEmpty) 'to': to,
       'page': page,
       'size': size,
     });

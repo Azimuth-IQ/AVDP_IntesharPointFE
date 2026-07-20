@@ -25,6 +25,23 @@ class PricingRepository {
     });
   }
 
+  /// B-059: apply the same price list to one or more agents (Excel re-upload).
+  /// [entityIds] empty = the caller itself. Each row = {sku, governorate?, price}.
+  /// Returns per-agent applied counts.
+  Future<Map<String, int>> setBulk({
+    required List<Map<String, dynamic>> prices,
+    List<String> entityIds = const [],
+  }) async {
+    final r = await _api.post(Endpoints.pricingSetBulk, data: {
+      if (entityIds.isNotEmpty) 'entityIds': entityIds,
+      'prices': prices,
+    });
+    return _api.unwrap(r, (d) {
+      final m = (d as Map).cast<String, dynamic>();
+      return m.map((k, v) => MapEntry(k, (v as num).toInt()));
+    });
+  }
+
   Future<AgentBalance> balance({String? entityId}) async {
     final r = await _api.get(Endpoints.balance,
         params: {if (entityId != null && entityId.isNotEmpty) 'entityId': entityId});

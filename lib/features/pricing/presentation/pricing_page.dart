@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:excel/excel.dart' hide Border;
+import 'package:file_picker/file_picker.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
@@ -8,9 +10,13 @@ import 'package:inteshar/core/auth/capabilities.dart';
 import 'package:inteshar/core/geo/governorates.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
+import 'package:inteshar/core/files/report_export.dart';
+import 'package:inteshar/features/entities/data/entity_repository.dart';
+import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/pricing/data/pricing_repository.dart';
 import 'package:inteshar/features/pricing/domain/pricing_models.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
+import 'package:inteshar/shared/widgets/entity_search_picker.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
@@ -41,6 +47,20 @@ class _S {
   String get allRegions => p('All regions', 'كل المحافظات');
   String get unauthorized =>
       p('Pricing access not granted', 'لا تملك صلاحية إدارة الأسعار');
+  String get exportXlsx => p('Export', 'تصدير');
+  String get uploadXlsx => p('Upload', 'رفع');
+  String get applyToSelf => p('Apply to me', 'تطبيق على حسابي');
+  String get alsoAgents => p('Also apply to agents…', 'تطبيق على وكلاء أيضاً…');
+  String get colSku => p('SKU', 'الرمز');
+  String get colName => p('Name', 'الاسم');
+  String get colGov => p('Governorate', 'المحافظة');
+  String get colOfficial => p('Official price', 'السعر الرسمي');
+  String get colYour => p('Your price', 'سعرك');
+  String parsed(int n) => p('$n prices parsed', 'تم قراءة $n سعر');
+  String applied(int agents) => p('Applied to $agents account(s)', 'تم التطبيق على $agents حساب');
+  String get nothingParsed => p('No prices found in the file', 'لا توجد أسعار في الملف');
+  String get cancel => p('Cancel', 'إلغاء');
+  String get apply => p('Apply', 'تطبيق');
 }
 
 /// A SKU is "regional" when its stock is broken down by governorate (a real
@@ -180,13 +200,164 @@ class _PricingPageState extends ConsumerState<PricingPage> {
     }
   }
 
+  /// B-059: download the catalog to XLSX — official prices as the baseline, plus
+  /// a "your price" column (current price if set, else the official default).
+  Future<void> _exportXlsx(_S s) async {
+    final catalog = _catalog;
+    if (catalog == null) return;
+    final rows = <List<String>>[];
+    for (final row in catalog.rows) {
+      if (_regionalRow(row)) {
+        for (final g in row.governorates) {
+          rows.add([
+            row.sku,
+            row.name,
+            g.governorate,
+            _fmt(g.officialPrice),
+            _fmt(g.agentPrice ?? g.officialPrice),
+          ]);
+        }
+      } else {
+        rows.add([
+          row.sku,
+          row.name,
+          '',
+          _fmt(row.officialPrice),
+          _fmt(row.agentPrice ?? row.officialPrice),
+        ]);
+      }
+    }
+    await exportRowsToXlsx(
+      fileName: 'inteshar-prices',
+      sheetName: 'Prices',
+      headers: [s.colSku, s.colName, s.colGov, s.colOfficial, s.colYour],
+      rows: rows,
+    );
+  }
+
+  /// B-059: parse an edited price sheet and apply it — to me by default, with an
+  /// optional multi-agent target. Columns: sku, name, governorate, official, your.
+  Future<void> _uploadXlsx(_S s) async {
+    final res = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['xlsx'],
+      withData: true,
+    );
+    final bytes = res?.files.firstOrNull?.bytes;
+    if (bytes == null || !mounted) return;
+
+    final parsed = <Map<String, dynamic>>[];
+    try {
+      final book = Excel.decodeBytes(bytes);
+      for (final table in book.tables.values) {
+        for (var i = 1; i < table.rows.length; i++) {
+          final r = table.rows[i];
+          String cell(int idx) =>
+              (idx < r.length ? r[idx]?.value?.toString().trim() : '') ?? '';
+          final sku = cell(0);
+          final gov = cell(2);
+          final priceStr = cell(4).replaceAll(',', '');
+          final price = num.tryParse(priceStr);
+          if (sku.isEmpty || price == null) continue;
+          parsed.add({'sku': sku, 'governorate': gov, 'price': price});
+        }
+        break; // first sheet only
+      }
+    } catch (_) {
+      // Fall through to the "nothing parsed" message.
+    }
+    if (!mounted) return;
+    if (parsed.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.nothingParsed)));
+      return;
+    }
+
+    // Confirm + optional multi-agent target.
+    final extraAgents = <String, String>{}; // id -> name
+    final applyToOthers = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          title: Text('${s.uploadXlsx} — ${s.parsed(parsed.length)}'),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(s.applyToSelf, style: IntesharType.sans(13, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+            const SizedBox(height: 10),
+            Wrap(spacing: 6, runSpacing: 6, children: [
+              for (final e in extraAgents.entries)
+                InputChip(
+                  label: Text(e.value, overflow: TextOverflow.ellipsis),
+                  onDeleted: () => setD(() => extraAgents.remove(e.key)),
+                ),
+            ]),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final picked = await showEntitySearchPicker(
+                  ctx,
+                  repository: EntityRepository(ref.read(apiClientProvider)),
+                  title: s.alsoAgents,
+                  types: const [EntityType.AGENT1, EntityType.AGENT2],
+                );
+                if (picked != null) setD(() => extraAgents[picked.id] = picked.label);
+              },
+              icon: const Icon(Icons.group_add, size: 16),
+              label: Text(s.alsoAgents),
+            ),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.cancel)),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.apply)),
+          ],
+        ),
+      ),
+    );
+    if (applyToOthers != true || !mounted) return;
+
+    setState(() => _saving = true);
+    try {
+      final result = await _repo.setBulk(
+        prices: parsed,
+        entityIds: extraAgents.keys.toList(), // empty = self only (caller)
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(s.applied(result.length))));
+      }
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = _S.of(context);
     return MaxWidthBox(
       child: Column(
         children: [
-          PageHeader(eyebrow: s.eyebrow, title: s.title, subtitle: s.subtitle),
+          PageHeader(
+            eyebrow: s.eyebrow,
+            title: s.title,
+            subtitle: s.subtitle,
+            trailing: (_authorized && _catalog != null)
+                ? Wrap(spacing: 8, children: [
+                    OutlinedButton.icon(
+                      onPressed: _saving ? null : () => _exportXlsx(s),
+                      icon: const Icon(Icons.download, size: 16),
+                      label: Text(s.exportXlsx),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _saving ? null : () => _uploadXlsx(s),
+                      icon: const Icon(Icons.upload_file, size: 16),
+                      label: Text(s.uploadXlsx),
+                    ),
+                  ])
+                : null,
+          ),
           Expanded(child: _body(s)),
         ],
       ),

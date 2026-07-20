@@ -92,8 +92,12 @@ class Endpoints {
   static const companyReadAll = '/api/company/readall';
   static const companyUpdate = '/api/company/update';
   static const companyDelete = '/api/company/delete';
+  static const companyRestrict = '/api/company/restrict';      // B-058 per-agent restriction
+  static const companyRestrictions = '/api/company/restrictions';
   static const pricingCatalog = '/api/pricing/catalog';
   static const pricingSet = '/api/pricing/set';
+  static const pricingSetBulk = '/api/pricing/set-bulk';       // B-059 Excel bulk apply
+  static const pricingUnpricedAgents = '/api/pricing/unpriced-agents'; // B-060 HQ oversight
   static const balance = '/api/balance';
   static const balanceGrant = '/api/balance/grant';
   static const balanceGrants = '/api/balance/grants';

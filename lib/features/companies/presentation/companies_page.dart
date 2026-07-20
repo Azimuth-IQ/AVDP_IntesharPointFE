@@ -7,6 +7,9 @@ import 'package:inteshar/core/auth/capabilities.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/companies/data/company_repository.dart';
 import 'package:inteshar/features/companies/domain/company.dart';
+import 'package:inteshar/features/entities/domain/entity_type.dart';
+import 'package:inteshar/features/entities/data/entity_repository.dart';
+import 'package:inteshar/shared/widgets/entity_search_picker.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
@@ -42,6 +45,12 @@ class _S {
   String get errName => p('Name is required', 'الاسم مطلوب');
   String get createTitle => p('New company', 'شركة جديدة');
   String get editTitle => p('Edit company', 'تعديل الشركة');
+  String get cap => p('Withdrawal cap per shop (0 = unlimited)', 'حد السحب لكل نقطة (0 = بلا حد)');
+  String get window => p('Window (hours)', 'المدة (ساعات)');
+  String get restrictSection => p('Restrict for agents', 'تقييد لوكلاء');
+  String get restrictHint => p('Hidden for the chosen agent and everything under it.', 'يُخفى عن الوكيل المحدد وكل ما تحته.');
+  String get addAgent => p('Add agent', 'إضافة وكيل');
+  String get done => p('Done', 'تم');
 }
 
 class CompaniesPage extends ConsumerStatefulWidget {
@@ -228,6 +237,10 @@ class _CompanyDialogState extends State<_CompanyDialog> {
   late final TextEditingController _desc = TextEditingController(text: widget.existing?.description ?? '');
   late final TextEditingController _order =
       TextEditingController(text: (widget.existing?.displayOrder ?? 0).toString());
+  late final TextEditingController _cap =
+      TextEditingController(text: (widget.existing?.withdrawalCap ?? 0).toString());
+  late final TextEditingController _window =
+      TextEditingController(text: (widget.existing?.withdrawalWindowHours ?? 24).toString());
   late bool _active = widget.existing?.active ?? true;
   bool _saving = false;
   String? _error;
@@ -238,6 +251,8 @@ class _CompanyDialogState extends State<_CompanyDialog> {
     _logo.dispose();
     _desc.dispose();
     _order.dispose();
+    _cap.dispose();
+    _window.dispose();
     super.dispose();
   }
 
@@ -258,6 +273,8 @@ class _CompanyDialogState extends State<_CompanyDialog> {
       description: _desc.text.trim(),
       displayOrder: int.tryParse(_order.text.trim()) ?? 0,
       active: _active,
+      withdrawalCap: int.tryParse(_cap.text.trim()) ?? 0,
+      withdrawalWindowHours: int.tryParse(_window.text.trim()) ?? 24,
     );
     try {
       if (widget.existing != null) {
@@ -303,12 +320,35 @@ class _CompanyDialogState extends State<_CompanyDialog> {
               decoration: InputDecoration(labelText: s.order),
             ),
             const SizedBox(height: 4),
+            const SizedBox(height: 10),
+            Row(children: [
+              Expanded(
+                child: TextField(
+                  controller: _cap,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(labelText: s.cap),
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 110,
+                child: TextField(
+                  controller: _window,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(labelText: s.window),
+                ),
+              ),
+            ]),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: Text(s.active),
               value: _active,
               onChanged: (v) => setState(() => _active = v),
             ),
+            if (widget.existing != null) ...[
+              const Divider(height: 20),
+              _RestrictionEditor(companyId: widget.existing!.id, repo: widget.repo, s: s),
+            ],
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
@@ -327,5 +367,107 @@ class _CompanyDialogState extends State<_CompanyDialog> {
         ),
       ],
     );
+  }
+}
+
+/// B-058: per-agent restriction editor embedded in the company dialog. Lists the
+/// agents this company is restricted for (each hides it for that agent + subtree),
+/// with add (searchable AGENT1/AGENT2 picker) and remove.
+class _RestrictionEditor extends ConsumerStatefulWidget {
+  const _RestrictionEditor({required this.companyId, required this.repo, required this.s});
+  final String companyId;
+  final CompanyRepository repo;
+  final _S s;
+
+  @override
+  ConsumerState<_RestrictionEditor> createState() => _RestrictionEditorState();
+}
+
+class _RestrictionEditorState extends ConsumerState<_RestrictionEditor> {
+  List<String> _ids = const [];
+  Map<String, String> _names = const {};
+  bool _loading = true;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final ids = await widget.repo.restrictions(widget.companyId);
+      final names = <String, String>{};
+      final entRepo = EntityRepository(ref.read(apiClientProvider));
+      for (final id in ids) {
+        try {
+          names[id] = (await entRepo.read(id)).meta.name;
+        } catch (_) {
+          names[id] = id;
+        }
+      }
+      if (mounted) setState(() { _ids = ids; _names = names; _loading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _add() async {
+    final picked = await showEntitySearchPicker(
+      context,
+      repository: EntityRepository(ref.read(apiClientProvider)),
+      title: widget.s.addAgent,
+      types: const [EntityType.AGENT1, EntityType.AGENT2],
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await widget.repo.setRestricted(companyId: widget.companyId, entityId: picked.id, restricted: true);
+      await _load();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _remove(String id) async {
+    setState(() => _busy = true);
+    try {
+      await widget.repo.setRestricted(companyId: widget.companyId, entityId: id, restricted: false);
+      await _load();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(widget.s.restrictSection, style: IntesharType.sans(12.5, color: cs.onSurface, w: FontWeight.w700)),
+      Text(widget.s.restrictHint, style: IntesharType.sans(11, color: cs.onSurfaceVariant)),
+      const SizedBox(height: 6),
+      if (_loading)
+        const Padding(padding: EdgeInsets.all(6), child: LinearProgressIndicator())
+      else ...[
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final id in _ids)
+              InputChip(
+                label: Text(_names[id] ?? id, overflow: TextOverflow.ellipsis),
+                onDeleted: _busy ? null : () => _remove(id),
+              ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        OutlinedButton.icon(
+          onPressed: _busy ? null : _add,
+          icon: const Icon(Icons.block, size: 16),
+          label: Text(widget.s.addAgent),
+        ),
+      ],
+    ]);
   }
 }

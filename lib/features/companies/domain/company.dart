@@ -7,6 +7,9 @@ class Company {
   final String description;
   final int displayOrder;
   final bool active;
+  // B-058 per-shop withdrawal cap (0 = unlimited) over a rolling window.
+  final int withdrawalCap;
+  final int withdrawalWindowHours;
 
   const Company({
     this.id = '',
@@ -15,6 +18,8 @@ class Company {
     this.description = '',
     this.displayOrder = 0,
     this.active = true,
+    this.withdrawalCap = 0,
+    this.withdrawalWindowHours = 24,
   });
 
   factory Company.fromJson(Map<String, dynamic> j) => Company(
@@ -24,6 +29,8 @@ class Company {
         description: j['description'] as String? ?? '',
         displayOrder: (j['displayOrder'] as num?)?.toInt() ?? 0,
         active: j['active'] as bool? ?? true,
+        withdrawalCap: (j['withdrawalCap'] as num?)?.toInt() ?? 0,
+        withdrawalWindowHours: (j['withdrawalWindowHours'] as num?)?.toInt() ?? 24,
       );
 
   Map<String, dynamic> toJson() => {
@@ -33,9 +40,11 @@ class Company {
         'description': description,
         'displayOrder': displayOrder,
         'active': active,
+        'withdrawalCap': withdrawalCap,
+        'withdrawalWindowHours': withdrawalWindowHours,
       };
 
-  Company copyWith({String? id, String? name, String? logoUrl, String? description, int? displayOrder, bool? active}) =>
+  Company copyWith({String? id, String? name, String? logoUrl, String? description, int? displayOrder, bool? active, int? withdrawalCap, int? withdrawalWindowHours}) =>
       Company(
         id: id ?? this.id,
         name: name ?? this.name,
@@ -43,5 +52,7 @@ class Company {
         description: description ?? this.description,
         displayOrder: displayOrder ?? this.displayOrder,
         active: active ?? this.active,
+        withdrawalCap: withdrawalCap ?? this.withdrawalCap,
+        withdrawalWindowHours: withdrawalWindowHours ?? this.withdrawalWindowHours,
       );
 }

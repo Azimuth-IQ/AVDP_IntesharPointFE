@@ -28,4 +28,22 @@ class CompanyRepository {
   Future<void> delete(String id) async {
     await _api.delete(Endpoints.companyDelete, params: {'id': id});
   }
+
+  /// B-058: the agent ids a company is directly restricted for (HQ view).
+  Future<List<String>> restrictions(String companyId) async {
+    final r = await _api.get(Endpoints.companyRestrictions, params: {'companyId': companyId});
+    return _api.unwrap(r, (d) {
+      final list = (d as List<dynamic>?) ?? const [];
+      return list
+          .map((e) => (e as Map<String, dynamic>)['entityId'] as String? ?? '')
+          .where((s) => s.isNotEmpty)
+          .toList();
+    });
+  }
+
+  /// Restrict or clear a company for one agent (cascades to its subtree).
+  Future<void> setRestricted({required String companyId, required String entityId, required bool restricted}) async {
+    await _api.post(Endpoints.companyRestrict,
+        data: {'companyId': companyId, 'entityId': entityId, 'restricted': restricted});
+  }
 }

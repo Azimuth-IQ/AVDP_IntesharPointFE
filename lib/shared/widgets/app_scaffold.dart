@@ -160,6 +160,7 @@ class AppShell extends ConsumerWidget {
   List<_NavItem> _navFor(AppLocalizations l, EntityType type) {
     final reportsLabel = l.localeName.startsWith('ar') ? 'التقارير' : 'Reports';
     final transfersLabel = l.localeName.startsWith('ar') ? 'التحويل' : 'Transfers';
+    final chatLabel = l.localeName.startsWith('ar') ? 'التواصل' : 'Messages';
     final posLabel = l.localeName.startsWith('ar') ? 'نقاط البيع' : 'POS points';
     final sliderLabel = l.localeName.startsWith('ar') ? 'شريط الصور' : 'Home slider';
     final appDownloadLabel = l.localeName.startsWith('ar') ? 'تحميل التطبيق' : 'Get the app';
@@ -289,6 +290,14 @@ class AppShell extends ConsumerWidget {
             group: 'administration',
           ),
           _NavItem(
+            Icons.forum_outlined,
+            Icons.forum,
+            chatLabel,
+            '/hq/chat',
+            required: Capability.AGENT_ADMIN,
+            group: 'administration',
+          ),
+          _NavItem(
             Icons.campaign_outlined,
             Icons.campaign,
             l.navNotifications,
@@ -369,6 +378,13 @@ class AppShell extends ConsumerWidget {
           ),
           // Pricing is runtime-inserted at (length-1) so it lands before Notifications.
           _NavItem(
+            Icons.forum_outlined,
+            Icons.forum,
+            chatLabel,
+            '/agent1/chat',
+            group: 'network',
+          ),
+          _NavItem(
             Icons.notifications_outlined,
             Icons.notifications,
             l.navNotifications,
@@ -420,6 +436,13 @@ class AppShell extends ConsumerWidget {
             posLabel,
             '/agent2/pos-users',
             required: Capability.MANAGE_POS,
+            group: 'network',
+          ),
+          _NavItem(
+            Icons.forum_outlined,
+            Icons.forum,
+            chatLabel,
+            '/agent2/chat',
             group: 'network',
           ),
           _NavItem(

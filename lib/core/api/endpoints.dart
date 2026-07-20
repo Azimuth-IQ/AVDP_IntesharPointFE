@@ -116,6 +116,12 @@ class Endpoints {
   static const posConfirmLocation = '/api/pos/confirm-location';
   static const posStatement = '/api/pos/statement';
 
+  // Chat / التواصل (B-057) — pairing enforced server-side
+  static const chatThreads = '/api/chat/threads';
+  static const chatMessages = '/api/chat/messages';
+  static const chatSend = '/api/chat/send';
+  static const chatRead = '/api/chat/read';
+
   // Reports (التقارير)
   static const reportsBalances = '/api/reports/balances';
   static const reportsTransfers = '/api/reports/transfers';

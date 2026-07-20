@@ -22,6 +22,7 @@ import 'package:inteshar/features/pos/application/pos_pin_controller.dart';
 import 'package:inteshar/core/api/error_mapper.dart' show friendlyError;
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/pos/data/pos_self_repository.dart';
+import 'package:inteshar/features/chat/presentation/chat_thread_screen.dart';
 import 'package:inteshar/features/pos/presentation/pos_account_panel.dart';
 import 'package:inteshar/features/pos/presentation/pos_sales_panel.dart';
 import 'package:inteshar/features/pos/presentation/pos_statement_panel.dart';
@@ -222,6 +223,7 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
                 : _buildBody(l),
             const PosStatementPanel(),
             const PosSalesPanel(),
+            _PosChatTab(),
             PosAccountPanel(onOpenPrinter: _openPrinterPicker, onSignOut: _signOut),
           ],
         ),
@@ -235,6 +237,7 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
           NavigationDestination(icon: const Icon(Icons.storefront_outlined), selectedIcon: const Icon(Icons.storefront), label: _ar ? 'المتجر' : 'Store'),
           NavigationDestination(icon: const Icon(Icons.account_balance_wallet_outlined), selectedIcon: const Icon(Icons.account_balance_wallet), label: _ar ? 'الحسابات' : 'Account'),
           NavigationDestination(icon: const Icon(Icons.receipt_long_outlined), selectedIcon: const Icon(Icons.receipt_long), label: _ar ? 'التقارير' : 'Reports'),
+          NavigationDestination(icon: const Icon(Icons.forum_outlined), selectedIcon: const Icon(Icons.forum), label: _ar ? 'التواصل' : 'Chat'),
           NavigationDestination(icon: const Icon(Icons.person_outline), selectedIcon: const Icon(Icons.person), label: _ar ? 'الحساب' : 'Profile'),
         ],
       ),
@@ -1612,5 +1615,24 @@ class _LocationGateState extends ConsumerState<_LocationGate> {
         ),
       ),
     );
+  }
+}
+
+/// التواصل POS tab (B-057): a shop has exactly one conversation — with its
+/// parent agent — so this opens that thread directly (no list step).
+class _PosChatTab extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    final cs = Theme.of(context).colorScheme;
+    final auth = ref.watch(authStateProvider).valueOrNull;
+    final parentId = auth is AuthAuthenticated ? auth.entity.parent : '';
+    if (parentId.isEmpty) {
+      return Center(
+        child: Text(ar ? 'لا يوجد وكيل للتواصل معه.' : 'No agent to message.',
+            style: IntesharType.sans(14, color: cs.onSurfaceVariant)),
+      );
+    }
+    return ChatThreadScreen(withId: parentId, withName: ar ? 'الوكيل' : 'Agent');
   }
 }

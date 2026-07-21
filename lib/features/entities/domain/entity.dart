@@ -279,7 +279,12 @@ class Entity {
   /// (own caps ∩ chain ceiling, wildcards expanded). Null on other reads.
   final Set<Capability>? effectiveCapabilities;
 
-  const Entity({required this.id, required this.meta, this.profile, this.parent = '', required this.type, this.childrenIds = const [], this.productsIds = const [], this.users = const [], this.active = true, this.allowedCapabilities, this.effectiveCapabilities});
+  /// B-061: the caller's own ntfy push topic + base URL, returned only by
+  /// `/entity/me` (empty when push is disabled server-side).
+  final String pushToken;
+  final String pushBaseUrl;
+
+  const Entity({required this.id, required this.meta, this.profile, this.parent = '', required this.type, this.childrenIds = const [], this.productsIds = const [], this.users = const [], this.active = true, this.allowedCapabilities, this.effectiveCapabilities, this.pushToken = '', this.pushBaseUrl = ''});
 
   factory Entity.fromJson(Map<String, dynamic> j) => Entity(
     id: j['id'] as String? ?? j['_id'] as String? ?? '',
@@ -293,6 +298,8 @@ class Entity {
     active: j['active'] as bool? ?? true,
     allowedCapabilities: j['allowedCapabilities'] == null ? null : capabilitiesFromJson(j['allowedCapabilities']),
     effectiveCapabilities: j['effectiveCapabilities'] == null ? null : capabilitiesFromJson(j['effectiveCapabilities']),
+    pushToken: j['pushToken'] as String? ?? '',
+    pushBaseUrl: j['pushBaseUrl'] as String? ?? '',
   );
 
   Map<String, dynamic> toJson({bool includeUsers = false}) {

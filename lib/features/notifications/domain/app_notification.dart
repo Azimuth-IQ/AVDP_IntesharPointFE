@@ -19,6 +19,7 @@ class AppNotification {
   final List<String> audienceTiers;     // multi-tier targeting (audience == TIER)
   final List<String> audienceEntityIds; // multi-entity targeting (audience == ENTITY)
   final bool posOnly;                    // narrowed to POS operators within the scope
+  final String type;                     // B-060: NOTIFICATION | ALERT
   final String senderName;
   final DateTime? sentAt;
   final bool isRead;
@@ -34,6 +35,7 @@ class AppNotification {
     this.audienceTiers = const [],
     this.audienceEntityIds = const [],
     this.posOnly = false,
+    this.type = 'NOTIFICATION',
     this.senderName = '',
     this.sentAt,
     this.isRead = false,
@@ -54,6 +56,7 @@ class AppNotification {
         audienceTiers: (j['tierTypes'] as List<dynamic>?)?.cast<String>() ?? const [],
         audienceEntityIds: (j['entityIds'] as List<dynamic>?)?.cast<String>() ?? const [],
         posOnly: j['posOnly'] as bool? ?? false,
+        type: j['type'] as String? ?? 'NOTIFICATION',
         senderName: j['createdBy'] as String? ?? '',
         sentAt: j['createdAt'] == null
             ? null
@@ -69,6 +72,7 @@ class AppNotification {
         'audience': audienceType,
         if (audienceTier.isNotEmpty) 'tierType': audienceTier,
         if (audienceEntityId.isNotEmpty) 'entityId': audienceEntityId,
+        'type': type,
         if (senderName.isNotEmpty) 'createdBy': senderName,
         if (sentAt != null) 'createdAt': sentAt!.toIso8601String(),
         'read': isRead,
@@ -85,6 +89,7 @@ class AppNotification {
     List<String>? audienceTiers,
     List<String>? audienceEntityIds,
     bool? posOnly,
+    String? type,
     String? senderName,
     DateTime? sentAt,
     bool? isRead,
@@ -100,6 +105,7 @@ class AppNotification {
         audienceTiers: audienceTiers ?? this.audienceTiers,
         audienceEntityIds: audienceEntityIds ?? this.audienceEntityIds,
         posOnly: posOnly ?? this.posOnly,
+        type: type ?? this.type,
         senderName: senderName ?? this.senderName,
         sentAt: sentAt ?? this.sentAt,
         isRead: isRead ?? this.isRead,

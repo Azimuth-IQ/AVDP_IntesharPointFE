@@ -159,3 +159,17 @@ class GrantRow {
         direction: j['direction'] as String? ?? 'OUT',
       );
 }
+
+/// B-060: a Main Agent holding stock in unpriced categories (HQ oversight feed).
+class UnpricedAgent {
+  final String entityId;
+  final String name;
+  final int unpricedCount;
+  const UnpricedAgent({this.entityId = '', this.name = '', this.unpricedCount = 0});
+
+  factory UnpricedAgent.fromJson(Map<String, dynamic> j) => UnpricedAgent(
+        entityId: j['entityId'] as String? ?? '',
+        name: j['name'] as String? ?? '',
+        unpricedCount: (j['unpricedCount'] as num?)?.toInt() ?? 0,
+      );
+}

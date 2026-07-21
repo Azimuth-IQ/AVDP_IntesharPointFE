@@ -10,6 +10,7 @@ import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/notifications/application/notification_provider.dart';
+import 'package:inteshar/features/notifications/presentation/alert_banner.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/brand_band.dart';
 import 'package:inteshar/shared/widgets/brand_masthead.dart';
@@ -558,6 +559,12 @@ class AppShell extends ConsumerWidget {
       if (target != location) context.go(target);
     }
 
+    // B-060: an unread ALERT surfaces as a banner above the routed body, on every
+    // signed-in screen (empty/no-op when there is nothing to alert).
+    final bodyWithAlert = Column(
+      children: [const AlertBanner(), Expanded(child: child)],
+    );
+
     return switch (context.screenSize) {
       ScreenSize.mobile => _MobileLayout(
         items: items,
@@ -568,7 +575,7 @@ class AppShell extends ConsumerWidget {
         onLogout: () => _logout(context, ref),
         entity: entity,
         unreadCount: unreadCount,
-        body: child,
+        body: bodyWithAlert,
       ),
       ScreenSize.tablet => _TabletLayout(
         items: items,
@@ -579,7 +586,7 @@ class AppShell extends ConsumerWidget {
         onLogout: () => _logout(context, ref),
         entity: entity,
         unreadCount: unreadCount,
-        body: child,
+        body: bodyWithAlert,
       ),
       ScreenSize.desktop => _DesktopLayout(
         items: items,
@@ -590,7 +597,7 @@ class AppShell extends ConsumerWidget {
         onLogout: () => _logout(context, ref),
         entity: entity,
         unreadCount: unreadCount,
-        body: child,
+        body: bodyWithAlert,
       ),
     };
   }

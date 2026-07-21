@@ -25,6 +25,9 @@ class _S {
   String get title => p('Notifications', 'الإشعارات');
   String get subtitle => p('Compose and broadcast messages to agents and stores', 'اكتب رسائل وأرسلها للوكلاء والمتاجر');
   String get composeHeading => p('New Notification', 'إشعار جديد');
+  String get kindLabel => p('Kind', 'النوع');
+  String get kindNotification => p('Notification', 'إشعار');
+  String get kindAlert => p('Alert', 'تنبيه');
   String get fieldTitle => p('Title', 'العنوان');
   String get fieldBody => p('Message', 'الرسالة');
   String get audienceLabel => p('Send to', 'إرسال إلى');
@@ -203,6 +206,7 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
   final _bodyCtrl = TextEditingController();
 
   _Mode _mode = _Mode.all;
+  bool _isAlert = false; // B-060: send as an ALERT (banner) vs a NOTIFICATION (inbox)
   final Set<String> _types = {}; // EntityType names
   final Set<String> _entityIds = {};
   bool _posOnly = false;
@@ -233,6 +237,7 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
         tierTypes: _types.toList(),
         entityIds: _entityIds.toList(),
         posOnly: _posOnly,
+        type: _isAlert ? 'ALERT' : 'NOTIFICATION',
       );
       if (!mounted) return;
       _titleCtrl.clear();
@@ -240,6 +245,7 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
       setState(() {
         _sending = false;
         _mode = _Mode.all;
+        _isAlert = false;
         _types.clear();
         _entityIds.clear();
         _posOnly = false;
@@ -267,6 +273,18 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
           TextField(controller: _titleCtrl, decoration: InputDecoration(labelText: s.fieldTitle), textInputAction: TextInputAction.next),
           const SizedBox(height: 12),
           TextField(controller: _bodyCtrl, decoration: InputDecoration(labelText: s.fieldBody), maxLines: 4, minLines: 3),
+          const SizedBox(height: 16),
+          Text(s.kindLabel, style: IntesharType.sans(12, color: IntesharColors.inkSoft, w: FontWeight.w600)),
+          const SizedBox(height: 8),
+          SegmentedButton<bool>(
+            showSelectedIcon: false,
+            segments: [
+              ButtonSegment(value: false, label: Text(s.kindNotification), icon: const Icon(Icons.notifications_outlined, size: 16)),
+              ButtonSegment(value: true, label: Text(s.kindAlert), icon: const Icon(Icons.warning_amber_rounded, size: 16)),
+            ],
+            selected: {_isAlert},
+            onSelectionChanged: (sel) => setState(() => _isAlert = sel.first),
+          ),
           const SizedBox(height: 16),
           Text(s.audienceLabel, style: IntesharType.sans(12, color: IntesharColors.inkSoft, w: FontWeight.w600)),
           const SizedBox(height: 8),

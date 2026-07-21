@@ -52,6 +52,15 @@ class PricingRepository {
     await _api.post(Endpoints.balanceGrant, data: {'destId': destId, 'amount': amount});
   }
 
+  /// B-060 HQ oversight: Main Agents with unpriced stock.
+  Future<List<UnpricedAgent>> unpricedAgents() async {
+    final r = await _api.get(Endpoints.pricingUnpricedAgents);
+    return _api.unwrap(r, (d) {
+      final list = (d as List<dynamic>?) ?? const [];
+      return list.map((e) => UnpricedAgent.fromJson(e as Map<String, dynamic>)).toList();
+    });
+  }
+
   Future<List<GrantRow>> grants({String? entityId}) async {
     final r = await _api.get(Endpoints.balanceGrants,
         params: {if (entityId != null && entityId.isNotEmpty) 'entityId': entityId});

@@ -47,11 +47,13 @@ class NotificationRepository {
     List<String> tierTypes = const [],
     List<String> entityIds = const [],
     bool posOnly = false,
+    String type = 'NOTIFICATION',
   }) async {
     await _api.post(Endpoints.notificationsSend, data: {
       'title': title,
       'body': body,
       'audience': audienceType,
+      'type': type,
       if (tierTypes.isNotEmpty) 'tierTypes': tierTypes,
       if (entityIds.isNotEmpty) 'entityIds': entityIds,
       if (posOnly) 'posOnly': true,

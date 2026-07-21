@@ -8,6 +8,8 @@ import 'package:intl/intl.dart' hide TextDirection;
 
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
+import 'package:inteshar/features/pricing/data/pricing_repository.dart';
+import 'package:inteshar/features/pricing/domain/pricing_models.dart';
 import 'package:inteshar/core/api/api_exception.dart';
 import 'package:inteshar/core/api/paged.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
@@ -56,6 +58,7 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
   // KPI strip + tab counts.
   SystemOverview? _overview;
   bool _overviewLoading = true;
+  List<UnpricedAgent> _unpriced = const []; // B-060 no-price oversight
 
   // The four server-paged feeds.
   late final _PagedFeed<OperationLog> _logsFeed;
@@ -126,9 +129,14 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
     setState(() => _overviewLoading = true);
     try {
       final o = await _repo().overview();
+      List<UnpricedAgent> unpriced = const [];
+      try {
+        unpriced = await PricingRepository(ref.read(apiClientProvider)).unpricedAgents();
+      } catch (_) {}
       if (!mounted) return;
       setState(() {
         _overview = o;
+        _unpriced = unpriced;
         _overviewLoading = false;
       });
     } catch (_) {
@@ -238,6 +246,10 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
             ),
           ),
           _StatStrip(overview: o, loading: _overviewLoading, l: l),
+          if (_unpriced.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _UnpricedAgentsCard(rows: _unpriced),
+          ],
           const SizedBox(height: 12),
           _TabBar(
             current: _tab,
@@ -1532,6 +1544,50 @@ class _CodeBlock extends StatelessWidget {
           child: _ltr(SelectableText(text, style: IntesharType.mono(11.5, color: cs.onSurface).copyWith(height: 1.45))),
         ),
       ],
+    );
+  }
+}
+
+/// B-060: an HQ oversight card listing Main Agents holding stock in unpriced
+/// categories ("اظهار تنبيه بأي وكيل لم يتم تسعير الكروت له"). Always current.
+class _UnpricedAgentsCard extends StatelessWidget {
+  const _UnpricedAgentsCard({required this.rows});
+  final List<UnpricedAgent> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: IntesharColors.saffron.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(IntesharRadii.md),
+        border: Border.all(color: IntesharColors.saffronDeep.withValues(alpha: 0.35)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.price_change_outlined, size: 18, color: IntesharColors.saffronDeep),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              ar
+                  ? '${rows.length} وكيل رئيسي لديه بطاقات غير مسعّرة'
+                  : '${rows.length} main agent(s) with unpriced cards',
+              style: IntesharType.sans(13.5, color: cs.onSurface, w: FontWeight.w700),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 6),
+        Wrap(spacing: 8, runSpacing: 6, children: [
+          for (final r in rows)
+            Chip(
+              visualDensity: VisualDensity.compact,
+              label: Text('${r.name.isNotEmpty ? r.name : r.entityId} · ${r.unpricedCount}',
+                  style: IntesharType.sans(12, color: cs.onSurface)),
+            ),
+        ]),
+      ]),
     );
   }
 }

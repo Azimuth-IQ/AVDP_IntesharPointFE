@@ -60,17 +60,18 @@ String _localizedEntityTypeLabel(EntityType t, AppLocalizations l) {
   }
 }
 
-/// Returns the single initial letter used in the avatar badge (H/G/D/S).
+/// Avatar-badge initial matching the CURRENT role names (B-080): HQ, Main Agent,
+/// Sub Agent, POS/Store — was the stale G/D (Governorate/Distributor).
 String _typeInitial(EntityType t) {
   switch (t) {
     case EntityType.INTESHAR:
       return 'H';
     case EntityType.AGENT1:
-      return 'G';
+      return 'M';
     case EntityType.AGENT2:
-      return 'D';
-    case EntityType.STORE:
       return 'S';
+    case EntityType.STORE:
+      return 'P';
   }
 }
 

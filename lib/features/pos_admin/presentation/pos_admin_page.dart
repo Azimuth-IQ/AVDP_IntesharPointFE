@@ -284,7 +284,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
           OutlinedButton(onPressed: (_busy || phone.isEmpty) ? null : () => _resetPassword(s, name, phone), child: Text(s.resetPassword)),
           OutlinedButton(onPressed: (_busy || phone.isEmpty) ? null : () => _run(() => _repo.resetTotp(phone), s.done), child: Text(s.resetTotp)),
           OutlinedButton(
-            onPressed: _busy ? null : () => _run(() => _repo.setActive(store.id, !active), s.done),
+            onPressed: _busy ? null : () => _toggleActive(s, store.id, active),
             child: Text(active ? s.deactivate : s.activate),
           ),
           OutlinedButton(
@@ -295,6 +295,28 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
         ]),
       ]),
     );
+  }
+
+  /// Deactivating a shop stops its operator logging in, so confirm it (B-080).
+  /// Re-activating is harmless and fires immediately.
+  Future<void> _toggleActive(_S s, String storeId, bool active) async {
+    if (active) {
+      final ar = Localizations.localeOf(context).languageCode == 'ar';
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          content: Text(ar
+              ? 'إيقاف هذا المتجر سيمنع مشغّله من تسجيل الدخول. متابعة؟'
+              : 'Deactivating this shop stops its operator from signing in. Continue?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: Text(s.cancel)),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(s.deactivate)),
+          ],
+        ),
+      );
+      if (ok != true) return;
+    }
+    await _run(() => _repo.setActive(storeId, !active), s.done);
   }
 
   Future<void> _confirmRevoke(_S s, String phone) async {
@@ -407,7 +429,9 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
                       if (!RegExp(r'^07\d{9}$').hasMatch(t)) return s.invalidPhone;
                       return null;
                     }),
-                _field(pw, s.password, obscure: true, validator: _req(s)),
+                // Min-6 to match the reset-password rule for the same credential (B-080).
+                _field(pw, s.password, obscure: true,
+                    validator: (v) => (v == null || v.trim().length < 6) ? s.passwordTooShort : null),
                 _field(name, s.posName, validator: _req(s)),
                 _field(owner, s.ownerName, validator: _req(s)),
                 DropdownButtonFormField<String>(

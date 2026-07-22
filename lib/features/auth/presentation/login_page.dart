@@ -227,7 +227,23 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 label: lCtx.loginSaveEndpoint,
                 variant: BrandCTAVariant.inverse,
                 onPressed: () async {
-                  await sessionStorage.setBaseUrl(ctrl.text.trim());
+                  // Validate before saving — a typo silently pointed the app at a
+                  // dead backend with no feedback (B-080).
+                  final url = ctrl.text.trim();
+                  final uri = Uri.tryParse(url);
+                  final valid = url.isNotEmpty &&
+                      uri != null &&
+                      (uri.isScheme('http') || uri.isScheme('https')) &&
+                      uri.host.isNotEmpty;
+                  if (!valid) {
+                    final ar = Localizations.localeOf(ctx).languageCode == 'ar';
+                    ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                        content: Text(ar
+                            ? 'أدخل رابطاً صحيحاً يبدأ بـ ‎http(s)://'
+                            : 'Enter a valid http(s):// URL')));
+                    return;
+                  }
+                  await sessionStorage.setBaseUrl(url);
                   if (ctx.mounted) Navigator.pop(ctx);
                 },
               ),

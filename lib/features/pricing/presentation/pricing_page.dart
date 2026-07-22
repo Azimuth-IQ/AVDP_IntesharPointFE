@@ -81,6 +81,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
   PricingCatalog? _catalog;
   bool _loading = true;
   bool _saving = false;
+  bool _unpricedOnly = false; // B-080: filter the list to categories still on defaults
   Object? _error;
   bool _authorized = true;
   final Map<String, TextEditingController> _ctrls = {};
@@ -464,8 +465,11 @@ class _PricingPageState extends ConsumerState<PricingPage> {
     }
 
     // Group rows by company, preserving the server's (company, name) order.
+    // The "N unpriced" pill filters to categories still on default prices (B-080).
+    final visibleRows =
+        _unpricedOnly ? catalog.rows.where((r) => !r.priced).toList() : catalog.rows;
     final groups = <String, List<CategoryPriceRow>>{};
-    for (final row in catalog.rows) {
+    for (final row in visibleRows) {
       final key = row.companyName.isNotEmpty
           ? row.companyName
           : s.uncategorized;
@@ -478,23 +482,34 @@ class _PricingPageState extends ConsumerState<PricingPage> {
           s: s,
           worth: catalog.inventoryWorth,
           unpriced: catalog.unpricedCount,
+          unpricedOnly: _unpricedOnly,
+          onToggleUnpriced: () => setState(() => _unpricedOnly = !_unpricedOnly),
         ),
         Expanded(
-          child: ListView(
-            padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 16, 24),
-            children: [
-              for (final entry in groups.entries) ...[
-                SectionLabel(entry.key),
-                ...entry.value.map(
-                  (row) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: _PriceRow(row: row, ctrls: _ctrls, s: s),
+          child: visibleRows.isEmpty
+              ? Center(
+                  child: Text(
+                    Localizations.localeOf(context).languageCode == 'ar'
+                        ? 'كل الفئات مُسعّرة.'
+                        : 'All categories are priced.',
+                    style: IntesharType.sans(14, color: cs.onSurfaceVariant),
                   ),
+                )
+              : ListView(
+                  padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 16, 24),
+                  children: [
+                    for (final entry in groups.entries) ...[
+                      SectionLabel(entry.key),
+                      ...entry.value.map(
+                        (row) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: _PriceRow(row: row, ctrls: _ctrls, s: s),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                  ],
                 ),
-                const SizedBox(height: 8),
-              ],
-            ],
-          ),
         ),
         SafeArea(
           top: false,
@@ -525,10 +540,14 @@ class _BalanceHeader extends StatelessWidget {
   final _S s;
   final num worth;
   final int unpriced;
+  final bool unpricedOnly;
+  final VoidCallback onToggleUnpriced;
   const _BalanceHeader({
     required this.s,
     required this.worth,
     required this.unpriced,
+    required this.unpricedOnly,
+    required this.onToggleUnpriced,
   });
 
   @override
@@ -567,7 +586,20 @@ class _BalanceHeader extends StatelessWidget {
           ),
           const Spacer(),
           if (unpriced > 0)
-            StampPill(label: s.unpriced(unpriced), color: cs.error),
+            // Tap to filter the list to just the unpriced categories (toggle).
+            InkWell(
+              borderRadius: BorderRadius.circular(999),
+              onTap: onToggleUnpriced,
+              child: Opacity(
+                opacity: unpricedOnly ? 1 : 0.85,
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  StampPill(label: s.unpriced(unpriced), color: cs.error),
+                  const SizedBox(width: 4),
+                  Icon(unpricedOnly ? Icons.filter_alt : Icons.filter_alt_outlined,
+                      size: 16, color: IntesharColors.ink.withValues(alpha: 0.7)),
+                ]),
+              ),
+            ),
         ],
       ),
     );

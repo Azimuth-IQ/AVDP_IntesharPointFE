@@ -5,6 +5,10 @@ import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/features/notifications/application/notification_provider.dart';
 import 'package:inteshar/features/notifications/data/notification_repository.dart';
 
+/// Alerts dismissed this session — so a dismiss sticks even when the markRead call
+/// fails offline (otherwise the refetch resurfaced the same alert; B-080).
+final _dismissedAlertsProvider = StateProvider<Set<String>>((ref) => {});
+
 /// B-060: a prominent, dismissible banner for the newest unread ALERT (التنبيهات),
 /// shown above the app body on every signed-in screen. Dismiss marks it read; the
 /// next unread alert (if any) then surfaces. Notifications (non-ALERT) stay in the
@@ -14,11 +18,16 @@ class AlertBanner extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final alerts = ref.watch(unreadAlertsProvider).valueOrNull ?? const [];
+    final dismissed = ref.watch(_dismissedAlertsProvider);
+    final alerts = (ref.watch(unreadAlertsProvider).valueOrNull ?? const [])
+        .where((a) => !dismissed.contains(a.id))
+        .toList();
     if (alerts.isEmpty) return const SizedBox.shrink();
     final alert = alerts.first;
 
     Future<void> dismiss() async {
+      // Hide locally first so the banner goes even if the server write can't reach.
+      ref.read(_dismissedAlertsProvider.notifier).update((s) => {...s, alert.id});
       try {
         await NotificationRepository(ref.read(apiClientProvider)).markRead(alert.id);
       } catch (_) {}

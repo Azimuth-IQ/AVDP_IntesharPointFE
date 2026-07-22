@@ -75,7 +75,8 @@ class _RS {
   String get tabTotalSold => p('Total sold', 'إجمالي المباع');
   String get tabUploaded => p('Uploaded', 'المرفوعة');
   String get cards => p('Cards', 'الكروت');
-  String get store => p('Store', 'المكتب');
+  // Align on the canonical store term (متجر), not المكتب (= office) — B-079.
+  String get store => p('Store', 'المتجر');
   String get export => p('Export', 'تصدير');
   String get exported => p('Report exported', 'تم تصدير التقرير');
   String get nothingToExport => p('Nothing to export', 'لا توجد بيانات للتصدير');

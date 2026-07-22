@@ -868,11 +868,34 @@ class _EntityFormSheet extends StatefulWidget {
 
 class _EntityFormSheetState extends State<_EntityFormSheet> {
   bool _saving = false;
+  String? _nameError;
+  String? _thresholdError;
+
+  /// Validate before persisting: a blank name would leave the entity showing its
+  /// raw id everywhere, and a non-numeric/negative threshold is meaningless (B-073).
+  bool _validate(bool ar) {
+    String? nameErr;
+    String? thErr;
+    if (widget.nameCtrl.text.trim().isEmpty) {
+      nameErr = ar ? 'الاسم مطلوب' : 'Name is required';
+    }
+    final th = widget.thresholdCtrl.text.trim();
+    if (th.isNotEmpty) {
+      final n = int.tryParse(th);
+      if (n == null || n < 0) thErr = ar ? 'أدخل رقمًا صحيحًا' : 'Enter a valid number';
+    }
+    setState(() {
+      _nameError = nameErr;
+      _thresholdError = thErr;
+    });
+    return nameErr == null && thErr == null;
+  }
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
 
     return Padding(
       padding: EdgeInsets.only(
@@ -905,8 +928,13 @@ class _EntityFormSheetState extends State<_EntityFormSheet> {
             // ── Core fields ──────────────────────────────────────────────
             TextField(
               controller: widget.nameCtrl,
-              decoration:
-                  InputDecoration(labelText: l.entityTreeFieldName),
+              decoration: InputDecoration(
+                labelText: l.entityTreeFieldName,
+                errorText: _nameError,
+              ),
+              onChanged: (_) {
+                if (_nameError != null) setState(() => _nameError = null);
+              },
             ),
             const SizedBox(height: 12),
             TextField(
@@ -960,7 +988,11 @@ class _EntityFormSheetState extends State<_EntityFormSheet> {
                 labelText: l.entityFieldLowStockThreshold,
                 hintText: EntityMeta.defaultLowStockThreshold.toString(),
                 helperText: l.entityFieldLowStockThresholdHelp,
+                errorText: _thresholdError,
               ),
+              onChanged: (_) {
+                if (_thresholdError != null) setState(() => _thresholdError = null);
+              },
             ),
             const SizedBox(height: 20),
 
@@ -980,6 +1012,7 @@ class _EntityFormSheetState extends State<_EntityFormSheet> {
                     onPressed: _saving
                         ? null
                         : () async {
+                            if (!_validate(ar)) return;
                             setState(() => _saving = true);
                             try {
                               await widget.onSave();

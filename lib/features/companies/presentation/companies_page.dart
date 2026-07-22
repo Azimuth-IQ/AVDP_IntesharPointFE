@@ -298,11 +298,14 @@ class _CompanyDialogState extends State<_CompanyDialog> {
     final s = _S.of(context);
     return AlertDialog(
       title: Text(widget.existing == null ? s.createTitle : s.editTitle),
+      // Scroll + a responsive width so the stacked fields (and the restriction
+      // editor, when editing) never overflow / push Save off a short phone (B-073).
       content: SizedBox(
         width: 380,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
             TextField(controller: _name, decoration: InputDecoration(labelText: s.name)),
             const SizedBox(height: 10),
             ImageUploadField(
@@ -354,7 +357,8 @@ class _CompanyDialogState extends State<_CompanyDialog> {
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12.5)),
               ),
-          ],
+            ],
+          ),
         ),
       ),
       actions: [

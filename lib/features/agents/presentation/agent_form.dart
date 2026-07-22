@@ -496,39 +496,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
             ),
           const SizedBox(height: 22),
         ],
-        // B-055: which sections this agent — and its ENTIRE subtree (sub-agents,
-        // POS apps) — may see. Server-enforced; the nav simply mirrors it.
-        SectionLabel(Localizations.localeOf(context).languageCode == 'ar'
-            ? 'الأقسام المتاحة'
-            : 'Visible sections'),
-        const SizedBox(height: 4),
-        Text(
-          Localizations.localeOf(context).languageCode == 'ar'
-              ? 'الأقسام المخفية تختفي عن الوكيل وكل حساباته الفرعية ونقاط بيعه.'
-              : 'Hidden sections disappear for this agent and its whole subtree (sub-agents, POS).',
-          style: IntesharType.sans(12.5, color: cs.onSurfaceVariant),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final c in _sectionChoices)
-              if (c != Capability.MANAGE_PRICING || tier == AgentTier.main)
-                FilterChip(
-                  label: Text(c.label(Localizations.localeOf(context).languageCode)),
-                  selected: _allowedSections.contains(c),
-                  onSelected: (v) => setState(() {
-                    if (v) {
-                      _allowedSections.add(c);
-                    } else {
-                      _allowedSections.remove(c);
-                    }
-                  }),
-                ),
-          ],
-        ),
-        const SizedBox(height: 22),
+        // Identity first — who the agent is, before any advanced access config (B-073).
         SectionLabel(s.sectionIdentity),
         const SizedBox(height: 8),
         TextField(
@@ -541,6 +509,51 @@ class _AgentFormState extends ConsumerState<AgentForm> {
           kind: 'agent-branding',
           label: s.fieldLogo,
           onChanged: (u) => setState(() => _logo.text = u),
+        ),
+        const SizedBox(height: 22),
+        // B-055 + B-073: which sections this agent — and its ENTIRE subtree — may
+        // see. Server-enforced; the nav mirrors it. All-on by default, so it lives
+        // in a collapsed "Advanced access" expander instead of a wall of chips up top.
+        Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            childrenPadding: const EdgeInsets.only(bottom: 8),
+            title: SectionLabel(Localizations.localeOf(context).languageCode == 'ar'
+                ? 'الوصول المتقدم (الأقسام المتاحة)'
+                : 'Advanced access (visible sections)'),
+            children: [
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: Text(
+                  Localizations.localeOf(context).languageCode == 'ar'
+                      ? 'الأقسام المخفية تختفي عن الوكيل وكل حساباته الفرعية ونقاط بيعه.'
+                      : 'Hidden sections disappear for this agent and its whole subtree (sub-agents, POS).',
+                  style: IntesharType.sans(12.5, color: cs.onSurfaceVariant),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final c in _sectionChoices)
+                    if (c != Capability.MANAGE_PRICING || tier == AgentTier.main)
+                      FilterChip(
+                        label: Text(c.label(Localizations.localeOf(context).languageCode)),
+                        selected: _allowedSections.contains(c),
+                        onSelected: (v) => setState(() {
+                          if (v) {
+                            _allowedSections.add(c);
+                          } else {
+                            _allowedSections.remove(c);
+                          }
+                        }),
+                      ),
+                ],
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 22),
         SectionLabel(s.sectionGovernorates),

@@ -639,7 +639,7 @@ class _MobileLayout extends StatelessWidget {
       appBar: AppBar(
         titleSpacing: 16,
         title: GestureDetector(
-          onLongPress: () => context.go('/diagnostics'),
+          onLongPress: () => context.push('/diagnostics'),
           child: BrandMasthead(
             fallbackTitle: title,
             compact: true,
@@ -911,7 +911,7 @@ class _TabletLayout extends StatelessWidget {
       appBar: AppBar(
         titleSpacing: 16,
         title: GestureDetector(
-          onLongPress: () => context.go('/diagnostics'),
+          onLongPress: () => context.push('/diagnostics'),
           child: BrandMasthead(
             fallbackTitle: title,
             compact: true,
@@ -1092,7 +1092,7 @@ class _Sidebar extends StatelessWidget {
             // Brand header — yellow band with star + wordmark
             GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onLongPress: () => context.go('/diagnostics'),
+              onLongPress: () => context.push('/diagnostics'),
               child: BrandBand(
                 // Fill the masthead with the account's brand colour (tracks
                 // colorScheme.primary; saffron for HQ / unbranded) — B-046.

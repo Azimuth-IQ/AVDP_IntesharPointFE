@@ -315,7 +315,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               : Column(
                   children: [
                     GestureDetector(
-                      onLongPress: () => context.go('/diagnostics'),
+                      onLongPress: () => context.push('/diagnostics'),
                       behavior: HitTestBehavior.opaque,
                       child: const _MobileBrandHeader(),
                     ),
@@ -560,7 +560,7 @@ class _BrandPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
     return GestureDetector(
-      onLongPress: () => context.go('/diagnostics'),
+      onLongPress: () => context.push('/diagnostics'),
       behavior: HitTestBehavior.opaque,
       child: BrandBand(
         padding: const EdgeInsets.fromLTRB(56, 56, 56, 56),

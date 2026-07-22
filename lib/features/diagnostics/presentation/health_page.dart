@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
@@ -94,6 +95,14 @@ class _HealthPageState extends ConsumerState<HealthPage> {
     final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
+        // Diagnostics is pushed on top of the current screen, so provide an explicit
+        // way back (pop). If it was somehow reached without a page below, fall back to
+        // /login — the router redirects an authenticated session on to its home.
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          tooltip: l.commonClose,
+          onPressed: () => context.canPop() ? context.pop() : context.go('/login'),
+        ),
         title: Text(l.healthDiagnosticsTitle, style: Theme.of(context).appBarTheme.titleTextStyle),
         actions: [
           IconButton(

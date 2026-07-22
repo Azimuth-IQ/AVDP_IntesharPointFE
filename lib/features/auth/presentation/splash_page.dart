@@ -24,7 +24,7 @@ class SplashPage extends ConsumerWidget {
 
     return Scaffold(
       body: GestureDetector(
-        onLongPress: () => context.go('/diagnostics'),
+        onLongPress: () => context.push('/diagnostics'),
         child: BrandBand(
           padding: EdgeInsets.zero,
           sparkleSize: 420,

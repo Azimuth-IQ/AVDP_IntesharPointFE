@@ -174,7 +174,7 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
       appBar: AppBar(
         titleSpacing: 16,
         title: GestureDetector(
-          onLongPress: () => context.go('/diagnostics'),
+          onLongPress: () => context.push('/diagnostics'),
           child: Row(
             children: [
               if (agentLogo.trim().isNotEmpty)

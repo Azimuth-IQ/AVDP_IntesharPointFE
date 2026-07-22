@@ -191,6 +191,11 @@ class _DashContent extends StatelessWidget {
     }
 
 
+    final isStore = entity.type == EntityType.STORE;
+    // For a STORE the KPI row would be a single meaningless "Direct children: 0"
+    // tile (stock KPIs are already hidden for non-inventory tiers), so skip it.
+    final showKpis = !isStore || entity.type.inventoryBacked;
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(0, 0, 0, 40),
       children: [
@@ -199,6 +204,15 @@ class _DashContent extends StatelessWidget {
           padding: const EdgeInsetsDirectional.fromSTEB(24, 28, 24, 0),
           child: _SlimHeader(entity: entity),
         ),
+
+        // ── Store-admin note: selling is a SEPARATE POS login ────────────
+        // A STORE-ADMIN can't sell from this console (the counter lives in the
+        // /pos USER session); say so plainly instead of leaving a dead end.
+        if (isStore)
+          const Padding(
+            padding: EdgeInsetsDirectional.fromSTEB(24, 20, 24, 0),
+            child: _StorePosNote(),
+          ),
 
         // ── Virtual balance ──────────────────────────────────────────────
         Padding(
@@ -213,16 +227,17 @@ class _DashContent extends StatelessWidget {
         ),
 
         // ── KPI tiles ────────────────────────────────────────────────────
-        Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(24, 24, 24, 0),
-          child: _KpiRow(
-            childCount: data.childCount,
-            availableCount: availableProducts.length,
-            availableSkuCount: availableSkus.length,
-            lowStockCount: lowSkus.length,
-            showInventory: entity.type.inventoryBacked,
+        if (showKpis)
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(24, 24, 24, 0),
+            child: _KpiRow(
+              childCount: data.childCount,
+              availableCount: availableProducts.length,
+              availableSkuCount: availableSkus.length,
+              lowStockCount: lowSkus.length,
+              showInventory: entity.type.inventoryBacked,
+            ),
           ),
-        ),
 
         // ── Two-column body ──────────────────────────────────────────────
         Padding(
@@ -281,6 +296,55 @@ class _SlimHeader extends StatelessWidget {
         const SizedBox(width: 12),
         RoleBadge(type: entity.type),
       ],
+    );
+  }
+}
+
+// ─── Store-admin POS note ──────────────────────────────────────────────────────
+
+/// Shown only on a STORE-ADMIN dashboard: this console manages the shop, but the
+/// actual selling counter is a separate point-of-sale login (the USER-role
+/// account on `/pos`). Prevents an owner who signed in with the admin account
+/// from concluding the app can't sell.
+class _StorePosNote extends StatelessWidget {
+  const _StorePosNote();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: IntesharColors.saffron.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(IntesharRadii.md),
+        border: Border.all(color: IntesharColors.saffron.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.point_of_sale_outlined, size: 20, color: IntesharColors.saffronDeep),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  ar ? 'هذه شاشة إدارة المتجر' : 'This is the shop management console',
+                  style: IntesharType.sans(13.5, color: cs.onSurface, w: FontWeight.w800),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  ar
+                      ? 'للبيع والطباعة، سجّل الدخول بحساب نقطة البيع (حساب المستخدم) على تطبيق نقطة البيع.'
+                      : 'To sell and print, sign in with your point-of-sale account (the USER login) in the POS app.',
+                  style: IntesharType.sans(12.5, color: cs.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

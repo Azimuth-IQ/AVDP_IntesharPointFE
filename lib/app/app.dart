@@ -22,7 +22,10 @@ class IntesharApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: brandThemes.light,
       darkTheme: brandThemes.dark,
-      themeMode: ThemeMode.system,
+      // B-078: lock to the polished light style. Much of the UI paints fixed light
+      // inks (IntesharColors.ink/lichen/…), so honouring the OS dark setting left
+      // low-contrast text on charcoal. Light is the team's intended look.
+      themeMode: ThemeMode.light,
       routerConfig: router,
       // App-wide update gate: a mandatory update replaces the whole UI; an
       // optional one surfaces a dismissible sheet. No-op off Android.

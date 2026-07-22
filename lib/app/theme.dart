@@ -164,6 +164,14 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
       ? (isDark ? IntesharColors.ink : Colors.white)
       : (ThemeData.estimateBrightnessForColor(brandSecondary) == Brightness.dark ? Colors.white : IntesharColors.ink);
   final oxblood     = isDark ? IntesharColors.oxbloodOnDark : IntesharColors.oxblood;
+  // Brand-toned colour for TEXT/labels ON a surface — raw `saffron` (bright gold,
+  // or a pale white-label primary) fails contrast on paper (B-078). Use the deep
+  // amber by default, and darken a pale white-label brand so labels stay legible.
+  final brandInk = brandPrimary == null
+      ? (isDark ? IntesharColors.saffronOnDark : IntesharColors.saffronDeep)
+      : (ThemeData.estimateBrightnessForColor(brandPrimary) == Brightness.light
+          ? Color.alphaBlend(Colors.black.withValues(alpha: 0.45), brandPrimary)
+          : brandPrimary);
 
   final scheme = ColorScheme(
     brightness: b,
@@ -286,7 +294,7 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       hintStyle: codec(size: 14, w: FontWeight.w400, c: onPaperSoft.withValues(alpha: 0.55)),
       labelStyle: codec(size: 13, w: FontWeight.w500, c: onPaperSoft),
-      floatingLabelStyle: codec(size: 13, w: FontWeight.w600, c: saffron),
+      floatingLabelStyle: codec(size: 13, w: FontWeight.w600, c: brandInk),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(IntesharRadii.sm),
         borderSide: BorderSide(color: outline, width: 1),
@@ -340,7 +348,7 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
-        foregroundColor: saffron,
+        foregroundColor: brandInk,
         textStyle: codec(size: 13, w: FontWeight.w600, tracking: 0.3),
       ),
     ),

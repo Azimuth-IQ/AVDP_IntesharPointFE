@@ -1034,7 +1034,29 @@ class _TransferSheetState extends ConsumerState<_TransferSheet> {
               labelText: ar ? 'المبلغ' : 'Amount',
               suffixText: 'IQD',
             ),
+            onChanged: (_) => setState(() {}), // refresh the before→after readout
           ),
+          const SizedBox(height: 12),
+          // Live before → after so the impact is visible at decision time (B-076).
+          Builder(builder: (_) {
+            final avail = widget.balance.available;
+            final amt = num.tryParse(_amount.text.trim()) ?? 0;
+            final after = avail - amt;
+            final lbl = IntesharType.sans(12.5, color: cs.onSurfaceVariant);
+            return Column(children: [
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text(ar ? 'الرصيد المتاح' : 'Available', style: lbl),
+                Text(Formatters.iqd(avail.round()), style: IntesharType.mono(12.5, color: cs.onSurface)),
+              ]),
+              const SizedBox(height: 4),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text(ar ? 'بعد التحويل' : 'After transfer', style: lbl),
+                Text(Formatters.iqd(after.round()),
+                    style: IntesharType.mono(12.5, w: FontWeight.w700,
+                        color: after < 0 ? cs.error : cs.onSurface)),
+              ]),
+            ]);
+          }),
           if (_error != null) ...[
             const SizedBox(height: 10),
             Text(_error!, style: TextStyle(color: cs.error, fontSize: 12.5)),

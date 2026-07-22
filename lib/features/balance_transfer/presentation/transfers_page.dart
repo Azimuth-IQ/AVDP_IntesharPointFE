@@ -90,7 +90,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
       final results = await Future.wait([
         PricingRepository(api).balance(),
         PricingRepository(api).grants(),
-        EntityRepository(api).children(_myId, size: 200),
+        EntityRepository(api).children(_myId, size: 500),
       ]);
       final grants = (results[1] as List<GrantRow>).toList()
         ..sort((a, b) => '${b.date} ${b.time}'.compareTo('${a.date} ${a.time}'));
@@ -111,6 +111,57 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
     }
   }
 
+  /// A searchable single-select over the loaded direct children (transfers must
+  /// target a direct child, so this stays scoped to that set — B-076).
+  Future<EntitySummaryRow?> _pickChild(BuildContext context) async {
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    var query = '';
+    return showDialog<EntitySummaryRow>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setD) {
+        final q = query.trim().toLowerCase();
+        final rows = q.isEmpty
+            ? _children
+            : _children.where((e) => e.label.toLowerCase().contains(q)).toList();
+        return AlertDialog(
+          title: Text(ar ? 'اختر الحساب' : 'Select account'),
+          content: SizedBox(
+            width: 420,
+            height: 380,
+            child: Column(children: [
+              TextField(
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: ar ? 'بحث بالاسم…' : 'Search by name…',
+                  prefixIcon: const Icon(Icons.search, size: 18),
+                  isDense: true,
+                ),
+                onChanged: (v) => setD(() => query = v),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: rows.isEmpty
+                    ? Center(child: Text(ar ? 'لا توجد حسابات مطابقة' : 'No matching accounts'))
+                    : ListView.builder(
+                        itemCount: rows.length,
+                        itemBuilder: (_, i) => ListTile(
+                          dense: true,
+                          title: Text(rows[i].label, overflow: TextOverflow.ellipsis),
+                          subtitle: Text(rows[i].type.label),
+                          onTap: () => Navigator.pop(ctx, rows[i]),
+                        ),
+                      ),
+              ),
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(ar ? 'إلغاء' : 'Cancel')),
+          ],
+        );
+      }),
+    );
+  }
+
   Future<void> _newTransferDialog(_TS s) async {
     if (_children.isEmpty) {
       ScaffoldMessenger.of(context)
@@ -125,18 +176,20 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setD) => AlertDialog(
           title: Text(s.newTransfer),
-          content: Column(mainAxisSize: MainAxisSize.min, children: [
-            DropdownButtonFormField<EntitySummaryRow>(
-              initialValue: dest,
-              isExpanded: true,
-              decoration: InputDecoration(labelText: s.to, isDense: true),
-              items: _children
-                  .map((e) => DropdownMenuItem(
-                      value: e,
-                      child: Text('${e.label} (${e.type.label})',
-                          overflow: TextOverflow.ellipsis)))
-                  .toList(),
-              onChanged: (v) => setD(() => dest = v),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            // Searchable direct-child picker (was a plain dropdown capped at 200).
+            InkWell(
+              onTap: () async {
+                final picked = await _pickChild(ctx);
+                if (picked != null) setD(() => dest = picked);
+              },
+              child: InputDecorator(
+                decoration: InputDecoration(labelText: s.to, isDense: true, suffixIcon: const Icon(Icons.search, size: 18)),
+                child: Text(
+                  dest != null ? '${dest!.label} (${dest!.type.label})' : '—',
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ),
             const SizedBox(height: 10),
             TextField(
@@ -151,6 +204,29 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
               ),
               onChanged: (_) => setD(() => fieldError = null),
             ),
+            const SizedBox(height: 12),
+            // Live before → after readout so the sender sees the impact at decision time.
+            Builder(builder: (ctx) {
+              final ar = Localizations.localeOf(ctx).languageCode == 'ar';
+              final cs = Theme.of(ctx).colorScheme;
+              final avail = _balance?.available ?? 0;
+              final amt = num.tryParse(amountCtrl.text.trim()) ?? 0;
+              final after = avail - amt;
+              TextStyle lbl = IntesharType.sans(12.5, color: cs.onSurfaceVariant);
+              return Column(children: [
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  Text(ar ? 'الرصيد المتاح' : 'Available', style: lbl),
+                  Text(Formatters.iqd(avail.round()), style: IntesharType.mono(12.5, color: cs.onSurface)),
+                ]),
+                const SizedBox(height: 4),
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  Text(ar ? 'بعد التحويل' : 'After transfer', style: lbl),
+                  Text(Formatters.iqd(after.round()),
+                      style: IntesharType.mono(12.5, w: FontWeight.w700,
+                          color: after < 0 ? cs.error : cs.onSurface)),
+                ]),
+              ]);
+            }),
           ]),
           actions: [
             TextButton(

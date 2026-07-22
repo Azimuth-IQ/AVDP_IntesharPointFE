@@ -13,6 +13,7 @@ import 'package:inteshar/core/printing/escpos_builder.dart';
 import 'package:inteshar/core/printing/logo_loader.dart';
 import 'package:inteshar/core/printing/print_queue.dart';
 import 'package:inteshar/core/printing/rovo_printer.dart';
+import 'package:inteshar/core/storage/session_storage.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
@@ -55,6 +56,7 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
   List<SellableSku>? _sellable;
   AgentBalance? _balance;
   List<String> _sliderUrls = const [];
+  List<String> _recentKeys = const []; // B-064: recently sold SKU keys (quick-sell)
   Object? _error;
   bool _loading = true;
   String _search = '';
@@ -111,11 +113,14 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
       // HQ-managed home slider comes from the resolved session brand (fetched once at
       // login via /api/entity/branding), so no extra call on every refresh.
       final slider = auth.brand.sliderUrls;
+      // B-064: recently sold SKUs (device-local) power the quick-sell row.
+      final recent = await sessionStorage.getRecentPosSkus();
       if (mounted) {
         setState(() {
           _sellable = sellable;
           _balance = balance;
           _sliderUrls = slider;
+          _recentKeys = recent;
         });
       }
     } catch (e) {
@@ -313,6 +318,33 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
         .toList();
   }
 
+  /// B-064: the recently sold SKUs that are still sellable now (available > 0),
+  /// in recency order, resolved against the current pool. Powers the quick-sell row.
+  List<SellableSku> _recentSellables() {
+    final sellable = _sellable ?? const <SellableSku>[];
+    final sep = SessionStorage.recentPosSkuSep;
+    final byKey = {for (final s in sellable) '${s.sku}$sep${s.governorate ?? ''}': s};
+    final out = <SellableSku>[];
+    for (final k in _recentKeys) {
+      final s = byKey[k];
+      if (s != null && s.available > 0) out.add(s);
+      if (out.length >= 6) break;
+    }
+    return out;
+  }
+
+  /// B-064: every sellable SKU matching [q] across ALL companies/governorates —
+  /// the home-step global search that skips the company→region→card drill.
+  List<SellableSku> _globalMatches(String q) {
+    final query = q.trim().toLowerCase();
+    return (_sellable ?? const <SellableSku>[])
+        .where((s) =>
+            s.name.toLowerCase().contains(query) ||
+            s.sku.toLowerCase().contains(query) ||
+            (s.companyName ?? '').toLowerCase().contains(query))
+        .toList();
+  }
+
   void _openCompany(String companyKey, List<SellableSku> rows) {
     final buckets = _buckets(rows);
     setState(() {
@@ -389,55 +421,140 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
     final keys = groups.keys.toList()
       ..sort((a, b) => _companyLabel(a).toLowerCase().compareTo(_companyLabel(b).toLowerCase()));
 
+    final searching = _search.trim().isNotEmpty;
+    final matches = searching ? _globalMatches(_search) : const <SellableSku>[];
+    final recents = searching ? const <SellableSku>[] : _recentSellables();
+
+    // SKU-card grid geometry, reused for the recents row and the global results.
+    final skuExtent = switch (context.screenSize) {
+      ScreenSize.desktop => 240.0,
+      ScreenSize.tablet => 210.0,
+      ScreenSize.mobile => 172.0,
+    };
+    final skuRowHeight = context.screenSize == ScreenSize.mobile ? 236.0 : 250.0;
+
     return MaxWidthBox(
       child: RefreshIndicator(
         onRefresh: _load,
         child: CustomScrollView(
           slivers: [
             SliverToBoxAdapter(child: _header(l, title: l.posHomePickDenomination, subtitle: l.posHomeCounterSubtitle)),
-            if (_sliderUrls.isNotEmpty)
-              SliverToBoxAdapter(child: _HomeSlider(urls: _sliderUrls)),
+            // Global search: type a company/name/SKU and sell straight from the
+            // results — no company→region→card drill for a known card (B-064).
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
-                child: Text(
-                  _ar ? 'اختر الشركة' : 'Choose a company',
-                  style: IntesharType.display(18, color: cs.onSurface, w: FontWeight.w800),
+                padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
+                child: TextField(
+                  decoration: InputDecoration(
+                    hintText: l.posHomeSearchHint,
+                    prefixIcon: const Icon(Icons.search, size: 18),
+                    suffixIcon: searching
+                        ? IconButton(
+                            icon: const Icon(Icons.close, size: 18),
+                            onPressed: () => setState(() => _search = ''),
+                          )
+                        : null,
+                  ),
+                  onChanged: (v) => setState(() => _search = v),
                 ),
               ),
             ),
-            if (keys.isEmpty)
+            if (searching) ...[
+              if (matches.isEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 40),
+                    child: EmptyState(message: l.posHomeNoMatches(_search)),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
+                  sliver: SliverGrid(
+                    gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: skuExtent,
+                      mainAxisSpacing: 14,
+                      crossAxisSpacing: 14,
+                      mainAxisExtent: skuRowHeight,
+                    ),
+                    delegate: SliverChildBuilderDelegate(
+                      (context, i) => _SkuCard(sellable: matches[i], onTap: () => _showVoucher(matches[i])),
+                      childCount: matches.length,
+                    ),
+                  ),
+                ),
+            ] else ...[
+              if (_sliderUrls.isNotEmpty)
+                SliverToBoxAdapter(child: _HomeSlider(urls: _sliderUrls)),
+              // Quick-sell: recently sold cards as a one-tap horizontal row.
+              if (recents.isNotEmpty) ...[
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+                    child: Text(
+                      _ar ? 'الأكثر مبيعاً' : 'Recent',
+                      style: IntesharType.display(18, color: cs.onSurface, w: FontWeight.w800),
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: skuRowHeight,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      itemCount: recents.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 14),
+                      itemBuilder: (context, i) => SizedBox(
+                        width: skuExtent,
+                        child: _SkuCard(sellable: recents[i], onTap: () => _showVoucher(recents[i])),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 40),
-                  child: EmptyState(message: l.posHomeNoVouchers, actionLabel: l.retryButton, onAction: _load),
-                ),
-              )
-            else
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                sliver: SliverGrid(
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: _gridCols(),
-                    mainAxisSpacing: 14,
-                    crossAxisSpacing: 14,
-                    mainAxisExtent: 150,
-                  ),
-                  delegate: SliverChildBuilderDelegate(
-                    (context, i) {
-                      final key = keys[i];
-                      final rows = groups[key]!;
-                      return _CompanyCard(
-                        name: _companyLabel(key),
-                        logoUrl: rows.firstWhere((s) => (s.companyLogoUrl ?? '').isNotEmpty, orElse: () => rows.first).companyLogoUrl,
-                        cardTypes: rows.length,
-                        onTap: () => _openCompany(key, rows),
-                      );
-                    },
-                    childCount: keys.length,
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
+                  child: Text(
+                    _ar ? 'اختر الشركة' : 'Choose a company',
+                    style: IntesharType.display(18, color: cs.onSurface, w: FontWeight.w800),
                   ),
                 ),
               ),
+              if (keys.isEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 40),
+                    child: EmptyState(message: l.posHomeNoVouchers, actionLabel: l.retryButton, onAction: _load),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                  sliver: SliverGrid(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: _gridCols(),
+                      mainAxisSpacing: 14,
+                      crossAxisSpacing: 14,
+                      mainAxisExtent: 150,
+                    ),
+                    delegate: SliverChildBuilderDelegate(
+                      (context, i) {
+                        final key = keys[i];
+                        final rows = groups[key]!;
+                        return _CompanyCard(
+                          name: _companyLabel(key),
+                          logoUrl: rows.firstWhere((s) => (s.companyLogoUrl ?? '').isNotEmpty, orElse: () => rows.first).companyLogoUrl,
+                          cardTypes: rows.length,
+                          onTap: () => _openCompany(key, rows),
+                        );
+                      },
+                      childCount: keys.length,
+                    ),
+                  ),
+                ),
+            ],
           ],
         ),
       ),
@@ -583,7 +700,15 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
       // closes the remaining dismiss paths so a sold voucher can only be dismissed by Done/Print.
       isDismissible: false,
       enableDrag: false,
-      builder: (ctx) => _VoucherSheet(sku: sku, onConsumed: () => consumed = true, onPrinted: () => Navigator.pop(ctx)),
+      builder: (ctx) => _VoucherSheet(
+        sku: sku,
+        onConsumed: () {
+          consumed = true;
+          // B-064: remember this SKU so it surfaces in the quick-sell row next time.
+          sessionStorage.pushRecentPosSku(sku.sku, sku.governorate ?? '');
+        },
+        onPrinted: () => Navigator.pop(ctx),
+      ),
     ).whenComplete(() {
       // After a sale, re-fetch so the pool counts match the source of truth.
       if (consumed) _load();

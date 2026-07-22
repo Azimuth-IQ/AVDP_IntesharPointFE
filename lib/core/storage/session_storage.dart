@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SessionStorage {
@@ -10,6 +12,13 @@ class SessionStorage {
   // G17 "remember me": the phone to pre-fill on the login screen. Kept SEPARATE
   // from `_phoneKey` (the active-session phone) so it survives logout/`clear()`.
   static const _rememberedPhoneKey = 'remembered_phone';
+  // B-064: POS quick-sell — recently sold SKUs (most-recent first), as compound
+  // "sku+SEP+governorate" keys, so a busy shop re-sells its regulars in one tap.
+  static const _recentPosSkusKey = 'recent_pos_skus';
+  static const int _recentPosSkusMax = 8;
+  /// Separator joining sku + governorate in a recent-SKU key — a control char that
+  /// cannot appear in a SKU or governorate name, so the pair is unambiguous.
+  static final String recentPosSkuSep = String.fromCharCode(1);
 
   // static const defaultBaseUrl = 'http://localhost:8080';
   // Override at launch with --dart-define=API_BASE=http://<host>:8080 for local
@@ -91,6 +100,31 @@ class SessionStorage {
   Future<String?> getRememberedPhone() async {
     final p = await SharedPreferences.getInstance();
     return p.getString(_rememberedPhoneKey);
+  }
+
+  /// B-064: the compound "sku+SEP+gov" keys of recently sold vouchers, most-recent
+  /// first. Empty when nothing has been sold on this device yet.
+  Future<List<String>> getRecentPosSkus() async {
+    final p = await SharedPreferences.getInstance();
+    final raw = p.getString(_recentPosSkusKey);
+    if (raw == null || raw.isEmpty) return const [];
+    try {
+      return (jsonDecode(raw) as List).cast<String>();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Records a sold voucher's SKU as the most recent, de-duplicated and capped.
+  Future<void> pushRecentPosSku(String sku, String governorate) async {
+    if (sku.isEmpty) return;
+    final key = '$sku$recentPosSkuSep$governorate';
+    final list = [...await getRecentPosSkus()]
+      ..remove(key)
+      ..insert(0, key);
+    if (list.length > _recentPosSkusMax) list.removeRange(_recentPosSkusMax, list.length);
+    final p = await SharedPreferences.getInstance();
+    await p.setString(_recentPosSkusKey, jsonEncode(list));
   }
 
   Future<void> setLocale(String languageCode) async {

@@ -2264,6 +2264,30 @@ abstract class AppLocalizations {
   /// **'Could not save template'**
   String get vtSaveFailed;
 
+  /// No description provided for @vtUnsavedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Unsaved changes'**
+  String get vtUnsavedTitle;
+
+  /// No description provided for @vtUnsavedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'You have unsaved template edits. Discard them and switch?'**
+  String get vtUnsavedBody;
+
+  /// No description provided for @vtKeepEditing.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep editing'**
+  String get vtKeepEditing;
+
+  /// No description provided for @vtDiscard.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard'**
+  String get vtDiscard;
+
   /// No description provided for @vtEmpty.
   ///
   /// In en, this message translates to:

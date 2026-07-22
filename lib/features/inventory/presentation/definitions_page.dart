@@ -462,12 +462,31 @@ class _DefinitionRowState extends State<_DefinitionRow> {
                   ),
                 ),
               ),
-              // Edit icon
-              IconButton(
-                icon: const Icon(Icons.edit_outlined, size: 16),
-                onPressed: widget.onEdit,
+              // Edit / Delete menu — an explicit delete control so the action is
+              // discoverable on web (HQ's main surface), where swipe-to-delete is
+              // invisible (B-072). Swipe still works as a shortcut on touch.
+              PopupMenuButton<String>(
+                icon: Icon(Icons.more_vert, size: 18, color: cs.onSurfaceVariant),
                 tooltip: l.defsEdit,
-                color: cs.onSurfaceVariant,
+                onSelected: (v) => v == 'edit' ? widget.onEdit() : widget.onDelete(),
+                itemBuilder: (_) => [
+                  PopupMenuItem(
+                    value: 'edit',
+                    child: ListTile(
+                      leading: const Icon(Icons.edit_outlined),
+                      title: Text(l.defsEdit),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: ListTile(
+                      leading: Icon(Icons.delete_outline, color: cs.error),
+                      title: Text(l.defsDelete, style: TextStyle(color: cs.error)),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

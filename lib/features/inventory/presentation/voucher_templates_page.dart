@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -80,8 +81,9 @@ class _VoucherTemplatesPageState extends ConsumerState<VoucherTemplatesPage> {
       if (mounted) {
         setState(() {
           _defs = defs;
-          if (_selected != null) {
-            // Keep selection updated after refresh
+          if (_selected != null && !_dirty) {
+            // Keep selection updated after refresh — but NOT while the operator has
+            // unsaved edits, or a background refresh would silently discard them (B-072).
             final refreshed = defs.where((d) => d.id == _selected!.id);
             if (refreshed.isNotEmpty) {
               _selectDef(refreshed.first);
@@ -94,6 +96,31 @@ class _VoucherTemplatesPageState extends ConsumerState<VoucherTemplatesPage> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  /// Unsaved edits: the in-progress template differs from the selected SKU's saved one.
+  bool get _dirty =>
+      _selected != null && !mapEquals(_edited.toJson(), _selected!.template.toJson());
+
+  /// Switch SKUs, guarding unsaved edits with a discard/keep prompt (B-072).
+  Future<void> _trySelect(ProductDefinition def) async {
+    if (_selected?.id == def.id) return;
+    if (_dirty) {
+      final l = AppLocalizations.of(context)!;
+      final discard = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(l.vtUnsavedTitle),
+          content: Text(l.vtUnsavedBody),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l.vtKeepEditing)),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(l.vtDiscard)),
+          ],
+        ),
+      );
+      if (discard != true) return;
+    }
+    _selectDef(def);
   }
 
   void _selectDef(ProductDefinition def) {
@@ -211,7 +238,7 @@ class _VoucherTemplatesPageState extends ConsumerState<VoucherTemplatesPage> {
                           redeemCtrl: _redeemCtrl,
                           prefixCtrl: _prefixCtrl,
                           suffixCtrl: _suffixCtrl,
-                          onSelect: _selectDef,
+                          onSelect: _trySelect,
                           onHeaderChanged: _onHeaderChanged,
                           onFooterChanged: _onFooterChanged,
                           onRedeemChanged: _onRedeemChanged,
@@ -230,7 +257,7 @@ class _VoucherTemplatesPageState extends ConsumerState<VoucherTemplatesPage> {
                           redeemCtrl: _redeemCtrl,
                           prefixCtrl: _prefixCtrl,
                           suffixCtrl: _suffixCtrl,
-                          onSelect: _selectDef,
+                          onSelect: _trySelect,
                           onHeaderChanged: _onHeaderChanged,
                           onFooterChanged: _onFooterChanged,
                           onRedeemChanged: _onRedeemChanged,

@@ -1214,6 +1214,19 @@ class AppLocalizationsAr extends AppLocalizations {
   String get vtSaveFailed => 'تعذّر حفظ القالب';
 
   @override
+  String get vtUnsavedTitle => 'تغييرات غير محفوظة';
+
+  @override
+  String get vtUnsavedBody =>
+      'لديك تعديلات غير محفوظة على القالب. هل تتجاهلها وتنتقل؟';
+
+  @override
+  String get vtKeepEditing => 'متابعة التعديل';
+
+  @override
+  String get vtDiscard => 'تجاهل';
+
+  @override
   String get vtEmpty => 'لا توجد منتجات بعد — أنشئ منتجًا في الكتالوج أولًا.';
 
   @override

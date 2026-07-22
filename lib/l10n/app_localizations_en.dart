@@ -1223,6 +1223,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get vtSaveFailed => 'Could not save template';
 
   @override
+  String get vtUnsavedTitle => 'Unsaved changes';
+
+  @override
+  String get vtUnsavedBody =>
+      'You have unsaved template edits. Discard them and switch?';
+
+  @override
+  String get vtKeepEditing => 'Keep editing';
+
+  @override
+  String get vtDiscard => 'Discard';
+
+  @override
   String get vtEmpty => 'No products yet — create one in the Catalog first.';
 
   @override

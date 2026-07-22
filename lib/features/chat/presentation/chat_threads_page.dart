@@ -12,9 +12,11 @@ import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
-/// التواصل thread list (B-057). Agents see their POS children (+ HQ for an
-/// AGENT1); HQ sees its main-agents and can flip to oversight of every thread
-/// (read-only). Polls every 15 s for new activity.
+/// التواصل thread list (B-057). Every reachable counterparty is shown as a row
+/// (tap to start), so the list itself is the contact picker: a POS → its parent
+/// agent; an AGENT1 → its children + HQ; an AGENT2 → its children + parent + HQ
+/// (the BRD bypass channel, B-069); HQ → its main-agents, with an oversight
+/// toggle to read every thread. Polls every 15 s for new activity.
 class ChatThreadsPage extends ConsumerStatefulWidget {
   const ChatThreadsPage({super.key});
 
@@ -105,9 +107,26 @@ class _ChatThreadsPageState extends ConsumerState<ChatThreadsPage> {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) return ErrorState(error: _error!, onRetry: _load);
     if (_threads.isEmpty) {
+      // Reachable contacts normally appear here as tappable rows; a truly empty
+      // list means there's no one to message yet — explain rather than dead-end.
       return Center(
-        child: Text(ar ? 'لا توجد محادثات بعد.' : 'No conversations yet.',
-            style: IntesharType.sans(14, color: cs.onSurfaceVariant)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.forum_outlined, size: 40, color: cs.onSurfaceVariant),
+              const SizedBox(height: 12),
+              Text(
+                ar
+                    ? 'لا توجد جهات للتواصل بعد. ستظهر حساباتك هنا لبدء محادثة.'
+                    : 'No one to message yet. Your accounts will appear here to start a conversation.',
+                textAlign: TextAlign.center,
+                style: IntesharType.sans(14, color: cs.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
       );
     }
     return RefreshIndicator(

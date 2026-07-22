@@ -31,6 +31,12 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
   bool _busy = false;
   Object? _error;
   late DateTimeRange _range;
+  // B-066: page through the window instead of a silent 100-row cap.
+  static const int _size = 50;
+  int _page = 0;
+  bool _hasMore = false;
+  bool _loadingMore = false;
+  bool _notPrintedOnly = false; // end-of-day recovery filter
 
   @override
   void initState() {
@@ -47,13 +53,15 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
     setState(() {
       _loading = true;
       _error = null;
+      _page = 0;
     });
     try {
-      final ops = await ProductRepository(ref.read(apiClientProvider))
-          .printOperations(from: _day(_range.start), to: _day(_range.end), size: 100);
+      final ops = await ProductRepository(ref.read(apiClientProvider)).printOperations(
+          from: _day(_range.start), to: _day(_range.end), page: 0, size: _size);
       if (!mounted) return;
       setState(() {
         _ops = ops;
+        _hasMore = ops.length == _size; // a full page suggests there may be more
         _loading = false;
       });
     } catch (e) {
@@ -62,6 +70,29 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
           _error = e;
           _loading = false;
         });
+      }
+    }
+  }
+
+  /// Appends the next page (the API returns a plain list, so a full page ⇒ maybe more).
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore) return;
+    setState(() => _loadingMore = true);
+    try {
+      final next = _page + 1;
+      final more = await ProductRepository(ref.read(apiClientProvider)).printOperations(
+          from: _day(_range.start), to: _day(_range.end), page: next, size: _size);
+      if (!mounted) return;
+      setState(() {
+        _ops = [..._ops, ...more];
+        _page = next;
+        _hasMore = more.length == _size;
+        _loadingMore = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loadingMore = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
       }
     }
   }
@@ -107,29 +138,62 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
     final cs = Theme.of(context).colorScheme;
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) return ErrorState(error: _error!, onRetry: _load);
+    final shown = _notPrintedOnly ? _ops.where((o) => !o.printed).toList() : _ops;
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
         padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 28),
         children: [
-          OutlinedButton.icon(
-            onPressed: _pickRange,
-            icon: const Icon(Icons.date_range, size: 18),
-            label: Text('${_day(_range.start)} → ${_day(_range.end)}'),
-          ),
+          Row(children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _pickRange,
+                icon: const Icon(Icons.date_range, size: 18),
+                label: Text('${_day(_range.start)} → ${_day(_range.end)}',
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // End-of-day recovery: show only the cards whose print was never confirmed.
+            FilterChip(
+              selected: _notPrintedOnly,
+              onSelected: (v) => setState(() => _notPrintedOnly = v),
+              avatar: Icon(Icons.print_disabled_outlined, size: 16,
+                  color: _notPrintedOnly ? cs.onSecondaryContainer : cs.onSurfaceVariant),
+              label: Text(ar ? 'غير المطبوعة' : 'Not printed'),
+            ),
+          ]),
           const SizedBox(height: 12),
-          if (_ops.isEmpty)
+          if (shown.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 40),
               child: Center(
                 child: Text(
-                  ar ? 'لا توجد بطاقات في هذه الفترة.' : 'No cards in this window.',
+                  _notPrintedOnly
+                      ? (ar ? 'لا توجد بطاقات غير مطبوعة.' : 'No unprinted cards.')
+                      : (ar ? 'لا توجد بطاقات في هذه الفترة.' : 'No cards in this window.'),
                   style: IntesharType.sans(14, color: cs.onSurfaceVariant),
                 ),
               ),
             )
           else
-            for (final op in _ops) _opCard(op, ar, cs),
+            for (final op in shown) _opCard(op, ar, cs),
+          // Load the next page. When filtering, the hint reminds the operator that
+          // more unprinted cards may still be further back in the window.
+          if (_hasMore) ...[
+            const SizedBox(height: 4),
+            Center(
+              child: _loadingMore
+                  ? const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2)))
+                  : TextButton.icon(
+                      onPressed: _loadMore,
+                      icon: const Icon(Icons.expand_more, size: 18),
+                      label: Text(ar ? 'تحميل المزيد' : 'Load more'),
+                    ),
+            ),
+          ],
         ],
       ),
     );

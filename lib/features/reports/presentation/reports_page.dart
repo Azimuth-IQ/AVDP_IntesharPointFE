@@ -370,10 +370,11 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         children: [
           PageHeader(eyebrow: s.eyebrow, title: s.title, subtitle: s.subtitle),
           if (_isHq && _pickables.length > 1) _targetPicker(s),
-          Row(children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(child: _tabBar(tabs)),
             IconButton(
-              tooltip: s.export,
+              // Name the tab being exported so the scope is never ambiguous.
+              tooltip: '${s.export}: ${tabs[_tab].label}',
               icon: const Icon(Icons.download_outlined),
               onPressed: _booting ? null : () => _export(key, s),
             ),
@@ -415,22 +416,21 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
 
   Widget _tabBar(List<_Tab> tabs) {
     final cs = Theme.of(context).colorScheme;
-    return SizedBox(
-      height: 44,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+    // Wrap (not a horizontal scroll strip) so every report tab is visible up-front
+    // — a scroll strip hid the last tabs with no affordance on web/phone (B-074).
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 6, 4, 6),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 6,
         children: [
           for (var i = 0; i < tabs.length; i++)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-              child: ChoiceChip(
-                label: Text(tabs[i].label),
-                selected: _tab == i,
-                onSelected: (_) => setState(() => _tab = i),
-                labelStyle: IntesharType.sans(12.5,
-                    color: _tab == i ? cs.onSurface : cs.onSurfaceVariant, w: FontWeight.w700),
-              ),
+            ChoiceChip(
+              label: Text(tabs[i].label),
+              selected: _tab == i,
+              onSelected: (_) => setState(() => _tab = i),
+              labelStyle: IntesharType.sans(12.5,
+                  color: _tab == i ? cs.onSurface : cs.onSurfaceVariant, w: FontWeight.w700),
             ),
         ],
       ),

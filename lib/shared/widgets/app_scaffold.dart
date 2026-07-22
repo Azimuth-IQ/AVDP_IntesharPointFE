@@ -803,20 +803,28 @@ class _MoreSheet extends StatelessWidget {
             ),
           ),
           // Scrollable so the sheet never overflows when the role has many
-          // overflow destinations or the screen is short.
+          // overflow destinations or the screen is short. Grouped with the same
+          // bilingual section headers as the desktop sidebar (B-074), so a 14-item
+          // HQ overflow isn't one flat, undifferentiated scroll.
           Flexible(
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  for (var i = 0; i < items.length; i++)
-                    _MoreRow(
-                      item: items[i],
-                      active: i == activeIndex,
-                      unreadCount: unreadCount,
-                      onTap: () => onSelect(i),
-                    ),
+                  for (final entry in _buildSidebarEntries(items))
+                    if (entry.isHeader)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 14, 20, 2),
+                        child: _GroupHeader(groupKey: entry.groupKey!),
+                      )
+                    else
+                      _MoreRow(
+                        item: items[entry.itemIndex!],
+                        active: entry.itemIndex == activeIndex,
+                        unreadCount: unreadCount,
+                        onTap: () => onSelect(entry.itemIndex!),
+                      ),
                   const SizedBox(height: 8),
                 ],
               ),

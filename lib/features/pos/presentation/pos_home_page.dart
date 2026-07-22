@@ -27,6 +27,7 @@ import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/pos/data/pos_self_repository.dart';
 import 'package:inteshar/features/chat/presentation/chat_thread_screen.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
+import 'package:inteshar/features/notifications/presentation/alert_banner.dart';
 import 'package:inteshar/features/pos/presentation/pos_account_panel.dart';
 import 'package:inteshar/features/pos/presentation/pos_sales_panel.dart';
 import 'package:inteshar/features/pos/presentation/pos_statement_panel.dart';
@@ -258,7 +259,15 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
       // Only the active tab is built, so the statement/sales fetches and the chat's
       // background polling never run until their tab is opened. The Store tab's
       // drill-down state lives on this State, so it survives tab switches.
-      body: BrandBackdrop(child: _tabBody(l)),
+      //
+      // POS lives OUTSIDE AppShell, so the app-wide AlertBanner never reaches it —
+      // mount one here so an ALERT addressed to POS operators is actually seen (B-071).
+      body: Column(
+        children: [
+          const AlertBanner(),
+          Expanded(child: BrandBackdrop(child: _tabBody(l))),
+        ],
+      ),
       // POS bottom nav (سستم تطبيق A92-A95): Store (sell), الحسابات (statement),
       // التقارير (purchased cards), الحساب (profile). Printer setup lives inside الحساب.
       bottomNavigationBar: NavigationBar(

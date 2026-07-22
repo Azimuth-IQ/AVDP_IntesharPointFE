@@ -221,12 +221,42 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
     super.dispose();
   }
 
+  /// Confirm a send before it fires — a broadcast (especially an ALERT to
+  /// Everyone) pushes an irreversible, persistent banner to many users on one tap.
+  Future<bool> _confirmSend() async {
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    final kind = _isAlert ? (ar ? 'تنبيه' : 'an alert') : (ar ? 'إشعار' : 'a notification');
+    final audience = switch (_mode) {
+      _Mode.all => _posOnly
+          ? (ar ? 'كل نقاط البيع' : 'all POS operators')
+          : (ar ? 'الجميع' : 'everyone'),
+      _Mode.type => ar ? 'الفئات المحددة' : 'the selected tiers',
+      _Mode.entity => ar ? '${_entityIds.length} حساب' : '${_entityIds.length} account(s)',
+    };
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(ar ? 'تأكيد الإرسال' : 'Confirm send'),
+        content: Text(ar
+            ? 'إرسال $kind إلى $audience؟'
+            : 'Send $kind to $audience?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(ar ? 'إلغاء' : 'Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(ar ? 'إرسال' : 'Send')),
+        ],
+      ),
+    );
+    return confirmed ?? false;
+  }
+
   Future<void> _send() async {
     final s = widget.s;
     if (_titleCtrl.text.trim().isEmpty) return setState(() => _error = s.errTitle);
     if (_bodyCtrl.text.trim().isEmpty) return setState(() => _error = s.errBody);
     if (_mode == _Mode.type && _types.isEmpty) return setState(() => _error = s.errTypes);
     if (_mode == _Mode.entity && _entityIds.isEmpty) return setState(() => _error = s.errEntities);
+
+    if (!await _confirmSend()) return;
 
     setState(() { _sending = true; _error = null; });
     try {
@@ -262,6 +292,7 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
   Widget build(BuildContext context) {
     final s = widget.s;
     final cs = Theme.of(context).colorScheme;
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
     return InkCard(
       ruleColor: IntesharColors.saffron,
       padding: const EdgeInsets.all(18),
@@ -318,8 +349,11 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
             onPressed: _sending ? null : _send,
             icon: _sending
                 ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2.2))
-                : const Icon(Icons.send_outlined, size: 18),
-            label: Text(s.sendBtn),
+                : Icon(_isAlert ? Icons.warning_amber_rounded : Icons.send_outlined, size: 18),
+            // Label names the kind so it's obvious an ALERT (not a plain notice) is about to fire.
+            label: Text(_isAlert
+                ? (ar ? 'إرسال تنبيه' : 'Send alert')
+                : (ar ? 'إرسال إشعار' : 'Send notification')),
           ),
         ],
       ),

@@ -681,6 +681,15 @@ class _MobileLayout extends StatelessWidget {
         : const <_NavItem>[];
     final activeInExtras = activeIndex >= primaryCount;
 
+    // When the notifications item is hidden in the More overflow, its unread badge
+    // would be invisible — so bubble the count onto the "More" tab itself.
+    final moreHasUnread = overflow &&
+        unreadCount > 0 &&
+        extras.any((e) => e.route.endsWith('/notifications'));
+    Widget moreIcon() => moreHasUnread
+        ? Badge(label: Text('$unreadCount'), child: const Icon(Icons.more_horiz))
+        : const Icon(Icons.more_horiz);
+
     final destinations = <NavigationDestination>[
       for (final item in primary)
         NavigationDestination(
@@ -695,8 +704,8 @@ class _MobileLayout extends StatelessWidget {
         ),
       if (overflow)
         NavigationDestination(
-          icon: const Icon(Icons.more_horiz),
-          selectedIcon: const Icon(Icons.more_horiz),
+          icon: moreIcon(),
+          selectedIcon: moreIcon(),
           label: l.navMore,
           tooltip: l.navMore,
         ),

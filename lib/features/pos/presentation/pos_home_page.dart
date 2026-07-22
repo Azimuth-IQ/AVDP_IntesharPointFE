@@ -52,7 +52,7 @@ class PosHomePage extends ConsumerStatefulWidget {
 /// from a real governorate name in the drill-down grouping.
 const String _kRegionFree = '\u0000region-free';
 
-class _PosHomePageState extends ConsumerState<PosHomePage> {
+class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingObserver {
   List<SellableSku>? _sellable;
   AgentBalance? _balance;
   List<String> _sliderUrls = const [];
@@ -68,13 +68,41 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
   bool _govChosen = false;
   String? _gov;          // chosen governorate; null (with [_govChosen]) = region-free
 
+  // B-065: when the app was backgrounded, re-lock the session on return if it was
+  // away long enough to be a walk-away — but NOT for the brief background caused by
+  // a Share sheet or a Rovo/Sunmi print intent (those return in seconds).
+  DateTime? _backgroundedAt;
+  static const _relockAfter = Duration(seconds: 90);
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Gate the POS terminal behind a PIN lock on every session start.
     // The lock page (or setup page, if no PIN is configured) handles
     // authentication; once the session is unlocked we load the inventory.
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkPinGate());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      _backgroundedAt = DateTime.now();
+    } else if (state == AppLifecycleState.resumed) {
+      final since = _backgroundedAt;
+      _backgroundedAt = null;
+      if (since != null && DateTime.now().difference(since) >= _relockAfter) {
+        // Left unattended — drop the unlock flag and send the operator back to the PIN.
+        ref.read(posUnlockedProvider.notifier).state = false;
+        if (mounted) context.go('/pos/pin-lock');
+      }
+    }
   }
 
   /// If the session is not yet unlocked, redirect to the PIN lock screen and
@@ -193,7 +221,9 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     child: Row(
                       children: [
-                        Icon(isConnected ? Icons.bluetooth_connected : Icons.bluetooth_disabled, size: 16, color: isConnected ? IntesharColors.sage : cs.onSurfaceVariant),
+                        // Neutral printer icon — the connected device may be the Sunmi/Rovo
+                        // inner thermal head, not Bluetooth, so don't imply a radio.
+                        Icon(isConnected ? Icons.print : Icons.print_disabled_outlined, size: 16, color: isConnected ? IntesharColors.sage : cs.onSurfaceVariant),
                         const SizedBox(width: 6),
                         Text(
                           isConnected ? (ps.deviceName ?? l.posPrinterConnected) : l.posHomeSetupPrinter,
@@ -236,7 +266,8 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
         onDestinationSelected: (i) => setState(() => _tab = i),
         destinations: [
           NavigationDestination(icon: const Icon(Icons.storefront_outlined), selectedIcon: const Icon(Icons.storefront), label: _ar ? 'المتجر' : 'Store'),
-          NavigationDestination(icon: const Icon(Icons.account_balance_wallet_outlined), selectedIcon: const Icon(Icons.account_balance_wallet), label: _ar ? 'الحسابات' : 'Account'),
+          // "كشف الحساب" (statement), disambiguated from tab 4 "الحساب" (profile).
+          NavigationDestination(icon: const Icon(Icons.account_balance_wallet_outlined), selectedIcon: const Icon(Icons.account_balance_wallet), label: _ar ? 'كشف الحساب' : 'Statement'),
           NavigationDestination(icon: const Icon(Icons.receipt_long_outlined), selectedIcon: const Icon(Icons.receipt_long), label: _ar ? 'التقارير' : 'Reports'),
           NavigationDestination(icon: const Icon(Icons.forum_outlined), selectedIcon: const Icon(Icons.forum), label: _ar ? 'التواصل' : 'Chat'),
           NavigationDestination(icon: const Icon(Icons.person_outline), selectedIcon: const Icon(Icons.person), label: _ar ? 'الحساب' : 'Profile'),

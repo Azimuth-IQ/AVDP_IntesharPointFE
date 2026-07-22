@@ -46,7 +46,9 @@ class _S {
   String get onboard => p('Onboard POS', 'إضافة نقطة بيع');
   String get grant => p('Grant slots', 'منح نقاط');
   String get empty => p('No POS users yet.', 'لا توجد نقاط بيع بعد.');
-  String get noSlots => p('No available slots — ask your parent to grant more.', 'لا توجد نقاط متاحة — اطلب من الوكيل الأعلى منحك المزيد.');
+  // B-068: only HQ distributes POS points (B-043) — a Main/Sub Agent's own parent
+  // cannot grant them, so point the request at headquarters, not "your parent".
+  String get noSlots => p('No available POS points — ask headquarters to grant more.', 'لا توجد نقاط بيع متاحة — اطلب من الإدارة (المقر) منحك المزيد.');
   String get resetPin => p('Reset PIN', 'إعادة تعيين الرمز');
   String get resetTotp => p('Reset 2FA', 'إعادة تعيين المصادقة');
   String get revoke => p('Revoke', 'إلغاء الوصول');

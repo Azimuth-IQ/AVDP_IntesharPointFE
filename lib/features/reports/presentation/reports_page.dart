@@ -121,8 +121,10 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
 
   List<_Tab> _tabsFor(_RS s) => [
         _Tab('prices', s.tabPrices),
-        _Tab('stock', s.tabStock),
-        _Tab('detailed', s.tabDetailed),
+        // Stock + Detailed (inventory worth) only for tiers that hold cards
+        // (HQ / Main Agent). Sub Agents & Stores draw-on-print → always empty (B-068).
+        if (_me?.type.inventoryBacked ?? false) _Tab('stock', s.tabStock),
+        if (_me?.type.inventoryBacked ?? false) _Tab('detailed', s.tabDetailed),
         _Tab('posBalances', s.tabPosBalances),
         // #2 agent balances: admin + main agent only.
         if (_isHq || _me?.type == EntityType.AGENT1) _Tab('agentBalances', s.tabAgentBalances),

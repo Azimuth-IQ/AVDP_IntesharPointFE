@@ -556,7 +556,10 @@ class _TreeNode extends ConsumerWidget {
                       contentPadding: EdgeInsets.zero,
                     ),
                   ),
-                if (_inventoryRoutePrefix(ref) != null)
+                // Only offer "View inventory" on nodes that actually hold stock
+                // (HQ→Main Agent). Sub Agents and Stores draw-on-print and hold no
+                // cards, so the drill-in would always be empty (B-068).
+                if (_inventoryRoutePrefix(ref) != null && entity.type.inventoryBacked)
                   PopupMenuItem(
                     value: 'view_inventory',
                     child: ListTile(

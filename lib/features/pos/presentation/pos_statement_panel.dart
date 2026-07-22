@@ -145,8 +145,13 @@ class _PosStatementPanelState extends ConsumerState<PosStatementPanel> {
               style: IntesharType.mono(13, color: tint),
             ),
             const SizedBox(height: 1),
+            // A93: show the balance BEFORE → AFTER this event (before is derived
+            // from after − amount). Falls back to the after-value when the price
+            // of a legacy sale is unknown.
             Text(
-              '${ar ? 'الرصيد' : 'Balance'}: ${Formatters.iqd(r.balanceAfter.round())}',
+              r.amount == null
+                  ? '${ar ? 'الرصيد' : 'Balance'}: ${Formatters.iqd(r.balanceAfter.round())}'
+                  : '${Formatters.iqd((r.balanceAfter - r.amount!).round())} → ${Formatters.iqd(r.balanceAfter.round())}',
               style: IntesharType.mono(10.5, color: cs.onSurfaceVariant),
             ),
           ]),

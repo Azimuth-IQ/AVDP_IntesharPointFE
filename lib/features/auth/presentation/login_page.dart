@@ -32,6 +32,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _phoneCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   bool _obscure = true;
+  bool _remember = false; // G17: pre-fill the phone next time
   bool _loading = false;
   String? _error;
   bool _showMongoHint = false;
@@ -41,6 +42,19 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _totpCtrl = TextEditingController();
   final _newPassCtrl = TextEditingController();
   final _confirmPassCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // G17: restore a remembered phone so a daily operator doesn't retype it.
+    sessionStorage.getRememberedPhone().then((phone) {
+      if (!mounted || phone == null || phone.isEmpty) return;
+      setState(() {
+        _phoneCtrl.text = phone;
+        _remember = true;
+      });
+    });
+  }
 
   @override
   void dispose() {
@@ -123,9 +137,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       _showMongoHint = false;
     });
     final code = _totpStep == _TotpStep.credentials ? null : _totpCtrl.text.trim();
+    final phone = _phoneCtrl.text.trim();
     final outcome = await ref
         .read(authStateProvider.notifier)
-        .login(_phoneCtrl.text.trim(), _passCtrl.text, totp: code);
+        .login(phone, _passCtrl.text, totp: code);
+    // G17: persist (or forget) the phone once the password step is accepted —
+    // i.e. any outcome other than a hard failure means the credentials were valid.
+    if (outcome is! LoginFailed) {
+      await sessionStorage.setRememberedPhone(_remember ? phone : '');
+    }
     if (!mounted) return;
     setState(() {
       _loading = false;
@@ -251,6 +271,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             passCtrl: _passCtrl,
             obscure: _obscure,
             onToggleObscure: () => setState(() => _obscure = !_obscure),
+            remember: _remember,
+            onToggleRemember: (v) => setState(() => _remember = v),
             loading: _loading,
             error: _error,
             showMongoHint: _showMongoHint,
@@ -659,6 +681,8 @@ class _LoginForm extends ConsumerWidget {
   final TextEditingController passCtrl;
   final bool obscure;
   final VoidCallback onToggleObscure;
+  final bool remember;
+  final ValueChanged<bool> onToggleRemember;
   final bool loading;
   final String? error;
   final bool showMongoHint;
@@ -674,6 +698,8 @@ class _LoginForm extends ConsumerWidget {
     required this.passCtrl,
     required this.obscure,
     required this.onToggleObscure,
+    required this.remember,
+    required this.onToggleRemember,
     required this.loading,
     required this.error,
     required this.showMongoHint,
@@ -737,6 +763,40 @@ class _LoginForm extends ConsumerWidget {
               ),
             ),
             validator: (v) => v == null || v.isEmpty ? l.loginFieldRequired : null,
+          ),
+          // G17: remember-me pre-fills the phone on the next launch.
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: InkWell(
+              onTap: () => onToggleRemember(!remember),
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: Checkbox(
+                        value: remember,
+                        onChanged: (v) => onToggleRemember(v ?? false),
+                        visualDensity: VisualDensity.compact,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      ar ? 'تذكّر رقم الهاتف' : 'Remember my phone',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: cs.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
           if (error != null) ...[
             const SizedBox(height: 10),

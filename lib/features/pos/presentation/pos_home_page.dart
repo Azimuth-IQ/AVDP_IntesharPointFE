@@ -23,6 +23,7 @@ import 'package:inteshar/core/api/error_mapper.dart' show friendlyError;
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/pos/data/pos_self_repository.dart';
 import 'package:inteshar/features/chat/presentation/chat_thread_screen.dart';
+import 'package:inteshar/features/entities/data/entity_repository.dart';
 import 'package:inteshar/features/pos/presentation/pos_account_panel.dart';
 import 'package:inteshar/features/pos/presentation/pos_sales_panel.dart';
 import 'package:inteshar/features/pos/presentation/pos_statement_panel.dart';
@@ -55,7 +56,7 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
   Object? _error;
   bool _loading = true;
   String _search = '';
-  int _tab = 0; // 0=Store, 1=Printer, 2=Account (bottom nav)
+  int _tab = 0; // bottom nav: 0=Store, 1=الحسابات, 2=التقارير, 3=التواصل, 4=الحساب
 
   // Drill-down navigation state: Home (companies) → Governorate (only when a
   // company spans >1 region bucket) → Card types. Null [_company] == the home step.
@@ -126,10 +127,13 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
+    final auth = ref.watch(authStateProvider).valueOrNull;
     // White-label: show the owning Main Agent's logo in the app bar when set.
-    final agentLogo = (ref.watch(authStateProvider).valueOrNull is AuthAuthenticated)
-        ? (ref.watch(authStateProvider).valueOrNull as AuthAuthenticated).brand.agentLogoUrl
-        : '';
+    final agentLogo = auth is AuthAuthenticated ? auth.brand.agentLogoUrl : '';
+    // Show the shop's own trade name as the title (falls back to a generic label).
+    final shopName = (auth is AuthAuthenticated && auth.entity.meta.name.isNotEmpty)
+        ? auth.entity.meta.name
+        : l.posHome;
 
     return Scaffold(
       appBar: AppBar(
@@ -153,7 +157,9 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    l.posHome,
+                    shopName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontFamily: 'CodecPro', fontSize: 20, fontWeight: FontWeight.w800, color: cs.onSurface, letterSpacing: -0.3, height: 1),
                   ),
                   const SizedBox(height: 2),
@@ -212,22 +218,10 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
           ),
         ],
       ),
-      body: BrandBackdrop(
-        child: IndexedStack(
-          index: _tab,
-          children: [
-            _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _error != null
-                ? ErrorState(error: _error!, onRetry: _load)
-                : _buildBody(l),
-            const PosStatementPanel(),
-            const PosSalesPanel(),
-            _PosChatTab(),
-            PosAccountPanel(onOpenPrinter: _openPrinterPicker, onSignOut: _signOut),
-          ],
-        ),
-      ),
+      // Only the active tab is built, so the statement/sales fetches and the chat's
+      // background polling never run until their tab is opened. The Store tab's
+      // drill-down state lives on this State, so it survives tab switches.
+      body: BrandBackdrop(child: _tabBody(l)),
       // POS bottom nav (سستم تطبيق A92-A95): Store (sell), الحسابات (statement),
       // التقارير (purchased cards), الحساب (profile). Printer setup lives inside الحساب.
       bottomNavigationBar: NavigationBar(
@@ -242,6 +236,26 @@ class _PosHomePageState extends ConsumerState<PosHomePage> {
         ],
       ),
     );
+  }
+
+  /// Builds only the selected tab (lazy) — see the body comment above.
+  Widget _tabBody(AppLocalizations l) {
+    switch (_tab) {
+      case 1:
+        return const PosStatementPanel();
+      case 2:
+        return const PosSalesPanel();
+      case 3:
+        return _PosChatTab();
+      case 4:
+        return PosAccountPanel(onOpenPrinter: _openPrinterPicker, onSignOut: _signOut);
+      default:
+        return _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+                ? ErrorState(error: _error!, onRetry: _load)
+                : _buildBody(l);
+    }
   }
 
   void _openPrinterPicker() =>
@@ -1619,10 +1633,37 @@ class _LocationGateState extends ConsumerState<_LocationGate> {
 }
 
 /// التواصل POS tab (B-057): a shop has exactly one conversation — with its
-/// parent agent — so this opens that thread directly (no list step).
-class _PosChatTab extends ConsumerWidget {
+/// parent agent — so it opens that thread directly (no list step), embedded so it
+/// doesn't stack a second app bar under the POS one. The partner's real name is
+/// resolved from the parent entity (falling back to a generic label while loading).
+class _PosChatTab extends ConsumerStatefulWidget {
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_PosChatTab> createState() => _PosChatTabState();
+}
+
+class _PosChatTabState extends ConsumerState<_PosChatTab> {
+  String? _agentName;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolveName();
+  }
+
+  Future<void> _resolveName() async {
+    final auth = ref.read(authStateProvider).valueOrNull;
+    final parentId = auth is AuthAuthenticated ? auth.entity.parent : '';
+    if (parentId.isEmpty) return;
+    try {
+      final parent = await EntityRepository(ref.read(apiClientProvider)).read(parentId);
+      if (mounted) setState(() => _agentName = parent.meta.name);
+    } catch (_) {
+      // Keep the generic label on failure.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final ar = Localizations.localeOf(context).languageCode == 'ar';
     final cs = Theme.of(context).colorScheme;
     final auth = ref.watch(authStateProvider).valueOrNull;
@@ -1633,6 +1674,12 @@ class _PosChatTab extends ConsumerWidget {
             style: IntesharType.sans(14, color: cs.onSurfaceVariant)),
       );
     }
-    return ChatThreadScreen(withId: parentId, withName: ar ? 'الوكيل' : 'Agent');
+    return ChatThreadScreen(
+      withId: parentId,
+      withName: (_agentName != null && _agentName!.isNotEmpty)
+          ? _agentName!
+          : (ar ? 'الوكيل' : 'Agent'),
+      embedded: true,
+    );
   }
 }

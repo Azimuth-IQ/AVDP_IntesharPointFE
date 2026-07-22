@@ -13,6 +13,7 @@ import 'package:inteshar/features/inventory/data/product_repository.dart';
 import 'package:inteshar/features/inventory/domain/print_operation.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
+import 'package:share_plus/share_plus.dart';
 
 /// التقارير (سستم A95): the shop's purchased cards over a date window, with
 /// re-print / copy / share for any card and a clear badge on sales whose
@@ -318,12 +319,20 @@ class _ReprintSheetState extends ConsumerState<_ReprintSheet> {
           Expanded(
             child: OutlinedButton.icon(
               onPressed: () async {
-                await Clipboard.setData(ClipboardData(text: _receiptText()));
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text(ar
-                          ? 'نُسخ الإيصال — ألصقه في أي تطبيق للمشاركة'
-                          : 'Receipt copied — paste it anywhere to share')));
+                // Real OS share sheet (WhatsApp, SMS, …). Falls back to a clipboard
+                // copy if the platform has no share provider (e.g. desktop/web).
+                try {
+                  await SharePlus.instance.share(
+                    ShareParams(text: _receiptText()),
+                  );
+                } catch (_) {
+                  await Clipboard.setData(ClipboardData(text: _receiptText()));
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text(ar
+                            ? 'نُسخ الإيصال — ألصقه في أي تطبيق للمشاركة'
+                            : 'Receipt copied — paste it anywhere to share')));
+                  }
                 }
               },
               icon: const Icon(Icons.share_outlined, size: 16),

@@ -7,6 +7,9 @@ class SessionStorage {
   static const _entityTypeKey = 'current_entity_type';
   static const _phoneKey = 'current_phone';
   static const _localeKey = 'app_locale';
+  // G17 "remember me": the phone to pre-fill on the login screen. Kept SEPARATE
+  // from `_phoneKey` (the active-session phone) so it survives logout/`clear()`.
+  static const _rememberedPhoneKey = 'remembered_phone';
 
   // static const defaultBaseUrl = 'http://localhost:8080';
   // Override at launch with --dart-define=API_BASE=http://<host>:8080 for local
@@ -73,6 +76,21 @@ class SessionStorage {
   Future<String?> getCurrentPhone() async {
     final p = await SharedPreferences.getInstance();
     return p.getString(_phoneKey);
+  }
+
+  /// G17: remember the phone for login pre-fill (empty string = forget it).
+  Future<void> setRememberedPhone(String phone) async {
+    final p = await SharedPreferences.getInstance();
+    if (phone.isEmpty) {
+      await p.remove(_rememberedPhoneKey);
+    } else {
+      await p.setString(_rememberedPhoneKey, phone);
+    }
+  }
+
+  Future<String?> getRememberedPhone() async {
+    final p = await SharedPreferences.getInstance();
+    return p.getString(_rememberedPhoneKey);
   }
 
   Future<void> setLocale(String languageCode) async {

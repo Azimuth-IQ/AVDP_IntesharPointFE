@@ -11,17 +11,24 @@ import 'package:inteshar/shared/widgets/error_state.dart';
 
 /// One conversation (B-057, التواصل): a message list + composer with 10 s polling.
 /// [readOnly] hides the composer for HQ oversight of others' threads.
+///
+/// [embedded] = true renders WITHOUT its own Scaffold/AppBar (a slim in-body title
+/// row instead), so it can live inside another screen's tab (the POS التواصل tab)
+/// without stacking a second app bar. The default (false) wraps it in a Scaffold +
+/// AppBar for use as a pushed route from the threads list.
 class ChatThreadScreen extends ConsumerStatefulWidget {
   const ChatThreadScreen({
     super.key,
     required this.withId,
     required this.withName,
     this.readOnly = false,
+    this.embedded = false,
   });
 
   final String withId;
   final String withName;
   final bool readOnly;
+  final bool embedded;
 
   @override
   ConsumerState<ChatThreadScreen> createState() => _ChatThreadScreenState();
@@ -124,11 +131,38 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final conversation = Column(children: [
+      if (widget.embedded) _slimTitle(),
+      Expanded(child: _body()),
+      if (!widget.readOnly) _composer(),
+    ]);
+    // Embedded (a tab body): no Scaffold/AppBar — the host screen owns those.
+    if (widget.embedded) return conversation;
     return Scaffold(
       appBar: AppBar(title: Text(widget.withName)),
-      body: Column(children: [
-        Expanded(child: _body()),
-        if (!widget.readOnly) _composer(),
+      body: conversation,
+    );
+  }
+
+  /// Slim in-body header shown only in embedded mode (no AppBar to carry the name).
+  Widget _slimTitle() {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 10, 16, 10),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
+        border: Border(bottom: BorderSide(color: cs.outlineVariant)),
+      ),
+      child: Row(children: [
+        Icon(Icons.forum_outlined, size: 18, color: cs.onSurfaceVariant),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(widget.withName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700)),
+        ),
       ]),
     );
   }

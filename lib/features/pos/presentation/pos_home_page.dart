@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
@@ -974,6 +976,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
   bool _revealing = false;
   bool _printing = false;
   String? _saleError; // last draw/sale failure — shown as a persistent in-sheet banner
+  String? _printError; // last print failure — a persistent banner so it can't be missed
 
   @override
   void initState() {
@@ -1024,7 +1027,10 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
   Future<void> _print() async {
     final revealed = _sent;
     if (revealed == null) return; // print is only reachable after reveal
-    setState(() => _printing = true);
+    setState(() {
+      _printing = true;
+      _printError = null; // clear the last failure while a retry is in flight
+    });
     try {
       final auth = ref.read(authStateProvider).valueOrNull as AuthAuthenticated?;
       final def = revealed.productDefinition;
@@ -1085,13 +1091,29 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
       await _confirmPrinted();
       if (mounted) widget.onPrinted();
     } catch (e) {
-      if (mounted) {
-        final l = AppLocalizations.of(context)!;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l.posHomePrintFailed(e.toString())), backgroundColor: Theme.of(context).colorScheme.error));
-      }
+      // The code is already sold; a failed print must NOT be a fleeting snackbar the
+      // operator can miss and then tap "Done" believing it printed. Keep the sheet open
+      // and surface a PERSISTENT banner (mirrors the sale-error banner) with a Reprint.
+      if (mounted) setState(() => _printError = friendlyError(e, context));
     } finally {
       if (mounted) setState(() => _printing = false);
     }
+  }
+
+  /// A plain-text receipt for Copy/Share fallbacks (when no printer is connected
+  /// or a print failed) — mirrors the reprint sheet's format.
+  String _receiptText() {
+    final p = _sent;
+    if (p == null) return '';
+    final def = p.productDefinition;
+    return [
+      _companyName ?? '',
+      def.name,
+      'SN: ${p.serialNumber}',
+      'PIN: ${p.pin}',
+      if (p.expiryDate != null && p.expiryDate!.isNotEmpty) 'EXP: ${p.expiryDate}',
+      '#$_receiptNo',
+    ].where((s) => s.isNotEmpty).join('\n');
   }
 
   /// B-054: confirm this sale's physical print outcome (best-effort — a failure
@@ -1324,10 +1346,52 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
   // Pre-reveal: the PIN/QR are masked. The operator must explicitly tap Reveal,
   // which consumes the voucher (decrypt == used) — so we surface that warning.
   Widget _buildRevealActions(AppLocalizations l, ColorScheme cs) {
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 360),
       child: Column(
         children: [
+          // Selling burns the code the instant Reveal is tapped, so warn BEFORE that
+          // moment if no printer is connected — the operator can still sell and then
+          // Copy/Share the code, but they should know they'll have no receipt to print.
+          Consumer(
+            builder: (ctx, ref, _) {
+              final connected =
+                  ref.watch(bluetoothServiceProvider).status == PrinterStatus.connected;
+              if (connected) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(IntesharRadii.md),
+                    border: Border.all(color: cs.outline),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.print_disabled_outlined, size: 18, color: cs.onSurfaceVariant),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          ar
+                              ? 'لا توجد طابعة متصلة — يمكنك البيع ثم نسخ أو مشاركة الرمز.'
+                              : 'No printer connected — you can still sell, then copy or share the code.',
+                          style: TextStyle(fontFamily: 'CodecPro', fontSize: 12, height: 1.35, fontWeight: FontWeight.w600, color: cs.onSurface),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      TextButton(
+                        onPressed: () => Navigator.push<void>(ctx, MaterialPageRoute(builder: (_) => const PrinterPickerPage())),
+                        style: TextButton.styleFrom(visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 8)),
+                        child: Text(ar ? 'ربط' : 'Connect'),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
           // Persistent failure banner: the last sale attempt (402 no-limit / 409 pool-empty /
           // network) failed and nothing was sold — the operator can Retry (same idempotency
           // key) or Cancel. Stays until the next attempt succeeds.
@@ -1383,9 +1447,14 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
               const SizedBox(width: 12),
               Expanded(
                 child: BrandCTAButton(
+                  // The button that actually performs the irreversible draw+debit; its
+                  // label names the consequence ("Sell & reveal") rather than reading like
+                  // a harmless preview.
                   label: _revealing
                       ? l.posRevealing
-                      : (_saleError != null ? l.retryButton : l.posReveal),
+                      : (_saleError != null
+                          ? l.retryButton
+                          : (ar ? 'بيع وإظهار' : 'Sell & reveal')),
                   leading: _revealing ? null : Icons.lock_open_outlined,
                   loading: _revealing,
                   onPressed: _revealing ? null : _reveal,
@@ -1401,6 +1470,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
   // Post-reveal: the code is shown and already consumed. Printing is optional;
   // Done just closes (the voucher has already dropped off the counter).
   Widget _buildPrintActions(AppLocalizations l, ColorScheme cs) {
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 360),
       child: Consumer(
@@ -1409,6 +1479,33 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
           final isConnected = ps.status == PrinterStatus.connected;
           return Column(
             children: [
+              // Persistent print-failure banner — the code is already sold, so a missed
+              // failure could leave the customer with nothing. Stays until a retry succeeds.
+              if (_printError != null) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: cs.errorContainer,
+                    borderRadius: BorderRadius.circular(IntesharRadii.md),
+                    border: Border.all(color: cs.error.withValues(alpha: 0.5)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.print_disabled_outlined, size: 18, color: cs.error),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          ar
+                              ? 'فشلت الطباعة — الرمز مُباع. أعد الطباعة أو انسخ/شارك الرمز أدناه.'
+                              : 'Print failed — the code is sold. Reprint, or copy/share the code below.',
+                          style: TextStyle(fontFamily: 'CodecPro', fontSize: 12.5, height: 1.35, fontWeight: FontWeight.w700, color: cs.onErrorContainer),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
@@ -1419,7 +1516,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(isConnected ? Icons.bluetooth_connected : Icons.bluetooth_disabled, size: 14, color: isConnected ? IntesharColors.sage : cs.onSurfaceVariant),
+                    Icon(isConnected ? Icons.print_outlined : Icons.print_disabled_outlined, size: 14, color: isConnected ? IntesharColors.sage : cs.onSurfaceVariant),
                     const SizedBox(width: 8),
                     Text(
                       isConnected ? (ps.deviceName ?? l.posPrinterConnected) : l.posHomePrinterNotConnected,
@@ -1451,10 +1548,53 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: BrandCTAButton(
-                      label: _printing ? l.posHomePrinting : l.posPrintVoucher,
+                      label: _printing
+                          ? l.posHomePrinting
+                          : (_printError != null ? (ar ? 'إعادة الطباعة' : 'Reprint') : l.posPrintVoucher),
                       leading: _printing ? null : Icons.print_outlined,
                       loading: _printing,
                       onPressed: (_printing || !isConnected) ? null : _print,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // Always-available fallback so a code is never trapped behind a missing or
+              // failing printer: copy the PIN, or share the whole receipt to any app.
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final pin = _sent?.pin ?? '';
+                        await Clipboard.setData(ClipboardData(text: pin));
+                        if (ctx.mounted) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                              SnackBar(content: Text(ar ? 'تم النسخ' : 'Copied')));
+                        }
+                      },
+                      icon: const Icon(Icons.copy, size: 16),
+                      label: Text(ar ? 'نسخ الرمز' : 'Copy PIN'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        try {
+                          await SharePlus.instance.share(ShareParams(text: _receiptText()));
+                        } catch (_) {
+                          await Clipboard.setData(ClipboardData(text: _receiptText()));
+                          if (ctx.mounted) {
+                            ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                                content: Text(ar
+                                    ? 'نُسخ الإيصال — ألصقه في أي تطبيق للمشاركة'
+                                    : 'Receipt copied — paste it anywhere to share')));
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.share_outlined, size: 16),
+                      label: Text(ar ? 'مشاركة' : 'Share'),
                     ),
                   ),
                 ],

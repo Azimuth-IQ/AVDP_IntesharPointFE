@@ -247,9 +247,11 @@ class _PricingPageState extends ConsumerState<PricingPage> {
     if (bytes == null || !mounted) return;
 
     final parsed = <Map<String, dynamic>>[];
+    var sheetDataRows = 0; // rows below the header we attempted to read
     try {
       final book = Excel.decodeBytes(bytes);
       for (final table in book.tables.values) {
+        sheetDataRows = (table.rows.length - 1).clamp(0, 1 << 30);
         for (var i = 1; i < table.rows.length; i++) {
           final r = table.rows[i];
           String cell(int idx) =>
@@ -272,51 +274,118 @@ class _PricingPageState extends ConsumerState<PricingPage> {
       return;
     }
 
-    // Confirm + optional multi-agent target.
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    final myId = (ref.read(authStateProvider).valueOrNull as AuthAuthenticated?)?.entity.id ?? '';
+
+    // Confirm with a PREVIEW of exactly what will change + an explicit target.
     final extraAgents = <String, String>{}; // id -> name
-    final applyToOthers = await showDialog<bool>(
+    var applyToSelf = true; // default: write MY own prices
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setD) => AlertDialog(
-          title: Text('${s.uploadXlsx} — ${s.parsed(parsed.length)}'),
-          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(s.applyToSelf, style: IntesharType.sans(13, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
-            const SizedBox(height: 10),
-            Wrap(spacing: 6, runSpacing: 6, children: [
-              for (final e in extraAgents.entries)
-                InputChip(
-                  label: Text(e.value, overflow: TextOverflow.ellipsis),
-                  onDeleted: () => setD(() => extraAgents.remove(e.key)),
+        builder: (ctx, setD) {
+          final cs = Theme.of(ctx).colorScheme;
+          final canApply = applyToSelf || extraAgents.isNotEmpty;
+          return AlertDialog(
+            title: Text(s.uploadXlsx),
+            content: SizedBox(
+              width: 420,
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                // Recognized N of M — warn (error tint) when the sheet had rows we couldn't read.
+                Text(
+                  sheetDataRows > parsed.length
+                      ? (ar ? 'تم التعرف على ${parsed.length} من $sheetDataRows صفًا' : 'Recognized ${parsed.length} of $sheetDataRows rows')
+                      : (ar ? 'تم التعرف على ${parsed.length} صفًا' : 'Recognized ${parsed.length} rows'),
+                  style: IntesharType.sans(12.5,
+                      color: sheetDataRows > parsed.length ? cs.error : cs.onSurfaceVariant, w: FontWeight.w700),
                 ),
-            ]),
-            OutlinedButton.icon(
-              onPressed: () async {
-                final picked = await showEntitySearchPicker(
-                  ctx,
-                  repository: EntityRepository(ref.read(apiClientProvider)),
-                  title: s.alsoAgents,
-                  types: const [EntityType.AGENT1, EntityType.AGENT2],
-                );
-                if (picked != null) setD(() => extraAgents[picked.id] = picked.label);
-              },
-              icon: const Icon(Icons.group_add, size: 16),
-              label: Text(s.alsoAgents),
+                const SizedBox(height: 8),
+                // Preview table: SKU · governorate · new price.
+                Container(
+                  constraints: const BoxConstraints(maxHeight: 220),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: cs.outlineVariant),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Scrollbar(
+                    child: SingleChildScrollView(
+                      child: Column(children: [
+                        for (final p in parsed)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            child: Row(children: [
+                              Expanded(flex: 3, child: Text('${p['sku']}',
+                                  style: IntesharType.mono(11.5, color: cs.onSurface), overflow: TextOverflow.ellipsis)),
+                              Expanded(flex: 2, child: Text(
+                                  (p['governorate'] as String).isEmpty ? '—' : '${p['governorate']}',
+                                  style: IntesharType.sans(11.5, color: cs.onSurfaceVariant), overflow: TextOverflow.ellipsis)),
+                              Text(Formatters.iqd((p['price'] as num).round()),
+                                  style: IntesharType.mono(11.5, color: cs.onSurface)),
+                            ]),
+                          ),
+                      ]),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                // Explicit target — checked by default writes MY prices. When agents
+                // are added the id list becomes non-empty, so self is only included
+                // if this stays checked (the API treats a non-empty list as exact).
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  value: applyToSelf,
+                  onChanged: (v) => setD(() => applyToSelf = v ?? false),
+                  title: Text(ar ? 'تطبيق على حسابي' : 'Apply to my account',
+                      style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w600)),
+                ),
+                Wrap(spacing: 6, runSpacing: 6, children: [
+                  for (final e in extraAgents.entries)
+                    InputChip(
+                      label: Text(e.value, overflow: TextOverflow.ellipsis),
+                      onDeleted: () => setD(() => extraAgents.remove(e.key)),
+                    ),
+                ]),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final picked = await showEntitySearchPicker(
+                      ctx,
+                      repository: EntityRepository(ref.read(apiClientProvider)),
+                      title: s.alsoAgents,
+                      types: const [EntityType.AGENT1, EntityType.AGENT2],
+                    );
+                    if (picked != null) setD(() => extraAgents[picked.id] = picked.label);
+                  },
+                  icon: const Icon(Icons.group_add, size: 16),
+                  label: Text(s.alsoAgents),
+                ),
+              ]),
             ),
-          ]),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.cancel)),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.apply)),
-          ],
-        ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.cancel)),
+              FilledButton(onPressed: canApply ? () => Navigator.pop(ctx, true) : null, child: Text(s.apply)),
+            ],
+          );
+        },
       ),
     );
-    if (applyToOthers != true || !mounted) return;
+    if (confirmed != true || !mounted) return;
+
+    // Build the target list. Empty ⇒ caller only (server default). A NON-empty
+    // list is treated as EXACTLY those entities, so self must be added explicitly
+    // whenever we also target other agents.
+    final targetIds = <String>[];
+    if (extraAgents.isNotEmpty) {
+      if (applyToSelf && myId.isNotEmpty) targetIds.add(myId);
+      targetIds.addAll(extraAgents.keys);
+    }
 
     setState(() => _saving = true);
     try {
       final result = await _repo.setBulk(
         prices: parsed,
-        entityIds: extraAgents.keys.toList(), // empty = self only (caller)
+        entityIds: targetIds, // empty = self only; non-empty = exactly these
       );
       if (mounted) {
         ScaffoldMessenger.of(context)

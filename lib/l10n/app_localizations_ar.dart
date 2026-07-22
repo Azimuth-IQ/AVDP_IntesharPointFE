@@ -831,6 +831,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get inventoryChangeStatus => 'تغيير الحالة';
 
   @override
+  String get invColSnPin => 'الرقم التسلسلي / الرمز';
+
+  @override
   String inventoryMarkStatus(String status) {
     return 'تعيين كـ $status';
   }

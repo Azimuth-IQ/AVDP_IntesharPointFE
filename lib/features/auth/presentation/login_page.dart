@@ -147,6 +147,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       await sessionStorage.setRememberedPhone(_remember ? phone : '');
     }
     if (!mounted) return;
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
     setState(() {
       _loading = false;
       switch (outcome) {
@@ -168,7 +169,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           // in _changePassword. No-op here to keep the switch exhaustive.
           break;
         case LoginFailed(:final statusCode):
-          _error = _friendlyLoginError(statusCode);
+          // On the 2FA step the password was already accepted, so a 4xx means the
+          // 6-digit code was wrong — say so, don't recycle "wrong credentials".
+          final onCode =
+              _totpStep == _TotpStep.code || _totpStep == _TotpStep.enroll;
+          _error = (onCode && (statusCode == null || statusCode < 500))
+              ? (ar ? 'رمز التحقق غير صحيح' : 'Incorrect verification code')
+              : _friendlyLoginError(statusCode);
           _showMongoHint = false;
       }
     });

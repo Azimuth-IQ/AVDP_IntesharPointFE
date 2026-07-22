@@ -352,6 +352,7 @@
   },
   "inventorySnLabel": "ر.ت",
   "inventoryChangeStatus": "تغيير الحالة",
+  "invColSnPin": "الرقم التسلسلي / الرمز",
   "inventoryMarkStatus": "تعيين كـ {status}",
   "@inventoryMarkStatus": {
     "placeholders": { "status": { "type": "String" } }

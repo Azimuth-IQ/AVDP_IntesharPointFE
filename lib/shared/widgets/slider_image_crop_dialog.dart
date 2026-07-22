@@ -76,6 +76,13 @@ class _SliderCropDialogState extends State<_SliderCropDialog> {
   bool _processing = false;
   String? _error;
 
+  /// A localized, user-facing message for a client-side image processing failure
+  /// (crop/encode) — never the raw exception string (B-077).
+  String _imageError() =>
+      Localizations.localeOf(context).languageCode == 'ar'
+          ? 'تعذّرت معالجة الصورة. حاول بصورة أخرى.'
+          : 'Could not process the image. Try another one.';
+
   void _onCropped(CropResult result) {
     switch (result) {
       case CropSuccess(:final croppedImage):
@@ -86,15 +93,15 @@ class _SliderCropDialogState extends State<_SliderCropDialog> {
           if (mounted) {
             setState(() {
               _processing = false;
-              _error = e.toString();
+              _error = _imageError();
             });
           }
         }
-      case CropFailure(:final cause):
+      case CropFailure():
         if (mounted) {
           setState(() {
             _processing = false;
-            _error = cause.toString();
+            _error = _imageError();
           });
         }
     }

@@ -829,6 +829,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get inventoryChangeStatus => 'Change status';
 
   @override
+  String get invColSnPin => 'SN / PIN';
+
+  @override
   String inventoryMarkStatus(String status) {
     return 'Mark $status';
   }

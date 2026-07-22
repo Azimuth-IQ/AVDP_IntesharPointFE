@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
+import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:inteshar/core/upload/upload_repository.dart';
 
 /// A form field that shows a network image preview alongside an Upload button.
@@ -114,7 +115,7 @@ class _MultiImageUploadFieldState extends ConsumerState<MultiImageUploadField> {
         widget.onChanged(current);
       }
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) setState(() => _error = friendlyError(e, context));
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
@@ -287,7 +288,7 @@ class _ImageUploadFieldState extends ConsumerState<ImageUploadField> {
       if (mounted) {
         setState(() {
           _uploading = false;
-          _error = e.toString();
+          _error = friendlyError(e, context);
         });
       }
     }

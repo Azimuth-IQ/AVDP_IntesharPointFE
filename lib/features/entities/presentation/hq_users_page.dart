@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
@@ -113,7 +114,7 @@ class _HqUsersPageState extends ConsumerState<HqUsersPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.toString())));
+            .showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
       }
     }
   }
@@ -148,7 +149,7 @@ class _HqUsersPageState extends ConsumerState<HqUsersPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.toString())));
+            .showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
       }
     }
   }
@@ -335,7 +336,7 @@ class _UserFormSheetState extends ConsumerState<_UserFormSheet> {
       if (mounted) {
         setState(() {
           _saving = false;
-          _error = e.toString();
+          _error = friendlyError(e, context);
         });
       }
     }

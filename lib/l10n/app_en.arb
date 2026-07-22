@@ -570,6 +570,8 @@
   "@inventorySnLabel": {},
   "inventoryChangeStatus": "Change status",
   "@inventoryChangeStatus": {},
+  "invColSnPin": "SN / PIN",
+  "@invColSnPin": {},
   "inventoryMarkStatus": "Mark {status}",
   "@inventoryMarkStatus": {
     "placeholders": { "status": { "type": "String" } }

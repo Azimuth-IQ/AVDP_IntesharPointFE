@@ -1556,6 +1556,12 @@ abstract class AppLocalizations {
   /// **'Change status'**
   String get inventoryChangeStatus;
 
+  /// No description provided for @invColSnPin.
+  ///
+  /// In en, this message translates to:
+  /// **'SN / PIN'**
+  String get invColSnPin;
+
   /// No description provided for @inventoryMarkStatus.
   ///
   /// In en, this message translates to:

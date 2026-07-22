@@ -851,12 +851,13 @@ class _ProductRowHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = IntesharType.sans(11, color: IntesharColors.inkSoft, w: FontWeight.w700);
+    final l = AppLocalizations.of(context)!;
     return Row(
       children: [
         const SizedBox(width: 20), // dot spacer
         const SizedBox(width: 12),
-        Expanded(child: Text('SN / PIN', style: style)),
-        SizedBox(width: 96, child: Text('Status', style: style)),
+        Expanded(child: Text(l.invColSnPin, style: style)),
+        SizedBox(width: 96, child: Text(l.dashColStatus, style: style)),
         const SizedBox(width: 36), // menu spacer
       ],
     );

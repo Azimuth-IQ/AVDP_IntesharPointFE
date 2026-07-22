@@ -250,7 +250,7 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
               children: [
                 Expanded(
                   child: Text(
-                    _globalError.toString(),
+                    friendlyError(_globalError!, context),
                     style: TextStyle(color: cs.error, fontSize: 13),
                   ),
                 ),

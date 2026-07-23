@@ -15,6 +15,7 @@ import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/domain/entity_summary_row.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/entities/presentation/manage_users_sheet.dart';
+import 'package:inteshar/features/entities/presentation/visible_products_sheet.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
@@ -557,6 +558,19 @@ class _TreeNode extends ConsumerWidget {
                       contentPadding: EdgeInsets.zero,
                     ),
                   ),
+                // B-081: HQ picks which voucher definitions this account (and its
+                // whole subtree) can see & sell. Not for the root itself.
+                if (_viewerIsHq(ref) && entity.type != EntityType.INTESHAR)
+                  PopupMenuItem(
+                    value: 'visible_products',
+                    child: ListTile(
+                      leading: const Icon(Icons.inventory_2_outlined),
+                      title: Text(Localizations.localeOf(context).languageCode == 'ar'
+                          ? 'المنتجات المتاحة'
+                          : 'Visible products'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
                 // Only offer "View inventory" on nodes that actually hold stock
                 // (HQ→Main Agent). Sub Agents and Stores draw-on-print and hold no
                 // cards, so the drill-in would always be empty (B-068).
@@ -607,6 +621,8 @@ class _TreeNode extends ConsumerWidget {
       await _showManageUsersSheet(context, ref);
     } else if (action == 'view_inventory') {
       _viewInventory(context, ref);
+    } else if (action == 'visible_products') {
+      await showVisibleProductsSheet(context, entityId: entity.id, entityName: entity.name);
     } else if (action == 'add_child') {
       await _addChild(context, ref);
     } else if (action == 'delete') {

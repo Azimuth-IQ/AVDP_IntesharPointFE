@@ -45,6 +45,9 @@ class Endpoints {
   static const definitionReadAll = '/api/inventory/definition/readall';
   static const definitionUpdate = '/api/inventory/definition/update';
   static const definitionDelete = '/api/inventory/definition/delete';
+  // B-081: per-agent voucher-definition visibility (HQ-only).
+  static const definitionRestrict = '/api/inventory/definition/restrict';
+  static const definitionRestrictions = '/api/inventory/definition/restrictions';
 
   static const productCreate = '/api/inventory/product/create';
   static const productBatch = '/api/inventory/product/batch';

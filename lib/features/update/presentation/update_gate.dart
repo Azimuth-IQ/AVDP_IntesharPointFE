@@ -30,11 +30,11 @@ class _UpdateGateState extends ConsumerState<UpdateGate> {
   }
 
   bool _isMandatory(UpdateState s) => switch (s) {
-        UpdateAvailableState v => v.mandatory,
-        UpdateDownloading v => v.mandatory,
-        UpdateFailed v => v.mandatory,
-        _ => false,
-      };
+    UpdateAvailableState v => v.mandatory,
+    UpdateDownloading v => v.mandatory,
+    UpdateFailed v => v.mandatory,
+    _ => false,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -89,7 +89,12 @@ class _OptionalUpdateOverlay extends StatelessWidget {
             borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
             clipBehavior: Clip.antiAlias,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 480),
+              // Cap the card height so a long changelog can't push it past the
+              // screen; the sheet content scrolls within (B-084).
+              constraints: BoxConstraints(
+                maxWidth: 480,
+                maxHeight: MediaQuery.of(context).size.height * 0.85,
+              ),
               child: _UpdateSheet(onDismiss: onDismiss),
             ),
           ),
@@ -116,7 +121,10 @@ class _ForcedUpdateScreen extends ConsumerWidget {
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
-            child: Padding(
+            // Scrollable so the "Update now" button is always reachable — on a
+            // short screen or with a long changelog it was spilling off-screen
+            // and the forced update couldn't be started (B-084).
+            child: SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -124,9 +132,19 @@ class _ForcedUpdateScreen extends ConsumerWidget {
                 children: [
                   IntesharStar(size: 56, color: cs.onSurface),
                   const SizedBox(height: 24),
-                  Text(l.updateRequiredTitle, textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall),
+                  Text(
+                    l.updateRequiredTitle,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
                   const SizedBox(height: 10),
-                  Text(l.updateRequiredBody, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
+                  Text(
+                    l.updateRequiredBody,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
                   if (release != null) ...[
                     const SizedBox(height: 20),
                     _ReleaseSummary(release: release),
@@ -158,38 +176,50 @@ class _UpdateSheet extends ConsumerWidget {
     if (release == null) return const SizedBox.shrink();
     return SafeArea(
       top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.system_update_outlined, color: cs.primary),
-                const SizedBox(width: 12),
-                Expanded(child: Text(l.updateAvailableTitle, style: Theme.of(context).textTheme.titleLarge)),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(l.updateBody, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
-            const SizedBox(height: 16),
-            _ReleaseSummary(release: release),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                if (state is! UpdateDownloading)
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.system_update_outlined, color: cs.primary),
+                  const SizedBox(width: 12),
                   Expanded(
-                    child: OutlinedButton(
-                      onPressed: onDismiss,
-                      child: Text(l.updateLater),
+                    child: Text(
+                      l.updateAvailableTitle,
+                      style: Theme.of(context).textTheme.titleLarge,
                     ),
                   ),
-                if (state is! UpdateDownloading) const SizedBox(width: 12),
-                Expanded(flex: 2, child: _ActionArea(state: state)),
-              ],
-            ),
-          ],
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                l.updateBody,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+              ),
+              const SizedBox(height: 16),
+              _ReleaseSummary(release: release),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  if (state is! UpdateDownloading)
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: onDismiss,
+                        child: Text(l.updateLater),
+                      ),
+                    ),
+                  if (state is! UpdateDownloading) const SizedBox(width: 12),
+                  Expanded(flex: 2, child: _ActionArea(state: state)),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -220,15 +250,27 @@ class _ReleaseSummary extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(l.updateVersion(release.versionName.isNotEmpty ? release.versionName : '${release.versionCode}'),
-                  style: Theme.of(context).textTheme.titleSmall),
+              Text(
+                l.updateVersion(
+                  release.versionName.isNotEmpty
+                      ? release.versionName
+                      : '${release.versionCode}',
+                ),
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
               if (release.sizeLabel.isNotEmpty)
-                Text(release.sizeLabel, style: Theme.of(context).textTheme.bodySmall),
+                Text(
+                  release.sizeLabel,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
             ],
           ),
           if (changelog.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text(l.updateWhatsNew, style: Theme.of(context).textTheme.labelMedium),
+            Text(
+              l.updateWhatsNew,
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
             const SizedBox(height: 4),
             Text(changelog, style: Theme.of(context).textTheme.bodySmall),
           ],
@@ -256,11 +298,18 @@ class _ActionArea extends ConsumerWidget {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(value: p > 0 ? p : null, minHeight: 8),
+            child: LinearProgressIndicator(
+              value: p > 0 ? p : null,
+              minHeight: 8,
+            ),
           ),
           const SizedBox(height: 8),
-          Text(p > 0 ? '${l.updateDownloading} ${(p * 100).round()}%' : l.updateOpenInstaller,
-              style: Theme.of(context).textTheme.bodySmall),
+          Text(
+            p > 0
+                ? '${l.updateDownloading} ${(p * 100).round()}%'
+                : l.updateOpenInstaller,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
         ],
       );
     }
@@ -269,7 +318,11 @@ class _ActionArea extends ConsumerWidget {
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(l.updatePermissionBody, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
+          Text(
+            l.updatePermissionBody,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
           const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
@@ -282,7 +335,13 @@ class _ActionArea extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 8),
-          SizedBox(width: double.infinity, child: OutlinedButton(onPressed: notifier.install, child: Text(l.updateRetry))),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: notifier.install,
+              child: Text(l.updateRetry),
+            ),
+          ),
         ],
       );
     }
@@ -300,8 +359,8 @@ class _ActionArea extends ConsumerWidget {
 }
 
 AppRelease? _releaseOf(UpdateState s) => switch (s) {
-      UpdateAvailableState v => v.release,
-      UpdateDownloading v => v.release,
-      UpdateFailed v => v.release,
-      _ => null,
-    };
+  UpdateAvailableState v => v.release,
+  UpdateDownloading v => v.release,
+  UpdateFailed v => v.release,
+  _ => null,
+};

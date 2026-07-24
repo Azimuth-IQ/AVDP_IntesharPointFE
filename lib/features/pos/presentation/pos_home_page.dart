@@ -757,20 +757,23 @@ class _BalanceTally extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ar = Localizations.localeOf(context).languageCode == 'ar';
+    final tones = context.tones;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(color: IntesharColors.saffron, borderRadius: BorderRadius.circular(IntesharRadii.md), boxShadow: IntesharShadows.ctaShadow),
+      // B-085: the balance card carries the agent's brand colour, with the label
+      // ink chosen for legibility on it.
+      decoration: BoxDecoration(color: tones.brand, borderRadius: BorderRadius.circular(IntesharRadii.md), boxShadow: tones.ctaShadow),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Text(
             ar ? 'الرصيد' : 'BALANCE',
-            style: TextStyle(fontFamily: 'CodecPro', fontSize: 10, color: IntesharColors.ink.withValues(alpha: 0.65), letterSpacing: 1.4, fontWeight: FontWeight.w800),
+            style: TextStyle(fontFamily: 'CodecPro', fontSize: 10, color: tones.onBrand.withValues(alpha: 0.65), letterSpacing: 1.4, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 4),
           Text(
             balance == null ? '—' : Formatters.iqd(balance!.available),
-            style: TextStyle(fontFamily: 'CodecPro', fontSize: 19, color: IntesharColors.ink, fontWeight: FontWeight.w900, letterSpacing: -0.4, height: 1),
+            style: TextStyle(fontFamily: 'CodecPro', fontSize: 19, color: tones.onBrand, fontWeight: FontWeight.w900, letterSpacing: -0.4, height: 1),
           ),
         ],
       ),
@@ -871,7 +874,7 @@ class _HomeSliderState extends State<_HomeSlider> {
                         width: active ? 18 : 6,
                         height: 6,
                         decoration: BoxDecoration(
-                          color: active ? IntesharColors.saffron : Colors.white.withValues(alpha: 0.7),
+                          color: active ? context.tones.brand : Colors.white.withValues(alpha: 0.7),
                           borderRadius: BorderRadius.circular(3),
                         ),
                       );
@@ -944,7 +947,7 @@ class _CompanyCard extends StatelessWidget {
         width: 52,
         height: 52,
         alignment: Alignment.center,
-        decoration: BoxDecoration(color: IntesharColors.saffron, borderRadius: BorderRadius.circular(26)),
+        decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(26)),
         child: Text(
           name.trim().isEmpty ? '?' : name.trim().substring(0, 1).toUpperCase(),
           style: IntesharType.display(22, color: IntesharColors.ink, w: FontWeight.w900),
@@ -977,7 +980,7 @@ class _GovCard extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.location_on_outlined, color: IntesharColors.saffronDeep, size: 26),
+            Icon(Icons.location_on_outlined, color: context.tones.brandInk, size: 26),
             const Spacer(),
             Text(
               label,
@@ -1082,9 +1085,9 @@ class _SkuCard extends StatelessWidget {
   }
 
   Widget _artFallback(ColorScheme cs, String sku) => Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [IntesharColors.saffron, IntesharColors.saffronDeep],
+            colors: [cs.primary, cs.onPrimaryContainer],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -1376,7 +1379,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                           const SizedBox(height: 4),
                           Text(
                             Formatters.iqd(def.defaultPrice),
-                            style: IntesharType.mono(17, color: IntesharColors.saffronDeep, w: FontWeight.w800),
+                            style: IntesharType.mono(17, color: context.tones.brandInk, w: FontWeight.w800),
                           ),
                         ],
                         const SizedBox(height: 18),
@@ -1481,7 +1484,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                     const SizedBox(height: 6),
                     Text(
                       s.price > 0 ? Formatters.iqd(s.price) : (Localizations.localeOf(context).languageCode == 'ar' ? 'السعر غير محدَّد' : 'Price not set'),
-                      style: IntesharType.mono(17, color: IntesharColors.saffronDeep, w: FontWeight.w800),
+                      style: IntesharType.mono(17, color: context.tones.brandInk, w: FontWeight.w800),
                     ),
                     const SizedBox(height: 16),
                     _LockedQr(label: l.posPinHidden),
@@ -1580,13 +1583,13 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              color: IntesharColors.saffron.withValues(alpha: 0.12),
+              color: context.tones.brand.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(IntesharRadii.md),
-              border: Border.all(color: IntesharColors.saffron.withValues(alpha: 0.4)),
+              border: Border.all(color: context.tones.brand.withValues(alpha: 0.4)),
             ),
             child: Row(
               children: [
-                Icon(Icons.info_outline, size: 18, color: IntesharColors.saffronDeep),
+                Icon(Icons.info_outline, size: 18, color: context.tones.brandInk),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(

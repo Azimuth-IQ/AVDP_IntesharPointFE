@@ -71,7 +71,8 @@ class BrandCTAButton extends StatelessWidget {
         ? DecoratedBox(
             decoration: BoxDecoration(
               borderRadius: radius,
-              boxShadow: _enabled ? IntesharShadows.ctaShadow : const [],
+              // Brand-tinted glow so a white-label CTA doesn't cast a gold shadow.
+              boxShadow: _enabled ? context.tones.ctaShadow : const [],
             ),
             child: button,
           )
@@ -104,34 +105,39 @@ class _Inner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(height / 2);
+    // B-085: the pill is painted from the session's brand tones, so a white-label
+    // agent's CTA (Sell, Sell & reveal, Unlock…) carries THEIR colour, not gold.
+    final tones = context.tones;
+    final cs = Theme.of(context).colorScheme;
 
     BoxDecoration deco;
     Color fg;
     switch (variant) {
       case BrandCTAVariant.primary:
         deco = BoxDecoration(
-          gradient: const LinearGradient(
+          gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: IntesharGradients.ctaPill,
-            stops: [0.0, 0.55, 1.0],
+            colors: tones.ctaGradient,
+            stops: const [0.0, 0.55, 1.0],
           ),
           borderRadius: radius,
-          border: Border.all(color: IntesharColors.saffronDeep.withValues(alpha: 0.35), width: 1),
+          border: Border.all(color: tones.brandInk.withValues(alpha: 0.35), width: 1),
         );
-        fg = IntesharColors.ink;
+        // Label tracks the brand's luminance — white on a dark brand, ink on a light one.
+        fg = tones.onBrand;
         break;
       case BrandCTAVariant.inverse:
-        deco = BoxDecoration(color: IntesharColors.ink, borderRadius: radius);
-        fg = IntesharColors.paper;
+        deco = BoxDecoration(color: cs.onSurface, borderRadius: radius);
+        fg = cs.surface;
         break;
       case BrandCTAVariant.outline:
         deco = BoxDecoration(
           color: Colors.transparent,
           borderRadius: radius,
-          border: Border.all(color: IntesharColors.ink, width: 1.5),
+          border: Border.all(color: cs.onSurface, width: 1.5),
         );
-        fg = IntesharColors.ink;
+        fg = cs.onSurface;
         break;
     }
 
@@ -189,7 +195,7 @@ class _Inner extends StatelessWidget {
             child: Container(
               height: 1,
               decoration: BoxDecoration(
-                color: IntesharGradients.ctaInnerHighlight.withValues(alpha: 0.85),
+                color: tones.ctaHighlight.withValues(alpha: 0.85),
                 borderRadius: BorderRadius.circular(1),
               ),
             ),

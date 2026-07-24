@@ -290,7 +290,7 @@ class _LockForm extends StatelessWidget {
               height: 44,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: IntesharColors.saffron,
+                color: context.tones.brand,
                 borderRadius: BorderRadius.circular(22),
               ),
               child: const Icon(Icons.lock_outline, color: IntesharColors.ink, size: 22),

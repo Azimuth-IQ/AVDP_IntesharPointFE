@@ -253,7 +253,7 @@ class _UserCard extends StatelessWidget {
                     _chip(
                         context,
                         _tr(context, 'وصول كامل', 'Full access'),
-                        IntesharColors.saffronDeep)
+                        context.tones.brandInk)
                   ]
                 : caps
                     .map((c) => _chip(context, c.label(loc), cs.primary))

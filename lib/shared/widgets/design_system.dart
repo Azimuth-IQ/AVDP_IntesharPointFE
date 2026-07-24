@@ -74,7 +74,7 @@ class SectionLabel extends StatelessWidget {
                 width: 6,
                 height: 6,
                 decoration: BoxDecoration(
-                  color: IntesharColors.saffron,
+                  color: context.tones.brand,
                   borderRadius: BorderRadius.circular(3),
                 ),
               ),
@@ -172,8 +172,8 @@ class InkCard extends StatelessWidget {
         onTap: onTap,
         onLongPress: onLongPress,
         borderRadius: radius,
-        splashColor: IntesharColors.saffron.withValues(alpha: 0.10),
-        highlightColor: IntesharColors.saffron.withValues(alpha: 0.05),
+        splashColor: context.tones.brand.withValues(alpha: 0.10),
+        highlightColor: context.tones.brand.withValues(alpha: 0.05),
         child: tile,
       ),
     );
@@ -259,7 +259,7 @@ class FigureBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final accentColor = accent ?? IntesharColors.saffron;
+    final accentColor = accent ?? context.tones.brand;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -371,7 +371,7 @@ class PageHeader extends StatelessWidget {
             width: 38,
             height: 3,
             decoration: BoxDecoration(
-              color: IntesharColors.saffron,
+              color: context.tones.brand,
               borderRadius: BorderRadius.circular(2),
             ),
           ),

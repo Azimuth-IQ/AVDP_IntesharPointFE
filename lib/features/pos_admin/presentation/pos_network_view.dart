@@ -281,7 +281,7 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
   Widget _kpiStrip(_NS s, PosNetworkSummary q) {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-      decoration: BoxDecoration(color: IntesharColors.saffron, borderRadius: BorderRadius.circular(IntesharRadii.lg)),
+      decoration: BoxDecoration(color: context.tones.brand, borderRadius: BorderRadius.circular(IntesharRadii.lg)),
       child: Row(children: [
         _stat(s.points, '${q.totalUsed}'),
         _kpiDivider(),
@@ -317,7 +317,7 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
               Row(children: [
                 Flexible(child: Text(r.name.isNotEmpty ? r.name : r.entityId, style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w700), overflow: TextOverflow.ellipsis)),
                 const SizedBox(width: 8),
-                StampPill(label: isSub ? s.sub : s.main, color: isSub ? IntesharColors.sage : IntesharColors.saffronDeep),
+                StampPill(label: isSub ? s.sub : s.main, color: isSub ? IntesharColors.sage : context.tones.brandInk),
               ]),
               if (isSub && (r.parentName ?? '').isNotEmpty) ...[
                 const SizedBox(height: 2),

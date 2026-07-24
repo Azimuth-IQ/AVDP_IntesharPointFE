@@ -230,7 +230,7 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
   Widget _globalCard(_S s) {
     final cs = Theme.of(context).colorScheme;
     return InkCard(
-      ruleColor: _globalEnabled ? IntesharColors.saffron : cs.outlineVariant,
+      ruleColor: _globalEnabled ? context.tones.brand : cs.outlineVariant,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -270,7 +270,7 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
               ),
               value: _globalEnabled,
               onChanged: _globalSaving ? null : _toggleGlobal,
-              activeThumbColor: IntesharColors.saffron,
+              activeThumbColor: context.tones.brand,
               secondary: _globalSaving
                   ? const SizedBox(
                       width: 24,
@@ -282,7 +282,7 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
                           ? Icons.schedule
                           : Icons.lock_open_outlined,
                       color: _globalEnabled
-                          ? IntesharColors.saffron
+                          ? context.tones.brand
                           : cs.onSurfaceVariant,
                     ),
             ),
@@ -306,7 +306,7 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
   Widget _entityWindowCard(_S s) {
     final cs = Theme.of(context).colorScheme;
     return InkCard(
-      ruleColor: IntesharColors.saffron,
+      ruleColor: context.tones.brand,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

@@ -506,13 +506,13 @@ class _SkuList extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 3),
           child: Material(
             color: isSelected
-                ? IntesharColors.saffron.withValues(alpha: 0.18)
+                ? context.tones.brand.withValues(alpha: 0.18)
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(IntesharRadii.md),
             child: InkWell(
               onTap: () => onSelect(def),
               borderRadius: BorderRadius.circular(IntesharRadii.md),
-              splashColor: IntesharColors.saffron.withValues(alpha: 0.10),
+              splashColor: context.tones.brand.withValues(alpha: 0.10),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 child: Row(
@@ -522,7 +522,7 @@ class _SkuList extends StatelessWidget {
                       height: 40,
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? IntesharColors.saffron
+                            ? context.tones.brand
                             : cs.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(IntesharRadii.sm),
                       ),
@@ -561,7 +561,7 @@ class _SkuList extends StatelessWidget {
                     ),
                     if (isSelected)
                       Icon(Icons.edit_outlined,
-                          size: 14, color: IntesharColors.saffronDeep),
+                          size: 14, color: context.tones.brandInk),
                   ],
                 ),
               ),
@@ -605,7 +605,7 @@ class _SkuDropdown extends StatelessWidget {
                     children: [
                       Text(
                         d.sku,
-                        style: IntesharType.mono(12, color: IntesharColors.saffronDeep, w: FontWeight.w700),
+                        style: IntesharType.mono(12, color: context.tones.brandInk, w: FontWeight.w700),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -713,7 +713,7 @@ class _TemplateEditor extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: IntesharColors.saffron,
+                  color: context.tones.brand,
                   borderRadius: BorderRadius.circular(IntesharRadii.xs),
                 ),
                 child: Text(
@@ -909,7 +909,7 @@ class _TemplateEditor extends StatelessWidget {
                         child: Text(
                           edited.qrPayload(
                               pin: _samplePin, serial: _sampleSerial),
-                          style: IntesharType.mono(12, color: IntesharColors.saffronDeep, w: FontWeight.w600, letterSpacing: 0.4),
+                          style: IntesharType.mono(12, color: context.tones.brandInk, w: FontWeight.w600, letterSpacing: 0.4),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -1006,7 +1006,7 @@ class _BrandSwitch extends StatelessWidget {
         ),
       ),
       value: value,
-      activeThumbColor: IntesharColors.saffron,
+      activeThumbColor: context.tones.brand,
       onChanged: onChanged,
     );
   }

@@ -316,14 +316,14 @@ class _StorePosNote extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: IntesharColors.saffron.withValues(alpha: 0.12),
+        color: context.tones.brand.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(IntesharRadii.md),
-        border: Border.all(color: IntesharColors.saffron.withValues(alpha: 0.4)),
+        border: Border.all(color: context.tones.brand.withValues(alpha: 0.4)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.point_of_sale_outlined, size: 20, color: IntesharColors.saffronDeep),
+          Icon(Icons.point_of_sale_outlined, size: 20, color: context.tones.brandInk),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -375,7 +375,7 @@ class _KpiRow extends StatelessWidget {
         value: Formatters.money(childCount),
         caption: l.dashKpiDirectChildren,
         icon: Icons.account_tree_outlined,
-        tint: IntesharColors.saffron,
+        tint: context.tones.brand,
       ),
       // Stock / low-stock KPIs only for inventory-backed tiers (HQ, Main Agent).
       // Sub Agents & Stores draw-on-print and hold no cards (B-042).
@@ -746,15 +746,15 @@ class _ViewAllLink extends StatelessWidget {
               label,
               style: IntesharType.sans(
                 12,
-                color: IntesharColors.saffronDeep,
+                color: context.tones.brandInk,
                 w: FontWeight.w700,
               ),
             ),
             const SizedBox(width: 2),
-            const Icon(
+            Icon(
               Icons.chevron_right,
               size: 16,
-              color: IntesharColors.saffronDeep,
+              color: context.tones.brandInk,
             ),
           ],
         ),
@@ -836,7 +836,7 @@ class _BalanceCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
       decoration: BoxDecoration(
-        color: IntesharColors.saffron,
+        color: context.tones.brand,
         borderRadius: BorderRadius.circular(IntesharRadii.lg),
       ),
       child: Row(
@@ -869,7 +869,7 @@ class _BalanceCard extends StatelessWidget {
             FilledButton.icon(
               style: FilledButton.styleFrom(
                 backgroundColor: IntesharColors.ink,
-                foregroundColor: IntesharColors.saffron,
+                foregroundColor: context.tones.brand,
               ),
               onPressed: () => showModalBottomSheet<void>(
                 context: context,

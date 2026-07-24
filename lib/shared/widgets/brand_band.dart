@@ -30,7 +30,8 @@ class BrandBand extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = background ?? IntesharColors.saffron;
+    // Defaults to the SESSION's brand colour so a white-label band isn't gold (B-085).
+    final bg = background ?? Theme.of(context).colorScheme.primary;
     final content = Padding(padding: padding, child: child);
 
     final body = DecoratedBox(
@@ -60,7 +61,9 @@ class BrandBand extends StatelessWidget {
                         opacity: 0.12,
                         child: IntesharStar(
                           size: sparkleSize,
-                          color: IntesharColors.ink,
+                          // Track the on-brand ink so the decorative star stays
+                          // visible on a dark white-label band too (B-085).
+                          color: Theme.of(context).colorScheme.onPrimary,
                           tilt: -0.32,
                         ),
                       ),

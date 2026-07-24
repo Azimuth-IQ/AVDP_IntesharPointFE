@@ -833,7 +833,7 @@ class _LoginForm extends ConsumerWidget {
           if (showMongoHint) ...[
             const SizedBox(height: 10),
             _Banner(
-              tone: IntesharColors.saffronDeep,
+              tone: context.tones.brandInk,
               icon: Icons.info_outline,
               title: l.loginNoUsersTitle,
               body: '${l.loginNoUsers}\n\n${l.loginNoUsersDefault}',

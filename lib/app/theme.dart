@@ -29,6 +29,9 @@ class IntesharColors {
   static const saffronDeep = Color(0xFF9C7515); // dark amber — brand-tinted text/icons, pressed/hover
   static const oxblood    = Color(0xFFDC2626); // outgoing / danger — clean red
   static const sage       = Color(0xFF1E9E5A); // available / success — clean green
+  /// SEMANTIC warning amber (pending/warn states). Deliberately NOT brand-tinted —
+  /// a status colour must stay readable as "caution" under any white-label brand.
+  static const warn       = Color(0xFF9C7515);
   static const dust       = Color(0xFFFFEAB8); // soft gold wash (tags, primaryContainer)
 
   // Dark surface stack
@@ -85,6 +88,130 @@ class IntesharGradients {
   ];
   /// Inner highlight — drawn as a 1px top hairline inside the CTA for shine.
   static const Color ctaInnerHighlight = Color(0xFFF7DFA0);
+}
+
+// ─── White-label brand tones (B-085) ─────────────────────────────────────────
+
+Color _lighten(Color c, double amount) =>
+    Color.alphaBlend(Colors.white.withValues(alpha: amount), c);
+Color _darken(Color c, double amount) =>
+    Color.alphaBlend(Colors.black.withValues(alpha: amount), c);
+
+/// Every brand-tinted colour in the app, DERIVED from the session's resolved
+/// brand colour so a white-label agent re-tints the whole UI (B-085).
+///
+/// Widgets must read these from the theme (`context.tones`) instead of the
+/// `IntesharColors.saffron*` constants — those are the DEFAULT palette only and
+/// stay gold no matter which agent is signed in. With no white-label override the
+/// derivations reproduce the original Sunburst gold almost exactly, so the stock
+/// look is unchanged.
+@immutable
+class BrandTones extends ThemeExtension<BrandTones> {
+  /// The brand colour itself — fills, accents, active states.
+  final Color brand;
+
+  /// Legible label/icon colour ON a [brand] fill (ink or white by luminance).
+  final Color onBrand;
+
+  /// Brand-toned colour for text/icons ON A SURFACE — a pale brand is darkened
+  /// so it never fails contrast on paper (B-078).
+  final Color brandInk;
+
+  /// Soft brand wash for chips/containers//tag backgrounds.
+  final Color brandWash;
+
+  /// Glossy CTA pill gradient (top highlight → body → bottom lip).
+  final List<Color> ctaGradient;
+
+  /// 1px inner top hairline that gives the CTA its "chromed candy" shine.
+  final Color ctaHighlight;
+
+  /// Warm drop shadow under a primary CTA, tinted by the brand.
+  final List<BoxShadow> ctaShadow;
+
+  const BrandTones({
+    required this.brand,
+    required this.onBrand,
+    required this.brandInk,
+    required this.brandWash,
+    required this.ctaGradient,
+    required this.ctaHighlight,
+    required this.ctaShadow,
+  });
+
+  /// Derives the full set from a resolved [brand] colour.
+  factory BrandTones.from({
+    required Color brand,
+    required Color onBrand,
+    required Color brandInk,
+    required bool isDark,
+  }) {
+    return BrandTones(
+      brand: brand,
+      onBrand: onBrand,
+      brandInk: brandInk,
+      brandWash: isDark ? _darken(brand, 0.72) : _lighten(brand, 0.78),
+      ctaGradient: [_lighten(brand, 0.30), brand, _darken(brand, 0.15)],
+      ctaHighlight: _lighten(brand, 0.55),
+      ctaShadow: [
+        BoxShadow(
+          blurRadius: 22,
+          offset: const Offset(0, 8),
+          color: _darken(brand, 0.35).withValues(alpha: 0.20),
+        ),
+      ],
+    );
+  }
+
+  @override
+  BrandTones copyWith({
+    Color? brand,
+    Color? onBrand,
+    Color? brandInk,
+    Color? brandWash,
+    List<Color>? ctaGradient,
+    Color? ctaHighlight,
+    List<BoxShadow>? ctaShadow,
+  }) =>
+      BrandTones(
+        brand: brand ?? this.brand,
+        onBrand: onBrand ?? this.onBrand,
+        brandInk: brandInk ?? this.brandInk,
+        brandWash: brandWash ?? this.brandWash,
+        ctaGradient: ctaGradient ?? this.ctaGradient,
+        ctaHighlight: ctaHighlight ?? this.ctaHighlight,
+        ctaShadow: ctaShadow ?? this.ctaShadow,
+      );
+
+  @override
+  BrandTones lerp(covariant BrandTones? other, double t) {
+    if (other == null) return this;
+    return BrandTones(
+      brand: Color.lerp(brand, other.brand, t)!,
+      onBrand: Color.lerp(onBrand, other.onBrand, t)!,
+      brandInk: Color.lerp(brandInk, other.brandInk, t)!,
+      brandWash: Color.lerp(brandWash, other.brandWash, t)!,
+      ctaGradient: [
+        for (var i = 0; i < ctaGradient.length; i++)
+          Color.lerp(ctaGradient[i], other.ctaGradient[i], t)!,
+      ],
+      ctaHighlight: Color.lerp(ctaHighlight, other.ctaHighlight, t)!,
+      ctaShadow: BoxShadow.lerpList(ctaShadow, other.ctaShadow, t) ?? ctaShadow,
+    );
+  }
+}
+
+/// Ergonomic access to the session's [BrandTones]. Falls back to the default
+/// gold palette when no theme extension is registered (e.g. bare test pumps).
+extension BrandToneContext on BuildContext {
+  BrandTones get tones =>
+      Theme.of(this).extension<BrandTones>() ??
+      BrandTones.from(
+        brand: IntesharColors.saffron,
+        onBrand: IntesharColors.ink,
+        brandInk: IntesharColors.saffronDeep,
+        isDark: false,
+      );
 }
 
 /// Static typography helpers — every named style draws from Codec Pro, with
@@ -173,13 +300,17 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
           ? Color.alphaBlend(Colors.black.withValues(alpha: 0.45), brandPrimary)
           : brandPrimary);
 
+  // Soft brand wash used for chips/tags/containers — derived so it tracks a
+  // white-label brand instead of staying the stock gold `dust` (B-085).
+  final brandWash = isDark ? _darken(saffron, 0.72) : _lighten(saffron, 0.78);
+
   final scheme = ColorScheme(
     brightness: b,
     // Yellow is a "light" hue — onPrimary must be ink in BOTH modes for contrast.
     primary: saffron,
     onPrimary: onSaffron,
-    primaryContainer: isDark ? const Color(0xFF3A2C08) : IntesharColors.dust,
-    onPrimaryContainer: isDark ? IntesharColors.saffronOnDark : IntesharColors.saffronDeep,
+    primaryContainer: brandWash,
+    onPrimaryContainer: brandInk,
 
     secondary: sage,
     onSecondary: onSage,
@@ -256,6 +387,16 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
     useMaterial3: true,
     brightness: b,
     colorScheme: scheme,
+    // B-085: brand-derived tones so every accent (CTA pill, balance card, chips,
+    // active states) re-tints for a white-label agent instead of staying gold.
+    extensions: <ThemeExtension<dynamic>>[
+      BrandTones.from(
+        brand: saffron,
+        onBrand: onSaffron,
+        brandInk: brandInk,
+        isDark: isDark,
+      ),
+    ],
     scaffoldBackgroundColor: paper,
     canvasColor: paper,
     dividerColor: outline,

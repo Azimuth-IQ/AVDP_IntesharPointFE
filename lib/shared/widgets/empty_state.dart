@@ -32,7 +32,7 @@ class EmptyState extends StatelessWidget {
             children: [
               Opacity(
                 opacity: 0.25,
-                child: IntesharStar(size: 64, color: IntesharColors.saffronDeep),
+                child: IntesharStar(size: 64, color: context.tones.brandInk),
               ),
               const SizedBox(height: 18),
               Text(

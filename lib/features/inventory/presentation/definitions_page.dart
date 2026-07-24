@@ -207,7 +207,7 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
               trailing: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
-                  color: IntesharColors.saffron.withValues(alpha: 0.16),
+                  color: context.tones.brand.withValues(alpha: 0.16),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Row(
@@ -216,13 +216,13 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
                     Text(
                       defs.length.toString(),
                       style: IntesharType.display(20,
-                          color: IntesharColors.saffronDeep, w: FontWeight.w900),
+                          color: context.tones.brandInk, w: FontWeight.w900),
                     ),
                     const SizedBox(width: 8),
                     Text(
                       l.defsTitlesLabel,
                       style: IntesharType.sans(13,
-                          color: IntesharColors.saffronDeep, w: FontWeight.w700),
+                          color: context.tones.brandInk, w: FontWeight.w700),
                     ),
                   ],
                 ),
@@ -397,7 +397,7 @@ class _DefinitionRowState extends State<_DefinitionRow> {
                 height: 42,
                 decoration: BoxDecoration(
                   color: _hover
-                      ? IntesharColors.saffron
+                      ? context.tones.brand
                       : cs.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(IntesharRadii.sm),
                 ),

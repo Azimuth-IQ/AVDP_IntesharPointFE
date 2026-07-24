@@ -319,7 +319,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
           Container(
             padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
             decoration: BoxDecoration(
-              color: IntesharColors.saffron,
+              color: context.tones.brand,
               borderRadius: BorderRadius.circular(IntesharRadii.lg),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

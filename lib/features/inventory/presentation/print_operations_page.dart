@@ -162,7 +162,7 @@ class _OpCard extends StatelessWidget {
             Expanded(
               child: Text('#${op.receiptNo}',
                   style: IntesharType.sans(16,
-                      color: IntesharColors.saffronDeep, w: FontWeight.w900)),
+                      color: context.tones.brandInk, w: FontWeight.w900)),
             ),
             if (op.productName.isNotEmpty)
               Text(op.productName,

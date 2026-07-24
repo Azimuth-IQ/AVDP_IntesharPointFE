@@ -557,7 +557,7 @@ class _BalanceHeader extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(16, 4, 16, 4),
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
       decoration: BoxDecoration(
-        color: IntesharColors.saffron,
+        color: context.tones.brand,
         borderRadius: BorderRadius.circular(IntesharRadii.lg),
       ),
       child: Row(

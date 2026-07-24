@@ -227,7 +227,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
   Widget _quotaCard(_S s, PosSlotBalance q) {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-      decoration: BoxDecoration(color: IntesharColors.saffron, borderRadius: BorderRadius.circular(IntesharRadii.lg)),
+      decoration: BoxDecoration(color: context.tones.brand, borderRadius: BorderRadius.circular(IntesharRadii.lg)),
       child: Row(children: [
         _stat(s.available, q.root ? '∞' : Formatters.money(q.available)),
         _divider(),

@@ -64,7 +64,7 @@ class _AppDownloadPageState extends State<AppDownloadPage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.qr_code_2, size: 28, color: IntesharColors.saffronDeep),
+                      Icon(Icons.qr_code_2, size: 28, color: context.tones.brandInk),
                       const SizedBox(height: 10),
                       Text(
                         ar ? 'امسح بكاميرا الهاتف للتثبيت' : 'Scan with your phone camera to install',

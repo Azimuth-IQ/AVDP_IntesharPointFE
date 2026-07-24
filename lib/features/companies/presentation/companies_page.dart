@@ -173,7 +173,7 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
           final c = _items[i];
           final cs = Theme.of(context).colorScheme;
           return InkCard(
-            ruleColor: IntesharColors.saffron,
+            ruleColor: context.tones.brand,
             padding: const EdgeInsets.all(16),
             onTap: () => _openForm(existing: c),
             child: Row(

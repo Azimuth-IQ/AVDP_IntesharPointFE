@@ -516,7 +516,7 @@ class _RosterReport extends StatelessWidget {
                 Row(children: [
                   Expanded(child: Text(r.name, style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w700))),
                   Text(Formatters.iqd(r.available.round()),
-                      style: IntesharType.mono(15, color: IntesharColors.saffronDeep, w: FontWeight.w800)),
+                      style: IntesharType.mono(15, color: context.tones.brandInk, w: FontWeight.w800)),
                 ]),
                 const SizedBox(height: 4),
                 if (r.ownerName.isNotEmpty) _kv(cs, s.owner, r.ownerName),
@@ -604,7 +604,7 @@ class _SalesReport extends StatelessWidget {
               Row(children: [
                 Expanded(child: Text([r.companyName, r.category].where((x) => x.isNotEmpty).join(' · '),
                     style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w700))),
-                StampPill(label: '${s.cards}: ${r.count}', color: IntesharColors.saffronDeep),
+                StampPill(label: '${s.cards}: ${r.count}', color: context.tones.brandInk),
               ]),
               const SizedBox(height: 4),
               if (r.storeName.isNotEmpty) _kv(cs, s.store, r.storeName),
@@ -652,7 +652,7 @@ class _TotalSoldReport extends StatelessWidget {
                 Row(children: [
                   Expanded(child: Text([r.companyName, r.category].where((x) => x.isNotEmpty).join(' · '),
                       style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w700))),
-                  StampPill(label: '${s.cards}: ${Formatters.money(totals[key] ?? 0)}', color: IntesharColors.saffronDeep),
+                  StampPill(label: '${s.cards}: ${Formatters.money(totals[key] ?? 0)}', color: context.tones.brandInk),
                 ]),
                 const SizedBox(height: 4),
                 if (agent.isNotEmpty) _kv(cs, s.agent, agent),
@@ -846,7 +846,7 @@ class _DetailedReport extends StatelessWidget {
         Container(
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-          decoration: BoxDecoration(color: IntesharColors.saffron, borderRadius: BorderRadius.circular(IntesharRadii.lg)),
+          decoration: BoxDecoration(color: context.tones.brand, borderRadius: BorderRadius.circular(IntesharRadii.lg)),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

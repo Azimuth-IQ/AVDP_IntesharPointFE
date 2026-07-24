@@ -293,10 +293,10 @@ class _InventoryValueCard extends StatelessWidget {
             height: 44,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: IntesharColors.saffron.withValues(alpha: 0.16),
+              color: context.tones.brand.withValues(alpha: 0.16),
               borderRadius: BorderRadius.circular(IntesharRadii.md),
             ),
-            child: const Icon(Icons.savings_outlined, size: 22, color: IntesharColors.saffronDeep),
+            child: Icon(Icons.savings_outlined, size: 22, color: context.tones.brandInk),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -353,7 +353,7 @@ class _Tallies extends StatelessWidget {
       runSpacing: 8,
       children: [
         _TallyChip(label: l.inventoryStatusAvailable, value: available, color: IntesharColors.sage),
-        _TallyChip(label: l.inventoryStatusPrinted, value: printed, color: IntesharColors.saffronDeep),
+        _TallyChip(label: l.inventoryStatusPrinted, value: printed, color: context.tones.brandInk),
         _TallyChip(label: l.inventoryStatusDamaged, value: damaged, color: Theme.of(context).colorScheme.error),
       ],
     );
@@ -442,7 +442,7 @@ class _StatusFilterChips extends StatelessWidget {
     final options = <(ProductStatus?, String, Color)>[
       (null, l.inventoryFilterAll, cs.onSurface),
       (ProductStatus.AVAILABLE, l.inventoryStatusAvailable, IntesharColors.sage),
-      (ProductStatus.PRINTED, l.inventoryStatusPrinted, IntesharColors.saffronDeep),
+      (ProductStatus.PRINTED, l.inventoryStatusPrinted, context.tones.brandInk),
       (ProductStatus.DAMAGED, l.inventoryStatusDamaged, cs.error),
     ];
     return Container(
@@ -464,7 +464,7 @@ class _StatusFilterChips extends StatelessWidget {
                 duration: const Duration(milliseconds: 160),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: active ? IntesharColors.saffron : Colors.transparent,
+                  color: active ? context.tones.brand : Colors.transparent,
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
@@ -615,7 +615,7 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
                     height: 44,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: s.available > 0 ? IntesharColors.saffron : cs.surfaceContainerHighest,
+                      color: s.available > 0 ? context.tones.brand : cs.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(22),
                     ),
                     child: Text(
@@ -655,7 +655,7 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
                     const SizedBox(width: 6),
                   ],
                   if (s.printed > 0) ...[
-                    StampPill(label: l.inventoryPrintedCount(s.printed), color: IntesharColors.saffronDeep),
+                    StampPill(label: l.inventoryPrintedCount(s.printed), color: context.tones.brandInk),
                     const SizedBox(width: 6),
                   ],
                   if (s.damaged > 0) ...[
@@ -834,11 +834,11 @@ class _LoadMoreRow extends StatelessWidget {
             if (loading)
               const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
             else
-              Icon(Icons.expand_more, size: 18, color: IntesharColors.saffronDeep),
+              Icon(Icons.expand_more, size: 18, color: context.tones.brandInk),
             const SizedBox(width: 8),
             Text(
               loading ? l.inventoryShowingCount(shown, total) : l.inventoryLoadMore,
-              style: IntesharType.sans(13, color: IntesharColors.saffronDeep, w: FontWeight.w700),
+              style: IntesharType.sans(13, color: context.tones.brandInk, w: FontWeight.w700),
             ),
           ],
         ),
@@ -874,8 +874,8 @@ class _ProductRow extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return switch (product.status) {
       ProductStatus.AVAILABLE => IntesharColors.sage,
-      ProductStatus.SENT_FOR_PRINTING => IntesharColors.saffron,
-      ProductStatus.PRINTED => IntesharColors.saffronDeep,
+      ProductStatus.SENT_FOR_PRINTING => context.tones.brand,
+      ProductStatus.PRINTED => context.tones.brandInk,
       ProductStatus.FAILED_PRINTING => cs.error,
       ProductStatus.DAMAGED => cs.error,
     };

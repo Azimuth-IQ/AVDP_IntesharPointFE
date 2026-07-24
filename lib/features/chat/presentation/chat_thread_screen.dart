@@ -198,7 +198,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
         decoration: BoxDecoration(
-          color: mine ? IntesharColors.saffron : cs.surfaceContainerHighest,
+          color: mine ? context.tones.brand : cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(14),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

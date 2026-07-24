@@ -1522,7 +1522,9 @@ class _AboutDrawer extends StatelessWidget {
                   Text(
                     l.aboutVersion,
                     style: GoogleFonts.jetBrainsMono(
-                      color: IntesharColors.ink.withValues(alpha: 0.65),
+                      // On-brand surface: track onPrimary so it stays legible
+                      // under a dark white-label brand (B-085).
+                      color: cs.onPrimary.withValues(alpha: 0.65),
                       fontSize: 11,
                       letterSpacing: 1.4,
                     ),

@@ -783,7 +783,7 @@ class _StepPill extends StatelessWidget {
           height: 26,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: on ? IntesharColors.saffron : cs.surfaceContainerHighest,
+            color: on ? context.tones.brand : cs.surfaceContainerHighest,
             shape: BoxShape.circle,
           ),
           child: done
@@ -837,7 +837,7 @@ class _UserCard extends StatelessWidget {
     return InkCard(
       padding: const EdgeInsets.all(14),
       ruleColor: draft.preset == AgentUserPreset.admin
-          ? IntesharColors.saffron
+          ? context.tones.brand
           : cs.outline,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

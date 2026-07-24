@@ -120,7 +120,7 @@ class _BatchAddPageState extends ConsumerState<BatchAddPage>
               child: TabBar(
                 controller: _tabs,
                 indicator: BoxDecoration(
-                  color: IntesharColors.saffron,
+                  color: context.tones.brand,
                   borderRadius: BorderRadius.circular(999),
                 ),
                 indicatorSize: TabBarIndicatorSize.tab,
@@ -881,7 +881,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
             if (_result != null) ...[
               const SizedBox(height: 14),
               InkCard(
-                ruleColor: IntesharColors.saffronDeep,
+                ruleColor: context.tones.brandInk,
                 padding: const EdgeInsets.all(14),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1348,7 +1348,7 @@ class _BatchCard extends StatelessWidget {
     final paused = batch.paused;
 
     return InkCard(
-      ruleColor: paused ? cs.outline : IntesharColors.saffronDeep,
+      ruleColor: paused ? cs.outline : context.tones.brandInk,
       padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

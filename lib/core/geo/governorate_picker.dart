@@ -71,7 +71,7 @@ class GovernorateMultiSelect extends StatelessWidget {
           label: Text(g.label(loc)),
           selected: on,
           showCheckmark: true,
-          selectedColor: IntesharColors.saffron.withValues(alpha: 0.28),
+          selectedColor: context.tones.brand.withValues(alpha: 0.28),
           onSelected: (_) {
             final next = Set<String>.from(selected);
             if (on) {

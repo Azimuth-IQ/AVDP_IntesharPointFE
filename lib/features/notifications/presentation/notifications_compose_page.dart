@@ -294,7 +294,7 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
     final cs = Theme.of(context).colorScheme;
     final ar = Localizations.localeOf(context).languageCode == 'ar';
     return InkCard(
-      ruleColor: IntesharColors.saffron,
+      ruleColor: context.tones.brand,
       padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -386,7 +386,7 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (_entityIds.isNotEmpty) ...[
-            Text(s.selected(_entityIds.length), style: IntesharType.sans(11.5, color: IntesharColors.saffronDeep, w: FontWeight.w700)),
+            Text(s.selected(_entityIds.length), style: IntesharType.sans(11.5, color: context.tones.brandInk, w: FontWeight.w700)),
             const SizedBox(height: 6),
           ],
           EntityMultiSearchList(
@@ -446,7 +446,7 @@ class _HistoryCard extends StatelessWidget {
           ],
           const SizedBox(height: 8),
           Wrap(spacing: 8, runSpacing: 6, children: [
-            StampPill(label: audienceValue(), color: IntesharColors.saffron, icon: Icons.people_outline, fontSize: 10),
+            StampPill(label: audienceValue(), color: context.tones.brand, icon: Icons.people_outline, fontSize: 10),
             if (n.posOnly) StampPill(label: s.posBadge, color: IntesharColors.sage, icon: Icons.point_of_sale, fontSize: 10),
           ]),
         ],

@@ -553,7 +553,7 @@ class _SliderEditorSheetState extends ConsumerState<_SliderEditorSheet> {
         children: [
           if (_entityIds.isNotEmpty) ...[
             Text(_t(context, 'المحدد: ${_entityIds.length}', 'Selected: ${_entityIds.length}'),
-                style: IntesharType.sans(11.5, color: IntesharColors.saffronDeep, w: FontWeight.w700)),
+                style: IntesharType.sans(11.5, color: context.tones.brandInk, w: FontWeight.w700)),
             const SizedBox(height: 6),
           ],
           EntityMultiSearchList(

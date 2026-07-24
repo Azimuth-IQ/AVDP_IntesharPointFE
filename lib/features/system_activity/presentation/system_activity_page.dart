@@ -393,7 +393,7 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
                     const SizedBox(width: 8),
                     _FilterPill(
                       label: l.sysActLevelWarn,
-                      tint: IntesharColors.saffronDeep,
+                      tint: context.tones.brandInk,
                       selected: _level == 'WARN',
                       onTap: () => _setLevel('WARN'),
                     ),
@@ -639,10 +639,10 @@ class _StatStrip extends StatelessWidget {
     String v(int? n) => n == null ? '—' : n.toString();
 
     final tiles = <Widget>[
-      _StatTile(icon: Icons.account_tree_outlined, tint: IntesharColors.saffron, value: v(o?.entityTotal), label: l.sysActEntities),
+      _StatTile(icon: Icons.account_tree_outlined, tint: context.tones.brand, value: v(o?.entityTotal), label: l.sysActEntities),
       _StatTile(icon: Icons.people_alt_outlined, tint: const Color(0xFF2563EB), value: v(o?.userTotal), label: l.sysActUsers),
       _StatTile(icon: Icons.swap_horiz, tint: IntesharColors.sage, value: v(o?.txnTotal), label: l.navTransactions),
-      _StatTile(icon: Icons.storefront_outlined, tint: IntesharColors.saffronDeep, value: v(o?.storeCount), label: l.sysActStores),
+      _StatTile(icon: Icons.storefront_outlined, tint: context.tones.brandInk, value: v(o?.storeCount), label: l.sysActStores),
       _StatTile(icon: Icons.error_outline, tint: IntesharColors.oxblood, value: v(o?.failedTxnCount), label: l.sysActFailed),
       if (o != null && o.hasActivity)
         _StatTile(icon: Icons.warning_amber_rounded, tint: IntesharColors.oxblood, value: v(o.activityErrors), label: l.sysActLevelError),
@@ -861,7 +861,7 @@ class _SearchField extends StatelessWidget {
 
 ({IconData icon, Color color}) _logVisual(OperationLog log) {
   if (log.isError) return (icon: Icons.error_outline, color: IntesharColors.oxblood);
-  if (log.isWarn) return (icon: Icons.warning_amber_rounded, color: IntesharColors.saffronDeep);
+  if (log.isWarn) return (icon: Icons.warning_amber_rounded, color: IntesharColors.warn);
   if (!log.success) return (icon: Icons.info_outline, color: const Color(0xFF2563EB));
   return (icon: Icons.check_circle_outline, color: IntesharColors.sage);
 }
@@ -1069,7 +1069,7 @@ String _txnStatusLabel(AppLocalizations l, TransactionStatus s) => switch (s) {
 Color _txnStatusColor(TransactionStatus s) => switch (s) {
       TransactionStatus.COMPLETED => IntesharColors.sage,
       TransactionStatus.FAILED => IntesharColors.oxblood,
-      _ => IntesharColors.saffronDeep,
+      _ => IntesharColors.warn,
     };
 
 class _TxnRow extends StatelessWidget {
@@ -1183,7 +1183,7 @@ class _TxnDetailSheet extends StatelessWidget {
         Container(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
           decoration: BoxDecoration(
-            color: IntesharColors.saffron.withValues(alpha: 0.16),
+            color: context.tones.brand.withValues(alpha: 0.16),
             borderRadius: BorderRadius.circular(IntesharRadii.md),
           ),
           child: Row(
@@ -1316,7 +1316,7 @@ class _EntityDetailSheet extends StatelessWidget {
                         Icon(Icons.person_outline, size: 18, color: cs.onSurfaceVariant),
                         const SizedBox(width: 10),
                         Expanded(child: _ltr(Text(u.phone, style: IntesharType.mono(12.5)))),
-                        _roleChip(u.roleEnum, l),
+                        _roleChip(context, u.roleEnum, l),
                       ],
                     ),
                   ),
@@ -1331,9 +1331,9 @@ class _EntityDetailSheet extends StatelessWidget {
 
 // ─── User row ────────────────────────────────────────────────────────────────
 
-Widget _roleChip(UserRole role, AppLocalizations l) => StampPill(
+Widget _roleChip(BuildContext context, UserRole role, AppLocalizations l) => StampPill(
       label: role == UserRole.ADMIN ? l.sysActRoleAdmin : l.entityTypeUser,
-      color: role == UserRole.ADMIN ? IntesharColors.saffronDeep : IntesharColors.inkSoft,
+      color: role == UserRole.ADMIN ? context.tones.brandInk : IntesharColors.inkSoft,
       fontSize: 10,
     );
 
@@ -1382,7 +1382,7 @@ class _UserRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          _roleChip(row.roleEnum, l),
+          _roleChip(context, row.roleEnum, l),
         ],
       ),
     );
@@ -1438,7 +1438,7 @@ class _SheetFrame extends StatelessWidget {
                 margin: const EdgeInsets.only(top: 8, bottom: 16),
                 width: 38,
                 height: 3,
-                decoration: BoxDecoration(color: IntesharColors.saffron, borderRadius: BorderRadius.circular(2)),
+                decoration: BoxDecoration(color: context.tones.brand, borderRadius: BorderRadius.circular(2)),
               ),
               ...children,
             ],
@@ -1561,13 +1561,13 @@ class _UnpricedAgentsCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
-        color: IntesharColors.saffron.withValues(alpha: 0.12),
+        color: context.tones.brand.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(IntesharRadii.md),
-        border: Border.all(color: IntesharColors.saffronDeep.withValues(alpha: 0.35)),
+        border: Border.all(color: context.tones.brandInk.withValues(alpha: 0.35)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Icon(Icons.price_change_outlined, size: 18, color: IntesharColors.saffronDeep),
+          Icon(Icons.price_change_outlined, size: 18, color: context.tones.brandInk),
           const SizedBox(width: 8),
           Expanded(
             child: Text(

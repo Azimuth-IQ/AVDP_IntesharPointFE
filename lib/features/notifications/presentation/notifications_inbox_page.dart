@@ -239,18 +239,18 @@ class NotificationsUnreadBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: IntesharColors.saffron.withValues(alpha: 0.14),
+        color: context.tones.brand.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(IntesharRadii.md),
         border: Border.all(
-          color: IntesharColors.saffron.withValues(alpha: 0.36),
+          color: context.tones.brand.withValues(alpha: 0.36),
         ),
       ),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.notifications_active_outlined,
             size: 18,
-            color: IntesharColors.saffronDeep,
+            color: context.tones.brandInk,
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -258,7 +258,7 @@ class NotificationsUnreadBanner extends StatelessWidget {
               label,
               style: IntesharType.sans(
                 13,
-                color: IntesharColors.saffronDeep,
+                color: context.tones.brandInk,
                 w: FontWeight.w700,
               ),
             ),
@@ -286,7 +286,7 @@ class _NotifCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final unread = !n.isRead;
     return InkCard(
-      ruleColor: unread ? IntesharColors.saffron : null,
+      ruleColor: unread ? context.tones.brand : null,
       padding: const EdgeInsetsDirectional.fromSTEB(14, 12, 14, 12),
       onTap: onTap,
       child: Row(
@@ -298,7 +298,7 @@ class _NotifCard extends StatelessWidget {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: (unread
-                      ? IntesharColors.saffron
+                      ? context.tones.brand
                       : cs.onSurfaceVariant)
                   .withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(10),
@@ -309,7 +309,7 @@ class _NotifCard extends StatelessWidget {
                   : Icons.notifications_outlined,
               size: 18,
               color: unread
-                  ? IntesharColors.saffronDeep
+                  ? context.tones.brandInk
                   : cs.onSurfaceVariant,
             ),
           ),
@@ -353,7 +353,7 @@ class _NotifCard extends StatelessWidget {
                   width: 8,
                   height: 8,
                   decoration: BoxDecoration(
-                    color: IntesharColors.saffronDeep,
+                    color: context.tones.brandInk,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -422,7 +422,7 @@ class _DetailSheet extends StatelessWidget {
                 width: 38,
                 height: 3,
                 decoration: BoxDecoration(
-                  color: IntesharColors.saffron,
+                  color: context.tones.brand,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),

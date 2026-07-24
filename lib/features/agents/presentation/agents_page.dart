@@ -248,7 +248,7 @@ class _AgentCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final locale = s.ar ? 'ar' : 'en';
     return InkCard(
-      ruleColor: IntesharColors.saffron,
+      ruleColor: context.tones.brand,
       padding: const EdgeInsets.all(16),
       onTap: onEdit,
       child: Column(
@@ -300,7 +300,7 @@ class _AgentCard extends StatelessWidget {
               spacing: 6,
               runSpacing: 6,
               children: row.governorates
-                  .map((c) => StampPill(label: governorateLabel(c, locale), color: IntesharColors.saffron, filled: false))
+                  .map((c) => StampPill(label: governorateLabel(c, locale), color: context.tones.brand, filled: false))
                   .toList(),
             ),
           const SizedBox(height: 12),

@@ -6,9 +6,9 @@ import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:inteshar/core/geo/governorates.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/auth/data/auth_repository.dart';
+import 'package:inteshar/features/pos/presentation/pos_brand.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/brand_cta.dart';
-import 'package:inteshar/shared/widgets/brand_star.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/password_field.dart';
 
@@ -35,7 +35,6 @@ class PosAccountPanel extends ConsumerWidget {
     final gov = (entity?.meta.governorates.isNotEmpty ?? false)
         ? governorateLabel(entity!.meta.governorates.first, loc)
         : '';
-    final logo = auth is AuthAuthenticated ? auth.brand.agentLogoUrl : '';
     final confirmed = profile?.locationConfirmedAt != null;
 
     Widget row(IconData icon, String label, String value) {
@@ -65,12 +64,7 @@ class PosAccountPanel extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 8),
-              Center(
-                child: logo.trim().isNotEmpty
-                    ? Image.network(logo, height: 64, fit: BoxFit.contain,
-                        errorBuilder: (_, _, _) => IntesharStar(size: 56, color: cs.onSurface))
-                    : IntesharStar(size: 56, color: cs.onSurface),
-              ),
+              const Center(child: PosBrandMark(size: 64)),
               const SizedBox(height: 16),
               Text(shop.isEmpty ? l.posHome : shop,
                   textAlign: TextAlign.center,

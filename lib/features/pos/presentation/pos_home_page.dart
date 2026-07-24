@@ -29,6 +29,7 @@ import 'package:inteshar/features/chat/presentation/chat_thread_screen.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
 import 'package:inteshar/features/notifications/presentation/alert_banner.dart';
 import 'package:inteshar/features/pos/presentation/pos_account_panel.dart';
+import 'package:inteshar/features/pos/presentation/pos_brand.dart';
 import 'package:inteshar/features/pos/presentation/pos_sales_panel.dart';
 import 'package:inteshar/features/pos/presentation/pos_statement_panel.dart';
 import 'package:inteshar/features/pos/presentation/printer_picker_page.dart';
@@ -36,7 +37,6 @@ import 'package:inteshar/shared/widgets/map_location_picker.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/brand_backdrop.dart';
 import 'package:inteshar/shared/widgets/brand_cta.dart';
-import 'package:inteshar/shared/widgets/brand_star.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
@@ -164,8 +164,6 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
     final l = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     final auth = ref.watch(authStateProvider).valueOrNull;
-    // White-label: show the owning Main Agent's logo in the app bar when set.
-    final agentLogo = auth is AuthAuthenticated ? auth.brand.agentLogoUrl : '';
     // Show the shop's own trade name as the title (falls back to a generic label).
     final shopName = (auth is AuthAuthenticated && auth.entity.meta.name.isNotEmpty)
         ? auth.entity.meta.name
@@ -178,15 +176,9 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
           onLongPress: () => context.push('/diagnostics'),
           child: Row(
             children: [
-              if (agentLogo.trim().isNotEmpty)
-                Image.network(
-                  agentLogo,
-                  height: 26,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, _, _) => IntesharStar(size: 22, color: cs.onSurface),
-                )
-              else
-                IntesharStar(size: 22, color: cs.onSurface),
+              // White-label: the owning agent's logo (falls back to the shop's
+              // initial), never the Inteshar star (B-083).
+              const PosBrandMark(size: 26),
               const SizedBox(width: 12),
               Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1209,7 +1201,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
         await RovoPrinter.printText(
           buildVoucherReceiptText(
             template: t,
-            headerFallback: 'Inteshar Platform',
+            headerFallback: auth?.entity.meta.name ?? 'POS',
             shopName: auth?.entity.meta.name ?? 'Store',
             posLabel: 'Counter 1',
             operatorPhone: auth?.entity.users.firstOrNull?.phone ?? '',
@@ -1233,7 +1225,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
       final companyLogo = t.showCompanyLogo ? await loadReceiptLogo(_companyLogoUrl) : null;
       final bytes = await buildVoucherReceipt(
         template: t,
-        headerFallback: 'Inteshar Platform',
+        headerFallback: auth?.entity.meta.name ?? 'POS',
         shopName: auth?.entity.meta.name ?? 'Store',
         posLabel: 'Counter 1',
         operatorPhone: auth?.entity.users.firstOrNull?.phone ?? '',
@@ -1345,10 +1337,12 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                           Image.network(_companyLogoUrl!, height: 36, fit: BoxFit.contain, errorBuilder: (_, _, _) => const SizedBox.shrink()),
                           const SizedBox(height: 8),
                         ],
-                        IntesharStar(size: 36, color: cs.onSurface),
+                        const PosBrandMark(size: 40),
                         const SizedBox(height: 10),
                         Text(
-                          t.headerText.trim().isNotEmpty ? t.headerText.trim().toUpperCase() : 'INTESHAR PLATFORM',
+                          t.headerText.trim().isNotEmpty
+                              ? t.headerText.trim().toUpperCase()
+                              : (posShopName(ref).isNotEmpty ? posShopName(ref).toUpperCase() : 'POS'),
                           textAlign: TextAlign.center,
                           style: TextStyle(fontFamily: 'CodecPro', fontSize: 12, color: cs.onSurface, letterSpacing: 2.2, fontWeight: FontWeight.w900),
                         ),
@@ -1469,7 +1463,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                 decoration: BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(IntesharRadii.lg), boxShadow: IntesharShadows.elev2),
                 child: Column(
                   children: [
-                    IntesharStar(size: 36, color: cs.onSurface),
+                    const PosBrandMark(size: 40),
                     const SizedBox(height: 12),
                     if ((s.companyName ?? '').trim().isNotEmpty) ...[
                       Text(

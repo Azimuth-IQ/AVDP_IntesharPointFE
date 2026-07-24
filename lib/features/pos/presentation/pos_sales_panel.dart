@@ -287,7 +287,7 @@ class _ReprintSheetState extends ConsumerState<_ReprintSheet> {
       final companyLogo = t.showCompanyLogo ? await loadReceiptLogo(widget.recovered.companyLogoUrl) : null;
       final bytes = await buildVoucherReceipt(
         template: t,
-        headerFallback: 'Inteshar Platform',
+        headerFallback: auth?.entity.meta.name ?? 'POS',
         shopName: auth?.entity.meta.name ?? 'Store',
         posLabel: 'Counter 1',
         operatorPhone: auth?.entity.users.firstOrNull?.phone ?? '',

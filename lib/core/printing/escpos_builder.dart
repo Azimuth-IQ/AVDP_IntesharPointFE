@@ -279,7 +279,7 @@ Future<List<int>> buildTestReceipt() async {
   final out = <int>[];
   out.addAll(
     g.text(
-      'Inteshar Platform',
+      'Point of Sale',
       styles: const PosStyles(
         align: PosAlign.center,
         bold: true,

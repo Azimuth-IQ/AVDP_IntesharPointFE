@@ -5,9 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_exception.dart';
 import 'package:inteshar/features/pos/application/pos_pin_controller.dart';
-import 'package:inteshar/shared/widgets/brand_band.dart';
+import 'package:inteshar/features/pos/presentation/pos_brand.dart';
 import 'package:inteshar/shared/widgets/brand_cta.dart';
-import 'package:inteshar/shared/widgets/brand_star.dart';
 
 /// Full-screen POS PIN setup page. Used for:
 /// - First-time setup (no existing PIN): [requireCurrent] = false (default).
@@ -117,7 +116,7 @@ class _PosPinSetupPageState extends ConsumerState<PosPinSetupPage> {
         child: isWide
             ? Row(
                 children: [
-                  Expanded(child: _BrandPanel()),
+                  const Expanded(child: PosBrandHero(wide: true)),
                   Expanded(
                     child: Center(
                       child: ConstrainedBox(
@@ -133,7 +132,7 @@ class _PosPinSetupPageState extends ConsumerState<PosPinSetupPage> {
               )
             : Column(
                 children: [
-                  const _MobileBrandHeader(),
+                  const PosBrandHero(wide: false),
                   Expanded(
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
@@ -150,118 +149,6 @@ class _PosPinSetupPageState extends ConsumerState<PosPinSetupPage> {
   }
 }
 
-// ── Shared brand panels (mirrors login_page pattern) ────────────────────────
-
-class _BrandPanel extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final ar = Localizations.localeOf(context).languageCode == 'ar';
-    return BrandBand(
-      padding: const EdgeInsets.fromLTRB(56, 56, 56, 56),
-      sparkleSize: 360,
-      sparkleAlignment: const Alignment(1.3, 1.4),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          IntesharStar(size: 72, color: IntesharColors.ink),
-          const SizedBox(height: 28),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: AlignmentDirectional.centerStart,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
-                  'Inteshar',
-                  style: TextStyle(
-                    fontFamily: 'CodecPro',
-                    color: IntesharColors.ink,
-                    fontSize: 96,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -3.5,
-                    height: 1.0,
-                  ),
-                ),
-                Text(
-                  'Platform.',
-                  style: TextStyle(
-                    fontFamily: 'CodecPro',
-                    color: IntesharColors.ink,
-                    fontSize: 96,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -3.5,
-                    height: 1.0,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 28),
-          Text(
-            ar ? 'نقطة البيع الآمنة' : 'Secure POS Terminal',
-            style: TextStyle(
-              fontFamily: 'CodecPro',
-              color: IntesharColors.ink.withValues(alpha: 0.78),
-              fontSize: 17,
-              height: 1.5,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MobileBrandHeader extends StatelessWidget {
-  const _MobileBrandHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    final ar = Localizations.localeOf(context).languageCode == 'ar';
-    return BrandBand(
-      padding: const EdgeInsets.fromLTRB(28, 28, 28, 28),
-      sparkleSize: 200,
-      sparkleAlignment: const Alignment(1.4, 1.2),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IntesharStar(size: 40, color: IntesharColors.ink),
-          const SizedBox(height: 12),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: AlignmentDirectional.centerStart,
-            child: const Text(
-              'Inteshar Platform.',
-              style: TextStyle(
-                fontFamily: 'CodecPro',
-                color: IntesharColors.ink,
-                fontSize: 36,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -1.2,
-                height: 1.0,
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            ar ? 'نقطة البيع الآمنة' : 'Secure POS Terminal',
-            style: TextStyle(
-              fontFamily: 'CodecPro',
-              fontSize: 13,
-              color: IntesharColors.ink.withValues(alpha: 0.72),
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.1,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // ── Setup form ───────────────────────────────────────────────────────────────
 

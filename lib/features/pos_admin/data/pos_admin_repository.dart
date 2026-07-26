@@ -70,6 +70,8 @@ class PosAdminRepository {
     String? posOwnerName,
     String? posGovernorate,
     String? posAddress,
+    double? posLatitude,
+    double? posLongitude,
   }) async {
     await _api.post(Endpoints.posUsersOnboard, params: {'entityId': entityId}, data: {
       'phone': phone,
@@ -78,6 +80,11 @@ class PosAdminRepository {
       if (posOwnerName != null && posOwnerName.isNotEmpty) 'posOwnerName': posOwnerName,
       if (posGovernorate != null && posGovernorate.isNotEmpty) 'posGovernorate': posGovernorate,
       if (posAddress != null && posAddress.isNotEmpty) 'posAddress': posAddress,
+      // B-080: an optional location HINT — it pre-centres the shop's own confirm
+      // map, it does NOT confirm the location (selling stays blocked until the
+      // operator pins it on site).
+      'posLatitude': ?posLatitude,
+      'posLongitude': ?posLongitude,
     });
   }
 

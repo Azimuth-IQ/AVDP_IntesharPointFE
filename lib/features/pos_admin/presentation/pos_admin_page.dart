@@ -5,6 +5,8 @@ import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:inteshar/core/geo/governorates.dart';
+import 'package:inteshar/shared/widgets/map_location_picker.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
@@ -66,6 +68,10 @@ class _S {
   String get mainAgents => p('Main agents', 'الوكلاء الرئيسيون');
   String get subAgents => p('Sub agents', 'الوكلاء الفرعيون');
   String get done => p('Done', 'تم');
+  String get change => p('Change', 'تغيير');
+  String get pickOnMap => p('Pick on map', 'تحديد على الخريطة');
+  String get locationHintNone =>
+      p('Location (optional hint)', 'الموقع (اختياري — مبدئي)');
   String get revokeConfirm => p('Revoke this POS user? Their login stops and the slot is returned.',
       'إلغاء هذه النقطة؟ سيتوقف دخولها وتعود النقطة للرصيد.');
   String get required => p('Required', 'مطلوب');
@@ -407,6 +413,10 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     final owner = TextEditingController();
     final addr = TextEditingController();
     String? gov;
+    // B-080: optional location HINT. The shop still confirms its own location on
+    // its map gate before it can sell — this just pre-centres that map, so the
+    // operator isn't dropped in the middle of the country.
+    LatLng? hint;
     final formKey = GlobalKey<FormState>();
     final loc = Localizations.localeOf(context).languageCode;
     final ok = await showDialog<bool>(
@@ -443,6 +453,26 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
                   onChanged: (v) => setD(() => gov = v),
                 ),
                 _field(addr, s.address, validator: _req(s)),
+                const SizedBox(height: 8),
+                Row(children: [
+                  Expanded(
+                    child: Text(
+                      hint == null
+                          ? s.locationHintNone
+                          : '${hint!.latitude.toStringAsFixed(5)}, ${hint!.longitude.toStringAsFixed(5)}',
+                      style: IntesharType.sans(12,
+                          color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+                    ),
+                  ),
+                  TextButton.icon(
+                    icon: const Icon(Icons.map_outlined, size: 18),
+                    label: Text(hint == null ? s.pickOnMap : s.change),
+                    onPressed: () async {
+                      final picked = await pickLocationOnMap(ctx, initial: hint);
+                      if (picked != null) setD(() => hint = picked);
+                    },
+                  ),
+                ]),
               ]),
             ),
           ),
@@ -468,6 +498,8 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
           posOwnerName: owner.text.trim(),
           posGovernorate: gov,
           posAddress: addr.text.trim(),
+          posLatitude: hint?.latitude,
+          posLongitude: hint?.longitude,
         ),
         s.done,
       );

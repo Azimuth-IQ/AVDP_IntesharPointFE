@@ -34,6 +34,7 @@ import 'package:inteshar/features/pos/presentation/pos_sales_panel.dart';
 import 'package:inteshar/features/pos/presentation/pos_statement_panel.dart';
 import 'package:inteshar/features/pos/presentation/printer_picker_page.dart';
 import 'package:inteshar/shared/widgets/map_location_picker.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/brand_backdrop.dart';
 import 'package:inteshar/shared/widgets/brand_cta.dart';
@@ -2396,7 +2397,14 @@ class _LocationGateState extends ConsumerState<_LocationGate> {
   bool _busy = false;
 
   Future<void> _confirm() async {
-    final picked = await pickLocationOnMap(context);
+    // B-080: start on the hint the onboarding agent dropped (if any) rather than
+    // the centre of Iraq — the operator nudges a nearby pin instead of hunting.
+    final p = ref.read(authStateProvider).valueOrNull;
+    final prof = p is AuthAuthenticated ? p.entity.profile : null;
+    final hint = (prof?.latitude != null && prof?.longitude != null)
+        ? LatLng(prof!.latitude!, prof.longitude!)
+        : null;
+    final picked = await pickLocationOnMap(context, initial: hint);
     if (picked == null || !mounted) return;
     setState(() => _busy = true);
     final messenger = ScaffoldMessenger.of(context);

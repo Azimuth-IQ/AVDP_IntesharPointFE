@@ -9,7 +9,6 @@ import 'package:inteshar/core/api/endpoints.dart';
 import 'package:inteshar/core/locale/locale_controller.dart';
 import 'package:inteshar/core/storage/session_storage.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
-import 'package:inteshar/features/auth/application/seed_controller.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/brand_cta.dart';
 import 'package:inteshar/shared/widgets/brand_star.dart';
@@ -34,7 +33,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   bool _remember = false; // G17: pre-fill the phone next time
   bool _loading = false;
   String? _error;
-  bool _showMongoHint = false;
   _TotpStep _totpStep = _TotpStep.credentials;
   String _otpauthUri = '';
   String _secret = '';
@@ -148,7 +146,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     setState(() {
       _loading = true;
       _error = null;
-      _showMongoHint = false;
     });
     final code = _totpStep == _TotpStep.credentials
         ? null
@@ -192,7 +189,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           _error = (onCode && (statusCode == null || statusCode < 500))
               ? (ar ? 'رمز التحقق غير صحيح' : 'Incorrect verification code')
               : _friendlyLoginError(statusCode);
-          _showMongoHint = false;
       }
     });
   }
@@ -323,13 +319,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             onToggleRemember: (v) => setState(() => _remember = v),
             loading: _loading,
             error: _error,
-            showMongoHint: _showMongoHint,
             isAuthenticated: isAuthenticated,
             l: l,
             onSignIn: _signIn,
             onShowUrlSheet: _showUrlSheet,
-            onSeed: () =>
-                ref.read(seedControllerProvider.notifier).seed(context),
           );
 
     // Intercept the system/browser back button while on enroll or code step so
@@ -626,6 +619,26 @@ class _ChangePasswordForm extends StatelessWidget {
                 : 'You must set a new password before continuing.',
             style: TextStyle(color: cs.onSurfaceVariant),
           ),
+          const SizedBox(height: 8),
+          // B-080: say this BEFORE they submit. Changing the password mints no
+          // token by design (B-011 — a token here would skip the second factor),
+          // so the user lands back on sign-in. Without the warning that reads as
+          // "it failed" and people retype the old password.
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.info_outline, size: 15, color: cs.onSurfaceVariant),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  ar
+                      ? 'بعد الحفظ سيُطلب منك تسجيل الدخول مرة أخرى بكلمة المرور الجديدة.'
+                      : "After saving you'll be asked to sign in again with the new password.",
+                  style: IntesharType.sans(12, color: cs.onSurfaceVariant),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
           PasswordField(
             controller: newPassCtrl,
@@ -791,12 +804,10 @@ class _LoginForm extends ConsumerWidget {
   final ValueChanged<bool> onToggleRemember;
   final bool loading;
   final String? error;
-  final bool showMongoHint;
   final bool isAuthenticated;
   final AppLocalizations l;
   final VoidCallback onSignIn;
   final VoidCallback onShowUrlSheet;
-  final VoidCallback onSeed;
 
   const _LoginForm({
     required this.formKey,
@@ -808,12 +819,10 @@ class _LoginForm extends ConsumerWidget {
     required this.onToggleRemember,
     required this.loading,
     required this.error,
-    required this.showMongoHint,
     required this.isAuthenticated,
     required this.l,
     required this.onSignIn,
     required this.onShowUrlSheet,
-    required this.onSeed,
   });
 
   @override
@@ -934,15 +943,6 @@ class _LoginForm extends ConsumerWidget {
               body: error!,
             ),
           ],
-          if (showMongoHint) ...[
-            const SizedBox(height: 10),
-            _Banner(
-              tone: context.tones.brandInk,
-              icon: Icons.info_outline,
-              title: l.loginNoUsersTitle,
-              body: '${l.loginNoUsers}\n\n${l.loginNoUsersDefault}',
-            ),
-          ],
           const SizedBox(height: 24),
           // The server-endpoint sheet is intentionally hidden behind a long-press
           // on the sign-in button (no visible field) — testers/admins can still
@@ -965,15 +965,6 @@ class _LoginForm extends ConsumerWidget {
               child: Text(ar ? 'نسيت كلمة المرور؟' : 'Forgot password?'),
             ),
           ),
-          if (isAuthenticated) ...[
-            const SizedBox(height: 12),
-            BrandCTAButton(
-              label: l.loginSeedDemo,
-              leading: Icons.play_arrow,
-              variant: BrandCTAVariant.outline,
-              onPressed: onSeed,
-            ),
-          ],
         ],
       ),
     );

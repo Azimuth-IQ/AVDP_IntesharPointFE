@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:excel/excel.dart' hide Border;
 import 'package:file_picker/file_picker.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
@@ -160,7 +159,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
       for (final row in catalog.rows) {
         if (!_regionalRow(row)) {
           // Non-regional: a single SKU-wide base price.
-          final baseVal = num.tryParse(_ctrls['${row.sku}::']?.text.trim() ?? '');
+          final baseVal = parseAmount(_ctrls['${row.sku}::']?.text);
           if (baseVal != null &&
               (row.agentPrice == null || row.agentPrice != baseVal)) {
             await _repo.setPrice(entityId: '', sku: row.sku, price: baseVal);
@@ -170,9 +169,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
         // Regional: per-governorate prices ONLY (no standalone global price). The
         // untagged "" bucket, if any, is saved here too via its own governorate row.
         for (final g in row.governorates) {
-          final value = num.tryParse(
-            _ctrls['${row.sku}::${g.governorate}']?.text.trim() ?? '',
-          );
+          final value = parseAmount(_ctrls['${row.sku}::${g.governorate}']?.text);
           if (value == null) continue;
           if (g.agentPrice == null || g.agentPrice != value) {
             await _repo.setPrice(
@@ -705,7 +702,7 @@ class _PriceField extends StatelessWidget {
           child: TextField(
             controller: ctrl,
             keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            inputFormatters: const [ThousandsInputFormatter()],
             style: IntesharType.mono(14, color: cs.onSurface),
             decoration: InputDecoration(labelText: label, isDense: true),
           ),

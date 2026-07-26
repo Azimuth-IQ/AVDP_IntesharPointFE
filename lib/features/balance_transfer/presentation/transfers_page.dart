@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
-import 'package:inteshar/core/api/paged.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
@@ -19,6 +17,9 @@ import 'package:inteshar/shared/widgets/responsive.dart';
 /// B-056 — التحويل: the agent's balance-transfer page (AGENT1 + AGENT2).
 /// Shows the available balance, sends credit to a DIRECT child (server-enforced
 /// rule) with the B-040 confirm dialog, and lists the grant-ledger history.
+/// B-092: which slice of the direct children the destination picker is showing.
+enum _DestKind { all, subAgents, pos }
+
 class TransfersPage extends ConsumerStatefulWidget {
   const TransfersPage({super.key});
 
@@ -90,7 +91,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
       final results = await Future.wait([
         PricingRepository(api).balance(),
         PricingRepository(api).grants(),
-        EntityRepository(api).children(_myId, size: 500),
+        _allChildren(api),
       ]);
       final grants = (results[1] as List<GrantRow>).toList()
         ..sort((a, b) => '${b.date} ${b.time}'.compareTo('${a.date} ${a.time}'));
@@ -98,7 +99,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
       setState(() {
         _balance = results[0] as AgentBalance;
         _grants = grants;
-        _children = (results[2] as Paged<EntitySummaryRow>).items;
+        _children = results[2] as List<EntitySummaryRow>;
         _loading = false;
       });
     } catch (e) {
@@ -111,24 +112,70 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
     }
   }
 
+  /// EVERY direct child, paged to exhaustion. The server clamps `size` to 200 and
+  /// sorts rows type-ascending, so an agent's own POS points (STORE sorts last) fell
+  /// off the first page entirely — which is why they appeared to be missing (B-092).
+  Future<List<EntitySummaryRow>> _allChildren(dynamic api) async {
+    final out = <EntitySummaryRow>[];
+    var page = 0;
+    while (true) {
+      final res = await EntityRepository(api).children(_myId, page: page, size: 200);
+      out.addAll(res.items);
+      if (!res.hasMore || page > 50) break; // guard: never loop forever
+      page++;
+    }
+    return out;
+  }
+
   /// A searchable single-select over the loaded direct children (transfers must
-  /// target a direct child, so this stays scoped to that set — B-076).
+  /// target a direct child, so this stays scoped to that set — B-076), with a
+  /// list-type filter so an agent can jump straight to its POS points (B-092).
   Future<EntitySummaryRow?> _pickChild(BuildContext context) async {
     final ar = Localizations.localeOf(context).languageCode == 'ar';
     var query = '';
+    var kind = _DestKind.all;
     return showDialog<EntitySummaryRow>(
       context: context,
       builder: (ctx) => StatefulBuilder(builder: (ctx, setD) {
         final q = query.trim().toLowerCase();
+        final byKind = switch (kind) {
+          _DestKind.subAgents =>
+            _children.where((e) => e.type != EntityType.STORE).toList(),
+          _DestKind.pos =>
+            _children.where((e) => e.type == EntityType.STORE).toList(),
+          _ => _children,
+        };
         final rows = q.isEmpty
-            ? _children
-            : _children.where((e) => e.label.toLowerCase().contains(q)).toList();
+            ? byKind
+            : byKind.where((e) => e.label.toLowerCase().contains(q)).toList();
+        final posCount = _children.where((e) => e.type == EntityType.STORE).length;
+        final agentCount = _children.length - posCount;
         return AlertDialog(
           title: Text(ar ? 'اختر الحساب' : 'Select account'),
           content: SizedBox(
             width: 420,
-            height: 380,
+            height: 420,
             child: Column(children: [
+              // Jump straight to sub-agents or POS points — an agent's own POS
+              // points were previously buried under a long sub-agent list.
+              SegmentedButton<_DestKind>(
+                showSelectedIcon: false,
+                style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                segments: [
+                  ButtonSegment(
+                      value: _DestKind.all,
+                      label: Text(ar ? 'الكل' : 'All')),
+                  ButtonSegment(
+                      value: _DestKind.subAgents,
+                      label: Text(ar ? 'الوكلاء ($agentCount)' : 'Agents ($agentCount)')),
+                  ButtonSegment(
+                      value: _DestKind.pos,
+                      label: Text(ar ? 'نقاط البيع ($posCount)' : 'POS ($posCount)')),
+                ],
+                selected: {kind},
+                onSelectionChanged: (sel) => setD(() => kind = sel.first),
+              ),
+              const SizedBox(height: 8),
               TextField(
                 autofocus: true,
                 decoration: InputDecoration(
@@ -196,7 +243,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
               controller: amountCtrl,
               autofocus: true,
               keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              inputFormatters: const [ThousandsInputFormatter()],
               decoration: InputDecoration(
                 labelText: s.amount,
                 isDense: true,
@@ -210,7 +257,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
               final ar = Localizations.localeOf(ctx).languageCode == 'ar';
               final cs = Theme.of(ctx).colorScheme;
               final avail = _balance?.available ?? 0;
-              final amt = num.tryParse(amountCtrl.text.trim()) ?? 0;
+              final amt = parseAmount(amountCtrl.text) ?? 0;
               final after = avail - amt;
               TextStyle lbl = IntesharType.sans(12.5, color: cs.onSurfaceVariant);
               return Column(children: [
@@ -234,7 +281,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                 child: Text(s.cancel)),
             FilledButton(
               onPressed: () {
-                final n = num.tryParse(amountCtrl.text.trim());
+                final n = parseAmount(amountCtrl.text);
                 if (n == null || n <= 0) {
                   setD(() => fieldError = s.invalidAmount);
                   return;
@@ -253,7 +300,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
         ),
       ),
     );
-    final amount = num.tryParse(amountCtrl.text.trim());
+    final amount = parseAmount(amountCtrl.text);
     final target = dest;
     if (ok != true || amount == null || amount <= 0 || target == null) return;
     if (!mounted) return;

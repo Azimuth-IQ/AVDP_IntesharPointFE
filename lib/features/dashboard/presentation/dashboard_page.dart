@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -924,7 +923,7 @@ class _TransferSheetState extends ConsumerState<_TransferSheet> {
   Future<void> _submit() async {
     final ar = Localizations.localeOf(context).languageCode == 'ar';
     final dest = _dest;
-    final amount = num.tryParse(_amount.text.trim());
+    final amount = parseAmount(_amount.text);
     if (dest == null) return;
     if (amount == null || amount <= 0) {
       setState(
@@ -1029,7 +1028,7 @@ class _TransferSheetState extends ConsumerState<_TransferSheet> {
           TextField(
             controller: _amount,
             keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            inputFormatters: const [ThousandsInputFormatter()],
             decoration: InputDecoration(
               labelText: ar ? 'المبلغ' : 'Amount',
               suffixText: 'IQD',
@@ -1040,7 +1039,7 @@ class _TransferSheetState extends ConsumerState<_TransferSheet> {
           // Live before → after so the impact is visible at decision time (B-076).
           Builder(builder: (_) {
             final avail = widget.balance.available;
-            final amt = num.tryParse(_amount.text.trim()) ?? 0;
+            final amt = parseAmount(_amount.text) ?? 0;
             final after = avail - amt;
             final lbl = IntesharType.sans(12.5, color: cs.onSurfaceVariant);
             return Column(children: [

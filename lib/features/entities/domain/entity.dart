@@ -65,10 +65,16 @@ class EntityMeta {
   final String primaryColor;   // brand hex (e.g. #F5B100) — white-label
   final String secondaryColor; // accent hex — white-label
   final int lowStockThreshold; // per-account low-stock alert level; 0 = unset → default
+  // B-086: cards sellable in ONE bulk request. 0 = inherit; the EFFECTIVE value is the
+  // minimum over the chain (server-resolved), so an agent can only ever tighten.
+  final int maxBulkPrint;
+  // B-086: when true this account (and its subtree) may not edit bulk limits — HQ-only
+  // to change. Defaults to true (locked) so the right is granted, never assumed.
+  final bool bulkLimitLocked;
   final List<String> governorates; // governorate codes this entity operates in (geo-lock)
   final WorkingHours? workingHours; // per-account login window (BRD FR-03); null = always open
 
-  const EntityMeta({this.name = '', this.slogan = '', this.description = '', this.logoUrl = '', this.backgroundUrl = '', this.sliderImagesUrl = const [], this.sliderImages = const [], this.primaryColor = '', this.secondaryColor = '', this.lowStockThreshold = 0, this.governorates = const [], this.workingHours});
+  const EntityMeta({this.name = '', this.slogan = '', this.description = '', this.logoUrl = '', this.backgroundUrl = '', this.sliderImagesUrl = const [], this.sliderImages = const [], this.primaryColor = '', this.secondaryColor = '', this.lowStockThreshold = 0, this.maxBulkPrint = 0, this.bulkLimitLocked = true, this.governorates = const [], this.workingHours});
 
   /// The structured slider list, migrating legacy flat [sliderImagesUrl] (all
   /// active, in order) when no structured list has been saved yet.
@@ -95,6 +101,8 @@ class EntityMeta {
     primaryColor: j['primaryColor'] as String? ?? '',
     secondaryColor: j['secondaryColor'] as String? ?? '',
     lowStockThreshold: (j['lowStockThreshold'] as num?)?.toInt() ?? 0,
+    maxBulkPrint: (j['maxBulkPrint'] as num?)?.toInt() ?? 0,
+    bulkLimitLocked: j['bulkLimitLocked'] as bool? ?? true,
     governorates: (j['governorates'] as List<dynamic>?)?.cast<String>() ?? const [],
     workingHours: j['workingHours'] == null ? null : WorkingHours.fromJson((j['workingHours'] as Map).cast<String, dynamic>()),
   );
@@ -110,11 +118,13 @@ class EntityMeta {
     'primaryColor': primaryColor,
     'secondaryColor': secondaryColor,
     'lowStockThreshold': lowStockThreshold,
+    if (maxBulkPrint > 0) 'maxBulkPrint': maxBulkPrint,
+    'bulkLimitLocked': bulkLimitLocked,
     'governorates': governorates,
     if (workingHours != null) 'workingHours': workingHours!.toJson(),
   };
 
-  EntityMeta copyWith({String? name, String? slogan, String? description, String? logoUrl, String? backgroundUrl, List<String>? sliderImagesUrl, List<SliderImage>? sliderImages, String? primaryColor, String? secondaryColor, int? lowStockThreshold, List<String>? governorates, WorkingHours? workingHours}) => EntityMeta(
+  EntityMeta copyWith({String? name, String? slogan, String? description, String? logoUrl, String? backgroundUrl, List<String>? sliderImagesUrl, List<SliderImage>? sliderImages, String? primaryColor, String? secondaryColor, int? lowStockThreshold, int? maxBulkPrint, bool? bulkLimitLocked, List<String>? governorates, WorkingHours? workingHours}) => EntityMeta(
     name: name ?? this.name,
     slogan: slogan ?? this.slogan,
     description: description ?? this.description,
@@ -125,6 +135,8 @@ class EntityMeta {
     primaryColor: primaryColor ?? this.primaryColor,
     secondaryColor: secondaryColor ?? this.secondaryColor,
     lowStockThreshold: lowStockThreshold ?? this.lowStockThreshold,
+    maxBulkPrint: maxBulkPrint ?? this.maxBulkPrint,
+    bulkLimitLocked: bulkLimitLocked ?? this.bulkLimitLocked,
     governorates: governorates ?? this.governorates,
     workingHours: workingHours ?? this.workingHours,
   );

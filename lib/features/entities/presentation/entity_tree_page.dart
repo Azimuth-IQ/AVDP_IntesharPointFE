@@ -666,6 +666,10 @@ class _TreeNode extends ConsumerWidget {
         text: full.meta.lowStockThreshold > 0
             ? full.meta.lowStockThreshold.toString()
             : '');
+    // B-086: per-request bulk card limit + whether this account may manage limits.
+    final bulkCtrl = TextEditingController(
+        text: full.meta.maxBulkPrint > 0 ? full.meta.maxBulkPrint.toString() : '');
+    var bulkLocked = full.meta.bulkLimitLocked;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -681,6 +685,11 @@ class _TreeNode extends ConsumerWidget {
         primaryCtrl: primaryCtrl,
         secondaryCtrl: secondaryCtrl,
         thresholdCtrl: thresholdCtrl,
+        bulkCtrl: bulkCtrl,
+        // Only HQ may delegate/revoke limit management (server-enforced too).
+        showBulkLock: _viewerIsHq(ref),
+        bulkLocked: bulkLocked,
+        onBulkLockChanged: (v) => bulkLocked = v,
         onSave: () async {
           final api = ref.read(apiClientProvider);
           final repo = EntityRepository(api);
@@ -694,6 +703,8 @@ class _TreeNode extends ConsumerWidget {
               primaryColor: primaryCtrl.text.trim(),
               secondaryColor: secondaryCtrl.text.trim(),
               lowStockThreshold: int.tryParse(thresholdCtrl.text.trim()) ?? 0,
+              maxBulkPrint: int.tryParse(bulkCtrl.text.trim()) ?? 0,
+              bulkLimitLocked: bulkLocked,
             ),
           );
           await repo.updateWithUsers(updated);
@@ -864,6 +875,10 @@ class _EntityFormSheet extends StatefulWidget {
   final TextEditingController primaryCtrl;
   final TextEditingController secondaryCtrl;
   final TextEditingController thresholdCtrl;
+  final TextEditingController bulkCtrl;
+  final bool showBulkLock;
+  final bool bulkLocked;
+  final ValueChanged<bool> onBulkLockChanged;
   final Future<void> Function() onSave;
 
   const _EntityFormSheet({
@@ -876,6 +891,10 @@ class _EntityFormSheet extends StatefulWidget {
     required this.primaryCtrl,
     required this.secondaryCtrl,
     required this.thresholdCtrl,
+    required this.bulkCtrl,
+    this.showBulkLock = false,
+    this.bulkLocked = true,
+    required this.onBulkLockChanged,
     required this.onSave,
   });
 
@@ -997,6 +1016,39 @@ class _EntityFormSheetState extends State<_EntityFormSheet> {
               controller: widget.secondaryCtrl,
               label: l.entityFieldSecondaryColor,
             ),
+            const SizedBox(height: 12),
+            // B-086: how many cards this account may sell in one bulk request. Blank =
+            // inherit. The server resolves the EFFECTIVE value as the minimum over the
+            // chain, so this can only ever tighten what an ancestor already allows.
+            TextField(
+              controller: widget.bulkCtrl,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: ar ? 'حد البيع بالجملة (بطاقات/عملية)' : 'Bulk sale limit (cards per sale)',
+                hintText: '10',
+                helperText: ar
+                    ? 'اتركه فارغًا للتوريث. 1 يعطّل البيع بالجملة.'
+                    : 'Blank inherits. 1 disables bulk selling.',
+              ),
+            ),
+            // Only HQ may delegate or revoke limit management (server-enforced).
+            if (widget.showBulkLock)
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                value: !widget.bulkLocked,
+                onChanged: (v) => setState(() => widget.onBulkLockChanged(!v)),
+                title: Text(
+                  ar ? 'السماح للوكيل بتعديل الحد' : 'Let this agent edit the limit',
+                  style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w600),
+                ),
+                subtitle: Text(
+                  ar
+                      ? 'عند التعطيل، الإدارة وحدها تحدد الحد لهذا الحساب وكل ما تحته.'
+                      : 'When off, only HQ sets the limit for this account and everything under it.',
+                  style: IntesharType.sans(11, color: cs.onSurfaceVariant),
+                ),
+              ),
             const SizedBox(height: 12),
             TextField(
               controller: widget.thresholdCtrl,

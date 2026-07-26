@@ -16,6 +16,7 @@ import 'package:inteshar/shared/widgets/brand_band.dart';
 import 'package:inteshar/shared/widgets/brand_masthead.dart';
 import 'package:inteshar/shared/widgets/brand_star.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
+import 'package:inteshar/shared/widgets/language_switcher_row.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 import 'package:inteshar/shared/widgets/role_badge.dart';
 
@@ -1163,6 +1164,17 @@ class _Sidebar extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(10, 6, 10, 14),
               child: Column(
                 children: [
+                  // B-096: language was buried at the bottom of About, below the
+                  // printer list — nobody finds it there. With only two locales a
+                  // one-tap toggle beats a control: the row names the language you'd
+                  // switch TO, in its own script, so it reads as an action.
+                  Consumer(
+                    builder: (ctx, ref, _) => _NavRow.action(
+                      icon: Icons.translate_outlined,
+                      label: otherLanguageLabel(ctx),
+                      onTap: () => ref.read(localeControllerProvider.notifier).toggle(),
+                    ),
+                  ),
                   _NavRow.action(
                     icon: Icons.info_outline,
                     label: AppLocalizations.of(context)!.aboutTitle,
@@ -1434,7 +1446,7 @@ void _showAboutSheet(BuildContext context) {
               const SizedBox(height: 16),
               const Divider(height: 1),
               const SizedBox(height: 12),
-              const _LanguageSwitcherRow(),
+              const LanguageSwitcherRow(),
             ],
           ),
         ),
@@ -1447,48 +1459,6 @@ void _showAboutSheet(BuildContext context) {
       );
     },
   );
-}
-
-class _LanguageSwitcherRow extends ConsumerWidget {
-  const _LanguageSwitcherRow();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
-    final locale = ref.watch(localeControllerProvider);
-    return Row(
-      children: [
-        Icon(Icons.translate_outlined, size: 18, color: cs.onSurfaceVariant),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            l.languageLabel,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-        ),
-        SegmentedButton<String>(
-          showSelectedIcon: false,
-          style: ButtonStyle(
-            visualDensity: VisualDensity.compact,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            textStyle: WidgetStatePropertyAll(
-              Theme.of(context).textTheme.labelSmall,
-            ),
-          ),
-          segments: [
-            ButtonSegment(value: 'ar', label: Text(l.languageArabic)),
-            ButtonSegment(value: 'en', label: Text(l.languageEnglish)),
-          ],
-          selected: {locale.languageCode},
-          onSelectionChanged: (sel) {
-            final code = sel.first;
-            ref.read(localeControllerProvider.notifier).setLocale(Locale(code));
-          },
-        ),
-      ],
-    );
-  }
 }
 
 class _AboutDrawer extends StatelessWidget {
@@ -1555,7 +1525,7 @@ class _AboutDrawer extends StatelessWidget {
             const Divider(height: 1),
             const Padding(
               padding: EdgeInsets.fromLTRB(20, 16, 20, 16),
-              child: _LanguageSwitcherRow(),
+              child: LanguageSwitcherRow(),
             ),
           ],
         ),

@@ -10,6 +10,7 @@ import 'package:inteshar/features/pos/presentation/pos_brand.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/brand_cta.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
+import 'package:inteshar/shared/widgets/language_switcher_row.dart';
 import 'package:inteshar/shared/widgets/password_field.dart';
 
 /// الحساب (سستم A92): the shop profile — trade name, owner triple name, address,
@@ -88,6 +89,14 @@ class PosAccountPanel extends ConsumerWidget {
                         : (ar ? 'غير مؤكد — مطلوب قبل البيع' : 'Not confirmed — required before selling'),
                   ),
                 ]),
+              ),
+              const SizedBox(height: 20),
+              // B-096: the POS shell never imports the agent scaffold, so until now
+              // an operator had NO way to change the language and was stuck on the
+              // default. This panel is where they'd look for it.
+              const InkCard(
+                padding: EdgeInsets.fromLTRB(16, 12, 16, 12),
+                child: LanguageSwitcherRow(),
               ),
               const SizedBox(height: 20),
               BrandCTAButton(

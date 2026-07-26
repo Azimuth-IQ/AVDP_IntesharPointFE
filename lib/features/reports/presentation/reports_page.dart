@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
+import 'package:inteshar/core/api/paged.dart';
 import 'package:inteshar/core/files/report_export.dart';
 import 'package:inteshar/core/geo/governorates.dart';
 import 'package:inteshar/core/utils/formatters.dart';
@@ -92,6 +93,11 @@ class _RS {
   String get user => p('User', 'المستخدم');
   String get currentBalance => p('Current balance', 'الرصيد الحالي');
   String get agentLabel => p('Agent', 'الوكيل');
+  String get loadMore => p('Load more', 'تحميل المزيد');
+  String get generatedAt => p('Generated', 'تاريخ الإنشاء');
+  String get exportTruncated =>
+      p('Export stopped at the row cap — the sheet is incomplete',
+        'توقّف التصدير عند الحد الأقصى للصفوف — الملف غير مكتمل');
 }
 
 class _Tab {
@@ -149,8 +155,10 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
   @override
   void initState() {
     super.initState();
-    // Default the dated reports to the last 30 days so nothing loads a full history
-    // (the backend applies the same default if these are omitted).
+    // Default the dated reports to the last 30 days so nothing loads a full history.
+    // B-097: clearing the range now sends allDates=true EXPLICITLY — omitting from/to
+    // used to fall through to the server's own 30-day default while the bar read
+    // "All dates", so the report said "all" and returned a month.
     final now = DateTime.now();
     _to = now;
     _from = now.subtract(const Duration(days: 30));
@@ -203,7 +211,98 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     if (mounted) setState(() => _booting = false);
   }
 
-  void _invalidate() => setState(() => _cache.clear());
+  // B-097: the two paged feeds accumulate across pages. The report widgets still
+  // take a plain List, so the accumulator IS the future's value and Load-more just
+  // republishes it.
+  final Map<String, List<dynamic>> _acc = {};
+  final Map<String, int> _accPage = {};
+  final Map<String, bool> _accMore = {};
+  String? _loadingMoreFor;
+
+  /// True when the user cleared the range. B-097: this is now sent EXPLICITLY as
+  /// `allDates` — omitting from/to silently meant "last 30 days" on the server
+  /// while the bar said "All dates".
+  bool get _allDates => _from == null || _to == null;
+
+  void _invalidate() => setState(() {
+        _cache.clear();
+        _acc.clear();
+        _accPage.clear();
+        _accMore.clear();
+      });
+
+  static const _pageSize = 100;
+
+  /// Loads page 0 of a paged feed into the accumulator and returns its rows.
+  Future<List<T>> _firstPage<T>(String src, Future<Paged<T>> Function(int) fetch) async {
+    final p = await fetch(0);
+    _acc[src] = List<dynamic>.from(p.items);
+    _accPage[src] = 0;
+    _accMore[src] = p.hasMore;
+    return p.items;
+  }
+
+  Future<Paged<dynamic>> _fetchPage(String src, int page) {
+    final id = _effectiveId;
+    switch (src) {
+      case 'posBalances':
+        return _repo.balancesRoster(rootId: id, type: 'STORE', page: page, size: _pageSize);
+      case 'agentBalances':
+        return _repo.balancesRoster(rootId: id, page: page, size: _pageSize);
+      default:
+        return _repo.transfers(
+            rootId: id,
+            from: _ymd(_from),
+            to: _ymd(_to),
+            allDates: _allDates,
+            page: page,
+            size: _pageSize);
+    }
+  }
+
+  /// Agent-balance rows are filtered client-side, so filter each page as it lands
+  /// rather than the page-0 slice only.
+  List<dynamic> _filterPage(String src, List<dynamic> items) => src == 'agentBalances'
+      ? items.where((r) => r.tier == 'AGENT1' || r.tier == 'AGENT2').toList()
+      : items;
+
+  Future<void> _loadMore(String src) async {
+    if (_loadingMoreFor != null || !(_accMore[src] ?? false)) return;
+    setState(() => _loadingMoreFor = src);
+    try {
+      final next = await _fetchPage(src, (_accPage[src] ?? 0) + 1);
+      if (!mounted) return;
+      setState(() {
+        _acc[src] = [...?_acc[src], ..._filterPage(src, next.items)];
+        _accPage[src] = (_accPage[src] ?? 0) + 1;
+        _accMore[src] = next.hasMore;
+        _cache[src] = Future.value(List<dynamic>.from(_acc[src]!));
+        _loadingMoreFor = null;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loadingMoreFor = null);
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+      }
+    }
+  }
+
+  /// Pages a feed to EXHAUSTION for export. A sheet that silently stops at page 0
+  /// while looking complete is worse than no sheet — so this walks every page, and
+  /// the hard cap exists only so a runaway cannot hang the app. [onCapped] fires if
+  /// the cap is ever reached, and the caller warns instead of pretending.
+  Future<List<dynamic>> _fetchAllPages(String src, {required void Function() onCapped}) async {
+    const maxPages = 200; // 20k rows at _pageSize
+    final out = <dynamic>[];
+    for (var p = 0; p < maxPages; p++) {
+      final res = await _fetchPage(src, p);
+      out.addAll(_filterPage(src, res.items));
+      if (!res.hasMore) return out;
+    }
+    onCapped();
+    return out;
+  }
 
   Future<dynamic> _futureFor(String tab) {
     final src = _sourceKey(tab);
@@ -216,20 +315,28 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         case 'stock':
           return _repo.stockSummary(entityId: id);
         case 'posBalances':
-          return _repo.balancesRoster(rootId: id, type: 'STORE');
         case 'agentBalances':
-          return _repo.balancesRoster(rootId: id).then((rows) =>
-              rows.where((r) => r.tier == 'AGENT1' || r.tier == 'AGENT2').toList());
         case 'transfers':
-          return _repo.transfers(rootId: id, from: _ymd(_from), to: _ymd(_to));
+          return _firstPage(src, (p) => _fetchPage(src, p))
+              .then((rows) => _acc[src] = _filterPage(src, rows));
         case 'sales':
-          return _repo.sales(rootId: id, from: _ymd(_from), to: _ymd(_to));
+          return _repo.sales(
+              rootId: id, from: _ymd(_from), to: _ymd(_to), allDates: _allDates);
         case 'uploaded':
-          return _repo.uploads(rootId: id, from: _ymd(_from), to: _ymd(_to));
+          return _repo.uploads(
+              rootId: id, from: _ymd(_from), to: _ymd(_to), allDates: _allDates);
         default:
           return Future.value(null);
       }
     });
+  }
+
+  /// Filename-safe fragment. Arabic entity names would survive most filesystems but
+  /// not every browser download path, so non-ASCII is dropped rather than mangled —
+  /// the sheet's own provenance block carries the full name either way.
+  String _slug(String v) {
+    final ascii = v.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '-').replaceAll(RegExp(r'^-+|-+$'), '');
+    return ascii.length > 24 ? ascii.substring(0, 24) : ascii;
   }
 
   String? _ymd(DateTime? d) => d == null ? null : '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -254,9 +361,17 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
   Future<void> _export(String key, _RS s) async {
     final loc = Localizations.localeOf(context).languageCode;
     final messenger = ScaffoldMessenger.of(context);
+    final src = _sourceKey(key);
+    final isPaged = src == 'posBalances' || src == 'agentBalances' || src == 'transfers';
     dynamic data;
+    var capped = false;
     try {
-      data = await _futureFor(key); // resolves instantly from the cache once loaded
+      // B-097: a paged report must export EVERY page. Exporting only what happens to
+      // be on screen produces a sheet that looks complete and silently isn't — which
+      // on an audit trail is worse than not exporting at all.
+      data = isPaged
+          ? await _fetchAllPages(src, onCapped: () => capped = true)
+          : await _futureFor(key); // resolves instantly from the cache once loaded
     } catch (e) {
       if (mounted) messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
       return;
@@ -267,10 +382,41 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
       messenger.showSnackBar(SnackBar(content: Text(s.nothingToExport)));
       return;
     }
+    // B-098: stamp WHAT this sheet is. Without it, January's sales and February's
+    // download as the same `sold_cards.xlsx` with nothing inside telling them apart.
+    final rangeLabel = _isDated(key)
+        ? (_allDates ? s.allDates : '${_ymd(_from)} → ${_ymd(_to)}')
+        : '—';
+    final now = DateTime.now();
+    final stamp = '${_ymd(now)}_${now.hour.toString().padLeft(2, '0')}'
+        '${now.minute.toString().padLeft(2, '0')}';
+    final scope = _currentAgentLabel.isEmpty ? s.self : _currentAgentLabel;
+    final fileName = [
+      built.file,
+      _slug(scope),
+      if (_isDated(key)) (_allDates ? 'all' : '${_ymd(_from)}_${_ymd(_to)}'),
+      stamp,
+    ].where((p) => p.isNotEmpty).join('-');
+
     try {
       final path = await exportRowsToXlsx(
-          fileName: built.file, sheetName: built.file, headers: built.headers, rows: built.rows);
-      if (mounted && path != null) messenger.showSnackBar(SnackBar(content: Text(s.exported)));
+          fileName: fileName,
+          sheetName: built.file,
+          headers: built.headers,
+          rows: built.rows,
+          provenance: [
+            (s.title, _tabsFor(s).firstWhere((t) => t.key == key).label),
+            (s.viewFor, scope),
+            (s.pickRange, rangeLabel),
+            (s.generatedAt, '${_ymd(now)} ${now.hour.toString().padLeft(2, '0')}:'
+                '${now.minute.toString().padLeft(2, '0')}'),
+            if (capped) (s.export, s.exportTruncated),
+          ]);
+      if (mounted && path != null) {
+        // Never let a capped export pass as a complete one.
+        messenger.showSnackBar(
+            SnackBar(content: Text(capped ? s.exportTruncated : s.exported)));
+      }
     } catch (e) {
       if (mounted) messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
     }
@@ -478,10 +624,14 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
           const SizedBox(width: 8),
           IconButton(
             icon: Icon(Icons.clear, size: 18, color: cs.onSurfaceVariant),
+            // B-097: clearing now genuinely means every date — _allDates flows to
+            // the API as an explicit flag. Use _invalidate so the paged accumulators
+            // reset too; a stale _acc would show the old window's rows under the
+            // new "All dates" label.
             onPressed: () => setState(() {
               _from = null;
               _to = null;
-              _cache.clear();
+              _invalidate();
             }),
           ),
         ],
@@ -500,7 +650,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
           return ErrorState(error: snap.error!, onRetry: () => setState(() => _cache.remove(_sourceKey(key))));
         }
         final data = snap.data;
-        return RefreshIndicator(
+        final body = RefreshIndicator(
           onRefresh: () async => setState(() => _cache.remove(_sourceKey(key))),
           child: switch (key) {
             'prices' => _PricesReport(catalog: data as PricingCatalog, s: s, agentLabel: _currentAgentLabel),
@@ -516,6 +666,21 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
             _ => _RosterReport(rows: (data as List<BalanceRosterRow>?) ?? const [], s: s),
           },
         );
+        // B-097: the paged feeds show the first page with a Load-more tail rather
+        // than pulling the whole subtree/ledger up front. Export still walks every
+        // page — see _fetchAllPages.
+        if (!(_accMore[_sourceKey(key)] ?? false)) return body;
+        return Column(children: [
+          Expanded(child: body),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: _loadingMoreFor == _sourceKey(key)
+                ? const SizedBox(
+                    width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
+                : OutlinedButton(
+                    onPressed: () => _loadMore(_sourceKey(key)), child: Text(s.loadMore)),
+          ),
+        ]);
       },
     );
   }

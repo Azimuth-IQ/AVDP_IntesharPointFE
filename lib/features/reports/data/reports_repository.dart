@@ -1,4 +1,5 @@
 import 'package:inteshar/core/api/api_client.dart';
+import 'package:inteshar/core/api/paged.dart';
 import 'package:inteshar/core/api/endpoints.dart';
 import 'package:inteshar/features/inventory/data/product_repository.dart';
 import 'package:inteshar/features/inventory/domain/sku_summary.dart';
@@ -30,38 +31,52 @@ class ReportsRepository {
   /// #1 POS balances (type STORE) / #2 agent balances (type AGENT1/AGENT2): a roster
   /// of the caller's subtree with each entity's virtual balance + the "who" columns.
   /// `rootId` null/'' = the caller's own entity (backend scopes to the subtree).
-  Future<List<BalanceRosterRow>> balancesRoster({String? rootId, String? type}) async {
+  /// B-097: paged. `Paged.from` also accepts a bare array, so this still works
+  /// against a backend that predates the page envelope.
+  Future<Paged<BalanceRosterRow>> balancesRoster(
+      {String? rootId, String? type, int page = 0, int size = 100}) async {
     final r = await _api.get(Endpoints.reportsBalances, params: {
       if (rootId != null && rootId.isNotEmpty) 'rootId': rootId,
       if (type != null && type.isNotEmpty) 'type': type,
+      'page': page,
+      'size': size,
     });
-    return _api.unwrap(r, (d) {
-      final list = (d as List<dynamic>?) ?? const [];
-      return list.map((e) => BalanceRosterRow.fromJson(e as Map<String, dynamic>)).toList();
-    });
+    return _api.unwrap(r, (d) => Paged.from(d, BalanceRosterRow.fromJson, size: size));
   }
 
   /// #3 financial transfers: balance grants in the subtree within [from,to]
   /// (ISO yyyy-MM-dd), newest-first, with a per-dest running credit total.
-  Future<List<TransferRow>> transfers({String? rootId, String? from, String? to}) async {
+  /// B-097: paged, and [allDates] is EXPLICIT. Omitting from/to used to fall through
+  /// to the backend's 30-day default while the UI said "All dates" — the flag is what
+  /// makes that label true.
+  Future<Paged<TransferRow>> transfers({
+    String? rootId,
+    String? from,
+    String? to,
+    bool allDates = false,
+    int page = 0,
+    int size = 100,
+  }) async {
     final r = await _api.get(Endpoints.reportsTransfers, params: {
       if (rootId != null && rootId.isNotEmpty) 'rootId': rootId,
       if (from != null && from.isNotEmpty) 'from': from,
       if (to != null && to.isNotEmpty) 'to': to,
+      if (allDates) 'allDates': true,
+      'page': page,
+      'size': size,
     });
-    return _api.unwrap(r, (d) {
-      final list = (d as List<dynamic>?) ?? const [];
-      return list.map((e) => TransferRow.fromJson(e as Map<String, dynamic>)).toList();
-    });
+    return _api.unwrap(r, (d) => Paged.from(d, TransferRow.fromJson, size: size));
   }
 
   /// #4 sold cards (per store×company×category×gov) in the subtree + date window.
   /// The FE rolls these up to #5 (total sold per agent×gov×company×category).
-  Future<List<SalesRow>> sales({String? rootId, String? from, String? to}) async {
+  Future<List<SalesRow>> sales(
+      {String? rootId, String? from, String? to, bool allDates = false}) async {
     final r = await _api.get(Endpoints.reportsSales, params: {
       if (rootId != null && rootId.isNotEmpty) 'rootId': rootId,
       if (from != null && from.isNotEmpty) 'from': from,
       if (to != null && to.isNotEmpty) 'to': to,
+      if (allDates) 'allDates': true,
     });
     return _api.unwrap(r, (d) {
       final list = (d as List<dynamic>?) ?? const [];
@@ -70,11 +85,13 @@ class ReportsRepository {
   }
 
   /// #6 uploaded cards (per main-agent×company×category×gov) in the subtree + date window.
-  Future<List<UploadsRow>> uploads({String? rootId, String? from, String? to}) async {
+  Future<List<UploadsRow>> uploads(
+      {String? rootId, String? from, String? to, bool allDates = false}) async {
     final r = await _api.get(Endpoints.reportsUploads, params: {
       if (rootId != null && rootId.isNotEmpty) 'rootId': rootId,
       if (from != null && from.isNotEmpty) 'from': from,
       if (to != null && to.isNotEmpty) 'to': to,
+      if (allDates) 'allDates': true,
     });
     return _api.unwrap(r, (d) {
       final list = (d as List<dynamic>?) ?? const [];

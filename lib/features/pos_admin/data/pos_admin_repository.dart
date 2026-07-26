@@ -1,4 +1,5 @@
 import 'package:inteshar/core/api/api_client.dart';
+import 'package:inteshar/core/api/paged.dart';
 import 'package:inteshar/core/api/endpoints.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/pos_admin/domain/pos_network.dart';
@@ -46,7 +47,20 @@ class PosAdminRepository {
     });
   }
 
-  /// The host agent's POS shops — its STORE children (B-052 unified model).
+  /// The host agent's POS shops — its STORE children, PAGED (B-023 P2).
+  ///
+  /// `Paged.from` tolerates a bare array, so this still works against a backend
+  /// that predates the paged route — it just comes back as one page.
+  Future<Paged<Entity>> listPaged({String? entityId, int page = 0, int size = 50}) async {
+    final r = await _api.get(Endpoints.posUsersListPaged, params: {
+      if (entityId != null && entityId.isNotEmpty) 'entityId': entityId,
+      'page': page,
+      'size': size,
+    });
+    return _api.unwrap(r, (d) => Paged.from(d, Entity.fromJson, size: size));
+  }
+
+  /// Unpaged variant. Kept for callers that genuinely need every shop at once.
   Future<List<Entity>> list({String? entityId}) async {
     final r = await _api.get(Endpoints.posUsersList,
         params: {if (entityId != null && entityId.isNotEmpty) 'entityId': entityId});

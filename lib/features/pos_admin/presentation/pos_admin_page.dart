@@ -68,6 +68,7 @@ class _S {
   String get mainAgents => p('Main agents', 'الوكلاء الرئيسيون');
   String get subAgents => p('Sub agents', 'الوكلاء الفرعيون');
   String get done => p('Done', 'تم');
+  String get loadMore => p('Load more', 'تحميل المزيد');
   String get change => p('Change', 'تغيير');
   String get pickOnMap => p('Pick on map', 'تحديد على الخريطة');
   String get locationHintNone =>
@@ -94,6 +95,9 @@ class _S {
 
 class _PosAdminPageState extends ConsumerState<PosAdminPage> {
   List<Entity> _stores = const [];
+  int _page = 0;
+  bool _hasMore = false;
+  bool _loadingMore = false;
   PosSlotBalance? _quota;
   // B-043: Main/Sub agents may only USE POS points, never grant them on. Only HQ distributes
   // points (to any account), via the network view — so this page carries no recipient picker.
@@ -119,6 +123,8 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     if (!_showNetwork) _load();
   }
 
+  static const _pageSize = 50;
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -128,15 +134,37 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
       final id = _effectiveId ?? '';
       final quota = await _repo.quota(entityId: id);
       // B-052: each POS is a STORE child entity of the host agent.
-      final stores = await _repo.list(entityId: id);
+      // B-023 P2: paged — a Main Agent with hundreds of shops used to get them
+      // all in one response and stall on a list it renders a card at a time.
+      final first = await _repo.listPaged(entityId: id, size: _pageSize);
       if (!mounted) return;
       setState(() {
-        _stores = stores;
+        _stores = first.items;
+        _hasMore = first.hasMore;
+        _page = 0;
         _quota = quota;
         _loading = false;
       });
     } catch (e) {
       if (mounted) setState(() { _error = e; _loading = false; });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore) return;
+    setState(() => _loadingMore = true);
+    try {
+      final next = await _repo.listPaged(
+          entityId: _effectiveId ?? '', page: _page + 1, size: _pageSize);
+      if (!mounted) return;
+      setState(() {
+        _stores = [..._stores, ...next.items];
+        _hasMore = next.hasMore;
+        _page += 1;
+        _loadingMore = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() => _loadingMore = false);
     }
   }
 
@@ -225,6 +253,16 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
             )
           else
             for (final st in _stores) _posCard(s, st, loc, cs),
+          if (_hasMore)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Center(
+                child: _loadingMore
+                    ? const SizedBox(
+                        width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
+                    : OutlinedButton(onPressed: _loadMore, child: Text(s.loadMore)),
+              ),
+            ),
         ],
       ),
     );

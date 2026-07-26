@@ -13,7 +13,7 @@ import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/domain/entity_summary_row.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/inventory/data/product_repository.dart';
-import 'package:inteshar/features/inventory/domain/product.dart';
+import 'package:inteshar/features/inventory/domain/sku_summary.dart';
 import 'package:inteshar/features/pricing/data/pricing_repository.dart';
 import 'package:inteshar/features/pricing/domain/pricing_models.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
@@ -25,7 +25,7 @@ import 'package:inteshar/shared/widgets/role_badge.dart';
 // ─── Data container ─────────────────────────────────────────────────────────
 
 class _DashData {
-  final List<Product> products;
+  final List<SkuSummary> stock;
   // Newest balance transfers touching this account (B-051: the transaction
   // flow is retired — HQ uploads stock directly; value moves as balance).
   final List<GrantRow> recentTransfers;
@@ -35,7 +35,7 @@ class _DashData {
   final AgentBalance balance;
 
   const _DashData({
-    required this.products,
+    required this.stock,
     required this.recentTransfers,
     required this.childCount,
     required this.children,
@@ -79,11 +79,14 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       // B-051: the recent-activity card shows balance transfers (the ledger
       // already carries resolved names), not the retired transaction flow.
       final results = await Future.wait([
-        ProductRepository(api).readByEntity(entity.id),
+        // B-023 P2: the KPI row needs COUNTS, not documents. readByEntity
+        // downloaded every voucher in the account to compute four numbers the
+        // server already aggregates.
+        ProductRepository(api).summaryByEntity(entity.id),
         PricingRepository(api).grants(),
         EntityRepository(api).children(entity.id, size: 200),
       ]);
-      final products = results[0] as List<Product>;
+      final stock = results[0] as List<SkuSummary>;
       final transfers = (results[1] as List<GrantRow>).toList()
         ..sort((a, b) => '${b.date} ${b.time}'.compareTo('${a.date} ${a.time}'));
       final children = (results[2] as Paged<EntitySummaryRow>).items;
@@ -94,7 +97,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       } catch (_) {}
       setState(() {
         _data = _DashData(
-          products: products,
+          stock: stock,
           recentTransfers: transfers.take(5).toList(),
           childCount: entity.childrenIds.length,
           children: children,
@@ -160,34 +163,20 @@ class _DashContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
 
-    // Compute KPI values
-    final availableProducts = data.products
-        .where((p) => p.status == ProductStatus.AVAILABLE)
-        .toList();
-    final availableSkus = <String>{
-      for (final p in availableProducts) p.productDefinition.sku,
-    };
-
-    // Group available count by SKU
-    final availableCountBySku = <String, int>{};
-    for (final p in availableProducts) {
-      availableCountBySku[p.productDefinition.sku] =
-          (availableCountBySku[p.productDefinition.sku] ?? 0) + 1;
-    }
+    // KPI values, straight off the server-side aggregation (B-023 P2).
+    final withStock = data.stock.where((k) => k.available > 0).toList();
+    final availableCount = withStock.fold<int>(0, (a, k) => a + k.available);
+    final availableSkuCount = withStock.length;
 
     // Low stock: SKUs below this account's configured threshold (falls back to
     // EntityMeta.defaultLowStockThreshold when the entity hasn't set one).
+    // Only SKUs the account actually holds count — a SKU at 0 is out of stock,
+    // which the empty-inventory state covers, not "low".
     final lowStockThreshold = entity.meta.effectiveLowStockThreshold;
-    final lowSkus = <String, ({String name, int count})>{};
-    for (final sku in availableCountBySku.keys) {
-      if (availableCountBySku[sku]! < lowStockThreshold) {
-        final name = data.products
-            .firstWhere((p) => p.productDefinition.sku == sku)
-            .productDefinition
-            .name;
-        lowSkus[sku] = (name: name, count: availableCountBySku[sku]!);
-      }
-    }
+    final lowSkus = <String, ({String name, int count})>{
+      for (final k in withStock)
+        if (k.available < lowStockThreshold) k.sku: (name: k.name, count: k.available),
+    };
 
 
     final isStore = entity.type == EntityType.STORE;
@@ -231,8 +220,8 @@ class _DashContent extends StatelessWidget {
             padding: const EdgeInsetsDirectional.fromSTEB(24, 24, 24, 0),
             child: _KpiRow(
               childCount: data.childCount,
-              availableCount: availableProducts.length,
-              availableSkuCount: availableSkus.length,
+              availableCount: availableCount,
+              availableSkuCount: availableSkuCount,
               lowStockCount: lowSkus.length,
               showInventory: entity.type.inventoryBacked,
             ),

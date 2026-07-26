@@ -688,36 +688,13 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
   }
 
   // Shared step header: optional back arrow, title/subtitle, and the balance tally.
-  Widget _header(AppLocalizations l, {required String title, String? subtitle, VoidCallback? onBack}) {
-    final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(onBack != null ? 8 : 20, 20, 20, 6),
-      child: Row(
-        children: [
-          if (onBack != null)
-            IconButton(
-              icon: Icon(_ar ? Icons.arrow_forward : Icons.arrow_back, color: cs.onSurface),
-              tooltip: l.posHomeCancel,
-              onPressed: onBack,
-            ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: IntesharType.display(24, color: cs.onSurface, w: FontWeight.w900), maxLines: 1, overflow: TextOverflow.ellipsis),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 2),
-                  Text(subtitle, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant), maxLines: 1, overflow: TextOverflow.ellipsis),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          _BalanceTally(balance: _balance),
-        ],
-      ),
-    );
-  }
+  Widget _header(AppLocalizations l, {required String title, String? subtitle, VoidCallback? onBack}) => PosStepHeader(
+        title: title,
+        subtitle: subtitle,
+        onBack: onBack,
+        backTooltip: l.posHomeCancel,
+        balance: _balance,
+      );
 
   void _showVoucher(SellableSku sku) {
     // A successful draw consumes one card from the parent pool. We can't optimistically
@@ -750,6 +727,90 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
 
 // ── Printer tab ───────────────────────────────────────────────────────────────
 
+/// The POS step header — title/subtitle on one side, the live balance on the other.
+///
+/// B-095: those two compete for a single row, and on a 360dp counter (a Sunmi V2)
+/// a real balance wins hard — `25,876,000 IQD` measures 170px of a 320px budget,
+/// which left the title 90px on the back-arrow steps and clipped `تأكيد البيع`
+/// to `تأكيد ال…` on the CONFIRM screen, the one place the operator most needs to
+/// read what they're about to sell. The contract now: the tally is `Flexible` so
+/// it yields, its numerals scale down rather than ellipsise, and the title steps
+/// down a size on narrow screens. Public so that contract is directly testable.
+///
+/// The tally is bounded by a *ceiling* (half the row) rather than given a flex
+/// share: a `Flexible` tally next to an `Expanded` title splits the row 50/50
+/// even when the balance is `—` and needs 100px, needlessly starving the title.
+/// A `ConstrainedBox` sizes to content, so the title keeps every pixel the
+/// balance doesn't actually need.
+class PosStepHeader extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final VoidCallback? onBack;
+  final String? backTooltip;
+  final AgentBalance? balance;
+
+  const PosStepHeader({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.onBack,
+    this.backTooltip,
+    this.balance,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    final narrow = MediaQuery.sizeOf(context).width < 420;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(onBack != null ? 8 : 20, 20, 20, 6),
+      child: LayoutBuilder(
+        builder: (context, c) => Row(
+          children: [
+            if (onBack != null)
+              IconButton(
+                icon: Icon(ar ? Icons.arrow_forward : Icons.arrow_back, color: cs.onSurface),
+                tooltip: backTooltip,
+                onPressed: onBack,
+              ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: IntesharType.display(narrow ? 19 : 24, color: cs.onSurface, w: FontWeight.w900),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle!,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            // 0.45 is measured, not taste: the longest shipped title with a back
+            // arrow ("Confirm sale", ~112px at 19px) needs the remainder on a
+            // 360dp counter. Widen this and English clips again.
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: c.maxWidth * 0.45),
+              child: _BalanceTally(balance: balance),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _BalanceTally extends StatelessWidget {
   final AgentBalance? balance;
   const _BalanceTally({required this.balance});
@@ -776,19 +837,33 @@ class _BalanceTally extends StatelessWidget {
           decoration: BoxDecoration(color: tones.brand, borderRadius: BorderRadius.circular(2)),
         ),
         const SizedBox(width: 10),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              ar ? 'الرصيد' : 'BALANCE',
-              style: TextStyle(fontFamily: 'CodecPro', fontSize: 10, color: cs.onSurfaceVariant, letterSpacing: 1.4, fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              balance == null ? '—' : Formatters.iqd(balance!.available),
-              style: TextStyle(fontFamily: 'CodecPro', fontSize: 19, color: cs.onSurface, fontWeight: FontWeight.w900, letterSpacing: -0.4, height: 1),
-            ),
-          ],
+        // Flexible so the tally yields width to the title instead of pinning its
+        // intrinsic size; that in turn bounds the FittedBox below so it can scale.
+        Flexible(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                ar ? 'الرصيد' : 'BALANCE',
+                style: TextStyle(fontFamily: 'CodecPro', fontSize: 10, color: cs.onSurfaceVariant, letterSpacing: 1.4, fontWeight: FontWeight.w800),
+                maxLines: 1,
+              ),
+              const SizedBox(height: 3),
+              // B-095: money SHRINKS, it never ellipsises — "25,876,0…" would be a
+              // worse lie than smaller numerals, and a counter operator reads this
+              // to decide whether they can sell.
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: AlignmentDirectional.centerEnd,
+                child: Text(
+                  balance == null ? '—' : Formatters.iqd(balance!.available),
+                  maxLines: 1,
+                  style: TextStyle(fontFamily: 'CodecPro', fontSize: 19, color: cs.onSurface, fontWeight: FontWeight.w900, letterSpacing: -0.4, height: 1),
+                ),
+              ),
+            ],
+          ),
         ),
       ]),
     );

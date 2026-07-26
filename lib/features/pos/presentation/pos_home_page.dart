@@ -22,6 +22,7 @@ import 'package:inteshar/features/inventory/domain/product.dart';
 import 'package:inteshar/features/pricing/data/pricing_repository.dart';
 import 'package:inteshar/features/pricing/domain/pricing_models.dart';
 import 'package:inteshar/features/pos/application/pos_pin_controller.dart';
+import 'package:inteshar/features/pos/domain/pin_verify_result.dart';
 import 'package:inteshar/core/api/error_mapper.dart' show friendlyError;
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/pos/data/pos_self_repository.dart';
@@ -1287,12 +1288,15 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
             return;
           }
           try {
-            final valid = await ref.read(posPinRepositoryProvider).verifyPin(pin);
+            final r = await ref.read(posPinRepositoryProvider).verifyPin(pin);
             if (!ctx.mounted) return;
-            if (valid) {
+            if (r.isOk) {
               Navigator.pop(ctx, true);
             } else {
-              setD(() => error = ar ? 'رمز غير صحيح' : 'Incorrect PIN');
+              // B-065: the confirm-a-bulk-sale pad gets the same real reasons as
+              // the lock screen — "wrong PIN" on a closed shop sent the operator
+              // retyping a PIN that was never the problem.
+              setD(() => error = posPinReasonText(r, ar));
             }
           } catch (e) {
             if (ctx.mounted) setD(() => error = friendlyError(e, ctx));

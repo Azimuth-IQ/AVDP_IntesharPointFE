@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_exception.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
+import 'package:inteshar/features/pos/domain/pin_verify_result.dart';
 import 'package:inteshar/features/pos/application/pos_pin_controller.dart';
 import 'package:inteshar/features/pos/presentation/pos_brand.dart';
 import 'package:inteshar/shared/widgets/brand_cta.dart';
@@ -64,16 +65,26 @@ class _PosPinLockPageState extends ConsumerState<PosPinLockPage> {
     try {
       final repo = ref.read(posPinRepositoryProvider);
       // Empty string: server returns 403 (pin set, wrong value) or 409 (no pin).
-      // verifyPin('') returns false for 403 and rethrows for 409.
       final result = await repo.verifyPin('');
       if (!mounted) return;
-      if (result) {
+      if (result.reason == PinVerifyReason.noPin) {
+        context.go('/pos/pin-setup');
+        return;
+      }
+      if (result.isOk) {
         // An empty string was accepted — treat as unlocked (edge case).
         ref.read(posUnlockedProvider.notifier).state = true;
         context.go('/pos/home');
       } else {
-        // 403: PIN exists, wrong probe value — show the lock screen.
-        setState(() => _probing = false);
+        // A PIN exists — show the lock screen. If the shop is shut, say so up
+        // front rather than waiting for the operator to type a PIN first.
+        setState(() {
+          _probing = false;
+          if (result.reason == PinVerifyReason.outsideHours ||
+              result.reason == PinVerifyReason.lockedOut) {
+            _error = posPinReasonText(result, _ar);
+          }
+        });
       }
     } catch (e) {
       if (!mounted) return;
@@ -105,14 +116,17 @@ class _PosPinLockPageState extends ConsumerState<PosPinLockPage> {
 
     try {
       final repo = ref.read(posPinRepositoryProvider);
-      final ok = await repo.verifyPin(pin);
+      final result = await repo.verifyPin(pin);
       if (!mounted) return;
-      if (ok) {
+      if (result.isOk) {
         ref.read(posUnlockedProvider.notifier).state = true;
         context.go('/pos/home');
+      } else if (result.reason == PinVerifyReason.noPin) {
+        context.go('/pos/pin-setup');
+        return;
       } else {
         setState(() {
-          _error = _ar ? 'رمز غير صحيح' : 'Incorrect PIN';
+          _error = posPinReasonText(result, _ar);
           _loading = false;
           _pinCtrl.clear();
         });

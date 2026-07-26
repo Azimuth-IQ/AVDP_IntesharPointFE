@@ -48,11 +48,13 @@ class IntesharColors {
 }
 
 class IntesharRadii {
-  static const xs = 4.0;
-  static const sm = 8.0;
-  static const md = 12.0;
-  static const lg = 18.0;
-  static const xl = 24.0;
+  // B-094: larger radii read as current; 8→10, 12→14, 18→20 keeps the scale's
+  // rhythm while softening every surface at once.
+  static const xs = 6.0;
+  static const sm = 10.0;
+  static const md = 14.0;
+  static const lg = 20.0;
+  static const xl = 28.0;
 }
 
 class IntesharSpacing {
@@ -68,11 +70,13 @@ class IntesharSpacing {
 /// `elev1` is the default for floating tiles; `elev2` for emphasis (sheets,
 /// hero cards). `ctaShadow` is the warm yellow glow under primary CTA pills.
 class IntesharShadows {
+  // B-094: lighter, tighter elevation — surfaces should feel like paper on paper,
+  // not cards floating over a page. Depth now comes mostly from hairline borders.
   static const elev1 = [
-    BoxShadow(blurRadius: 16, offset: Offset(0, 4), color: Color(0x14000000)),
+    BoxShadow(blurRadius: 10, offset: Offset(0, 2), color: Color(0x0D000000)),
   ];
   static const elev2 = [
-    BoxShadow(blurRadius: 28, offset: Offset(0, 10), color: Color(0x1F000000)),
+    BoxShadow(blurRadius: 20, offset: Offset(0, 6), color: Color(0x14000000)),
   ];
   static const ctaShadow = [
     BoxShadow(blurRadius: 22, offset: Offset(0, 8), color: Color(0x33A06A00)),
@@ -150,14 +154,18 @@ class BrandTones extends ThemeExtension<BrandTones> {
       brand: brand,
       onBrand: onBrand,
       brandInk: brandInk,
-      brandWash: isDark ? _darken(brand, 0.72) : _lighten(brand, 0.78),
-      ctaGradient: [_lighten(brand, 0.30), brand, _darken(brand, 0.15)],
-      ctaHighlight: _lighten(brand, 0.55),
+      brandWash: isDark ? _darken(brand, 0.72) : _lighten(brand, 0.86),
+      // B-094: the CTA is now a FLAT brand fill. The old three-stop gradient +
+      // inner highlight + warm glow was a skeuomorphic "candy button" and the
+      // single most dated element in the app. A whisper of darkening at the
+      // bottom keeps it from looking like a flat rectangle without faking gloss.
+      ctaGradient: [brand, brand, _darken(brand, 0.05)],
+      ctaHighlight: Colors.transparent,
       ctaShadow: [
         BoxShadow(
-          blurRadius: 22,
-          offset: const Offset(0, 8),
-          color: _darken(brand, 0.35).withValues(alpha: 0.20),
+          blurRadius: 12,
+          offset: const Offset(0, 3),
+          color: _darken(brand, 0.35).withValues(alpha: 0.14),
         ),
       ],
     );

@@ -758,25 +758,39 @@ class _BalanceTally extends StatelessWidget {
   Widget build(BuildContext context) {
     final ar = Localizations.localeOf(context).languageCode == 'ar';
     final tones = context.tones;
+    final cs = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      // B-085: the balance card carries the agent's brand colour, with the label
-      // ink chosen for legibility on it.
-      decoration: BoxDecoration(color: tones.brand, borderRadius: BorderRadius.circular(IntesharRadii.md), boxShadow: tones.ctaShadow),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Text(
-            ar ? 'الرصيد' : 'BALANCE',
-            style: TextStyle(fontFamily: 'CodecPro', fontSize: 10, color: tones.onBrand.withValues(alpha: 0.65), letterSpacing: 1.4, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            balance == null ? '—' : Formatters.iqd(balance!.available),
-            style: TextStyle(fontFamily: 'CodecPro', fontSize: 19, color: tones.onBrand, fontWeight: FontWeight.w900, letterSpacing: -0.4, height: 1),
-          ),
-        ],
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      // B-094: white tally with a brand accent rule — the counter's balance is a
+      // NUMBER, so ink numerals on paper read it fastest. Was a solid gold slab.
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(IntesharRadii.md),
+        border: Border.all(color: cs.outlineVariant),
+        boxShadow: IntesharShadows.elev1,
       ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+          width: 3,
+          height: 30,
+          decoration: BoxDecoration(color: tones.brand, borderRadius: BorderRadius.circular(2)),
+        ),
+        const SizedBox(width: 10),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              ar ? 'الرصيد' : 'BALANCE',
+              style: TextStyle(fontFamily: 'CodecPro', fontSize: 10, color: cs.onSurfaceVariant, letterSpacing: 1.4, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              balance == null ? '—' : Formatters.iqd(balance!.available),
+              style: TextStyle(fontFamily: 'CodecPro', fontSize: 19, color: cs.onSurface, fontWeight: FontWeight.w900, letterSpacing: -0.4, height: 1),
+            ),
+          ],
+        ),
+      ]),
     );
   }
 }

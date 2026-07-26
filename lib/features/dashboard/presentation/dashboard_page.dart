@@ -832,32 +832,45 @@ class _BalanceCard extends StatelessWidget {
     // "Balance" / "الرصيد".
     final label = ar ? 'الرصيد' : 'Balance';
     final showTransfer = canTransfer && children.isNotEmpty;
+    final cs = Theme.of(context).colorScheme;
+    final tones = context.tones;
+    // B-094: a WHITE card with a brand accent rule, not a solid gold slab. The
+    // number is the hero — big ink numerals on paper read as money, and gold is
+    // reserved for the thin accent + the label, so it stays meaningful.
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
       decoration: BoxDecoration(
-        color: context.tones.brand,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(IntesharRadii.lg),
+        border: Border.all(color: cs.outlineVariant),
+        boxShadow: IntesharShadows.elev1,
       ),
       child: Row(
         children: [
+          // The one flash of brand colour on the card.
+          Container(
+            width: 3,
+            height: 40,
+            decoration: BoxDecoration(
+              color: tones.brand,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  label,
-                  style: IntesharType.overline(
-                    color: IntesharColors.ink.withValues(alpha: 0.75),
-                  ),
-                ),
+                Text(label, style: IntesharType.overline(color: cs.onSurfaceVariant)),
                 const SizedBox(height: 4),
                 Text(
                   Formatters.iqd(balance.available.round()),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'CodecPro',
-                    fontSize: 30,
+                    fontSize: 32,
                     fontWeight: FontWeight.w900,
-                    color: IntesharColors.ink,
+                    color: cs.onSurface,
+                    letterSpacing: -0.8,
                     height: 1,
                   ),
                 ),
@@ -867,8 +880,8 @@ class _BalanceCard extends StatelessWidget {
           if (showTransfer)
             FilledButton.icon(
               style: FilledButton.styleFrom(
-                backgroundColor: IntesharColors.ink,
-                foregroundColor: context.tones.brand,
+                backgroundColor: cs.onSurface,
+                foregroundColor: cs.surface,
               ),
               onPressed: () => showModalBottomSheet<void>(
                 context: context,

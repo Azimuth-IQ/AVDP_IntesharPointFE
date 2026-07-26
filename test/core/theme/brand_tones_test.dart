@@ -16,13 +16,17 @@ void main() {
       expect(tones.onBrand, IntesharColors.ink, reason: 'ink is legible on gold');
     });
 
-    test('CTA gradient runs light → brand → dark', () {
-      final g = tonesOf(buildBrandThemes().light).ctaGradient;
+    test('CTA is a FLAT brand fill, not a glossy gradient (B-094)', () {
+      final tones = tonesOf(buildBrandThemes().light);
+      final g = tones.ctaGradient;
       expect(g.length, 3);
-      expect(g[1], IntesharColors.saffron, reason: 'body stop is the brand itself');
-      // Top stop lighter than the body, bottom stop darker.
-      expect(g[0].computeLuminance(), greaterThan(g[1].computeLuminance()));
+      // The top two stops ARE the brand — no faux-gloss highlight.
+      expect(g[0], IntesharColors.saffron);
+      expect(g[1], IntesharColors.saffron);
+      // Only a whisper of darkening at the very bottom, so it isn't a flat slab.
       expect(g[2].computeLuminance(), lessThan(g[1].computeLuminance()));
+      // The chrome inner-highlight hairline is retired.
+      expect(tones.ctaHighlight.a, 0, reason: 'no inner highlight — that pill was the dated tell');
     });
   });
 

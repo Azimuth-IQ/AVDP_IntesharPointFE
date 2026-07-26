@@ -3,10 +3,11 @@ import 'package:inteshar/app/theme.dart';
 
 enum BrandCTAVariant { primary, inverse, outline }
 
-/// Glossy pill CTA matching the brand image's primary button.
+/// The app's primary CTA (B-094: flat, not glossy).
 ///
-/// - **primary**: vertical yellow gradient with inner top highlight + warm
-///   yellow drop shadow + ink-black ExtraBold label.
+/// - **primary**: flat brand fill + a soft brand-tinted shadow. The old vertical
+///   gradient and inner "chrome" highlight are gone — that skeuomorphic pill was
+///   the most dated element in the UI.
 /// - **inverse**: ink-black fill with paper text — used for secondary actions
 ///   that need weight without competing with the primary.
 /// - **outline**: 1.5px ink border on transparent — used for ghost buttons.
@@ -43,7 +44,8 @@ class BrandCTAButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final radius = BorderRadius.circular(height / 2);
+    // Must match _Inner's radius, or the shadow + ink ripple mismatch the fill.
+    final radius = BorderRadius.circular(IntesharRadii.md);
     final child = _Inner(
       label: label,
       leading: leading,
@@ -104,7 +106,7 @@ class _Inner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final radius = BorderRadius.circular(height / 2);
+    final radius = BorderRadius.circular(IntesharRadii.md);
     // B-085: the pill is painted from the session's brand tones, so a white-label
     // agent's CTA (Sell, Sell & reveal, Unlock…) carries THEIR colour, not gold.
     final tones = context.tones;
@@ -182,27 +184,8 @@ class _Inner extends StatelessWidget {
       child: row,
     );
 
-    // Primary variant: paint a 1px top inner highlight inside the pill so it
-    // catches light like a chromed candy button.
-    if (variant == BrandCTAVariant.primary) {
-      body = Stack(
-        children: [
-          body,
-          Positioned(
-            left: 14,
-            right: 14,
-            top: 1,
-            child: Container(
-              height: 1,
-              decoration: BoxDecoration(
-                color: tones.ctaHighlight.withValues(alpha: 0.85),
-                borderRadius: BorderRadius.circular(1),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
+    // B-094: the inner "chrome" highlight is gone — a flat brand fill reads
+    // current; the faux-gloss hairline was the tell that dated the whole app.
     return ClipRRect(borderRadius: radius, child: body);
   }
 }

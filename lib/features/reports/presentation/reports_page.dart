@@ -841,12 +841,24 @@ class _StockReportState extends State<_StockReport> {
     }.toList()
       ..sort();
 
-    /// Available count for a SKU under the current governorate filter.
+    /// Counts for a SKU under the current governorate filter. B-091: the export
+    /// carries available + total + used, so the card must show all three — a
+    /// column you can only see after downloading isn't a report.
     int availOf(SkuSummary sku) => _gov.isEmpty
         ? sku.available
         : sku.governorates
             .where((g) => g.governorate == _gov)
             .fold(0, (a, g) => a + g.available);
+    int totalOf(SkuSummary sku) => _gov.isEmpty
+        ? sku.total
+        : sku.governorates
+            .where((g) => g.governorate == _gov)
+            .fold(0, (a, g) => a + g.total);
+    int usedOf(SkuSummary sku) => _gov.isEmpty
+        ? sku.printed
+        : sku.governorates
+            .where((g) => g.governorate == _gov)
+            .fold(0, (a, g) => a + g.printed);
 
     final shown = widget.summary.where((sku) => availOf(sku) > 0).toList()
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
@@ -886,7 +898,7 @@ class _StockReportState extends State<_StockReport> {
                   maxCrossAxisExtent: 190,
                   mainAxisSpacing: 12,
                   crossAxisSpacing: 12,
-                  mainAxisExtent: 196,
+                  mainAxisExtent: 214, // +18 for the total/used line
                 ),
                 itemCount: shown.length,
                 itemBuilder: (_, i) {
@@ -923,10 +935,21 @@ class _StockReportState extends State<_StockReport> {
                           textAlign: TextAlign.center,
                           style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w700)),
                       const SizedBox(height: 2),
-                      // The available count, directly beneath the image.
+                      // The available count, directly beneath the image (the spec's
+                      // "اسفل كل صورة عدد الكروت المتوفر") — still the hero number.
                       Text(Formatters.money(availOf(sku)),
                           style: IntesharType.mono(17,
                               color: context.tones.brandInk, w: FontWeight.w900)),
+                      const SizedBox(height: 1),
+                      // …with the two columns the export also carries, kept quiet
+                      // so they inform without competing with the available count.
+                      Text(
+                        '${s.total} ${Formatters.money(totalOf(sku))} · ${s.used} ${Formatters.money(usedOf(sku))}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: IntesharType.sans(10.5, color: cs.onSurfaceVariant),
+                      ),
                     ]),
                   );
                 },

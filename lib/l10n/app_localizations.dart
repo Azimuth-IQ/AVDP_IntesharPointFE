@@ -101,7 +101,7 @@ abstract class AppLocalizations {
   /// Application title
   ///
   /// In en, this message translates to:
-  /// **'Inteshar Platform'**
+  /// **'Inteshar'**
   String get appTitle;
 
   /// No description provided for @navDashboard.
@@ -197,7 +197,7 @@ abstract class AppLocalizations {
   /// No description provided for @updateBody.
   ///
   /// In en, this message translates to:
-  /// **'A newer version of Inteshar Platform is ready to install.'**
+  /// **'A newer version of Inteshar is ready to install.'**
   String get updateBody;
 
   /// No description provided for @updateRequiredTitle.
@@ -251,7 +251,7 @@ abstract class AppLocalizations {
   /// No description provided for @updatePermissionBody.
   ///
   /// In en, this message translates to:
-  /// **'Enable \"Install unknown apps\" for Inteshar Platform, then tap Update again.'**
+  /// **'Enable \"Install unknown apps\" for Inteshar, then tap Update again.'**
   String get updatePermissionBody;
 
   /// No description provided for @updatePermissionOpenSettings.
@@ -749,7 +749,7 @@ abstract class AppLocalizations {
   /// No description provided for @entityTypeInteshar.
   ///
   /// In en, this message translates to:
-  /// **'Inteshar Platform'**
+  /// **'Inteshar'**
   String get entityTypeInteshar;
 
   /// No description provided for @entityTypeAgent1.
@@ -1331,7 +1331,7 @@ abstract class AppLocalizations {
   /// No description provided for @defsSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Master record of voucher denominations issued by Inteshar Platform.'**
+  /// **'Master record of voucher denominations issued by Inteshar.'**
   String get defsSubtitle;
 
   /// No description provided for @defsTitlesLabel.

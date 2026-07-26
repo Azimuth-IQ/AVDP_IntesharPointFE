@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
-import 'package:inteshar/shared/widgets/brand_band.dart';
 import 'package:inteshar/shared/widgets/brand_star.dart';
 
 class SplashPage extends ConsumerWidget {
@@ -21,24 +20,26 @@ class SplashPage extends ConsumerWidget {
     });
 
     final l = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final tones = context.tones;
 
+    // B-094: the FIRST screen anyone sees is now white, not a full gold band —
+    // the brand reads through the mark and the wordmark, not a wall of colour.
     return Scaffold(
+      backgroundColor: cs.surface,
       body: GestureDetector(
         onLongPress: () => context.push('/diagnostics'),
-        child: BrandBand(
-          padding: EdgeInsets.zero,
-          sparkleSize: 420,
-          sparkleAlignment: const Alignment(1.4, -1.3),
+        child: SizedBox.expand(
           child: SafeArea(
             child: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  IntesharStar(size: 96, color: IntesharColors.ink),
-                  const SizedBox(height: 28),
+                  IntesharStar(size: 72, color: tones.brand),
+                  const SizedBox(height: 26),
                   Text(
                     l.appTitle,
-                    style: IntesharType.display(46, color: IntesharColors.ink, w: FontWeight.w900),
+                    style: IntesharType.display(44, color: cs.onSurface, w: FontWeight.w900),
                   ),
                   const SizedBox(height: 10),
                   Text(
@@ -48,7 +49,7 @@ class SplashPage extends ConsumerWidget {
                       fontSize: 14.5,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0.1,
-                      color: IntesharColors.ink.withValues(alpha: 0.72),
+                      color: cs.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 56),
@@ -57,7 +58,7 @@ class SplashPage extends ConsumerWidget {
                     height: 28,
                     child: CircularProgressIndicator(
                       strokeWidth: 2.5,
-                      color: IntesharColors.ink,
+                      color: tones.brand,
                     ),
                   ),
                 ],

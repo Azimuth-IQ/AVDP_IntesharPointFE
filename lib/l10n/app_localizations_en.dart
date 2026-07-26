@@ -9,7 +9,7 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
-  String get appTitle => 'Inteshar Platform';
+  String get appTitle => 'Inteshar';
 
   @override
   String get navDashboard => 'Dashboard';
@@ -57,8 +57,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get updateAvailableTitle => 'Update available';
 
   @override
-  String get updateBody =>
-      'A newer version of Inteshar Platform is ready to install.';
+  String get updateBody => 'A newer version of Inteshar is ready to install.';
 
   @override
   String get updateRequiredTitle => 'Update required';
@@ -87,7 +86,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get updatePermissionBody =>
-      'Enable \"Install unknown apps\" for Inteshar Platform, then tap Update again.';
+      'Enable \"Install unknown apps\" for Inteshar, then tap Update again.';
 
   @override
   String get updatePermissionOpenSettings => 'Open settings';
@@ -360,7 +359,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get healthFailed => 'Failed';
 
   @override
-  String get entityTypeInteshar => 'Inteshar Platform';
+  String get entityTypeInteshar => 'Inteshar';
 
   @override
   String get entityTypeAgent1 => 'Main Agent';
@@ -697,7 +696,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get defsSubtitle =>
-      'Master record of voucher denominations issued by Inteshar Platform.';
+      'Master record of voucher denominations issued by Inteshar.';
 
   @override
   String get defsTitlesLabel => 'titles';

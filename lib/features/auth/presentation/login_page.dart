@@ -83,18 +83,26 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final newPass = _newPassCtrl.text;
     final ar = Localizations.localeOf(context).languageCode == 'ar';
     if (newPass.isEmpty) {
-      setState(() => _error = ar ? 'أدخل كلمة مرور جديدة' : 'Enter a new password');
+      setState(
+        () => _error = ar ? 'أدخل كلمة مرور جديدة' : 'Enter a new password',
+      );
       return;
     }
     if (newPass != _confirmPassCtrl.text) {
-      setState(() => _error = ar ? 'كلمتا المرور غير متطابقتين' : 'Passwords do not match');
+      setState(
+        () => _error = ar
+            ? 'كلمتا المرور غير متطابقتين'
+            : 'Passwords do not match',
+      );
       return;
     }
     setState(() {
       _loading = true;
       _error = null;
     });
-    final outcome = await ref.read(authStateProvider.notifier).changePassword(
+    final outcome = await ref
+        .read(authStateProvider.notifier)
+        .changePassword(
           _phoneCtrl.text.trim(),
           _passCtrl.text, // the password they just signed in with
           newPass,
@@ -106,11 +114,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       // new password so the second factor (TOTP/SMS OTP) is enforced by /login.
       _passCtrl.clear();
       _resetToCredentials();
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(ar
-            ? 'تم تغيير كلمة المرور. سجّل الدخول بكلمة المرور الجديدة.'
-            : 'Password changed. Sign in with your new password.'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            ar
+                ? 'تم تغيير كلمة المرور. سجّل الدخول بكلمة المرور الجديدة.'
+                : 'Password changed. Sign in with your new password.',
+          ),
+        ),
+      );
     } else if (outcome is LoginFailed) {
       setState(() => _error = _friendlyLoginError(outcome.statusCode));
     }
@@ -129,13 +141,18 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   Future<void> _signIn() async {
-    if (_totpStep == _TotpStep.credentials && !_formKey.currentState!.validate()) return;
+    if (_totpStep == _TotpStep.credentials &&
+        !_formKey.currentState!.validate()) {
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
       _showMongoHint = false;
     });
-    final code = _totpStep == _TotpStep.credentials ? null : _totpCtrl.text.trim();
+    final code = _totpStep == _TotpStep.credentials
+        ? null
+        : _totpCtrl.text.trim();
     final phone = _phoneCtrl.text.trim();
     final outcome = await ref
         .read(authStateProvider.notifier)
@@ -212,7 +229,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               ),
               const SizedBox(height: 16),
               SectionLabel(lCtx.loginServerEndpoint),
-              Text(lCtx.loginServerUrl, style: Theme.of(ctx).textTheme.bodyMedium),
+              Text(
+                lCtx.loginServerUrl,
+                style: Theme.of(ctx).textTheme.bodyMedium,
+              ),
               const SizedBox(height: 16),
               TextField(
                 controller: ctrl,
@@ -230,16 +250,22 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   // dead backend with no feedback (B-080).
                   final url = ctrl.text.trim();
                   final uri = Uri.tryParse(url);
-                  final valid = url.isNotEmpty &&
+                  final valid =
+                      url.isNotEmpty &&
                       uri != null &&
                       (uri.isScheme('http') || uri.isScheme('https')) &&
                       uri.host.isNotEmpty;
                   if (!valid) {
                     final ar = Localizations.localeOf(ctx).languageCode == 'ar';
-                    ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                        content: Text(ar
-                            ? 'أدخل رابطاً صحيحاً يبدأ بـ ‎http(s)://'
-                            : 'Enter a valid http(s):// URL')));
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          ar
+                              ? 'أدخل رابطاً صحيحاً يبدأ بـ ‎http(s)://'
+                              : 'Enter a valid http(s):// URL',
+                        ),
+                      ),
+                    );
                     return;
                   }
                   await sessionStorage.setBaseUrl(url);
@@ -302,7 +328,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             l: l,
             onSignIn: _signIn,
             onShowUrlSheet: _showUrlSheet,
-            onSeed: () => ref.read(seedControllerProvider.notifier).seed(context),
+            onSeed: () =>
+                ref.read(seedControllerProvider.notifier).seed(context),
           );
 
     // Intercept the system/browser back button while on enroll or code step so
@@ -341,12 +368,28 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       behavior: HitTestBehavior.opaque,
                       child: const _MobileBrandHeader(),
                     ),
+                    // B-094: centre the card in the space that's left instead of
+                    // top-aligning it. `Center` inside a scroll view does nothing
+                    // vertically (unbounded height), which is why a third of the
+                    // phone screen sat empty; the minHeight makes it centre when
+                    // there's room and still scroll when the keyboard is up.
                     Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(24),
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 460),
-                          child: Center(child: formCard),
+                      child: LayoutBuilder(
+                        builder: (context, c) => SingleChildScrollView(
+                          padding: const EdgeInsets.all(24),
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: c.maxHeight - 48,
+                            ),
+                            child: Center(
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 460,
+                                ),
+                                child: formCard,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -397,7 +440,9 @@ class _TotpChallenge extends StatelessWidget {
                 child: Text(
                   enroll
                       ? (ar ? 'إعداد المصادقة الثنائية' : 'Set up two-factor')
-                      : (ar ? 'المصادقة الثنائية' : 'Two-factor authentication'),
+                      : (ar
+                            ? 'المصادقة الثنائية'
+                            : 'Two-factor authentication'),
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
@@ -407,11 +452,11 @@ class _TotpChallenge extends StatelessWidget {
           Text(
             enroll
                 ? (ar
-                    ? 'امسح الرمز بتطبيق مصادقة (مثل Google Authenticator)، ثم أدخل الرمز المكوّن من 6 أرقام لتأكيد الربط.'
-                    : 'Scan the QR with an authenticator app (e.g. Google Authenticator), then enter the 6-digit code to finish setup.')
+                      ? 'امسح الرمز بتطبيق مصادقة (مثل Google Authenticator)، ثم أدخل الرمز المكوّن من 6 أرقام لتأكيد الربط.'
+                      : 'Scan the QR with an authenticator app (e.g. Google Authenticator), then enter the 6-digit code to finish setup.')
                 : (ar
-                    ? 'أدخل الرمز المكوّن من 6 أرقام من تطبيق المصادقة.'
-                    : 'Enter the 6-digit code from your authenticator app.'),
+                      ? 'أدخل الرمز المكوّن من 6 أرقام من تطبيق المصادقة.'
+                      : 'Enter the 6-digit code from your authenticator app.'),
             style: TextStyle(color: cs.onSurfaceVariant),
           ),
           if (enroll) ...[
@@ -419,16 +464,27 @@ class _TotpChallenge extends StatelessWidget {
             Center(
               child: Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: QrImageView(data: otpauthUri, size: 184),
               ),
             ),
             const SizedBox(height: 12),
-            Text(ar ? 'أو أدخل المفتاح يدوياً:' : 'Or enter this key manually:',
-                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+            Text(
+              ar ? 'أو أدخل المفتاح يدوياً:' : 'Or enter this key manually:',
+              style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+            ),
             const SizedBox(height: 4),
-            SelectableText(secret,
-                style: const TextStyle(fontFamily: 'JetBrainsMono', letterSpacing: 1.5, fontSize: 13)),
+            SelectableText(
+              secret,
+              style: const TextStyle(
+                fontFamily: 'JetBrainsMono',
+                letterSpacing: 1.5,
+                fontSize: 13,
+              ),
+            ),
             const SizedBox(height: 10),
             Text(
               ar
@@ -450,14 +506,22 @@ class _TotpChallenge extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.tips_and_updates_outlined, size: 14, color: cs.primary),
+                  Icon(
+                    Icons.tips_and_updates_outlined,
+                    size: 14,
+                    color: cs.primary,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       ar
                           ? 'هل أضفت إنتشار إلى تطبيق المصادقة مسبقاً؟ فقط أدخل الرمز المكوّن من 6 أرقام أدناه — لا حاجة لإعادة المسح.'
                           : 'Already added Inteshar to your authenticator? Just enter the current 6-digit code below — no need to rescan.',
-                      style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant, height: 1.4),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.onSurfaceVariant,
+                        height: 1.4,
+                      ),
                     ),
                   ),
                 ],
@@ -471,7 +535,11 @@ class _TotpChallenge extends StatelessWidget {
             maxLength: 6,
             autofocus: true,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 24, letterSpacing: 10, fontFamily: 'JetBrainsMono'),
+            style: const TextStyle(
+              fontSize: 24,
+              letterSpacing: 10,
+              fontFamily: 'JetBrainsMono',
+            ),
             decoration: InputDecoration(
               labelText: ar ? 'رمز التحقق' : 'Verification code',
               counterText: '',
@@ -488,8 +556,16 @@ class _TotpChallenge extends StatelessWidget {
             child: FilledButton(
               onPressed: loading ? null : onVerify,
               child: loading
-                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : Text(enroll ? (ar ? 'تأكيد وربط' : 'Confirm & bind') : (ar ? 'تحقق' : 'Verify')),
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(
+                      enroll
+                          ? (ar ? 'تأكيد وربط' : 'Confirm & bind')
+                          : (ar ? 'تحقق' : 'Verify'),
+                    ),
             ),
           ),
           Align(
@@ -531,14 +607,18 @@ class _ChangePasswordForm extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(children: [
-            Icon(Icons.lock_reset, color: cs.primary),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(ar ? 'تغيير كلمة المرور' : 'Change your password',
-                  style: Theme.of(context).textTheme.titleMedium),
-            ),
-          ]),
+          Row(
+            children: [
+              Icon(Icons.lock_reset, color: cs.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  ar ? 'تغيير كلمة المرور' : 'Change your password',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 8),
           Text(
             ar
@@ -567,7 +647,11 @@ class _ChangePasswordForm extends StatelessWidget {
             child: FilledButton(
               onPressed: loading ? null : onSubmit,
               child: loading
-                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                   : Text(ar ? 'حفظ وتسجيل الدخول' : 'Save & sign in'),
             ),
           ),
@@ -591,47 +675,52 @@ class _BrandPanel extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: ColoredBox(
         color: cs.surface,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(56, 56, 56, 56),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              IntesharStar(size: 44, color: tones.brand),
-              const SizedBox(height: 32),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: AlignmentDirectional.centerStart,
-                child: Text(
-                  'Inteshar',
-                  style: TextStyle(
-                    fontFamily: 'CodecPro',
-                    color: cs.onSurface,
-                    fontSize: 76,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -2.6,
-                    height: 1.0,
+        // B-094: centre a fixed-width brand block in this half rather than letting
+        // it hug the outer edge — with the form centred in the other half, edge-
+        // aligning here opened a dead channel down the middle of the page.
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 56, 24, 56),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  IntesharStar(size: 44, color: tones.brand),
+                  const SizedBox(height: 32),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text(
+                      'Inteshar',
+                      style: TextStyle(
+                        fontFamily: 'CodecPro',
+                        color: cs.onSurface,
+                        fontSize: 76,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -2.6,
+                        height: 1.0,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              // The one deliberate flash of brand colour on the panel.
-              Container(width: 56, height: 3, color: tones.brand),
-              const SizedBox(height: 20),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 380),
-                child: Text(
-                  l.loginBrandTagline,
-                  style: TextStyle(
-                    fontFamily: 'CodecPro',
-                    color: cs.onSurfaceVariant,
-                    fontSize: 16.5,
-                    height: 1.55,
-                    fontWeight: FontWeight.w500,
+                  const SizedBox(height: 20),
+                  // The one deliberate flash of brand colour on the panel.
+                  Container(width: 56, height: 3, color: tones.brand),
+                  const SizedBox(height: 20),
+                  Text(
+                    l.loginBrandTagline,
+                    style: TextStyle(
+                      fontFamily: 'CodecPro',
+                      color: cs.onSurfaceVariant,
+                      fontSize: 16.5,
+                      height: 1.55,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -657,21 +746,23 @@ class _MobileBrandHeader extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Row(children: [
-              IntesharStar(size: 30, color: tones.brand),
-              const SizedBox(width: 12),
-              Text(
-                'Inteshar',
-                style: TextStyle(
-                  fontFamily: 'CodecPro',
-                  color: cs.onSurface,
-                  fontSize: 34,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -1.2,
-                  height: 1.0,
+            Row(
+              children: [
+                IntesharStar(size: 30, color: tones.brand),
+                const SizedBox(width: 12),
+                Text(
+                  'Inteshar',
+                  style: TextStyle(
+                    fontFamily: 'CodecPro',
+                    color: cs.onSurface,
+                    fontSize: 34,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -1.2,
+                    height: 1.0,
+                  ),
                 ),
-              ),
-            ]),
+              ],
+            ),
             const SizedBox(height: 10),
             Text(
               l.loginBrandTaglineShort,
@@ -689,7 +780,6 @@ class _MobileBrandHeader extends StatelessWidget {
     );
   }
 }
-
 
 class _LoginForm extends ConsumerWidget {
   final GlobalKey<FormState> formKey;
@@ -739,46 +829,68 @@ class _LoginForm extends ConsumerWidget {
           Align(
             alignment: AlignmentDirectional.centerEnd,
             child: TextButton.icon(
-              onPressed: () => ref.read(localeControllerProvider.notifier).toggle(),
+              onPressed: () =>
+                  ref.read(localeControllerProvider.notifier).toggle(),
               icon: const Icon(Icons.language, size: 18),
               label: Text(ar ? 'English' : 'العربية'),
             ),
           ),
           Text(
             l.loginWelcomeBack,
-            style: IntesharType.display(34, color: cs.onSurface, w: FontWeight.w900),
+            style: IntesharType.display(
+              34,
+              color: cs.onSurface,
+              w: FontWeight.w900,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             l.loginSubtitle,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 28),
           TextFormField(
             controller: phoneCtrl,
             keyboardType: TextInputType.phone,
-            style: IntesharType.mono(14, color: cs.onSurface, letterSpacing: 0.6),
+            style: IntesharType.mono(
+              14,
+              color: cs.onSurface,
+              letterSpacing: 0.6,
+            ),
             decoration: InputDecoration(
               labelText: l.loginPhone,
               hintText: '07701234567',
               prefixIcon: const Icon(Icons.phone_outlined, size: 18),
             ),
-            validator: (v) => v == null || v.isEmpty ? l.loginFieldRequired : null,
+            validator: (v) =>
+                v == null || v.isEmpty ? l.loginFieldRequired : null,
           ),
           const SizedBox(height: 14),
           TextFormField(
             controller: passCtrl,
             obscureText: obscure,
-            style: IntesharType.mono(14, color: cs.onSurface, letterSpacing: 1.2),
+            style: IntesharType.mono(
+              14,
+              color: cs.onSurface,
+              letterSpacing: 1.2,
+            ),
             decoration: InputDecoration(
               labelText: l.loginPassword,
               prefixIcon: const Icon(Icons.lock_outline, size: 18),
               suffixIcon: IconButton(
-                icon: Icon(obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 18),
+                icon: Icon(
+                  obscure
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                  size: 18,
+                ),
                 onPressed: onToggleObscure,
               ),
             ),
-            validator: (v) => v == null || v.isEmpty ? l.loginFieldRequired : null,
+            validator: (v) =>
+                v == null || v.isEmpty ? l.loginFieldRequired : null,
           ),
           // G17: remember-me pre-fills the phone on the next launch.
           Align(
@@ -804,10 +916,9 @@ class _LoginForm extends ConsumerWidget {
                     const SizedBox(width: 8),
                     Text(
                       ar ? 'تذكّر رقم الهاتف' : 'Remember my phone',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(color: cs.onSurfaceVariant),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -870,53 +981,69 @@ class _LoginForm extends ConsumerWidget {
 
   /// A8: ask the backend to notify the supervisor. Public + rate-limited; the
   /// response is deliberately the same whether or not the phone exists.
-  Future<void> _forgotPassword(BuildContext context, WidgetRef ref, bool ar) async {
+  Future<void> _forgotPassword(
+    BuildContext context,
+    WidgetRef ref,
+    bool ar,
+  ) async {
     final ctrl = TextEditingController(text: phoneCtrl.text.trim());
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(ar ? 'إعادة تعيين كلمة المرور' : 'Reset password'),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(
-            ar
-                ? 'أدخل رقم هاتفك وسيصل طلب إلى وكيلك لإعادة تعيين كلمة المرور.'
-                : 'Enter your phone and a reset request will be sent to your agent.',
-            style: Theme.of(ctx).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: ctrl,
-            keyboardType: TextInputType.phone,
-            decoration: InputDecoration(
-              labelText: ar ? 'رقم الهاتف' : 'Phone',
-              hintText: '07701234567',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              ar
+                  ? 'أدخل رقم هاتفك وسيصل طلب إلى وكيلك لإعادة تعيين كلمة المرور.'
+                  : 'Enter your phone and a reset request will be sent to your agent.',
+              style: Theme.of(ctx).textTheme.bodySmall,
             ),
-          ),
-        ]),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              keyboardType: TextInputType.phone,
+              decoration: InputDecoration(
+                labelText: ar ? 'رقم الهاتف' : 'Phone',
+                hintText: '07701234567',
+              ),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(ar ? 'إلغاء' : 'Cancel')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(ar ? 'إلغاء' : 'Cancel'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(ar ? 'إرسال' : 'Send')),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(ar ? 'إرسال' : 'Send'),
+          ),
         ],
       ),
     );
     if (ok != true || !context.mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await ref.read(apiClientProvider).post(
+      await ref
+          .read(apiClientProvider)
+          .post(
             Endpoints.authForgotPassword,
             data: {'phone': ctrl.text.trim()},
           );
     } catch (_) {
       // Same generic outcome regardless — never reveal whether the phone exists.
     }
-    messenger.showSnackBar(SnackBar(
-        content: Text(ar
-            ? 'إذا كان الحساب موجوداً، فقد تم إشعار وكيلك.'
-            : 'If the account exists, your agent was notified.')));
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          ar
+              ? 'إذا كان الحساب موجوداً، فقد تم إشعار وكيلك.'
+              : 'If the account exists, your agent was notified.',
+        ),
+      ),
+    );
   }
 }
 
@@ -925,7 +1052,12 @@ class _Banner extends StatelessWidget {
   final IconData icon;
   final String title;
   final String body;
-  const _Banner({required this.tone, required this.icon, required this.title, required this.body});
+  const _Banner({
+    required this.tone,
+    required this.icon,
+    required this.title,
+    required this.body,
+  });
 
   @override
   Widget build(BuildContext context) {

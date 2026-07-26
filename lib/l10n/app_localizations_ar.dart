@@ -9,7 +9,7 @@ class AppLocalizationsAr extends AppLocalizations {
   AppLocalizationsAr([String locale = 'ar']) : super(locale);
 
   @override
-  String get appTitle => 'إنتشار بلاتفورم';
+  String get appTitle => 'إنتشار';
 
   @override
   String get navDashboard => 'لوحة التحكم';
@@ -57,7 +57,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get updateAvailableTitle => 'تحديث متوفّر';
 
   @override
-  String get updateBody => 'إصدار أحدث من إنتشار بلاتفورم جاهز للتثبيت.';
+  String get updateBody => 'إصدار أحدث من إنتشار جاهز للتثبيت.';
 
   @override
   String get updateRequiredTitle => 'التحديث مطلوب';
@@ -85,7 +85,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get updatePermissionBody =>
-      'فعّل «تثبيت تطبيقات غير معروفة» لإنتشار بلاتفورم، ثم اضغط تحديث مرة أخرى.';
+      'فعّل «تثبيت تطبيقات غير معروفة» لإنتشار، ثم اضغط تحديث مرة أخرى.';
 
   @override
   String get updatePermissionOpenSettings => 'فتح الإعدادات';
@@ -358,7 +358,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get healthFailed => 'فشل';
 
   @override
-  String get entityTypeInteshar => 'منصة انتشار';
+  String get entityTypeInteshar => 'إنتشار';
 
   @override
   String get entityTypeAgent1 => 'الوكيل الرئيسي';

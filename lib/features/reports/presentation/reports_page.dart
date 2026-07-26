@@ -9,6 +9,8 @@ import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/agents/data/agent_repository.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
+import 'package:inteshar/features/entities/data/entity_repository.dart';
+import 'package:inteshar/features/inventory/data/definition_repository.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/inventory/domain/sku_summary.dart';
 import 'package:inteshar/features/pricing/domain/pricing_models.dart';
@@ -111,7 +113,10 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
   DateTime? _from;
   DateTime? _to;
 
-  List<(String, String)> _pickables = const []; // (id, label) for the HQ target picker
+  List<(String, String)> _pickables = const []; // (id, label) for the agent target picker
+  /// B-091: sku -> card artwork, for the stock report's image grid. SkuSummary
+  /// carries no image, so the catalog is joined client-side (one read at boot).
+  Map<String, String> _artBySku = const {};
   final Map<String, Future<dynamic>> _cache = {}; // per-tab futures, cleared on scope/date change
   bool _booting = true;
 
@@ -161,9 +166,11 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
   }
 
   Future<void> _boot() async {
+    // B-091: the spec marks most report sheets "يضاف للكل" with an agent selector —
+    // so a Main Agent gets one too, scoped to its OWN subtree (HQ sees everyone).
+    final selfLabel = _RS.of(context).self;
+    final me = _me;
     if (_isHq) {
-      final selfLabel = _RS.of(context).self;
-      final me = _me;
       try {
         final repo = AgentRepository(ref.read(apiClientProvider));
         final mains = await repo.listAll('AGENT1');
@@ -174,6 +181,24 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
           ...subs.map((e) => (e.id, e.name)),
         ];
       } catch (_) {}
+    } else if (me != null && me.type == EntityType.AGENT1) {
+      try {
+        final children = await EntityRepository(ref.read(apiClientProvider))
+            .children(me.id, size: 200);
+        _pickables = [
+          (me.id, '$selfLabel · ${me.meta.name}'),
+          ...children.items.map((e) => (e.id, e.label)),
+        ];
+      } catch (_) {}
+    }
+    try {
+      final defs = await DefinitionRepository(ref.read(apiClientProvider)).readAll();
+      _artBySku = {
+        for (final d in defs)
+          if (d.sku.isNotEmpty && d.imageUrl.isNotEmpty) d.sku: d.imageUrl,
+      };
+    } catch (_) {
+      // Non-fatal — the grid falls back to a neutral placeholder tile.
     }
     if (mounted) setState(() => _booting = false);
   }
@@ -370,7 +395,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
       child: Column(
         children: [
           PageHeader(eyebrow: s.eyebrow, title: s.title, subtitle: s.subtitle),
-          if (_isHq && _pickables.length > 1) _targetPicker(s),
+          if (_pickables.length > 1) _targetPicker(s),
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(child: _tabBar(tabs)),
             IconButton(
@@ -479,7 +504,10 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
           onRefresh: () async => setState(() => _cache.remove(_sourceKey(key))),
           child: switch (key) {
             'prices' => _PricesReport(catalog: data as PricingCatalog, s: s, agentLabel: _currentAgentLabel),
-            'stock' => _StockReport(summary: (data as List<SkuSummary>?) ?? const [], s: s),
+            'stock' => _StockReport(
+                summary: (data as List<SkuSummary>?) ?? const [],
+                artBySku: _artBySku,
+                s: s),
             'detailed' => _DetailedReport(catalog: data as PricingCatalog, s: s),
             'transfers' => _TransfersReport(rows: (data as List<TransferRow>?) ?? const [], s: s),
             'sold' => _SalesReport(rows: (data as List<SalesRow>?) ?? const [], s: s),
@@ -781,53 +809,133 @@ class _PricesReport extends StatelessWidget {
 }
 
 // ── #8 Stock ─────────────────────────────────────────────────────────────────
-class _StockReport extends StatelessWidget {
+/// #5 مخزن الكروت — the spec asks for the CARD ARTWORK with the available count
+/// beneath each image ("تظهر جميع صور البطاقات المتوفرة بالنظام واسفل كل صورة عدد
+/// الكروت المتوفر"), filtered by governorate — not a table (B-091).
+class _StockReport extends StatefulWidget {
   final List<SkuSummary> summary;
+  final Map<String, String> artBySku; // sku -> ProductDefinition.imageUrl
   final _RS s;
-  const _StockReport({required this.summary, required this.s});
+  const _StockReport({required this.summary, required this.artBySku, required this.s});
+
+  @override
+  State<_StockReport> createState() => _StockReportState();
+}
+
+class _StockReportState extends State<_StockReport> {
+  /// '' = every governorate (the spec's selector defaults to all).
+  String _gov = '';
 
   @override
   Widget build(BuildContext context) {
+    final s = widget.s;
     final cs = Theme.of(context).colorScheme;
-    if (summary.isEmpty) return _empty(context, s);
+    if (widget.summary.isEmpty) return _empty(context, s);
     final loc = Localizations.localeOf(context).languageCode;
-    return ListView(
-      padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
-      children: [
-        for (final sku in summary)
-          InkCard(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  Expanded(child: Text(sku.name, style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w700))),
-                  StampPill(label: '${s.available}: ${Formatters.money(sku.available)}', color: IntesharColors.sage),
-                ]),
-                const SizedBox(height: 8),
-                Row(children: [
-                  Expanded(flex: 3, child: Text('', style: IntesharType.overline(color: cs.onSurfaceVariant))),
-                  Expanded(flex: 2, child: Text(s.available, textAlign: TextAlign.end, style: IntesharType.overline(color: cs.onSurfaceVariant))),
-                  Expanded(flex: 2, child: Text(s.total, textAlign: TextAlign.end, style: IntesharType.overline(color: cs.onSurfaceVariant))),
-                  Expanded(flex: 2, child: Text(s.used, textAlign: TextAlign.end, style: IntesharType.overline(color: cs.onSurfaceVariant))),
-                ]),
-                for (final g in sku.governorates)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 3),
-                    child: Row(children: [
-                      Expanded(flex: 3, child: Text(g.governorate.isEmpty ? s.untagged : governorateLabel(g.governorate, loc), style: IntesharType.sans(12.5, color: cs.onSurface))),
-                      Expanded(flex: 2, child: Text(Formatters.money(g.available), textAlign: TextAlign.end, style: IntesharType.mono(12.5, color: cs.onSurface, w: FontWeight.w700))),
-                      Expanded(flex: 2, child: Text(Formatters.money(g.total), textAlign: TextAlign.end, style: IntesharType.mono(12.5, color: cs.onSurfaceVariant))),
-                      Expanded(flex: 2, child: Text(Formatters.money(g.printed), textAlign: TextAlign.end, style: IntesharType.mono(12.5, color: cs.onSurfaceVariant))),
-                    ]),
+    final ar = loc == 'ar';
+
+    // Governorates actually present in this stock (plus the untagged bucket).
+    final govs = <String>{
+      for (final sku in widget.summary)
+        for (final g in sku.governorates) g.governorate,
+    }.toList()
+      ..sort();
+
+    /// Available count for a SKU under the current governorate filter.
+    int availOf(SkuSummary sku) => _gov.isEmpty
+        ? sku.available
+        : sku.governorates
+            .where((g) => g.governorate == _gov)
+            .fold(0, (a, g) => a + g.available);
+
+    final shown = widget.summary.where((sku) => availOf(sku) > 0).toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+    return Column(children: [
+      // Governorate selector (spec: "سلكتر لتحديد المحافظة").
+      Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 8),
+        child: Row(children: [
+          Text('${ar ? 'المحافظة' : 'Governorate'}: ',
+              style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              initialValue: _gov,
+              isExpanded: true,
+              decoration: const InputDecoration(isDense: true),
+              items: [
+                DropdownMenuItem(value: '', child: Text(ar ? 'الكل' : 'All')),
+                for (final g in govs)
+                  DropdownMenuItem(
+                    value: g,
+                    child: Text(g.isEmpty ? s.untagged : governorateLabel(g, loc),
+                        overflow: TextOverflow.ellipsis),
                   ),
               ],
+              onChanged: (v) => setState(() => _gov = v ?? ''),
             ),
           ),
-      ],
-    );
+        ]),
+      ),
+      Expanded(
+        child: shown.isEmpty
+            ? _empty(context, s)
+            : GridView.builder(
+                padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
+                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 190,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  mainAxisExtent: 196,
+                ),
+                itemCount: shown.length,
+                itemBuilder: (_, i) {
+                  final sku = shown[i];
+                  final art = widget.artBySku[sku.sku] ?? '';
+                  return InkCard(
+                    padding: const EdgeInsets.all(10),
+                    child: Column(children: [
+                      // The card picture — the point of this report.
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(IntesharRadii.md),
+                          child: art.trim().isEmpty
+                              ? Container(
+                                  width: double.infinity,
+                                  color: cs.surfaceContainerHighest,
+                                  child: Icon(Icons.style_outlined,
+                                      size: 34, color: cs.onSurfaceVariant),
+                                )
+                              : Image.network(art,
+                                  width: double.infinity,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, _, _) => Container(
+                                        color: cs.surfaceContainerHighest,
+                                        child: Icon(Icons.style_outlined,
+                                            size: 34, color: cs.onSurfaceVariant),
+                                      )),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(sku.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w700)),
+                      const SizedBox(height: 2),
+                      // The available count, directly beneath the image.
+                      Text(Formatters.money(availOf(sku)),
+                          style: IntesharType.mono(17,
+                              color: context.tones.brandInk, w: FontWeight.w900)),
+                    ]),
+                  );
+                },
+              ),
+      ),
+    ]);
   }
 }
+
 
 // ── #9 Detailed ──────────────────────────────────────────────────────────────
 class _DetailedReport extends StatelessWidget {

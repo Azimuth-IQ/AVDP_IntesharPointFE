@@ -1138,15 +1138,278 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
   String? _saleError; // last draw/sale failure — shown as a persistent in-sheet banner
   String? _printError; // last print failure — a persistent banner so it can't be missed
 
+  // ── B-086 bulk sale ─────────────────────────────────────────────────────────
+  /// How many cards to sell. 1 is the ordinary fast path — byte-for-byte the old flow.
+  int _qty = 1;
+  /// Server pre-flight: the ceiling, what bound it, and the unit price. No money moves.
+  BulkQuote? _quote;
+  /// Result of a committed bulk sale (null until then).
+  BulkDrawResult? _bulk;
+
+  /// Above this many cards the operator must re-enter the POS PIN (anti-theft on the
+  /// highest-value action — user-approved 2026-07-26).
+  static const int _pinRequiredFrom = 5;
+
   @override
   void initState() {
     super.initState();
     // One idempotency key per sheet (per SKU selection), reused across Sell retries so a
     // lost-response retry returns the original sale instead of drawing a second card.
     _clientRef = 'draw-${widget.sku.sku}-${DateTime.now().microsecondsSinceEpoch}';
+    _loadQuote();
+  }
+
+  /// Ask the server how many cards may be sold right now. Read-only — it claims no cards
+  /// and moves no money, so it is safe to call before the operator commits to anything.
+  Future<void> _loadQuote() async {
+    try {
+      final q = await ProductRepository(ref.read(apiClientProvider))
+          .bulkQuote(sku: widget.sku.sku, governorate: widget.sku.governorate);
+      if (mounted) setState(() => _quote = q);
+    } catch (_) {
+      // Non-fatal: without a quote the sheet simply stays on the single-card path.
+    }
+  }
+
+  /// The most cards this sale may include (server-authoritative; the server clamps again).
+  int get _maxQty {
+    final q = _quote;
+    if (q == null) return 1;
+    return q.maxAllowed < 1 ? 1 : q.maxAllowed;
+  }
+
+  bool get _bulkAvailable => (_quote?.bulkEnabled ?? false) && _maxQty > 1;
+
+  /// Re-verify the POS PIN against the SERVER before a large bulk sale. Comparing locally
+  /// would be theatre — this makes the operator actually know the PIN, which is the real
+  /// control when a counter device is left unlocked. Returns false if cancelled/wrong.
+  Future<bool> _confirmPin(bool ar) async {
+    final ctrl = TextEditingController();
+    String? error;
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setD) {
+        Future<void> submit() async {
+          final pin = ctrl.text.trim();
+          if (pin.isEmpty) {
+            setD(() => error = ar ? 'أدخل الرمز' : 'Enter your PIN');
+            return;
+          }
+          try {
+            final valid = await ref.read(posPinRepositoryProvider).verifyPin(pin);
+            if (!ctx.mounted) return;
+            if (valid) {
+              Navigator.pop(ctx, true);
+            } else {
+              setD(() => error = ar ? 'رمز غير صحيح' : 'Incorrect PIN');
+            }
+          } catch (e) {
+            if (ctx.mounted) setD(() => error = friendlyError(e, ctx));
+          }
+        }
+
+        return AlertDialog(
+          title: Text(ar ? 'تأكيد بيع بالجملة' : 'Confirm bulk sale'),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(
+              ar
+                  ? 'بيع $_qty بطاقة. أدخل رمز نقطة البيع للمتابعة.'
+                  : 'Selling $_qty cards. Enter your POS PIN to continue.',
+              style: IntesharType.sans(13, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              maxLength: 6,
+              textAlign: TextAlign.center,
+              style: IntesharType.mono(20, color: Theme.of(ctx).colorScheme.onSurface, letterSpacing: 10),
+              decoration: InputDecoration(
+                labelText: ar ? 'رمز نقطة البيع' : 'POS PIN',
+                counterText: '',
+                errorText: error,
+              ),
+              onSubmitted: (_) => submit(),
+            ),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(ar ? 'إلغاء' : 'Cancel')),
+            FilledButton(onPressed: submit, child: Text(ar ? 'تأكيد' : 'Confirm')),
+          ],
+        );
+      }),
+    );
+    return ok == true;
+  }
+
+  /// Sell [_qty] cards at once. Guarded by an explicit confirm (count + total, "cannot be
+  /// undone") and, from [_pinRequiredFrom] cards up, a server-verified PIN re-entry.
+  Future<void> _sellBulk() async {
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    final unit = _quote?.unitPrice ?? widget.sku.price.toDouble();
+    final total = unit * _qty;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(ar ? 'تأكيد البيع' : 'Confirm sale'),
+        content: Text(
+          ar
+              ? 'سيتم بيع $_qty بطاقة بمبلغ ${Formatters.iqd(total.round())}. لا يمكن التراجع عن هذا الإجراء.'
+              : 'This sells $_qty cards for ${Formatters.iqd(total.round())}. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(ar ? 'إلغاء' : 'Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(ar ? 'بيع $_qty بطاقة' : 'Sell $_qty cards'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    if (_qty >= _pinRequiredFrom && !await _confirmPin(ar)) return;
+    if (!mounted) return;
+
+    setState(() {
+      _revealing = true;
+      _saleError = null;
+    });
+    try {
+      final res = await ProductRepository(ref.read(apiClientProvider)).drawBulk(
+        sku: widget.sku.sku,
+        governorate: widget.sku.governorate,
+        qty: _qty,
+        batchRef: _clientRef, // one batch key per sheet — a replay re-serves, never re-charges
+      );
+      widget.onConsumed();
+      if (!mounted) return;
+      setState(() => _bulk = res);
+      // Warm the logo cache off the print critical path.
+      final first = res.cards.isNotEmpty ? res.cards.first : null;
+      if (first != null) {
+        final t = first.product.productDefinition.template;
+        if (t.showAgentLogo) loadReceiptLogo(first.agentLogoUrl);
+        if (t.showCompanyLogo) loadReceiptLogo(first.companyLogoUrl);
+      }
+    } catch (e) {
+      if (mounted) setState(() => _saleError = friendlyError(e, context));
+    } finally {
+      if (mounted) setState(() => _revealing = false);
+    }
+  }
+
+  /// Cards printed so far in the current batch run (drives the progress label).
+  int _printedCount = 0;
+
+  /// Print ONE card of a batch, confirming its own PrintOperation. Each card is a real
+  /// sale record, so a failure here just leaves that row "not printed" — recoverable from
+  /// the التقارير tab exactly like a single sale.
+  Future<void> _printCard(RevealResult card) async {
+    final auth = ref.read(authStateProvider).valueOrNull as AuthAuthenticated?;
+    final p = card.product;
+    final def = p.productDefinition;
+    final t = def.template;
+    if (ref.read(bluetoothServiceProvider.notifier).isRovo) {
+      await RovoPrinter.printText(buildVoucherReceiptText(
+        template: t,
+        headerFallback: auth?.entity.meta.name ?? 'POS',
+        shopName: auth?.entity.meta.name ?? 'Store',
+        posLabel: 'Counter 1',
+        operatorPhone: auth?.entity.users.firstOrNull?.phone ?? '',
+        productName: def.name,
+        price: Formatters.iqd(def.defaultPrice),
+        serial: p.serialNumber,
+        pin: p.pin,
+        timestamp: DateTime.now(),
+        companyName: card.companyName,
+        categoryName: card.categoryName ?? def.name,
+        expiry: p.expiryDate,
+        receiptNo: card.receiptNo,
+      ));
+    } else {
+      final agentLogo = t.showAgentLogo ? await loadReceiptLogo(card.agentLogoUrl) : null;
+      final companyLogo = t.showCompanyLogo ? await loadReceiptLogo(card.companyLogoUrl) : null;
+      final bytes = await buildVoucherReceipt(
+        template: t,
+        headerFallback: auth?.entity.meta.name ?? 'POS',
+        shopName: auth?.entity.meta.name ?? 'Store',
+        posLabel: 'Counter 1',
+        operatorPhone: auth?.entity.users.firstOrNull?.phone ?? '',
+        productName: def.name,
+        price: Formatters.iqd(def.defaultPrice),
+        serial: p.serialNumber,
+        pin: p.pin,
+        timestamp: DateTime.now(),
+        agentLogo: agentLogo,
+        companyLogo: companyLogo,
+        companyName: card.companyName,
+        categoryName: card.categoryName ?? def.name,
+        expiry: p.expiryDate,
+        receiptNo: card.receiptNo,
+      );
+      await ref.read(printQueueProvider).enqueue(bytes);
+    }
+    final id = card.operationId;
+    if (id != null && id.isNotEmpty) {
+      try {
+        await ProductRepository(ref.read(apiClientProvider)).confirmPrint(id, printed: true);
+      } catch (_) {
+        // Best-effort: the row stays "not printed" and is reprintable from التقارير.
+      }
+    }
+  }
+
+  /// Reprint a single row on demand (per-row retry after a failed print).
+  Future<void> _printOne(RevealResult card) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    try {
+      await _printCard(card);
+      messenger.showSnackBar(SnackBar(content: Text(ar ? 'تمت الطباعة' : 'Printed')));
+    } catch (e) {
+      if (mounted) messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+    }
+  }
+
+  /// Print every card in the batch, one at a time through the serialized queue, keeping a
+  /// live count. One failure does not abort the rest — the failed rows stay reprintable.
+  Future<void> _printAll(BulkDrawResult bulk) async {
+    setState(() {
+      _printing = true;
+      _printedCount = 0;
+      _printError = null;
+    });
+    var failed = 0;
+    for (final card in bulk.cards) {
+      try {
+        await _printCard(card);
+      } catch (_) {
+        failed++;
+      }
+      if (!mounted) return;
+      setState(() => _printedCount++);
+    }
+    if (!mounted) return;
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    setState(() {
+      _printing = false;
+      _printError = failed == 0
+          ? null
+          : (ar
+              ? 'فشلت طباعة $failed بطاقة — أعد طباعتها من القائمة.'
+              : '$failed card(s) failed to print — reprint them from the list.');
+    });
   }
 
   Future<void> _reveal() async {
+    // qty > 1 takes the batched path; qty == 1 stays exactly the old single-card flow.
+    if (_qty > 1) return _sellBulk();
     setState(() {
       _revealing = true;
       _saleError = null;
@@ -1292,6 +1555,9 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
     final cs = Theme.of(context).colorScheme;
     final l = AppLocalizations.of(context)!;
 
+    // A committed BULK sale renders its own list (PINs masked) instead of one receipt.
+    final bulk = _bulk;
+    if (bulk != null) return _bulkSheet(l, cs, bulk);
     // Pre-sale: a lean card (SKU + price + pool count) + the Sell button. The full
     // template-driven receipt only renders AFTER the draw, when we hold the real card.
     if (_sent == null) return _preRevealSheet(l, cs);
@@ -1443,6 +1709,161 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
     );
   }
 
+  /// B-086 quantity stepper — the single entry point for a bulk sale. Starts at 1 (so a
+  /// mis-tap can never escalate a sale), clamps to the server's [_maxQty], and shows the
+  /// running total plus WHY the ceiling is what it is.
+  Widget _quantityStepper(ColorScheme cs) {
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    final q = _quote;
+    final unit = q?.unitPrice ?? widget.sku.price.toDouble();
+    final total = unit * _qty;
+
+    // Explain the binding constraint so the operator isn't left guessing.
+    String? hint;
+    if (_maxQty <= 1) {
+      hint = null;
+    } else if (q != null && _maxQty < q.configuredLimit) {
+      hint = switch (q.limitedBy) {
+        'CAP' => ar ? 'الحد اليومي: $_maxQty متبقية' : 'Daily limit — $_maxQty left',
+        'STOCK' => ar ? 'المتوفر: $_maxQty فقط' : 'Only $_maxQty in stock',
+        'BALANCE' => ar ? 'رصيدك يكفي $_maxQty' : 'Your balance covers $_maxQty',
+        _ => ar ? 'الحد الأقصى $_maxQty' : 'Max $_maxQty',
+      };
+    } else {
+      hint = ar ? 'الحد الأقصى $_maxQty' : 'Max $_maxQty';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Column(children: [
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          IconButton.filledTonal(
+            onPressed: _qty > 1 ? () => setState(() => _qty--) : null,
+            icon: const Icon(Icons.remove, size: 20),
+            tooltip: ar ? 'إنقاص' : 'Decrease',
+          ),
+          SizedBox(
+            width: 72,
+            child: Text(
+              '$_qty',
+              textAlign: TextAlign.center,
+              style: IntesharType.display(28, color: cs.onSurface, w: FontWeight.w900),
+            ),
+          ),
+          IconButton.filledTonal(
+            onPressed: _qty < _maxQty ? () => setState(() => _qty++) : null,
+            icon: const Icon(Icons.add, size: 20),
+            tooltip: ar ? 'زيادة' : 'Increase',
+          ),
+        ]),
+        if (hint != null)
+          Text(hint, style: IntesharType.sans(11.5, color: cs.onSurfaceVariant)),
+        if (_qty > 1) ...[
+          const SizedBox(height: 8),
+          Text(
+            '${ar ? 'الإجمالي' : 'Total'}: ${Formatters.iqd(total.round())}',
+            style: IntesharType.mono(16, color: context.tones.brandInk, w: FontWeight.w800),
+          ),
+        ],
+      ]),
+    );
+  }
+
+  /// B-086 post-sale list for a bulk sale. PINs are MASKED by default — a screen holding
+  /// ten codes is a far bigger prize for a shoulder-surfer than one, and the printed cards
+  /// are the actual deliverable. Each row reveals and reprints on demand.
+  Widget _bulkSheet(AppLocalizations l, ColorScheme cs, BulkDrawResult bulk) {
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    return SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const SizedBox(height: 12),
+          Container(
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(color: cs.outline, borderRadius: BorderRadius.circular(2)),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
+            child: Row(children: [
+              Icon(Icons.check_circle, color: IntesharColors.sage, size: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(
+                    ar ? 'تم بيع ${bulk.sold} بطاقة' : '${bulk.sold} cards sold',
+                    style: IntesharType.sans(16, color: cs.onSurface, w: FontWeight.w800),
+                  ),
+                  Text(
+                    '${widget.sku.name}  ·  ${Formatters.iqd(bulk.total.round())}',
+                    style: IntesharType.sans(12, color: cs.onSurfaceVariant),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+          // Partial fulfilment is normal (the pool drained) — say so plainly; the
+          // unsold remainder was refunded server-side.
+          if (bulk.isPartial)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: cs.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(IntesharRadii.md),
+                  border: Border.all(color: cs.outline),
+                ),
+                child: Text(
+                  ar
+                      ? 'طُلب ${bulk.requested} وتوفّر ${bulk.sold}. لم يتم خصم قيمة غير المتوفر.'
+                      : 'Asked for ${bulk.requested}, ${bulk.sold} were available. You were not charged for the rest.',
+                  style: IntesharType.sans(12, color: cs.onSurface),
+                ),
+              ),
+            ),
+          Flexible(
+            child: ListView.builder(
+              shrinkWrap: true,
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+              itemCount: bulk.cards.length,
+              itemBuilder: (_, i) => _BulkCardRow(
+                card: bulk.cards[i],
+                index: i + 1,
+                onPrint: () => _printOne(bulk.cards[i]),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+            child: Row(children: [
+              Expanded(
+                child: BrandCTAButton(
+                  label: l.posDone,
+                  variant: BrandCTAVariant.outline,
+                  onPressed: _printing ? null : () => widget.onPrinted(),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: BrandCTAButton(
+                  label: _printing
+                      ? (ar ? 'جارٍ الطباعة $_printedCount/${bulk.cards.length}' : 'Printing $_printedCount/${bulk.cards.length}')
+                      : (ar ? 'طباعة الكل' : 'Print all'),
+                  leading: _printing ? null : Icons.print_outlined,
+                  loading: _printing,
+                  onPressed: _printing ? null : () => _printAll(bulk),
+                ),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+
   // Pre-sale sheet: the store does not hold the card yet — show the SKU, price, and pool
   // availability, plus the Sell action that draws a card from the parent Main Agent's pool.
   Widget _preRevealSheet(AppLocalizations l, ColorScheme cs) {
@@ -1493,6 +1914,9 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                       Localizations.localeOf(context).languageCode == 'ar' ? 'المتوفر في مخزن الوكيل: ${s.available}' : 'In main-agent pool: ${s.available}',
                       style: TextStyle(fontFamily: 'CodecPro', fontSize: 12, color: cs.onSurfaceVariant, fontWeight: FontWeight.w700),
                     ),
+                    // B-086: sell several cards at once (a shop asking for e.g. 10).
+                    // Only rendered when this account is actually allowed more than one.
+                    if (_bulkAvailable) _quantityStepper(cs),
                   ],
                 ),
               ),
@@ -1616,7 +2040,12 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                       ? l.posRevealing
                       : (_saleError != null
                           ? l.retryButton
-                          : (ar ? 'بيع وإظهار' : 'Sell & reveal')),
+                          : (_qty > 1
+                              // Name the consequence: how many cards and for how much.
+                              ? (ar
+                                  ? 'بيع $_qty بطاقة · ${Formatters.iqd(((_quote?.unitPrice ?? widget.sku.price.toDouble()) * _qty).round())}'
+                                  : 'Sell $_qty cards · ${Formatters.iqd(((_quote?.unitPrice ?? widget.sku.price.toDouble()) * _qty).round())}')
+                              : (ar ? 'بيع وإظهار' : 'Sell & reveal'))),
                   leading: _revealing ? null : Icons.lock_open_outlined,
                   loading: _revealing,
                   onPressed: _revealing ? null : _reveal,
@@ -1982,6 +2411,84 @@ class _PosChatTabState extends ConsumerState<_PosChatTab> {
           ? _agentName!
           : (ar ? 'الوكيل' : 'Agent'),
       embedded: true,
+    );
+  }
+}
+
+/// B-086: one card in a bulk-sale list. The PIN is MASKED until the operator taps the eye —
+/// the printed cards are the deliverable, and a screen showing ten live codes at once is a
+/// far bigger prize for a shoulder-surfer than a single sale.
+class _BulkCardRow extends StatefulWidget {
+  const _BulkCardRow({required this.card, required this.index, required this.onPrint});
+
+  final RevealResult card;
+  final int index;
+  final Future<void> Function() onPrint;
+
+  @override
+  State<_BulkCardRow> createState() => _BulkCardRowState();
+}
+
+class _BulkCardRowState extends State<_BulkCardRow> {
+  bool _revealed = false;
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    final p = widget.card.product;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkCard(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(children: [
+          SizedBox(
+            width: 26,
+            child: Text('${widget.index}',
+                style: IntesharType.mono(12, color: cs.onSurfaceVariant)),
+          ),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('#${widget.card.receiptNo}  ·  SN ${p.serialNumber}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: IntesharType.mono(11, color: cs.onSurfaceVariant)),
+              const SizedBox(height: 2),
+              Text(
+                _revealed ? p.pin : '•' * (p.pin.isEmpty ? 8 : p.pin.length.clamp(6, 16)),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: IntesharType.mono(14.5,
+                    color: _revealed ? cs.onSurface : cs.onSurfaceVariant,
+                    w: FontWeight.w800,
+                    letterSpacing: _revealed ? 1 : 2),
+              ),
+            ]),
+          ),
+          IconButton(
+            tooltip: _revealed ? (ar ? 'إخفاء' : 'Hide') : (ar ? 'إظهار' : 'Reveal'),
+            icon: Icon(_revealed ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 18),
+            onPressed: () => setState(() => _revealed = !_revealed),
+          ),
+          IconButton(
+            tooltip: ar ? 'طباعة' : 'Print',
+            icon: _busy
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.print_outlined, size: 18),
+            onPressed: _busy
+                ? null
+                : () async {
+                    setState(() => _busy = true);
+                    try {
+                      await widget.onPrint();
+                    } finally {
+                      if (mounted) setState(() => _busy = false);
+                    }
+                  },
+          ),
+        ]),
+      ),
     );
   }
 }

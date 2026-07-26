@@ -61,6 +61,10 @@ class Endpoints {
   static const productSellable = '/api/inventory/product/sellable';
   static const productDraw = '/api/inventory/product/draw';
   static const productDrawRecover = '/api/inventory/product/draw/recover';
+  // B-086 bulk sale: pre-flight quote, the batched draw, and whole-batch recovery.
+  static const productBulkQuote = '/api/inventory/product/bulk-quote';
+  static const productDrawBulk = '/api/inventory/product/draw-bulk';
+  static const productDrawRecoverBatch = '/api/inventory/product/draw/recover-batch';
   static const productPrintOperations = '/api/inventory/product/print-operations';
   static const productConfirmPrint = '/api/inventory/product/confirmPrint';
   static const productUpdate = '/api/inventory/product/update';

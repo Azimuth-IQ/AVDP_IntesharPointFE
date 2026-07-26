@@ -9,6 +9,71 @@ import 'package:inteshar/features/inventory/domain/batch_withdraw_result.dart';
 import 'package:inteshar/features/inventory/domain/voucher_batch.dart';
 import 'package:inteshar/features/inventory/domain/voucher_import.dart';
 
+/// B-086 pre-flight quote for a bulk sale (no money moves, no cards claimed).
+class BulkQuote {
+  /// Most cards sellable right now = min(limit, cap headroom, stock, affordable).
+  final int maxAllowed;
+
+  /// This account's configured per-request ceiling, before the other clamps.
+  final int configuredLimit;
+  final double unitPrice;
+  final double total;
+
+  /// Which constraint bound [maxAllowed]: LIMIT | CAP | STOCK | BALANCE | NONE.
+  final String limitedBy;
+
+  /// Cards still allowed by the rolling withdrawal cap (-1 = uncapped).
+  final int capRemaining;
+  final int available;
+
+  const BulkQuote({
+    this.maxAllowed = 1,
+    this.configuredLimit = 1,
+    this.unitPrice = 0,
+    this.total = 0,
+    this.limitedBy = 'NONE',
+    this.capRemaining = -1,
+    this.available = 0,
+  });
+
+  /// True when this account may sell more than one card per request.
+  bool get bulkEnabled => configuredLimit > 1;
+
+  factory BulkQuote.fromJson(Map<String, dynamic> j) => BulkQuote(
+        maxAllowed: (j['maxAllowed'] as num?)?.toInt() ?? 1,
+        configuredLimit: (j['configuredLimit'] as num?)?.toInt() ?? 1,
+        unitPrice: (j['unitPrice'] as num?)?.toDouble() ?? 0,
+        total: (j['total'] as num?)?.toDouble() ?? 0,
+        limitedBy: j['limitedBy'] as String? ?? 'NONE',
+        capRemaining: (j['capRemaining'] as num?)?.toInt() ?? -1,
+        available: (j['available'] as num?)?.toInt() ?? 0,
+      );
+}
+
+/// B-086 result of a bulk sale. Each card is a fully committed sale with its own
+/// receipt — [sold] may be < [requested] if the pool drained (the rest was refunded).
+class BulkDrawResult {
+  final String batchRef;
+  final int requested;
+  final int sold;
+  final String? shortfallReason;
+  final double unitPrice;
+  final double total;
+  final List<RevealResult> cards;
+
+  const BulkDrawResult({
+    required this.batchRef,
+    required this.requested,
+    required this.sold,
+    this.shortfallReason,
+    this.unitPrice = 0,
+    this.total = 0,
+    this.cards = const [],
+  });
+
+  bool get isPartial => sold < requested;
+}
+
 /// Enriched voucher-reveal payload: the consumed product (PIN decrypted), the
 /// per-store sequential receipt number, and the resolved main-agent + company logo
 /// URLs the POS prints on the receipt.
@@ -225,6 +290,59 @@ class ProductRepository {
       if (productId != null && productId.isNotEmpty) 'productId': productId,
     });
     return _api.unwrap(response, _revealFromJson);
+  }
+
+  /// B-086 pre-flight for a bulk sale — moves NO money and claims NO cards. Tells the
+  /// POS the most cards sellable right now and which constraint bound it.
+  Future<BulkQuote> bulkQuote({
+    required String sku,
+    String? governorate,
+    int qty = 1,
+  }) async {
+    final r = await _api.get(Endpoints.productBulkQuote, params: {
+      'sku': sku,
+      if (governorate != null && governorate.isNotEmpty) 'governorate': governorate,
+      'qty': qty,
+    });
+    return _api.unwrap(r, (d) => BulkQuote.fromJson((d as Map).cast<String, dynamic>()));
+  }
+
+  /// B-086: sell [qty] cards of one SKU in a single guarded request. [batchRef] is the
+  /// batch idempotency key — replaying it re-serves the SAME cards, never a second charge.
+  Future<BulkDrawResult> drawBulk({
+    required String sku,
+    String? governorate,
+    required int qty,
+    required String batchRef,
+  }) async {
+    final r = await _api.post(Endpoints.productDrawBulk, params: {
+      'sku': sku,
+      if (governorate != null && governorate.isNotEmpty) 'governorate': governorate,
+      'qty': qty,
+      'batchRef': batchRef,
+    });
+    return _api.unwrap(r, (d) => _bulkFromJson(d));
+  }
+
+  /// Recover a whole bulk sale whose response was lost (app killed mid-print).
+  Future<BulkDrawResult> drawRecoverBatch(String batchRef) async {
+    final r = await _api.post(Endpoints.productDrawRecoverBatch, params: {'batchRef': batchRef});
+    return _api.unwrap(r, (d) => _bulkFromJson(d));
+  }
+
+  BulkDrawResult _bulkFromJson(dynamic d) {
+    final m = (d as Map).cast<String, dynamic>();
+    return BulkDrawResult(
+      batchRef: m['batchRef'] as String? ?? '',
+      requested: (m['requested'] as num?)?.toInt() ?? 0,
+      sold: (m['sold'] as num?)?.toInt() ?? 0,
+      shortfallReason: m['shortfallReason'] as String?,
+      unitPrice: (m['unitPrice'] as num?)?.toDouble() ?? 0,
+      total: (m['total'] as num?)?.toDouble() ?? 0,
+      cards: ((m['cards'] as List?) ?? const [])
+          .map((e) => _revealFromJson(e))
+          .toList(),
+    );
   }
 
   RevealResult _revealFromJson(dynamic d) {

@@ -1,7 +1,7 @@
 {
   "@@locale": "ar",
 
-  "appTitle": "إنتشار بلاتفورم",
+  "appTitle": "إنتشار",
   "navDashboard": "لوحة التحكم",
   "navHierarchy": "الهيكل التنظيمي",
   "navChildren": "الفروع",
@@ -18,7 +18,7 @@
   "navMore": "المزيد",
 
   "updateAvailableTitle": "تحديث متوفّر",
-  "updateBody": "إصدار أحدث من إنتشار بلاتفورم جاهز للتثبيت.",
+  "updateBody": "إصدار أحدث من إنتشار جاهز للتثبيت.",
   "updateRequiredTitle": "التحديث مطلوب",
   "updateRequiredBody": "يجب تثبيت التحديث المطلوب قبل المتابعة.",
   "updateWhatsNew": "الجديد في هذا الإصدار",
@@ -27,7 +27,7 @@
   "updateDownloading": "جارٍ التنزيل…",
   "updateOpenInstaller": "فتح المُثبِّت…",
   "updateRetry": "إعادة المحاولة",
-  "updatePermissionBody": "فعّل «تثبيت تطبيقات غير معروفة» لإنتشار بلاتفورم، ثم اضغط تحديث مرة أخرى.",
+  "updatePermissionBody": "فعّل «تثبيت تطبيقات غير معروفة» لإنتشار، ثم اضغط تحديث مرة أخرى.",
   "updatePermissionOpenSettings": "فتح الإعدادات",
   "updateVersion": "الإصدار {version}",
   "@updateVersion": { "placeholders": { "version": { "type": "String" } } },
@@ -131,7 +131,7 @@
   "healthNoResults": "لا توجد نتائج بعد.",
   "healthFailed": "فشل",
 
-  "entityTypeInteshar": "منصة انتشار",
+  "entityTypeInteshar": "إنتشار",
   "entityTypeAgent1": "الوكيل الرئيسي",
   "entityTypeAgent2": "الوكيل الفرعي",
   "entityTypeStore": "متجر",

@@ -18,7 +18,7 @@ class IntesharApp extends ConsumerWidget {
     final locale = ref.watch(localeControllerProvider);
     final brandThemes = ref.watch(brandThemeProvider);
     return MaterialApp.router(
-      title: 'Inteshar Platform',
+      title: 'Inteshar',
       debugShowCheckedModeBanner: false,
       theme: brandThemes.light,
       darkTheme: brandThemes.dark,

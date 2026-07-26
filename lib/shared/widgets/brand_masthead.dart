@@ -30,7 +30,7 @@ class BrandMasthead extends ConsumerWidget {
 
     final lockup = IntesharLockup(
       title: fallbackTitle,
-      tagline: 'Inteshar Platform',
+      tagline: 'Inteshar',
       compact: compact,
       onBrandSurface: onBrandSurface,
       showTagline: showTagline,

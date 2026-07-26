@@ -1515,7 +1515,7 @@ class _AboutDrawer extends StatelessWidget {
                 children: [
                   IntesharLockup(
                     title: l.appTitle,
-                    tagline: 'Inteshar Platform',
+                    tagline: 'Inteshar',
                     onBrandSurface: true,
                   ),
                   const SizedBox(height: 12),

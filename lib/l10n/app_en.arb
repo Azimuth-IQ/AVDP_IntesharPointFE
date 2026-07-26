@@ -1,7 +1,7 @@
 {
   "@@locale": "en",
 
-  "appTitle": "Inteshar Platform",
+  "appTitle": "Inteshar",
   "@appTitle": { "description": "Application title" },
 
   "navDashboard": "Dashboard",
@@ -35,7 +35,7 @@
 
   "updateAvailableTitle": "Update available",
   "@updateAvailableTitle": {},
-  "updateBody": "A newer version of Inteshar Platform is ready to install.",
+  "updateBody": "A newer version of Inteshar is ready to install.",
   "@updateBody": {},
   "updateRequiredTitle": "Update required",
   "@updateRequiredTitle": {},
@@ -53,7 +53,7 @@
   "@updateOpenInstaller": {},
   "updateRetry": "Retry",
   "@updateRetry": {},
-  "updatePermissionBody": "Enable \"Install unknown apps\" for Inteshar Platform, then tap Update again.",
+  "updatePermissionBody": "Enable \"Install unknown apps\" for Inteshar, then tap Update again.",
   "@updatePermissionBody": {},
   "updatePermissionOpenSettings": "Open settings",
   "@updatePermissionOpenSettings": {},
@@ -236,7 +236,7 @@
   "healthFailed": "Failed",
   "@healthFailed": {},
 
-  "entityTypeInteshar": "Inteshar Platform",
+  "entityTypeInteshar": "Inteshar",
   "@entityTypeInteshar": {},
   "entityTypeAgent1": "Main Agent",
   "@entityTypeAgent1": {},
@@ -483,7 +483,7 @@
   "@defsDelete": {},
   "defsDeleteAnyway": "Delete anyway",
   "@defsDeleteAnyway": {},
-  "defsSubtitle": "Master record of voucher denominations issued by Inteshar Platform.",
+  "defsSubtitle": "Master record of voucher denominations issued by Inteshar.",
   "@defsSubtitle": {},
   "defsTitlesLabel": "titles",
   "@defsTitlesLabel": {},

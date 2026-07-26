@@ -670,7 +670,7 @@ class _MobileBrandHeader extends StatelessWidget {
             fit: BoxFit.scaleDown,
             alignment: AlignmentDirectional.centerStart,
             child: const Text(
-              'Inteshar Platform.',
+              'Inteshar.',
               style: TextStyle(
                 fontFamily: 'CodecPro',
                 color: IntesharColors.ink,

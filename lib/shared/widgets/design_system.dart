@@ -392,7 +392,7 @@ class PageHeader extends StatelessWidget {
 
 // ─── Brand lockup ──────────────────────────────────────────────────────────
 
-/// IntesharStar + "Inteshar Platform" wordmark stacked or inline.
+/// IntesharStar + "Inteshar" wordmark stacked or inline.
 class IntesharLockup extends StatelessWidget {
   final String title;
   final String tagline;

@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:inteshar/core/api/error_mapper.dart';
 import 'dart:io';
-import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:excel/excel.dart' hide Border;
@@ -14,13 +13,11 @@ import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/files/web_download.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/core/geo/governorate_picker.dart';
-import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
 import 'package:inteshar/features/entities/domain/entity_summary_row.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/inventory/data/definition_repository.dart';
 import 'package:inteshar/features/inventory/data/product_repository.dart';
-import 'package:inteshar/features/inventory/domain/product.dart';
 import 'package:inteshar/features/inventory/domain/product_definition.dart';
 import 'package:inteshar/features/inventory/domain/voucher_batch.dart';
 import 'package:inteshar/features/inventory/domain/voucher_import.dart';
@@ -29,13 +26,6 @@ import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
-
-String _newProductId() {
-  final rand = Random.secure();
-  final hex =
-      List.generate(8, (_) => rand.nextInt(16).toRadixString(16)).join();
-  return 'prod-${DateTime.now().millisecondsSinceEpoch}-$hex';
-}
 
 /// Inline bilingual label (the import tab adds several controls; rather than churn
 /// the .arb files we resolve ar/en at build time, the same pattern the login page uses).
@@ -130,7 +120,8 @@ class _BatchAddPageState extends ConsumerState<BatchAddPage>
                 labelStyle: IntesharType.sans(13, w: FontWeight.w800),
                 unselectedLabelStyle: IntesharType.sans(13, w: FontWeight.w700),
                 tabs: [
-                  Tab(text: l.batchAddTabSingle),
+                  // B-088: the single-voucher tab is retired — bulk upload is the
+                  // only supported way to add stock.
                   Tab(text: _tr(context, 'رفع ملف', 'Upload file')),
                   Tab(text: _tr(context, 'الدفعات', 'Batches')),
                 ],
@@ -141,285 +132,12 @@ class _BatchAddPageState extends ConsumerState<BatchAddPage>
             child: TabBarView(
               controller: _tabs,
               children: const [
-                _ManualTab(),
                 _UploadTab(),
                 _BatchesTab(),
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ── Single Voucher Tab ────────────────────────────────────────────────────────
-
-class _ManualTab extends ConsumerStatefulWidget {
-  const _ManualTab();
-
-  @override
-  ConsumerState<_ManualTab> createState() => _ManualTabState();
-}
-
-class _ManualTabState extends ConsumerState<_ManualTab> {
-  List<ProductDefinition> _defs = [];
-  Object? _loadError;
-  bool _loading = true;
-
-  ProductDefinition? _selectedDef;
-  String? _selectedGovernorate; // null = not geo-locked
-  List<EntitySummaryRow> _agents = []; // Main Agents (AGENT1) the voucher can be added to
-  EntitySummaryRow? _target; // the Main Agent that receives this voucher
-  final _serialCtrl = TextEditingController();
-  final _pinCtrl = TextEditingController();
-  final _serialFocus = FocusNode();
-
-  bool _saving = false;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadDefs();
-  }
-
-  @override
-  void dispose() {
-    _serialCtrl.dispose();
-    _pinCtrl.dispose();
-    _serialFocus.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadDefs() async {
-    try {
-      final api = ref.read(apiClientProvider);
-      final repo = DefinitionRepository(api);
-      final defs = await repo.readAll();
-      // Stock lands at a Main Agent — fetch AGENT1 rows only (bounded: one per
-      // governorate) instead of downloading every entity (B-023).
-      final agent1s =
-          (await EntityRepository(api).search(types: const [EntityType.AGENT1]))
-              .items;
-      if (mounted) {
-        setState(() {
-          _defs = defs;
-          _agents = agent1s;
-          _loading = false;
-          if (defs.isNotEmpty) _selectedDef = defs.first;
-          _target = agent1s.isNotEmpty ? agent1s.first : null;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _loadError = e;
-          _loading = false;
-        });
-      }
-    }
-  }
-
-  String _entityId() {
-    final auth = ref.read(authStateProvider).valueOrNull;
-    if (auth is AuthAuthenticated) return auth.entity.id;
-    return '';
-  }
-
-  Future<void> _save() async {
-    final l = AppLocalizations.of(context)!;
-    final def = _selectedDef;
-    if (def == null) return;
-
-    final serial = _serialCtrl.text.trim();
-    final pin = _pinCtrl.text.trim();
-    if (serial.isEmpty) {
-      setState(() => _error = l.addVoucherSerialRequired);
-      return;
-    }
-    if (pin.isEmpty) {
-      setState(() => _error = l.addVoucherPinRequired);
-      return;
-    }
-
-    final target = _target;
-    if (target == null) {
-      setState(() => _error = _tr(context, 'اختر الوكيل الرئيسي أولاً', 'Select a Main Agent first'));
-      return;
-    }
-    final entityId = _entityId();
-    if (entityId.isEmpty) return;
-
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
-
-    final api = ref.read(apiClientProvider);
-    final repo = ProductRepository(api);
-
-    try {
-      final existing = await repo.readByEntity(target.id);
-      final dup = existing.any(
-        (p) => p.serialNumber.trim().toLowerCase() == serial.toLowerCase(),
-      );
-      if (dup) {
-        if (mounted) {
-          setState(() {
-            _saving = false;
-            _error = l.addVoucherDuplicateSerial(serial);
-          });
-        }
-        return;
-      }
-
-      await repo.create(Product(
-        id: _newProductId(),
-        productDefinition: def,
-        status: ProductStatus.AVAILABLE,
-        serialNumber: serial,
-        pin: pin,
-        // Provenance: entered via HQ, held by the chosen Main Agent (mirrors the
-        // batch HQ→AGENT1 handover trail).
-        owners: [entityId, target.id],
-        currentOwner: target.id,
-        governorate: _selectedGovernorate,
-      ));
-
-      if (!mounted) return;
-      setState(() {
-        _saving = false;
-        _serialCtrl.clear();
-        _pinCtrl.clear();
-      });
-      _serialFocus.requestFocus();
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(l.addVoucherSaved)));
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _saving = false;
-          _error = friendlyError(e, context);
-        });
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
-    if (_loadError != null) {
-      return ErrorState(error: _loadError!, onRetry: _loadDefs);
-    }
-
-    final l = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
-
-    return SingleChildScrollView(
-      padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 800),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SectionLabel(l.addVoucherDenomination),
-            DropdownButtonFormField<ProductDefinition>(
-              initialValue: _selectedDef,
-              isExpanded: true,
-              decoration:
-                  InputDecoration(labelText: l.batchAddProductDefinition),
-              items: _defs
-                  .map((d) => DropdownMenuItem(
-                        value: d,
-                        child: Text('${d.name} (${d.sku})'),
-                      ))
-                  .toList(),
-              onChanged: (v) => setState(() => _selectedDef = v),
-            ),
-            const SizedBox(height: 22),
-            // Main Agent — the voucher is added to this Main Agent's stock.
-            SectionLabel(_tr(context, 'الوكيل الرئيسي', 'Main Agent')),
-            if (_agents.isEmpty)
-              InkCard(
-                ruleColor: cs.error,
-                padding: const EdgeInsets.all(12),
-                child: Text(
-                  _tr(context, 'أنشئ وكيلاً رئيسياً أولاً', 'Create a Main Agent first'),
-                  style: IntesharType.sans(13, color: cs.onSurface),
-                ),
-              )
-            else
-              DropdownButtonFormField<EntitySummaryRow>(
-                initialValue: _target,
-                isExpanded: true,
-                decoration: InputDecoration(
-                    labelText: _tr(context, 'تُضاف إلى الوكيل الرئيسي', 'Add to Main Agent')),
-                items: _agents
-                    .map((e) => DropdownMenuItem(value: e, child: Text(e.label)))
-                    .toList(),
-                onChanged: (v) => setState(() => _target = v),
-              ),
-            const SizedBox(height: 22),
-            SectionLabel(l.batchAddGovernorate),
-            GovernorateDropdown(
-              value: _selectedGovernorate,
-              noneLabel: l.batchAddNotGeoLocked,
-              labelText: l.batchAddGovernorate,
-              onChanged: (v) => setState(() => _selectedGovernorate = v),
-            ),
-            const SizedBox(height: 22),
-            SectionLabel(l.addVoucherSerial),
-            TextField(
-              controller: _serialCtrl,
-              focusNode: _serialFocus,
-              decoration: InputDecoration(
-                labelText: l.addVoucherSerial,
-                hintText: 'SN0001',
-              ),
-              textInputAction: TextInputAction.next,
-            ),
-            const SizedBox(height: 14),
-            SectionLabel(l.addVoucherPin),
-            TextField(
-              controller: _pinCtrl,
-              decoration: InputDecoration(
-                labelText: l.addVoucherPin,
-                hintText: '1234',
-              ),
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) {
-                if (!_saving && _selectedDef != null) _save();
-              },
-            ),
-            const SizedBox(height: 22),
-            // Error banner
-            if (_error != null) ...[
-              InkCard(
-                ruleColor: cs.error,
-                padding: const EdgeInsets.all(12),
-                child: Text(_error!, style: IntesharType.sans(13, color: cs.onSurface)),
-              ),
-              const SizedBox(height: 12),
-            ],
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: (_saving || _selectedDef == null || _target == null)
-                    ? null
-                    : _save,
-                icon: _saving
-                    ? const SizedBox(
-                        height: 16,
-                        width: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.add_circle_outline, size: 18),
-                label: Text(l.addVoucherSave),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -679,6 +397,20 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
     }
   }
 
+  /// B-089: clear a finished upload so the operator can immediately do another,
+  /// instead of navigating away and back. Deliberately KEEPS the target, definition,
+  /// format and governorate — the common case is several files for the same agent.
+  void _resetForAnother() {
+    setState(() {
+      _pickedBytes = null;
+      _fileName = null;
+      _preview = null;
+      _result = null;
+      _error = null;
+      _progress = 0;
+    });
+  }
+
   Future<void> _import() async {
     final def = _selectedDef;
     final target = _target;
@@ -895,6 +627,16 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                       style: IntesharType.sans(13.5,
                           color: cs.onSurface, w: FontWeight.w700),
                     ),
+                    // B-089: start the next upload without leaving the page.
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: FilledButton.icon(
+                        onPressed: _resetForAnother,
+                        icon: const Icon(Icons.upload_file_outlined, size: 18),
+                        label: Text(_tr(context, 'رفع ملف آخر', 'Upload another file')),
+                      ),
+                    ),
                     // Which serials were skipped as duplicates (first 20) — so the operator can
                     // reconcile instead of guessing which rows didn't import.
                     if (_result!.skippedSerials.isNotEmpty) ...[
@@ -936,16 +678,10 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                 trailing: Text(l.batchAddRowCount(_preview!.length),
                     style: IntesharType.overline(color: cs.onSurfaceVariant)),
               ),
-              _PreviewTable(rows: _preview!, showLabel: !isNew),
-              const SizedBox(height: 16),
-              if (_importing) ...[
-                _ProgressBlock(
-                  progress: _progress,
-                  label: _tr(context, '${(_progress * 100).round()}%',
-                      '${(_progress * 100).round()}%'),
-                ),
-                const SizedBox(height: 12),
-              ],
+              // B-090: the primary action sits ABOVE the preview — it used to be the
+              // very last thing on a long page, so the operator had to scroll past
+              // everything to start the import they had already decided on.
+              const SizedBox(height: 12),
               if (_missing().isNotEmpty) ...[
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
@@ -963,6 +699,16 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                   label: Text(l.batchAddImportRows(_preview!.length)),
                 ),
               ),
+              if (_importing) ...[
+                const SizedBox(height: 12),
+                _ProgressBlock(
+                  progress: _progress,
+                  label: _tr(context, '${(_progress * 100).round()}%',
+                      '${(_progress * 100).round()}%'),
+                ),
+              ],
+              const SizedBox(height: 16),
+              _PreviewTable(rows: _preview!, showLabel: !isNew),
             ],
           ],
         ),

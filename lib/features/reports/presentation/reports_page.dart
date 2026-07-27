@@ -16,6 +16,7 @@ import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/inventory/domain/sku_summary.dart';
 import 'package:inteshar/features/pricing/domain/pricing_models.dart';
 import 'package:inteshar/features/reports/data/reports_repository.dart';
+import 'package:inteshar/features/reports/domain/report_filters.dart';
 import 'package:inteshar/features/reports/domain/report_rows.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
@@ -94,16 +95,36 @@ class _RS {
   String get currentBalance => p('Current balance', 'الرصيد الحالي');
   String get agentLabel => p('Agent', 'الوكيل');
   String get loadMore => p('Load more', 'تحميل المزيد');
+  String get totalMoved => p('Total moved', 'إجمالي المحوَّل');
+  String get totalSoldCards => p('Total cards sold', 'إجمالي الكروت المباعة');
+  String get totalUploaded => p('Total cards uploaded', 'إجمالي الكروت المرفوعة');
+  String get emptyInRange =>
+      p('Nothing in this date range.', 'لا توجد بيانات ضمن هذه المدة.');
+  String get searchAllDates => p('Search all dates', 'ابحث في كل التواريخ');
+  String get searchRoster => p('Search name, owner, phone…', 'ابحث بالاسم أو المالك أو الهاتف…');
+  String get allGovernorates => p('All', 'الكل');
+  String get familyMoney => p('Money', 'الأموال');
+  String get familyStock => p('Stock', 'المخزون');
+  String get familyActivity => p('Activity', 'الحركة');
+  String get noMatchLoaded => p(
+      'No match in the rows loaded so far — try Load more.',
+      'لا نتائج ضمن الصفوف المحمّلة — جرّب تحميل المزيد.');
   String get generatedAt => p('Generated', 'تاريخ الإنشاء');
   String get exportTruncated =>
       p('Export stopped at the row cap — the sheet is incomplete',
         'توقّف التصدير عند الحد الأقصى للصفوف — الملف غير مكتمل');
 }
 
+/// B-103: the 9 reports are really three families. Flat, they wrapped to FOUR rows
+/// of chips (~140px) on a 360dp phone — with the page header, target picker and
+/// date bar that was ~325px of chrome before the first data row.
+enum _Family { money, stock, activity }
+
 class _Tab {
   final String key;
   final String label;
-  const _Tab(this.key, this.label);
+  final _Family family;
+  const _Tab(this.key, this.label, this.family);
 }
 
 class _Export {
@@ -132,20 +153,31 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
   String get _effectiveId => _targetId ?? _me?.id ?? '';
 
   List<_Tab> _tabsFor(_RS s) => [
-        _Tab('prices', s.tabPrices),
+        // Money — what each account is worth and what moved between them.
+        _Tab('posBalances', s.tabPosBalances, _Family.money),
+        // #2 agent balances: admin + main agent only.
+        if (_isHq || _me?.type == EntityType.AGENT1)
+          _Tab('agentBalances', s.tabAgentBalances, _Family.money),
+        _Tab('transfers', s.tabTransfers, _Family.money),
+        // Stock & prices — what we hold and what it is worth.
+        _Tab('prices', s.tabPrices, _Family.stock),
         // Stock + Detailed (inventory worth) only for tiers that hold cards
         // (HQ / Main Agent). Sub Agents & Stores draw-on-print → always empty (B-068).
-        if (_me?.type.inventoryBacked ?? false) _Tab('stock', s.tabStock),
-        if (_me?.type.inventoryBacked ?? false) _Tab('detailed', s.tabDetailed),
-        _Tab('posBalances', s.tabPosBalances),
-        // #2 agent balances: admin + main agent only.
-        if (_isHq || _me?.type == EntityType.AGENT1) _Tab('agentBalances', s.tabAgentBalances),
-        _Tab('transfers', s.tabTransfers),
-        _Tab('sold', s.tabSold),
-        _Tab('totalSold', s.tabTotalSold),
+        if (_me?.type.inventoryBacked ?? false) _Tab('stock', s.tabStock, _Family.stock),
+        if (_me?.type.inventoryBacked ?? false) _Tab('detailed', s.tabDetailed, _Family.stock),
+        // Activity — what happened over a window.
+        _Tab('sold', s.tabSold, _Family.activity),
+        _Tab('totalSold', s.tabTotalSold, _Family.activity),
         // #6 uploaded cards: admin + main agent only.
-        if (_isHq || _me?.type == EntityType.AGENT1) _Tab('uploaded', s.tabUploaded),
+        if (_isHq || _me?.type == EntityType.AGENT1)
+          _Tab('uploaded', s.tabUploaded, _Family.activity),
       ];
+
+  String _familyLabel(_Family f, _RS s) => switch (f) {
+        _Family.money => s.familyMoney,
+        _Family.stock => s.familyStock,
+        _Family.activity => s.familyActivity,
+      };
 
   // sold + totalSold share one /sales fetch; everything else is its own source.
   String _sourceKey(String tab) => (tab == 'sold' || tab == 'totalSold') ? 'sales' : tab;
@@ -223,6 +255,11 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
   /// `allDates` — omitting from/to silently meant "last 30 days" on the server
   /// while the bar said "All dates".
   bool get _allDates => _from == null || _to == null;
+
+  /// B-103: the stock report's governorate filter used to live INSIDE its body
+  /// while the date range sat in the toolbar — two filters, two places. Hoisted
+  /// so both sit in one filter row. '' = every governorate.
+  String _stockGov = '';
 
   void _invalidate() => setState(() {
         _cache.clear();
@@ -410,6 +447,9 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
             (s.pickRange, rangeLabel),
             (s.generatedAt, '${_ymd(now)} ${now.hour.toString().padLeft(2, '0')}:'
                 '${now.minute.toString().padLeft(2, '0')}'),
+            // B-100: whoever opens the sheet sees the same headline figure the
+            // screen showed, without re-summing a column to check.
+            ?_exportTotal(key, data, s),
             if (capped) (s.export, s.exportTruncated),
           ]);
       if (mounted && path != null) {
@@ -419,6 +459,28 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
       }
     } catch (e) {
       if (mounted) messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+    }
+  }
+
+  /// The headline total for [key], mirroring the on-screen _TotalStrip. Null for
+  /// reports that have no single meaningful total (prices, stock rosters).
+  (String, String)? _exportTotal(String key, dynamic data, _RS s) {
+    switch (key) {
+      case 'detailed':
+        final c = data as PricingCatalog?;
+        return c == null ? null : (s.grandTotal, Formatters.iqd(c.inventoryWorth.round()));
+      case 'transfers':
+        final rows = (data as List<TransferRow>?) ?? const [];
+        return (s.totalMoved, Formatters.iqd(rows.fold<num>(0, (a, r) => a + r.amount).round()));
+      case 'sold':
+      case 'totalSold':
+        final rows = (data as List<SalesRow>?) ?? const [];
+        return (s.totalSoldCards, Formatters.money(rows.fold<int>(0, (a, r) => a + r.count)));
+      case 'uploaded':
+        final rows = (data as List<UploadsRow>?) ?? const [];
+        return (s.totalUploaded, Formatters.money(rows.fold<int>(0, (a, r) => a + r.count)));
+      default:
+        return null;
     }
   }
 
@@ -542,17 +604,9 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         children: [
           PageHeader(eyebrow: s.eyebrow, title: s.title, subtitle: s.subtitle),
           if (_pickables.length > 1) _targetPicker(s),
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(child: _tabBar(tabs)),
-            IconButton(
-              // Name the tab being exported so the scope is never ambiguous.
-              tooltip: '${s.export}: ${tabs[_tab].label}',
-              icon: const Icon(Icons.download_outlined),
-              onPressed: _booting ? null : () => _export(key, s),
-            ),
-            const SizedBox(width: 8),
-          ]),
-          if (_isDated(key)) _dateBar(s),
+          _familyBar(tabs, s),
+          _tabBar(tabs),
+          _filterBar(s, key),
           Expanded(child: _booting ? const Center(child: CircularProgressIndicator()) : _body(s, key)),
         ],
       ),
@@ -586,17 +640,51 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     );
   }
 
+  /// B-103: the family picker. Three segments instead of nine chips, so the tab
+  /// row below it never exceeds ONE line — the flat Wrap took four.
+  Widget _familyBar(List<_Tab> tabs, _RS s) {
+    final present = [
+      for (final f in _Family.values)
+        if (tabs.any((t) => t.family == f)) f,
+    ];
+    if (present.length < 2) return const SizedBox.shrink();
+    final current = tabs[_tab].family;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 2),
+      child: SegmentedButton<_Family>(
+        showSelectedIcon: false,
+        style: const ButtonStyle(visualDensity: VisualDensity.compact),
+        segments: [
+          for (final f in present)
+            ButtonSegment(value: f, label: Text(_familyLabel(f, s), maxLines: 1)),
+        ],
+        selected: {current},
+        onSelectionChanged: (sel) {
+          // Land on the family's first report rather than remembering a per-family
+          // position — with 3 reports each, hunting beats recall.
+          final first = tabs.indexWhere((t) => t.family == sel.first);
+          if (first >= 0) setState(() => _tab = first);
+        },
+      ),
+    );
+  }
+
+  /// Reports within the selected family only — at most three, so always one row.
   Widget _tabBar(List<_Tab> tabs) {
     final cs = Theme.of(context).colorScheme;
-    // Wrap (not a horizontal scroll strip) so every report tab is visible up-front
-    // — a scroll strip hid the last tabs with no affordance on web/phone (B-074).
+    final family = tabs[_tab].family;
+    final inFamily = [
+      for (var i = 0; i < tabs.length; i++)
+        if (tabs[i].family == family) i,
+    ];
+    if (inFamily.length < 2) return const SizedBox(height: 4);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 6, 4, 6),
+      padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
       child: Wrap(
         spacing: 8,
         runSpacing: 6,
         children: [
-          for (var i = 0; i < tabs.length; i++)
+          for (final i in inFamily)
             ChoiceChip(
               label: Text(tabs[i].label),
               selected: _tab == i,
@@ -609,12 +697,86 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     );
   }
 
+  /// B-103: ONE filter row. The date range and the stock report's governorate used
+  /// to live in different places (toolbar vs inside the body); export was an
+  /// unlabelled icon whose tooltip never appears on a touch device.
+  Widget _filterBar(_RS s, String key) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 2, 16, 4),
+      child: Row(children: [
+        if (_isDated(key))
+          Expanded(child: _dateBar(s))
+        else if (key == 'stock')
+          Expanded(child: _stockGovBar(s))
+        else
+          const Spacer(),
+        const SizedBox(width: 8),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.download_outlined, size: 16),
+          label: Text(s.export),
+          onPressed: _booting ? null : () => _export(key, s),
+        ),
+      ]),
+    );
+  }
+
+  /// Empty state for a DATED report — says which window returned nothing and
+  /// offers to widen it, so "no sales in January" never reads as "no sales ever".
+  Widget _emptyDated(_RS s) {
+    final cs = Theme.of(context).colorScheme;
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      children: [
+        const SizedBox(height: 72),
+        Center(child: Icon(Icons.event_busy_outlined, size: 48, color: cs.onSurfaceVariant)),
+        const SizedBox(height: 12),
+        Center(
+          child: Text(
+            _allDates ? s.empty : s.emptyInRange,
+            textAlign: TextAlign.center,
+            style: IntesharType.sans(14, color: cs.onSurfaceVariant),
+          ),
+        ),
+        if (!_allDates) ...[
+          const SizedBox(height: 4),
+          Center(
+            child: Text('${_ymd(_from)} → ${_ymd(_to)}',
+                style: IntesharType.mono(12.5, color: cs.onSurfaceVariant)),
+          ),
+          const SizedBox(height: 16),
+          Center(
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.date_range, size: 16),
+                  label: Text(s.pickRange),
+                  onPressed: _pickRange,
+                ),
+                // The single most likely fix, one tap away.
+                FilledButton.tonal(
+                  onPressed: () => setState(() {
+                    _from = null;
+                    _to = null;
+                    _invalidate();
+                  }),
+                  child: Text(s.searchAllDates),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
   Widget _dateBar(_RS s) {
     final cs = Theme.of(context).colorScheme;
     final label = (_from != null && _to != null) ? '${_ymd(_from)} → ${_ymd(_to)}' : s.allDates;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-      child: Row(children: [
+    // Sits inside _filterBar's Row now, so it carries no padding of its own.
+    return Row(children: [
         OutlinedButton.icon(
           onPressed: _pickRange,
           icon: const Icon(Icons.date_range, size: 16),
@@ -635,7 +797,47 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
             }),
           ),
         ],
-      ]),
+      ],
+    );
+  }
+
+  /// Governorate filter for the stock report — the options come from the loaded
+  /// summary, so it only offers regions that actually hold cards.
+  Widget _stockGovBar(_RS s) {
+    final cs = Theme.of(context).colorScheme;
+    final loc = Localizations.localeOf(context).languageCode;
+    final data = _cache['stock'];
+    return FutureBuilder<dynamic>(
+      future: data,
+      builder: (context, snap) {
+        final list = (snap.data as List<SkuSummary>?) ?? const [];
+        final govs = <String>{
+          for (final sku in list)
+            for (final g in sku.governorates) g.governorate,
+        }.toList()
+          ..sort();
+        if (govs.isEmpty) return const SizedBox.shrink();
+        return Row(children: [
+          Text('${s.governorate}: ', style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              initialValue: _stockGov,
+              isExpanded: true,
+              decoration: const InputDecoration(isDense: true),
+              items: [
+                DropdownMenuItem(value: '', child: Text(s.allGovernorates)),
+                for (final g in govs)
+                  DropdownMenuItem(
+                    value: g,
+                    child: Text(g.isEmpty ? s.untagged : governorateLabel(g, loc),
+                        overflow: TextOverflow.ellipsis),
+                  ),
+              ],
+              onChanged: (v) => setState(() => _stockGov = v ?? ''),
+            ),
+          ),
+        ]);
+      },
     );
   }
 
@@ -650,6 +852,13 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
           return ErrorState(error: snap.error!, onRetry: () => setState(() => _cache.remove(_sourceKey(key))));
         }
         final data = snap.data;
+        // B-101: a dated report that comes back empty is USUALLY empty because of
+        // the window, not because the agent has no data — and the generic
+        // "Nothing to report yet" made those two indistinguishable. Name the range
+        // that was searched and offer the fix.
+        if (_isDated(key) && data is List && data.isEmpty) {
+          return _emptyDated(s);
+        }
         final body = RefreshIndicator(
           onRefresh: () async => setState(() => _cache.remove(_sourceKey(key))),
           child: switch (key) {
@@ -657,6 +866,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
             'stock' => _StockReport(
                 summary: (data as List<SkuSummary>?) ?? const [],
                 artBySku: _artBySku,
+                gov: _stockGov,
                 s: s),
             'detailed' => _DetailedReport(catalog: data as PricingCatalog, s: s),
             'transfers' => _TransfersReport(rows: (data as List<TransferRow>?) ?? const [], s: s),
@@ -687,19 +897,56 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
 }
 
 // ── #1/#2 Balances roster ────────────────────────────────────────────────────
-class _RosterReport extends StatelessWidget {
+class _RosterReport extends StatefulWidget {
   final List<BalanceRosterRow> rows;
   final _RS s;
   const _RosterReport({required this.rows, required this.s});
 
   @override
+  State<_RosterReport> createState() => _RosterReportState();
+}
+
+/// B-102: the roster is a flat, now-paged list — finding one shop meant paging
+/// until it appeared. Filters the rows ALREADY LOADED (name / owner / phone /
+/// governorate); the Load-more tail keeps working, so a search that comes up
+/// empty on page 1 is a prompt to load more rather than a dead end.
+class _RosterReportState extends State<_RosterReport> {
+  String _q = '';
+
+  @override
   Widget build(BuildContext context) {
+    final s = widget.s;
     final cs = Theme.of(context).colorScheme;
-    if (rows.isEmpty) return _empty(context, s);
+    if (widget.rows.isEmpty) return _empty(context, s);
     final loc = Localizations.localeOf(context).languageCode;
+    final rows = widget.rows
+        .where((r) => rosterMatches(r, _q, govLabel: (g) => governorateLabel(g, loc)))
+        .toList();
     return ListView(
       padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
       children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: TextField(
+            onChanged: (v) => setState(() => _q = v.trim()),
+            decoration: InputDecoration(
+              isDense: true,
+              prefixIcon: const Icon(Icons.search, size: 18),
+              hintText: s.searchRoster,
+              // Show the effect of the filter, not just that one is applied.
+              suffixText: _q.isEmpty ? null : '${rows.length}/${widget.rows.length}',
+            ),
+          ),
+        ),
+        if (rows.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 32),
+            child: Center(
+              child: Text(s.noMatchLoaded,
+                  textAlign: TextAlign.center,
+                  style: IntesharType.sans(13, color: cs.onSurfaceVariant)),
+            ),
+          ),
         for (final r in rows)
           InkCard(
             padding: const EdgeInsets.all(14),
@@ -739,9 +986,17 @@ class _TransfersReport extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     if (rows.isEmpty) return _empty(context, s);
     final loc = Localizations.localeOf(context).languageCode;
+    // B-100: "how much moved" is the first question a transfers report is asked.
+    final moved = rows.fold<num>(0, (a, r) => a + r.amount);
     return ListView(
       padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
       children: [
+        _TotalStrip(
+          label: s.totalMoved,
+          value: Formatters.iqd(moved.round()),
+          subLabel: s.tabTransfers,
+          subValue: Formatters.money(rows.length),
+        ),
         for (final r in rows)
           InkCard(
             padding: const EdgeInsets.all(14),
@@ -787,9 +1042,17 @@ class _SalesReport extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     if (rows.isEmpty) return _empty(context, s);
     final loc = Localizations.localeOf(context).languageCode;
+    // B-100: the headline number a sales report exists to answer.
+    final sold = rows.fold<int>(0, (a, r) => a + r.count);
     return ListView(
       padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
       children: [
+        _TotalStrip(
+          label: s.totalSoldCards,
+          value: Formatters.money(sold),
+          subLabel: s.store,
+          subValue: Formatters.money(rows.map((r) => r.storeName).toSet().length),
+        ),
         for (final r in rows)
           InkCard(
             padding: const EdgeInsets.all(14),
@@ -835,6 +1098,12 @@ class _TotalSoldReport extends StatelessWidget {
     return ListView(
       padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
       children: [
+        _TotalStrip(
+          label: s.totalSoldCards,
+          value: Formatters.money(totals.values.fold<int>(0, (a, v) => a + v)),
+          subLabel: s.category,
+          subValue: Formatters.money(totals.length),
+        ),
         for (final key in totals.keys)
           Builder(builder: (_) {
             final r = meta[key]!;
@@ -872,6 +1141,12 @@ class _UploadsReport extends StatelessWidget {
     return ListView(
       padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
       children: [
+        _TotalStrip(
+          label: s.totalUploaded,
+          value: Formatters.money(rows.fold<int>(0, (a, r) => a + r.count)),
+          subLabel: s.category,
+          subValue: Formatters.money(rows.length),
+        ),
         for (final r in rows)
           InkCard(
             padding: const EdgeInsets.all(14),
@@ -977,153 +1252,95 @@ class _PricesReport extends StatelessWidget {
 /// #5 مخزن الكروت — the spec asks for the CARD ARTWORK with the available count
 /// beneath each image ("تظهر جميع صور البطاقات المتوفرة بالنظام واسفل كل صورة عدد
 /// الكروت المتوفر"), filtered by governorate — not a table (B-091).
-class _StockReport extends StatefulWidget {
+class _StockReport extends StatelessWidget {
   final List<SkuSummary> summary;
   final Map<String, String> artBySku; // sku -> ProductDefinition.imageUrl
+  /// B-103: the governorate filter now lives in the page's filter row with the
+  /// date range, instead of inside this body — two filters, one place.
+  final String gov;
   final _RS s;
-  const _StockReport({required this.summary, required this.artBySku, required this.s});
-
-  @override
-  State<_StockReport> createState() => _StockReportState();
-}
-
-class _StockReportState extends State<_StockReport> {
-  /// '' = every governorate (the spec's selector defaults to all).
-  String _gov = '';
+  const _StockReport({
+    required this.summary,
+    required this.artBySku,
+    required this.gov,
+    required this.s,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final s = widget.s;
     final cs = Theme.of(context).colorScheme;
-    if (widget.summary.isEmpty) return _empty(context, s);
-    final loc = Localizations.localeOf(context).languageCode;
-    final ar = loc == 'ar';
+    if (summary.isEmpty) return _empty(context, s);
 
-    // Governorates actually present in this stock (plus the untagged bucket).
-    final govs = <String>{
-      for (final sku in widget.summary)
-        for (final g in sku.governorates) g.governorate,
-    }.toList()
-      ..sort();
+    int availOf(SkuSummary k) => govCount(k, gov, (g) => g.available, k.available);
+    int totalOf(SkuSummary k) => govCount(k, gov, (g) => g.total, k.total);
+    int usedOf(SkuSummary k) => govCount(k, gov, (g) => g.printed, k.printed);
 
-    /// Counts for a SKU under the current governorate filter. B-091: the export
-    /// carries available + total + used, so the card must show all three — a
-    /// column you can only see after downloading isn't a report.
-    int availOf(SkuSummary sku) => _gov.isEmpty
-        ? sku.available
-        : sku.governorates
-            .where((g) => g.governorate == _gov)
-            .fold(0, (a, g) => a + g.available);
-    int totalOf(SkuSummary sku) => _gov.isEmpty
-        ? sku.total
-        : sku.governorates
-            .where((g) => g.governorate == _gov)
-            .fold(0, (a, g) => a + g.total);
-    int usedOf(SkuSummary sku) => _gov.isEmpty
-        ? sku.printed
-        : sku.governorates
-            .where((g) => g.governorate == _gov)
-            .fold(0, (a, g) => a + g.printed);
-
-    final shown = widget.summary.where((sku) => availOf(sku) > 0).toList()
+    final shown = summary.where((sku) => availOf(sku) > 0).toList()
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    if (shown.isEmpty) return _empty(context, s);
 
-    return Column(children: [
-      // Governorate selector (spec: "سلكتر لتحديد المحافظة").
-      Padding(
-        padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 8),
-        child: Row(children: [
-          Text('${ar ? 'المحافظة' : 'Governorate'}: ',
-              style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
-          Expanded(
-            child: DropdownButtonFormField<String>(
-              initialValue: _gov,
-              isExpanded: true,
-              decoration: const InputDecoration(isDense: true),
-              items: [
-                DropdownMenuItem(value: '', child: Text(ar ? 'الكل' : 'All')),
-                for (final g in govs)
-                  DropdownMenuItem(
-                    value: g,
-                    child: Text(g.isEmpty ? s.untagged : governorateLabel(g, loc),
-                        overflow: TextOverflow.ellipsis),
-                  ),
-              ],
-              onChanged: (v) => setState(() => _gov = v ?? ''),
-            ),
-          ),
-        ]),
+    return GridView.builder(
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 190,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        mainAxisExtent: 214, // +18 for the total/used line
       ),
-      Expanded(
-        child: shown.isEmpty
-            ? _empty(context, s)
-            : GridView.builder(
-                padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
-                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: 190,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  mainAxisExtent: 214, // +18 for the total/used line
-                ),
-                itemCount: shown.length,
-                itemBuilder: (_, i) {
-                  final sku = shown[i];
-                  final art = widget.artBySku[sku.sku] ?? '';
-                  return InkCard(
-                    padding: const EdgeInsets.all(10),
-                    child: Column(children: [
-                      // The card picture — the point of this report.
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(IntesharRadii.md),
-                          child: art.trim().isEmpty
-                              ? Container(
-                                  width: double.infinity,
-                                  color: cs.surfaceContainerHighest,
-                                  child: Icon(Icons.style_outlined,
-                                      size: 34, color: cs.onSurfaceVariant),
-                                )
-                              : Image.network(art,
-                                  width: double.infinity,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) => Container(
-                                        color: cs.surfaceContainerHighest,
-                                        child: Icon(Icons.style_outlined,
-                                            size: 34, color: cs.onSurfaceVariant),
-                                      )),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(sku.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w700)),
-                      const SizedBox(height: 2),
-                      // The available count, directly beneath the image (the spec's
-                      // "اسفل كل صورة عدد الكروت المتوفر") — still the hero number.
-                      Text(Formatters.money(availOf(sku)),
-                          style: IntesharType.mono(17,
-                              color: context.tones.brandInk, w: FontWeight.w900)),
-                      const SizedBox(height: 1),
-                      // …with the two columns the export also carries, kept quiet
-                      // so they inform without competing with the available count.
-                      Text(
-                        '${s.total} ${Formatters.money(totalOf(sku))} · ${s.used} ${Formatters.money(usedOf(sku))}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: IntesharType.sans(10.5, color: cs.onSurfaceVariant),
-                      ),
-                    ]),
-                  );
-                },
+      itemCount: shown.length,
+      itemBuilder: (_, i) {
+        final sku = shown[i];
+        final art = artBySku[sku.sku] ?? '';
+        return InkCard(
+          padding: const EdgeInsets.all(10),
+          child: Column(children: [
+            // The card picture — the point of this report.
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(IntesharRadii.md),
+                child: art.trim().isEmpty
+                    ? Container(
+                        width: double.infinity,
+                        color: cs.surfaceContainerHighest,
+                        child: Icon(Icons.style_outlined, size: 34, color: cs.onSurfaceVariant),
+                      )
+                    : Image.network(art,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => Container(
+                              color: cs.surfaceContainerHighest,
+                              child: Icon(Icons.style_outlined,
+                                  size: 34, color: cs.onSurfaceVariant),
+                            )),
               ),
-      ),
-    ]);
+            ),
+            const SizedBox(height: 8),
+            Text(sku.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w700)),
+            const SizedBox(height: 2),
+            // The available count, directly beneath the image (the spec's
+            // "اسفل كل صورة عدد الكروت المتوفر") — still the hero number.
+            Text(Formatters.money(availOf(sku)),
+                style: IntesharType.mono(17, color: context.tones.brandInk, w: FontWeight.w900)),
+            const SizedBox(height: 1),
+            // …with the two columns the export also carries (B-091), kept quiet
+            // so they inform without competing with the available count.
+            Text(
+              '${s.total} ${Formatters.money(totalOf(sku))} · ${s.used} ${Formatters.money(usedOf(sku))}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: IntesharType.sans(10.5, color: cs.onSurfaceVariant),
+            ),
+          ]),
+        );
+      },
+    );
   }
 }
-
 
 // ── #9 Detailed ──────────────────────────────────────────────────────────────
 class _DetailedReport extends StatelessWidget {
@@ -1139,19 +1356,12 @@ class _DetailedReport extends StatelessWidget {
     return ListView(
       padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
       children: [
-        Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-          decoration: BoxDecoration(color: context.tones.brand, borderRadius: BorderRadius.circular(IntesharRadii.lg)),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(s.grandTotal, style: IntesharType.overline(color: IntesharColors.ink.withValues(alpha: 0.7))),
-              const SizedBox(height: 2),
-              Text(Formatters.iqd(catalog.inventoryWorth.round()),
-                  style: const TextStyle(fontFamily: 'CodecPro', fontSize: 24, fontWeight: FontWeight.w900, color: IntesharColors.ink, height: 1)),
-            ],
-          ),
+        // B-099: was a full gold slab — the last big brand-filled surface left after
+        // B-094 demoted the dashboard card, POS tally, sign-in and splash. White with
+        // a brand accent rule, matching those; the NUMBER is the hero, not the panel.
+        _TotalStrip(
+          label: s.grandTotal,
+          value: Formatters.iqd(catalog.inventoryWorth.round()),
         ),
         for (final row in catalog.rows)
           InkCard(
@@ -1178,7 +1388,19 @@ class _DetailedReport extends StatelessWidget {
                       Expanded(flex: 3, child: Text(g.$1 == '' ? s.untagged : governorateLabel(g.$1, loc), style: IntesharType.sans(12.5, color: cs.onSurface))),
                       Expanded(flex: 2, child: Text('${g.$2}', textAlign: TextAlign.end, style: IntesharType.mono(12.5, color: cs.onSurface))),
                       Expanded(flex: 2, child: Text(Formatters.money(g.$3), textAlign: TextAlign.end, style: IntesharType.mono(12.5, color: cs.onSurfaceVariant))),
-                      Expanded(flex: 3, child: Text(Formatters.iqd(g.$4.round()), textAlign: TextAlign.end, style: IntesharType.mono(12.5, color: cs.onSurface, w: FontWeight.w700))),
+                      // B-099: 90px column at 360dp; "125,876,000 IQD" needs 95px and
+                      // used to WRAP, breaking the row's alignment. Money shrinks to fit
+                      // rather than wrapping or ellipsising — a clipped figure is a lie.
+                      Expanded(
+                        flex: 3,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: AlignmentDirectional.centerEnd,
+                          child: Text(Formatters.iqd(g.$4.round()),
+                              maxLines: 1,
+                              style: IntesharType.mono(12.5, color: cs.onSurface, w: FontWeight.w700)),
+                        ),
+                      ),
                     ]),
                   ),
               ],
@@ -1193,6 +1415,98 @@ class _DetailedReport extends StatelessWidget {
         (row.governorates.length == 1 && row.governorates.first.governorate.isNotEmpty);
     if (!hasBreakdown) return [('', row.available, row.effectivePrice, row.lineValue)];
     return [for (final g in row.governorates) (g.governorate, g.available, g.effectivePrice, g.lineValue)];
+  }
+}
+
+/// The summary figure that sits above a report's rows.
+///
+/// B-099 replaced the Detailed report's full-gold panel with this; B-100 reuses it
+/// so Transfers and Sold/Total-sold finally answer "how much altogether" without
+/// exporting to Excel and summing by hand. White surface + a brand accent rule,
+/// matching the dashboard balance card after B-094 — the number is the hero, not
+/// the panel behind it.
+class _TotalStrip extends StatelessWidget {
+  final String label;
+  final String value;
+
+  /// Optional second figure (e.g. row count beside a summed amount).
+  final String? subLabel;
+  final String? subValue;
+
+  const _TotalStrip({
+    required this.label,
+    required this.value,
+    this.subLabel,
+    this.subValue,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(IntesharRadii.lg),
+        border: Border.all(color: cs.outlineVariant),
+        boxShadow: IntesharShadows.elev1,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 3,
+            height: 38,
+            decoration: BoxDecoration(
+              color: context.tones.brand,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(label, style: IntesharType.overline(color: cs.onSurfaceVariant)),
+                const SizedBox(height: 3),
+                // Totals are the widest numbers on the screen — shrink, never clip.
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Text(
+                    value,
+                    maxLines: 1,
+                    style: TextStyle(
+                        fontFamily: 'CodecPro',
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        color: cs.onSurface,
+                        height: 1),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (subValue != null) ...[
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (subLabel != null)
+                  Text(subLabel!, style: IntesharType.overline(color: cs.onSurfaceVariant)),
+                const SizedBox(height: 3),
+                Text(subValue!,
+                    maxLines: 1,
+                    style: IntesharType.mono(15, color: cs.onSurface, w: FontWeight.w800)),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }
 

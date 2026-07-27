@@ -896,6 +896,225 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
   }
 }
 
+// ── Shared report surface ────────────────────────────────────────────────────
+
+/// One column of a report.
+///
+/// [primary] is the row's identity (bold, leads the narrow layout). [numeric]
+/// right-aligns and sets tabular figures so columns of money line up. [trailing]
+/// is the row's headline figure — it stays on the first line when narrow.
+class _RCol {
+  final String label;
+  final int flex;
+  final bool numeric;
+  final bool primary;
+  final bool trailing;
+  const _RCol(this.label, {this.flex = 2, this.numeric = false, this.primary = false, this.trailing = false});
+}
+
+class _RCell {
+  final String text;
+  final Color? color;
+  const _RCell(this.text, {this.color});
+}
+
+/// The report surface, replacing card-per-record (B-104).
+///
+/// Reports are tabular data. Rendered as full-width cards the content pinned to
+/// one edge and 50–70% of every card was empty white space, with 6–8 stacked
+/// label/value rows per record reading like a debug dump. So:
+///
+/// - **wide**: one header row, then hairline-separated data rows with aligned
+///   columns — the width does the work and figures line up for scanning;
+/// - **narrow**: two lines per record (identity + headline figure, then the
+///   remaining values joined by `·`), no per-row card chrome.
+///
+/// One component so all five list reports look identical and improve together.
+/// Scrollable report: [leading] (totals / search) then the surface.
+class _ReportTable extends StatelessWidget {
+  final List<_RCol> columns;
+  final List<List<_RCell>> rows;
+  final Widget? leading;
+  final Widget? emptyRows;
+
+  const _ReportTable({
+    required this.columns,
+    required this.rows,
+    this.leading,
+    this.emptyRows,
+  });
+
+  @override
+  Widget build(BuildContext context) => ListView(
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
+        children: [
+          ?leading,
+          _ReportSurface(columns: columns, rows: rows, emptyRows: emptyRows),
+        ],
+      );
+}
+
+/// The bordered table itself — no scroll view of its own, so it can also be
+/// embedded in a list that already scrolls (Prices groups one per company).
+class _ReportSurface extends StatelessWidget {
+  final List<_RCol> columns;
+  final List<List<_RCell>> rows;
+  final Widget? emptyRows;
+
+  const _ReportSurface({required this.columns, required this.rows, this.emptyRows});
+
+  static const _wide = 720.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return LayoutBuilder(
+      builder: (context, c) {
+        final wide = c.maxWidth >= _wide;
+        return Container(
+          decoration: BoxDecoration(
+            color: cs.surface,
+            borderRadius: BorderRadius.circular(IntesharRadii.lg),
+            border: Border.all(color: cs.outlineVariant),
+            boxShadow: IntesharShadows.elev1,
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              if (wide) _header(cs),
+              if (rows.isEmpty && emptyRows != null)
+                emptyRows!
+              else
+                for (var i = 0; i < rows.length; i++) ...[
+                  if (i > 0) Divider(height: 1, thickness: 1, color: cs.outlineVariant),
+                  wide ? _wideRow(cs, rows[i]) : _narrowRow(cs, rows[i]),
+                ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _header(ColorScheme cs) => Container(
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
+          border: Border(bottom: BorderSide(color: cs.outlineVariant)),
+        ),
+        child: Row(
+          children: [
+            for (final col in columns)
+              Expanded(
+                flex: col.flex,
+                child: Text(
+                  col.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: col.numeric ? TextAlign.end : TextAlign.start,
+                  style: IntesharType.overline(color: cs.onSurfaceVariant),
+                ),
+              ),
+          ],
+        ),
+      );
+
+  Widget _wideRow(ColorScheme cs, List<_RCell> cells) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        child: Row(
+          children: [
+            for (var i = 0; i < columns.length; i++)
+              Expanded(
+                flex: columns[i].flex,
+                child: _cellText(cs, columns[i], i < cells.length ? cells[i] : const _RCell('')),
+              ),
+          ],
+        ),
+      );
+
+  Widget _cellText(ColorScheme cs, _RCol col, _RCell cell) {
+    final style = col.numeric
+        ? IntesharType.mono(12.5,
+            color: cell.color ?? (col.primary || col.trailing ? cs.onSurface : cs.onSurfaceVariant),
+            w: col.trailing ? FontWeight.w800 : FontWeight.w600)
+        : IntesharType.sans(13,
+            color: cell.color ?? (col.primary ? cs.onSurface : cs.onSurfaceVariant),
+            w: col.primary ? FontWeight.w700 : FontWeight.w500);
+    // Figures shrink rather than clip — a truncated amount is a lie (B-095/B-099).
+    final text = Text(cell.text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        textAlign: col.numeric ? TextAlign.end : TextAlign.start,
+        style: style);
+    return col.numeric
+        ? FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerEnd, child: text)
+        : text;
+  }
+
+  /// Identity + headline figure on line 1; everything else muted on line 2.
+  Widget _narrowRow(ColorScheme cs, List<_RCell> cells) {
+    String? at(bool Function(_RCol) test) {
+      for (var i = 0; i < columns.length && i < cells.length; i++) {
+        if (test(columns[i]) && cells[i].text.trim().isNotEmpty) return cells[i].text;
+      }
+      return null;
+    }
+
+    final title = at((c) => c.primary) ?? '';
+    final trailing = at((c) => c.trailing);
+    Color? trailingColor;
+    for (var i = 0; i < columns.length && i < cells.length; i++) {
+      if (columns[i].trailing) trailingColor = cells[i].color;
+    }
+    final meta = <String>[
+      for (var i = 0; i < columns.length && i < cells.length; i++)
+        if (!columns[i].primary && !columns[i].trailing && cells[i].text.trim().isNotEmpty)
+          cells[i].text,
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700)),
+              ),
+              if (trailing != null) ...[
+                const SizedBox(width: 10),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 150),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: Text(trailing,
+                        maxLines: 1,
+                        style: IntesharType.mono(14,
+                            color: trailingColor ?? cs.onSurface, w: FontWeight.w800)),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          if (meta.isNotEmpty) ...[
+            const SizedBox(height: 3),
+            Text(meta.join('  ·  '),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: IntesharType.sans(11.5, color: cs.onSurfaceVariant)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 // ── #1/#2 Balances roster ────────────────────────────────────────────────────
 class _RosterReport extends StatefulWidget {
   final List<BalanceRosterRow> rows;
@@ -906,10 +1125,9 @@ class _RosterReport extends StatefulWidget {
   State<_RosterReport> createState() => _RosterReportState();
 }
 
-/// B-102: the roster is a flat, now-paged list — finding one shop meant paging
-/// until it appeared. Filters the rows ALREADY LOADED (name / owner / phone /
-/// governorate); the Load-more tail keeps working, so a search that comes up
-/// empty on page 1 is a prompt to load more rather than a dead end.
+/// B-102: filters the rows ALREADY LOADED (name / owner / phone / governorate);
+/// the Load-more tail keeps working, so a search that comes up empty on page 1
+/// is a prompt to load more rather than a dead end.
 class _RosterReportState extends State<_RosterReport> {
   String _q = '';
 
@@ -922,55 +1140,47 @@ class _RosterReportState extends State<_RosterReport> {
     final rows = widget.rows
         .where((r) => rosterMatches(r, _q, govLabel: (g) => governorateLabel(g, loc)))
         .toList();
-    return ListView(
-      padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: TextField(
-            onChanged: (v) => setState(() => _q = v.trim()),
-            decoration: InputDecoration(
-              isDense: true,
-              prefixIcon: const Icon(Icons.search, size: 18),
-              hintText: s.searchRoster,
-              // Show the effect of the filter, not just that one is applied.
-              suffixText: _q.isEmpty ? null : '${rows.length}/${widget.rows.length}',
-            ),
+
+    return _ReportTable(
+      leading: Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: TextField(
+          onChanged: (v) => setState(() => _q = v.trim()),
+          decoration: InputDecoration(
+            isDense: true,
+            prefixIcon: const Icon(Icons.search, size: 18),
+            hintText: s.searchRoster,
+            suffixText: _q.isEmpty ? null : '${rows.length}/${widget.rows.length}',
           ),
         ),
-        if (rows.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 32),
-            child: Center(
-              child: Text(s.noMatchLoaded,
-                  textAlign: TextAlign.center,
-                  style: IntesharType.sans(13, color: cs.onSurfaceVariant)),
-            ),
-          ),
-        for (final r in rows)
-          InkCard(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  Expanded(child: Text(r.name, style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w700))),
-                  Text(Formatters.iqd(r.available.round()),
-                      style: IntesharType.mono(15, color: context.tones.brandInk, w: FontWeight.w800)),
-                ]),
-                const SizedBox(height: 4),
-                if (r.ownerName.isNotEmpty) _kv(cs, s.owner, r.ownerName),
-                if (r.userPhone.isNotEmpty) _kv(cs, s.phone, r.userPhone),
-                if (r.governorate.isNotEmpty) _kv(cs, s.governorate, governorateLabel(r.governorate, loc)),
-                if (r.address.isNotEmpty) _kv(cs, s.address, r.address),
-                if (r.mainAgentName.isNotEmpty) _kv(cs, s.mainAgent, r.mainAgentName),
-                if (r.subAgentName.isNotEmpty) _kv(cs, s.subAgent, r.subAgentName),
-                if (r.tier == 'AGENT1' || r.tier == 'AGENT2') _kv(cs, s.points, '${r.storeCount}'),
-                if (r.ordersSpent > 0) _kv(cs, s.spent, Formatters.iqd(r.ordersSpent.round())),
-              ],
-            ),
-          ),
+      ),
+      columns: [
+        _RCol(s.tabPosBalances, flex: 4, primary: true),
+        _RCol(s.owner, flex: 3),
+        _RCol(s.phone, flex: 3),
+        _RCol(s.governorate, flex: 2),
+        _RCol(s.mainAgent, flex: 3),
+        _RCol(s.balance, flex: 3, numeric: true, trailing: true),
       ],
+      rows: [
+        for (final r in rows)
+          [
+            _RCell(r.name),
+            _RCell(r.ownerName),
+            _RCell(r.userPhone),
+            _RCell(r.governorate.isEmpty ? '' : governorateLabel(r.governorate, loc)),
+            _RCell([r.mainAgentName, r.subAgentName].where((x) => x.isNotEmpty).join(' / ')),
+            _RCell(Formatters.iqd(r.available.round())),
+          ],
+      ],
+      emptyRows: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+        child: Center(
+          child: Text(s.noMatchLoaded,
+              textAlign: TextAlign.center,
+              style: IntesharType.sans(13, color: cs.onSurfaceVariant)),
+        ),
+      ),
     );
   }
 }
@@ -983,49 +1193,35 @@ class _TransfersReport extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     if (rows.isEmpty) return _empty(context, s);
     final loc = Localizations.localeOf(context).languageCode;
-    // B-100: "how much moved" is the first question a transfers report is asked.
+    final arrow = Directionality.of(context) == TextDirection.rtl ? '←' : '→';
     final moved = rows.fold<num>(0, (a, r) => a + r.amount);
-    return ListView(
-      padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
-      children: [
-        _TotalStrip(
-          label: s.totalMoved,
-          value: Formatters.iqd(moved.round()),
-          subLabel: s.tabTransfers,
-          subValue: Formatters.money(rows.length),
-        ),
+    return _ReportTable(
+      leading: _TotalStrip(
+        label: s.totalMoved,
+        value: Formatters.iqd(moved.round()),
+        subLabel: s.tabTransfers,
+        subValue: Formatters.money(rows.length),
+      ),
+      columns: [
+        _RCol(s.date, flex: 3),
+        _RCol('${s.source} $arrow ${s.destination}', flex: 5, primary: true),
+        _RCol(s.owner, flex: 3),
+        _RCol(s.governorate, flex: 2),
+        _RCol(s.balanceAfter, flex: 3, numeric: true),
+        _RCol(s.transferAmount, flex: 3, numeric: true, trailing: true),
+      ],
+      rows: [
         for (final r in rows)
-          InkCard(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  Expanded(
-                    child: Text(
-                        '${r.sourceName} ${Directionality.of(context) == TextDirection.rtl ? '←' : '→'} ${r.destName}',
-                        style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700),
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
-                  ),
-                  Text('+${Formatters.iqd(r.amount.round())}',
-                      style: IntesharType.mono(14, color: IntesharColors.sage, w: FontWeight.w800)),
-                ]),
-                const SizedBox(height: 2),
-                Text('${r.date} · ${r.time}', style: IntesharType.mono(11, color: cs.onSurfaceVariant)),
-                const SizedBox(height: 4),
-                if (r.destOwnerName.isNotEmpty) _kv(cs, s.owner, r.destOwnerName),
-                if (r.destPhone.isNotEmpty) _kv(cs, s.phone, r.destPhone),
-                if (r.destGovernorate.isNotEmpty) _kv(cs, s.governorate, governorateLabel(r.destGovernorate, loc)),
-                if (r.mainAgentName.isNotEmpty) _kv(cs, s.mainAgent, r.mainAgentName),
-                if (r.subAgentName.isNotEmpty) _kv(cs, s.subAgent, r.subAgentName),
-                if (r.destAvailable != 0) _kv(cs, s.currentBalance, Formatters.iqd(r.destAvailable.round())),
-                _kv(cs, s.balanceAfter, Formatters.iqd(r.balanceAfter.round())),
-              ],
-            ),
-          ),
+          [
+            _RCell('${r.date} · ${r.time}'),
+            _RCell('${r.sourceName} $arrow ${r.destName}'),
+            _RCell(r.destOwnerName),
+            _RCell(r.destGovernorate.isEmpty ? '' : governorateLabel(r.destGovernorate, loc)),
+            _RCell(Formatters.iqd(r.balanceAfter.round())),
+            _RCell('+${Formatters.iqd(r.amount.round())}', color: IntesharColors.sage),
+          ],
       ],
     );
   }
@@ -1039,39 +1235,34 @@ class _SalesReport extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     if (rows.isEmpty) return _empty(context, s);
     final loc = Localizations.localeOf(context).languageCode;
-    // B-100: the headline number a sales report exists to answer.
     final sold = rows.fold<int>(0, (a, r) => a + r.count);
-    return ListView(
-      padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
-      children: [
-        _TotalStrip(
-          label: s.totalSoldCards,
-          value: Formatters.money(sold),
-          subLabel: s.store,
-          subValue: Formatters.money(rows.map((r) => r.storeName).toSet().length),
-        ),
+    return _ReportTable(
+      leading: _TotalStrip(
+        label: s.totalSoldCards,
+        value: Formatters.money(sold),
+        subLabel: s.store,
+        subValue: Formatters.money(rows.map((r) => r.storeName).toSet().length),
+      ),
+      columns: [
+        _RCol(s.store, flex: 4, primary: true),
+        _RCol(s.company, flex: 3),
+        _RCol(s.category, flex: 3),
+        _RCol(s.governorate, flex: 2),
+        _RCol(s.mainAgent, flex: 3),
+        _RCol(s.cards, flex: 2, numeric: true, trailing: true),
+      ],
+      rows: [
         for (final r in rows)
-          InkCard(
-            padding: const EdgeInsets.all(14),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Expanded(child: Text([r.companyName, r.category].where((x) => x.isNotEmpty).join(' · '),
-                    style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w700))),
-                StampPill(label: '${s.cards}: ${r.count}', color: context.tones.brandInk),
-              ]),
-              const SizedBox(height: 4),
-              if (r.storeName.isNotEmpty) _kv(cs, s.store, r.storeName),
-              if (r.ownerName.isNotEmpty) _kv(cs, s.owner, r.ownerName),
-              if (r.userPhone.isNotEmpty) _kv(cs, s.phone, r.userPhone),
-              if (r.operatorPhone.isNotEmpty) _kv(cs, s.user, r.operatorPhone),
-              if (r.governorate.isNotEmpty) _kv(cs, s.governorate, governorateLabel(r.governorate, loc)),
-              if (r.mainAgentName.isNotEmpty) _kv(cs, s.mainAgent, r.mainAgentName),
-              if (r.subAgentName.isNotEmpty) _kv(cs, s.subAgent, r.subAgentName),
-            ]),
-          ),
+          [
+            _RCell(r.storeName),
+            _RCell(r.companyName),
+            _RCell(r.category),
+            _RCell(r.governorate.isEmpty ? '' : governorateLabel(r.governorate, loc)),
+            _RCell([r.mainAgentName, r.subAgentName].where((x) => x.isNotEmpty).join(' / ')),
+            _RCell(Formatters.money(r.count)),
+          ],
       ],
     );
   }
@@ -1085,7 +1276,6 @@ class _TotalSoldReport extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     if (rows.isEmpty) return _empty(context, s);
     final loc = Localizations.localeOf(context).languageCode;
     final totals = <String, int>{};
@@ -1095,33 +1285,29 @@ class _TotalSoldReport extends StatelessWidget {
       totals[key] = (totals[key] ?? 0) + r.count;
       meta.putIfAbsent(key, () => r);
     }
-    return ListView(
-      padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
-      children: [
-        _TotalStrip(
-          label: s.totalSoldCards,
-          value: Formatters.money(totals.values.fold<int>(0, (a, v) => a + v)),
-          subLabel: s.category,
-          subValue: Formatters.money(totals.length),
-        ),
+    return _ReportTable(
+      leading: _TotalStrip(
+        label: s.totalSoldCards,
+        value: Formatters.money(totals.values.fold<int>(0, (a, v) => a + v)),
+        subLabel: s.category,
+        subValue: Formatters.money(totals.length),
+      ),
+      columns: [
+        _RCol('${s.company} · ${s.category}', flex: 4, primary: true),
+        _RCol(s.mainAgent, flex: 3),
+        _RCol(s.subAgent, flex: 3),
+        _RCol(s.governorate, flex: 2),
+        _RCol(s.cards, flex: 2, numeric: true, trailing: true),
+      ],
+      rows: [
         for (final key in totals.keys)
-          Builder(builder: (_) {
-            final r = meta[key]!;
-            final agent = [r.mainAgentName, r.subAgentName].where((x) => x.isNotEmpty).join(' / ');
-            return InkCard(
-              padding: const EdgeInsets.all(14),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Expanded(child: Text([r.companyName, r.category].where((x) => x.isNotEmpty).join(' · '),
-                      style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w700))),
-                  StampPill(label: '${s.cards}: ${Formatters.money(totals[key] ?? 0)}', color: context.tones.brandInk),
-                ]),
-                const SizedBox(height: 4),
-                if (agent.isNotEmpty) _kv(cs, s.agent, agent),
-                if (r.governorate.isNotEmpty) _kv(cs, s.governorate, governorateLabel(r.governorate, loc)),
-              ]),
-            );
-          }),
+          [
+            _RCell([meta[key]!.companyName, meta[key]!.category].where((x) => x.isNotEmpty).join(' · ')),
+            _RCell(meta[key]!.mainAgentName),
+            _RCell(meta[key]!.subAgentName),
+            _RCell(meta[key]!.governorate.isEmpty ? '' : governorateLabel(meta[key]!.governorate, loc)),
+            _RCell(Formatters.money(totals[key] ?? 0)),
+          ],
       ],
     );
   }
@@ -1135,46 +1321,37 @@ class _UploadsReport extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     if (rows.isEmpty) return _empty(context, s);
     final loc = Localizations.localeOf(context).languageCode;
-    return ListView(
-      padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
-      children: [
-        _TotalStrip(
-          label: s.totalUploaded,
-          value: Formatters.money(rows.fold<int>(0, (a, r) => a + r.count)),
-          subLabel: s.category,
-          subValue: Formatters.money(rows.length),
-        ),
+    return _ReportTable(
+      leading: _TotalStrip(
+        label: s.totalUploaded,
+        value: Formatters.money(rows.fold<int>(0, (a, r) => a + r.count)),
+        subLabel: s.category,
+        subValue: Formatters.money(rows.length),
+      ),
+      columns: [
+        _RCol('${s.company} · ${s.category}', flex: 4, primary: true),
+        _RCol(s.mainAgent, flex: 3),
+        _RCol(s.governorate, flex: 2),
+        _RCol(s.cards, flex: 2, numeric: true, trailing: true),
+      ],
+      rows: [
         for (final r in rows)
-          InkCard(
-            padding: const EdgeInsets.all(14),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Expanded(child: Text([r.companyName, r.category].where((x) => x.isNotEmpty).join(' · '),
-                    style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w700))),
-                StampPill(label: '${s.cards}: ${r.count}', color: IntesharColors.sage),
-              ]),
-              const SizedBox(height: 4),
-              if (r.agentName.isNotEmpty) _kv(cs, s.mainAgent, r.agentName),
-              if (r.governorate.isNotEmpty) _kv(cs, s.governorate, governorateLabel(r.governorate, loc)),
-            ]),
-          ),
+          [
+            _RCell([r.companyName, r.category].where((x) => x.isNotEmpty).join(' · ')),
+            _RCell(r.agentName),
+            _RCell(r.governorate.isEmpty ? '' : governorateLabel(r.governorate, loc)),
+            _RCell(Formatters.money(r.count), color: IntesharColors.sage),
+          ],
       ],
     );
   }
 }
 
-Widget _kv(ColorScheme cs, String k, String v) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        SizedBox(width: 96, child: Text(k, style: IntesharType.sans(11.5, color: cs.onSurfaceVariant))),
-        Expanded(child: Text(v, style: IntesharType.sans(12.5, color: cs.onSurface, w: FontWeight.w600))),
-      ]),
-    );
-
 // ── #7 Prices ────────────────────────────────────────────────────────────────
+/// B-104: was a card per SKU, each repeating the base/agent/effective column
+/// header. One table per company instead — the header is stated once.
 class _PricesReport extends StatelessWidget {
   final PricingCatalog catalog;
   final _RS s;
@@ -1183,69 +1360,52 @@ class _PricesReport extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     if (catalog.rows.isEmpty) return _empty(context, s);
+    final loc = Localizations.localeOf(context).languageCode;
     final groups = <String, List<CategoryPriceRow>>{};
     for (final r in catalog.rows) {
       groups.putIfAbsent(r.companyName.isNotEmpty ? r.companyName : s.uncategorized, () => []).add(r);
     }
-    final loc = Localizations.localeOf(context).languageCode;
+
+    List<(String, num, num?, num)> govRows(CategoryPriceRow row) {
+      final hasBreakdown = row.governorates.length > 1 ||
+          (row.governorates.length == 1 && row.governorates.first.governorate.isNotEmpty);
+      if (!hasBreakdown) return [('', row.officialPrice, row.agentPrice, row.effectivePrice)];
+      return [for (final g in row.governorates) (g.governorate, g.officialPrice, g.agentPrice, g.effectivePrice)];
+    }
+
     return ListView(
       padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
       children: [
         if (agentLabel.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: _kv(cs, s.agentLabel, agentLabel),
-          ),
+          _TotalStrip(label: s.agentLabel, value: agentLabel),
         for (final e in groups.entries) ...[
           SectionLabel(e.key),
-          for (final row in e.value)
-            InkCard(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(row.name, style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w700)),
-                  const SizedBox(height: 8),
-                  _priceHeader(s, cs),
-                  for (final g in _govRows(row))
-                    _priceRow(g.$1 == '' ? s.untagged : governorateLabel(g.$1, loc), g.$2, g.$3, g.$4, cs),
-                ],
-              ),
-            ),
-          const SizedBox(height: 8),
+          _ReportSurface(
+            columns: [
+              _RCol(s.category, flex: 4, primary: true),
+              _RCol(s.governorate, flex: 3),
+              _RCol(s.base, flex: 2, numeric: true),
+              _RCol(s.agent, flex: 2, numeric: true),
+              _RCol(s.effective, flex: 2, numeric: true, trailing: true),
+            ],
+            rows: [
+              for (final row in e.value)
+                for (final g in govRows(row))
+                  [
+                    _RCell(row.name),
+                    _RCell(g.$1.isEmpty ? s.untagged : governorateLabel(g.$1, loc)),
+                    _RCell(Formatters.money(g.$2)),
+                    _RCell(g.$3 == null ? '—' : Formatters.money(g.$3!)),
+                    _RCell(Formatters.money(g.$4)),
+                  ],
+            ],
+          ),
+          const SizedBox(height: 10),
         ],
       ],
     );
   }
-
-  List<(String, num, num?, num)> _govRows(CategoryPriceRow row) {
-    final hasBreakdown = row.governorates.length > 1 ||
-        (row.governorates.length == 1 && row.governorates.first.governorate.isNotEmpty);
-    if (!hasBreakdown) return [('', row.officialPrice, row.agentPrice, row.effectivePrice)];
-    return [for (final g in row.governorates) (g.governorate, g.officialPrice, g.agentPrice, g.effectivePrice)];
-  }
-
-  Widget _priceHeader(_RS s, ColorScheme cs) => Padding(
-        padding: const EdgeInsets.only(bottom: 4),
-        child: Row(children: [
-          Expanded(flex: 3, child: Text(s.category, style: IntesharType.overline(color: cs.onSurfaceVariant))),
-          Expanded(flex: 2, child: Text(s.base, textAlign: TextAlign.end, style: IntesharType.overline(color: cs.onSurfaceVariant))),
-          Expanded(flex: 2, child: Text(s.agent, textAlign: TextAlign.end, style: IntesharType.overline(color: cs.onSurfaceVariant))),
-          Expanded(flex: 2, child: Text(s.effective, textAlign: TextAlign.end, style: IntesharType.overline(color: cs.onSurfaceVariant))),
-        ]),
-      );
-
-  Widget _priceRow(String gov, num base, num? agent, num eff, ColorScheme cs) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3),
-        child: Row(children: [
-          Expanded(flex: 3, child: Text(gov, style: IntesharType.sans(12.5, color: cs.onSurface))),
-          Expanded(flex: 2, child: Text(Formatters.money(base), textAlign: TextAlign.end, style: IntesharType.mono(12.5, color: cs.onSurfaceVariant))),
-          Expanded(flex: 2, child: Text(agent == null ? '—' : Formatters.money(agent), textAlign: TextAlign.end, style: IntesharType.mono(12.5, color: cs.onSurface))),
-          Expanded(flex: 2, child: Text(Formatters.money(eff), textAlign: TextAlign.end, style: IntesharType.mono(12.5, color: cs.onSurface, w: FontWeight.w700))),
-        ]),
-      );
 }
 
 // ── #8 Stock ─────────────────────────────────────────────────────────────────
@@ -1350,81 +1510,45 @@ class _DetailedReport extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     if (catalog.rows.isEmpty) return _empty(context, s);
     final loc = Localizations.localeOf(context).languageCode;
-    return ListView(
-      padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
-      children: [
-        // B-099: was a full gold slab — the last big brand-filled surface left after
-        // B-094 demoted the dashboard card, POS tally, sign-in and splash. White with
-        // a brand accent rule, matching those; the NUMBER is the hero, not the panel.
-        _TotalStrip(
-          label: s.grandTotal,
-          value: Formatters.iqd(catalog.inventoryWorth.round()),
-        ),
+
+    List<(String, int, num, num)> detailRows(CategoryPriceRow row) {
+      final hasBreakdown = row.governorates.length > 1 ||
+          (row.governorates.length == 1 && row.governorates.first.governorate.isNotEmpty);
+      if (!hasBreakdown) return [('', row.available, row.effectivePrice, row.lineValue)];
+      return [for (final g in row.governorates) (g.governorate, g.available, g.effectivePrice, g.lineValue)];
+    }
+
+    return _ReportTable(
+      leading: _TotalStrip(
+        label: s.grandTotal,
+        value: Formatters.iqd(catalog.inventoryWorth.round()),
+        subLabel: s.category,
+        subValue: Formatters.money(catalog.rows.length),
+      ),
+      columns: [
+        _RCol(s.category, flex: 4, primary: true),
+        _RCol(s.governorate, flex: 3),
+        _RCol(s.available, flex: 2, numeric: true),
+        _RCol(s.effective, flex: 2, numeric: true),
+        _RCol(s.value, flex: 3, numeric: true, trailing: true),
+      ],
+      rows: [
         for (final row in catalog.rows)
-          InkCard(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  Expanded(child: Text(row.name, style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w700))),
-                  if (row.companyName.isNotEmpty)
-                    Text(row.companyName, style: IntesharType.mono(11, color: cs.onSurfaceVariant)),
-                ]),
-                const SizedBox(height: 8),
-                Row(children: [
-                  Expanded(flex: 3, child: Text('', style: IntesharType.overline(color: cs.onSurfaceVariant))),
-                  Expanded(flex: 2, child: Text(s.available, textAlign: TextAlign.end, style: IntesharType.overline(color: cs.onSurfaceVariant))),
-                  Expanded(flex: 2, child: Text(s.effective, textAlign: TextAlign.end, style: IntesharType.overline(color: cs.onSurfaceVariant))),
-                  Expanded(flex: 3, child: Text(s.value, textAlign: TextAlign.end, style: IntesharType.overline(color: cs.onSurfaceVariant))),
-                ]),
-                for (final g in _detailRows(row))
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 3),
-                    child: Row(children: [
-                      Expanded(flex: 3, child: Text(g.$1 == '' ? s.untagged : governorateLabel(g.$1, loc), style: IntesharType.sans(12.5, color: cs.onSurface))),
-                      Expanded(flex: 2, child: Text('${g.$2}', textAlign: TextAlign.end, style: IntesharType.mono(12.5, color: cs.onSurface))),
-                      Expanded(flex: 2, child: Text(Formatters.money(g.$3), textAlign: TextAlign.end, style: IntesharType.mono(12.5, color: cs.onSurfaceVariant))),
-                      // B-099: 90px column at 360dp; "125,876,000 IQD" needs 95px and
-                      // used to WRAP, breaking the row's alignment. Money shrinks to fit
-                      // rather than wrapping or ellipsising — a clipped figure is a lie.
-                      Expanded(
-                        flex: 3,
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: AlignmentDirectional.centerEnd,
-                          child: Text(Formatters.iqd(g.$4.round()),
-                              maxLines: 1,
-                              style: IntesharType.mono(12.5, color: cs.onSurface, w: FontWeight.w700)),
-                        ),
-                      ),
-                    ]),
-                  ),
-              ],
-            ),
-          ),
+          for (final g in detailRows(row))
+            [
+              _RCell(row.name),
+              _RCell(g.$1.isEmpty ? s.untagged : governorateLabel(g.$1, loc)),
+              _RCell(Formatters.money(g.$2)),
+              _RCell(Formatters.money(g.$3)),
+              _RCell(Formatters.iqd(g.$4.round())),
+            ],
       ],
     );
   }
-
-  List<(String, int, num, num)> _detailRows(CategoryPriceRow row) {
-    final hasBreakdown = row.governorates.length > 1 ||
-        (row.governorates.length == 1 && row.governorates.first.governorate.isNotEmpty);
-    if (!hasBreakdown) return [('', row.available, row.effectivePrice, row.lineValue)];
-    return [for (final g in row.governorates) (g.governorate, g.available, g.effectivePrice, g.lineValue)];
-  }
 }
 
-/// The summary figure that sits above a report's rows.
-///
-/// B-099 replaced the Detailed report's full-gold panel with this; B-100 reuses it
-/// so Transfers and Sold/Total-sold finally answer "how much altogether" without
-/// exporting to Excel and summing by hand. White surface + a brand accent rule,
-/// matching the dashboard balance card after B-094 — the number is the hero, not
-/// the panel behind it.
 class _TotalStrip extends StatelessWidget {
   final String label;
   final String value;
@@ -1464,12 +1588,17 @@ class _TotalStrip extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          Expanded(
+          // Grouped at the start rather than flung to opposite edges — on a wide
+          // screen an Expanded main column left the sub-figure stranded ~900px away.
+          Flexible(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(label, style: IntesharType.overline(color: cs.onSurfaceVariant)),
+                Text(label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: IntesharType.overline(color: cs.onSurfaceVariant)),
                 const SizedBox(height: 3),
                 // Totals are the widest numbers on the screen — shrink, never clip.
                 FittedBox(
@@ -1490,9 +1619,11 @@ class _TotalStrip extends StatelessWidget {
             ),
           ),
           if (subValue != null) ...[
-            const SizedBox(width: 12),
+            const SizedBox(width: 24),
+            Container(width: 1, height: 30, color: cs.outlineVariant),
+            const SizedBox(width: 24),
             Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+              crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (subLabel != null)
@@ -1504,6 +1635,7 @@ class _TotalStrip extends StatelessWidget {
               ],
             ),
           ],
+          const Spacer(),
         ],
       ),
     );
@@ -1520,4 +1652,102 @@ Widget _empty(BuildContext context, _RS s) {
       Center(child: Text(s.empty, style: IntesharType.sans(14, color: cs.onSurfaceVariant))),
     ],
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Design harness. NOT routed in the app — reaching the real /hq/reports needs a
+// login, which makes reviewing these visuals awkward and made the B-104 redesign
+// fly blind for two rounds. Renders every report body against fixed sample data:
+//
+//   flutter build web -t lib/main_reports_preview.dart   (then serve build/web)
+//
+// It is also the fixture for report_table_responsive_test.dart, which pins both
+// sides of the wide/narrow branch — so keep it in step with the report widgets.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class ReportsPreviewPage extends StatelessWidget {
+  const ReportsPreviewPage({super.key});
+
+  static final _roster = [
+    const BalanceRosterRow(
+        entityId: 'st1', name: 'مكتب سعد للاتصالات', ownerName: 'أحمد علي حسن',
+        userPhone: '07701234567', governorate: 'BAGHDAD', address: 'الكرادة، شارع 62',
+        tier: 'STORE', available: 25876000, ordersSpent: 4250000,
+        mainAgentName: 'وكيل بغداد', subAgentName: 'الرصافة'),
+    const BalanceRosterRow(
+        entityId: 'st2', name: 'Noor Mobile Center', ownerName: 'Noor Kadhim',
+        userPhone: '07709876543', governorate: 'BASRA', address: 'Al Ashar, main st.',
+        tier: 'STORE', available: 1250000, ordersSpent: 0,
+        mainAgentName: 'Basra Main', subAgentName: 'Ashar Sub'),
+    const BalanceRosterRow(
+        entityId: 'st3', name: 'مكتب الفرات', ownerName: 'حسين عبد',
+        userPhone: '07705554433', governorate: 'NAJAF', address: 'حي السلام',
+        tier: 'STORE', available: 150000, ordersSpent: 980000,
+        mainAgentName: 'وكيل النجف', subAgentName: ''),
+  ];
+
+  static final _transfers = [
+    const TransferRow(
+        id: 'g1', date: '2026-07-26', time: '14:05', sourceName: 'Inteshar HQ',
+        destName: 'مكتب سعد للاتصالات', amount: 5000000, balanceAfter: 25876000,
+        destAvailable: 25876000, destGovernorate: 'BAGHDAD', destOwnerName: 'أحمد علي حسن',
+        destPhone: '07701234567', mainAgentName: 'وكيل بغداد', subAgentName: 'الرصافة'),
+    const TransferRow(
+        id: 'g2', date: '2026-07-25', time: '09:41', sourceName: 'وكيل بغداد',
+        destName: 'Noor Mobile Center', amount: 1250000, balanceAfter: 1250000,
+        destAvailable: 1250000, destGovernorate: 'BASRA', destOwnerName: 'Noor Kadhim',
+        destPhone: '07709876543', mainAgentName: 'Basra Main', subAgentName: 'Ashar Sub'),
+  ];
+
+  static final _sales = [
+    const SalesRow(
+        storeName: 'مكتب سعد للاتصالات', ownerName: 'أحمد علي حسن', userPhone: '07701234567',
+        operatorPhone: '07701234567', governorate: 'BAGHDAD', companyName: 'Asiacell',
+        category: 'Asia 5,000', mainAgentName: 'وكيل بغداد', subAgentName: 'الرصافة', count: 128),
+    const SalesRow(
+        storeName: 'Noor Mobile Center', ownerName: 'Noor Kadhim', userPhone: '07709876543',
+        operatorPhone: '07709876543', governorate: 'BASRA', companyName: 'Zain',
+        category: 'Zain 10,000', mainAgentName: 'Basra Main', subAgentName: 'Ashar Sub', count: 46),
+  ];
+
+  static final _uploads = [
+    const UploadsRow(agentName: 'وكيل بغداد', governorate: 'BAGHDAD',
+        companyName: 'Asiacell', category: 'Asia 5,000', count: 5000),
+    const UploadsRow(agentName: 'Basra Main', governorate: 'BASRA',
+        companyName: 'Zain', category: 'Zain 10,000', count: 1200),
+  ];
+
+  static const _catalog = PricingCatalog(inventoryWorth: 128760000, rows: [
+    CategoryPriceRow(
+        sku: 'AS5', name: 'Asia 5,000', companyName: 'Asiacell', officialPrice: 5000,
+        agentPrice: 4800, effectivePrice: 4800, available: 12400, lineValue: 59520000,
+        priced: true),
+    CategoryPriceRow(
+        sku: 'ZN10', name: 'Zain 10,000', companyName: 'Zain', officialPrice: 10000,
+        effectivePrice: 10000, available: 6924, lineValue: 69240000, priced: true),
+  ]);
+
+  @override
+  Widget build(BuildContext context) {
+    final s = _RS.of(context);
+    final sections = <(String, Widget)>[
+      ('POS balances (roster)', _RosterReport(rows: _roster, s: s)),
+      ('Transfers', _TransfersReport(rows: _transfers, s: s)),
+      ('Sold cards', _SalesReport(rows: _sales, s: s)),
+      ('Total sold', _TotalSoldReport(rows: _sales, s: s)),
+      ('Uploaded', _UploadsReport(rows: _uploads, s: s)),
+      ('Prices', _PricesReport(catalog: _catalog, s: s, agentLabel: 'وكيل بغداد')),
+      ('Detailed', _DetailedReport(catalog: _catalog, s: s)),
+    ];
+    return DefaultTabController(
+      length: sections.length,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Reports — design preview'),
+          bottom: TabBar(isScrollable: true, tabs: [for (final (t, _) in sections) Tab(text: t)]),
+        ),
+        body: TabBarView(children: [for (final (_, w) in sections) w]),
+      ),
+    );
+  }
 }

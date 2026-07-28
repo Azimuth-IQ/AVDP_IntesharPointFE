@@ -4,6 +4,7 @@ import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:inteshar/core/utils/formatters.dart';
+import 'package:inteshar/features/balance_transfer/presentation/recipient_tile.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
 import 'package:inteshar/features/entities/domain/entity_summary_row.dart';
@@ -216,7 +217,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
               if (byKind.length > 6) const SizedBox(height: 8),
               // The list itself — visible, not behind a tap.
               ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 210),
+                constraints: const BoxConstraints(maxHeight: 260), // taller: rows gained a tier line
                 child: Container(
                   decoration: BoxDecoration(
                     border: Border.all(color: cs.outlineVariant),
@@ -235,25 +236,9 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                           itemCount: rows.length,
                           itemBuilder: (_, i) {
                             final r = rows[i];
-                            final selected = dest?.id == r.id;
-                            return ListTile(
-                              dense: true,
-                              selected: selected,
-                              selectedTileColor: cs.primary.withValues(alpha: 0.10),
-                              leading: Icon(
-                                  r.type == EntityType.STORE
-                                      ? Icons.storefront_outlined
-                                      : Icons.apartment_outlined,
-                                  size: 18,
-                                  color: selected ? cs.onSurface : cs.onSurfaceVariant),
-                              title: Text(r.label,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: IntesharType.sans(13,
-                                      color: cs.onSurface,
-                                      w: selected ? FontWeight.w800 : FontWeight.w500)),
-                              trailing: selected
-                                  ? Icon(Icons.check_circle, size: 18, color: cs.primary)
-                                  : null,
+                            return RecipientTile(
+                              row: r,
+                              selected: dest?.id == r.id,
                               onTap: () => setD(() { dest = r; disarm(); }),
                             );
                           },

@@ -1467,6 +1467,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get errWrongCredentials => 'Incorrect phone number or password';
 
   @override
+  String get errTooManyAttempts =>
+      'Too many attempts — wait a moment and try again';
+
+  @override
   String get errAccessDenied => 'You don\'t have permission to do that';
 
   @override

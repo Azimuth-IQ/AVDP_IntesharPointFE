@@ -602,6 +602,7 @@
   "newTxnNoRegionRestriction": "بدون تقييد محافظة",
   "newTxnDeliverableHint": "سيتم تسليم الكروت الخاصة بـ {coverage} فقط (بالإضافة إلى الكروت غير المقيّدة بمحافظة).",
   "errWrongCredentials": "رقم الهاتف أو كلمة المرور غير صحيحة",
+  "errTooManyAttempts": "محاولات كثيرة — انتظر قليلاً ثم أعد المحاولة",
   "errAccessDenied": "ليس لديك صلاحية للقيام بذلك",
   "errNotFound": "غير موجود",
   "errConflict": "يتعارض مع بيانات موجودة",

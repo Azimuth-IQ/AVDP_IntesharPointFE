@@ -2732,6 +2732,12 @@ abstract class AppLocalizations {
   /// **'Incorrect phone number or password'**
   String get errWrongCredentials;
 
+  /// No description provided for @errTooManyAttempts.
+  ///
+  /// In en, this message translates to:
+  /// **'Too many attempts — wait a moment and try again'**
+  String get errTooManyAttempts;
+
   /// No description provided for @errAccessDenied.
   ///
   /// In en, this message translates to:

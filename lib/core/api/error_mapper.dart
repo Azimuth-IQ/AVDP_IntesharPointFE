@@ -18,22 +18,42 @@ import 'package:inteshar/l10n/app_localizations.dart';
 String friendlyError(Object? e, BuildContext context) =>
     friendlyErrorL(e, AppLocalizations.of(context)!);
 
+/// The backend's own message when it is genuinely user-facing, else null.
+///
+/// Exposed (B-108) because the login screen needs the same judgement: a 403
+/// carrying "Closed now — working hours are 09:00–21:00" must reach the user,
+/// while a DioException string never should.
+String? backendMessage(String? raw) {
+  final msg = raw?.trim() ?? '';
+  final lower = msg.toLowerCase();
+  final technical = msg.isEmpty ||
+      msg.contains('DioException') ||
+      msg.contains('ApiException') ||
+      lower.startsWith('http status') ||
+      lower.contains('status code') ||
+      lower == 'unknown error' ||
+      lower == 'network error';
+  return technical ? null : msg;
+}
+
 /// Same as [friendlyError] when you already hold the [AppLocalizations] instance.
 String friendlyErrorL(Object? e, AppLocalizations l) {
   final api = ApiException.from(e);
   if (api == null) return l.errNetwork; // not an API error (timeout / connection / unknown)
   final msg = api.message.trim();
-  final hasRealBackendMessage = msg.isNotEmpty &&
-      !msg.contains('DioException') &&
-      !msg.contains('ApiException') &&
-      !msg.toLowerCase().startsWith('http status') &&
-      !msg.toLowerCase().contains('status code') &&
-      msg.toLowerCase() != 'unknown error' &&
-      msg.toLowerCase() != 'network error';
+  final hasRealBackendMessage = backendMessage(msg) != null;
 
   return switch (api.statusCode) {
-    401 => l.errWrongCredentials,
-    403 => l.errAccessDenied,
+    // B-108: 401/403 used to be flattened to "wrong credentials" / "access
+    // denied" UNCONDITIONALLY, which threw away the only messages that tell the
+    // user what to actually do — "Closed now — working hours are 09:00–21:00",
+    // "The POS section is disabled for this account", "No PIN set". That is why
+    // a failed POS login read as a bare "something went wrong". The backend's
+    // 401/403 bodies are written for end users; the hasRealBackendMessage guard
+    // still filters DioException/status-code noise, so nothing technical leaks.
+    401 => hasRealBackendMessage ? msg : l.errWrongCredentials,
+    403 => hasRealBackendMessage ? msg : l.errAccessDenied,
+    429 => hasRealBackendMessage ? msg : l.errTooManyAttempts,
     404 => hasRealBackendMessage ? msg : l.errNotFound,
     402 => hasRealBackendMessage ? msg : l.errInsufficientBalance,
     400 || 409 || 422 => hasRealBackendMessage ? msg : l.errValidation,

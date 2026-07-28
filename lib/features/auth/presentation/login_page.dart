@@ -9,6 +9,7 @@ import 'package:inteshar/core/api/endpoints.dart';
 import 'package:inteshar/core/locale/locale_controller.dart';
 import 'package:inteshar/core/storage/session_storage.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
+import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/brand_cta.dart';
 import 'package:inteshar/shared/widgets/brand_star.dart';
@@ -122,17 +123,24 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         ),
       );
     } else if (outcome is LoginFailed) {
-      setState(() => _error = _friendlyLoginError(outcome.statusCode));
+      setState(() =>
+          _error = _friendlyLoginError(outcome.statusCode, outcome.message));
     }
   }
 
-  /// A friendly, localized login error keyed by HTTP status — never the raw backend/
-  /// exception string. 401 (wrong password) is the common case.
-  String _friendlyLoginError(int? statusCode) {
+  /// A friendly login error. B-108: the BACKEND's message wins when it is
+  /// user-facing — a 403 saying "Closed now — working hours are 09:00–21:00" or
+  /// "The POS section is disabled for this account" tells the operator what to
+  /// do; flattening it to "something went wrong" is why a failed POS login was
+  /// unreadable. Status-keyed text remains the fallback for empty/technical bodies.
+  String _friendlyLoginError(int? statusCode, [String? backend]) {
     final l = AppLocalizations.of(context)!;
+    final real = backendMessage(backend);
+    if (real != null) return real;
     return switch (statusCode) {
       401 => l.errWrongCredentials,
       403 => l.errAccessDenied,
+      429 => l.errTooManyAttempts,
       int s when s >= 500 => l.errServer,
       _ => l.errGeneric,
     };
@@ -181,14 +189,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           // Only produced by the change-password flow, never by login(); handled
           // in _changePassword. No-op here to keep the switch exhaustive.
           break;
-        case LoginFailed(:final statusCode):
+        case LoginFailed(:final statusCode, :final message):
           // On the 2FA step the password was already accepted, so a 4xx means the
           // 6-digit code was wrong — say so, don't recycle "wrong credentials".
           final onCode =
               _totpStep == _TotpStep.code || _totpStep == _TotpStep.enroll;
           _error = (onCode && (statusCode == null || statusCode < 500))
               ? (ar ? 'رمز التحقق غير صحيح' : 'Incorrect verification code')
-              : _friendlyLoginError(statusCode);
+              : _friendlyLoginError(statusCode, message);
       }
     });
   }

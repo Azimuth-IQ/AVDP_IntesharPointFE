@@ -1459,6 +1459,10 @@ class AppLocalizationsAr extends AppLocalizations {
   String get errWrongCredentials => 'رقم الهاتف أو كلمة المرور غير صحيحة';
 
   @override
+  String get errTooManyAttempts =>
+      'محاولات كثيرة — انتظر قليلاً ثم أعد المحاولة';
+
+  @override
   String get errAccessDenied => 'ليس لديك صلاحية للقيام بذلك';
 
   @override

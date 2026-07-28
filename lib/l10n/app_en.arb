@@ -1004,6 +1004,8 @@
   },
   "errWrongCredentials": "Incorrect phone number or password",
   "@errWrongCredentials": {},
+  "errTooManyAttempts": "Too many attempts — wait a moment and try again",
+  "@errTooManyAttempts": {},
   "errAccessDenied": "You don't have permission to do that",
   "@errAccessDenied": {},
   "errNotFound": "Not found",

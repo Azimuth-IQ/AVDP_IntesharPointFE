@@ -17,6 +17,7 @@ import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/system_activity/data/system_activity_repository.dart';
 import 'package:inteshar/features/system_activity/domain/feed_rows.dart';
+import 'package:inteshar/features/system_activity/domain/log_phrase.dart';
 import 'package:inteshar/features/system_activity/domain/operation_log.dart';
 import 'package:inteshar/features/system_activity/domain/system_overview.dart';
 import 'package:inteshar/features/transactions/data/transaction_repository.dart';
@@ -896,13 +897,11 @@ Widget _logStatusPill(OperationLog log) {
   return StampPill(label: log.level, color: _logVisual(log).color, fontSize: 10);
 }
 
-String _logPrimaryLine(OperationLog log) {
-  final m = log.method.isNotEmpty ? '${log.method} ' : '';
-  if (log.path.isNotEmpty) return '$m${log.path}';
-  if (log.action.isNotEmpty) return log.action;
-  if (log.errorType.isNotEmpty) return log.errorType;
-  return '—';
-}
+/// B-108: the headline is a sentence, not a route. `POST /api/auth/login` next
+/// to a phone number made an admin read the API to read their own audit trail.
+/// Method/path/action are untouched in the tap-through detail sheet.
+String _logPrimaryLine(OperationLog log, bool ar) =>
+    logPhrase(log, ar: ar).title;
 
 // ─── Activity row ────────────────────────────────────────────────────────────
 
@@ -915,10 +914,12 @@ class _LogRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final v = _logVisual(log);
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    final phrase = logPhrase(log, ar: ar);
     final meta = <String>[
+      if (phrase.by != null) phrase.by!,
       if (log.surface.isNotEmpty) log.surface else log.source,
       if (log.clientPlatform.isNotEmpty) log.clientPlatform,
-      if (log.userPhone.isNotEmpty) log.userPhone,
       _fmtCompact(log.timestamp),
     ].where((p) => p.isNotEmpty).join(' · ');
 
@@ -943,10 +944,10 @@ class _LogRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _ltr(Text(_logPrimaryLine(log),
+                Text(_logPrimaryLine(log, ar),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: IntesharType.mono(12.5, color: cs.onSurface, w: FontWeight.w600))),
+                    style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w700)),
                 const SizedBox(height: 4),
                 Text(meta,
                     maxLines: 1,
@@ -995,8 +996,10 @@ class _LogDetailSheet extends StatelessWidget {
             Icon(v.icon, size: 18, color: v.color),
             const SizedBox(width: 8),
             Expanded(
-              child: _ltr(Text(_logPrimaryLine(light),
-                  style: IntesharType.mono(13, color: cs.onSurface, w: FontWeight.w600))),
+              child: Text(
+                _logPrimaryLine(light, Localizations.localeOf(context).languageCode == 'ar'),
+                style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w700),
+              ),
             ),
           ],
         ),

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inteshar/app/theme.dart';
@@ -820,7 +819,15 @@ class _BalanceCard extends StatelessWidget {
     // One canonical term for the virtual balance across the app (POS / dashboard / stores):
     // "Balance" / "الرصيد".
     final label = ar ? 'الرصيد' : 'Balance';
-    final showTransfer = canTransfer && children.isNotEmpty;
+    // B-111: the dashboard used to open its OWN transfer sheet — a plain dropdown
+    // fed by a single unpaged children(size:200) call. The server sorts children
+    // type-ASC, so an agent's POS points sorted last and fell off: the exact B-092
+    // bug, on the MORE prominent of the two entry points. It also never received
+    // B-105 (single dialog + Agents/POS segment) or B-109 (distinct POS rows).
+    // One transfer flow now, not two — this is a shortcut to the real page.
+    final transfersRoute = entity.type.transfersRoute;
+    final showTransfer =
+        canTransfer && children.isNotEmpty && transfersRoute != null;
     final cs = Theme.of(context).colorScheme;
     final tones = context.tones;
     // B-094: a WHITE card with a brand accent rule, not a solid gold slab. The
@@ -872,15 +879,7 @@ class _BalanceCard extends StatelessWidget {
                 backgroundColor: cs.onSurface,
                 foregroundColor: cs.surface,
               ),
-              onPressed: () => showModalBottomSheet<void>(
-                context: context,
-                isScrollControlled: true,
-                builder: (_) => _TransferSheet(
-                  children: children,
-                  balance: balance,
-                  onGranted: onGranted,
-                ),
-              ),
+              onPressed: () => context.go(transfersRoute),
               icon: const Icon(Icons.north_east, size: 16),
               label: Text(ar ? 'تحويل رصيد' : 'Transfer'),
             ),
@@ -889,201 +888,6 @@ class _BalanceCard extends StatelessWidget {
     );
   }
 }
-
-class _TransferSheet extends ConsumerStatefulWidget {
-  final List<EntitySummaryRow> children;
-  final AgentBalance balance;
-  final VoidCallback onGranted;
-  const _TransferSheet({
-    required this.children,
-    required this.balance,
-    required this.onGranted,
-  });
-
-  @override
-  ConsumerState<_TransferSheet> createState() => _TransferSheetState();
-}
-
-class _TransferSheetState extends ConsumerState<_TransferSheet> {
-  EntitySummaryRow? _dest;
-  final _amount = TextEditingController();
-  bool _saving = false;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.children.isNotEmpty) _dest = widget.children.first;
-  }
-
-  @override
-  void dispose() {
-    _amount.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit() async {
-    final ar = Localizations.localeOf(context).languageCode == 'ar';
-    final dest = _dest;
-    final amount = parseAmount(_amount.text);
-    if (dest == null) return;
-    if (amount == null || amount <= 0) {
-      setState(
-        () => _error = ar ? 'أدخل مبلغاً صحيحاً' : 'Enter a valid amount',
-      );
-      return;
-    }
-    if (amount > widget.balance.available) {
-      setState(
-        () => _error = ar
-            ? 'الرصيد غير كافٍ (المتاح ${Formatters.iqd(widget.balance.available.round())})'
-            : 'Insufficient balance (available ${Formatters.iqd(widget.balance.available.round())})',
-      );
-      return;
-    }
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(ar ? 'تأكيد التحويل' : 'Confirm transfer'),
-        content: Text(
-          ar
-              ? 'سيتم تحويل ${Formatters.iqd(amount.round())} إلى "${dest.label}". لا يمكن التراجع عن هذا الإجراء.'
-              : 'You are about to transfer ${Formatters.iqd(amount.round())} to "${dest.label}". This cannot be undone.',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(ar ? 'إلغاء' : 'Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(ar ? 'إرسال' : 'Send')),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
-    try {
-      await PricingRepository(
-        ref.read(apiClientProvider),
-      ).grant(destId: dest.id, amount: amount);
-      if (mounted) {
-        Navigator.pop(context);
-        widget.onGranted();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(ar ? 'تم تحويل الرصيد' : 'Balance transferred'),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _saving = false;
-          _error = friendlyError(e, context);
-        });
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ar = Localizations.localeOf(context).languageCode == 'ar';
-    final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-        left: 24,
-        right: 24,
-        top: 20,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: cs.outline,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          SectionLabel(ar ? 'تحويل رصيد' : 'Transfer balance'),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<EntitySummaryRow>(
-            initialValue: _dest,
-            isExpanded: true,
-            decoration: InputDecoration(labelText: ar ? 'إلى' : 'To'),
-            items: widget.children
-                .map(
-                  (e) => DropdownMenuItem(
-                    value: e,
-                    child: Text('${e.label} (${e.type.label})'),
-                  ),
-                )
-                .toList(),
-            onChanged: (v) => setState(() => _dest = v),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _amount,
-            keyboardType: TextInputType.number,
-            inputFormatters: const [ThousandsInputFormatter()],
-            decoration: InputDecoration(
-              labelText: ar ? 'المبلغ' : 'Amount',
-              suffixText: 'IQD',
-            ),
-            onChanged: (_) => setState(() {}), // refresh the before→after readout
-          ),
-          const SizedBox(height: 12),
-          // Live before → after so the impact is visible at decision time (B-076).
-          Builder(builder: (_) {
-            final avail = widget.balance.available;
-            final amt = parseAmount(_amount.text) ?? 0;
-            final after = avail - amt;
-            final lbl = IntesharType.sans(12.5, color: cs.onSurfaceVariant);
-            return Column(children: [
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Text(ar ? 'الرصيد المتاح' : 'Available', style: lbl),
-                Text(Formatters.iqd(avail.round()), style: IntesharType.mono(12.5, color: cs.onSurface)),
-              ]),
-              const SizedBox(height: 4),
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Text(ar ? 'بعد التحويل' : 'After transfer', style: lbl),
-                Text(Formatters.iqd(after.round()),
-                    style: IntesharType.mono(12.5, w: FontWeight.w700,
-                        color: after < 0 ? cs.error : cs.onSurface)),
-              ]),
-            ]);
-          }),
-          if (_error != null) ...[
-            const SizedBox(height: 10),
-            Text(_error!, style: TextStyle(color: cs.error, fontSize: 12.5)),
-          ],
-          const SizedBox(height: 18),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: _saving ? null : _submit,
-              child: _saving
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(ar ? 'تحويل' : 'Transfer'),
-            ),
-          ),
-          const SizedBox(height: 24),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Low stock card ──────────────────────────────────────────────────────────
 
 class _LowStockCard extends StatelessWidget {
   final Map<String, ({String name, int count})> lowSkus;

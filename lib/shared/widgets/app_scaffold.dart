@@ -169,6 +169,9 @@ class AppShell extends ConsumerWidget {
     switch (type) {
       case EntityType.INTESHAR:
         // Flat order — frequency-first; first 4 = mobile bottom-bar primaries.
+        // B-112: Reports sits in the 4th slot, not Print Ops. A platform admin
+        // opens Reports daily; Print Ops is an investigation tool reached when
+        // something looks wrong, so it belongs one tap deeper.
         // Oversight is the HQ landing (index 0). Desktop sidebar overlays group
         // headers on top of this flat order (see _kGroupLabels / _buildSidebarEntries).
         //
@@ -204,18 +207,18 @@ class AppShell extends ConsumerWidget {
           ),
           // ── More sheet below ─────────────────────────────────────────────
           _NavItem(
-            Icons.fact_check_outlined,
-            Icons.fact_check,
-            l.navPrintOps,
-            '/hq/print-operations',
-            required: Capability.VIEW_REPORTS,
-            group: 'oversight',
-          ),
-          _NavItem(
             Icons.assessment_outlined,
             Icons.assessment,
             reportsLabel,
             '/hq/reports',
+            required: Capability.VIEW_REPORTS,
+            group: 'oversight',
+          ),
+          _NavItem(
+            Icons.fact_check_outlined,
+            Icons.fact_check,
+            l.navPrintOps,
+            '/hq/print-operations',
             required: Capability.VIEW_REPORTS,
             group: 'oversight',
           ),
@@ -326,9 +329,16 @@ class AppShell extends ConsumerWidget {
         ];
 
       case EntityType.AGENT1:
-        // Frequency order: Dashboard, Transactions, Inventory, Children (primaries);
-        // Stores, [Pricing — runtime-appended before Notifications], Notifications (More).
+        // Frequency order: Dashboard, Transfers, Inventory, Children (primaries);
+        // Pricing, Reports, Stores, Messages, Notifications (More).
         // Groups: Operations · Network (Notifications ungrouped, always last).
+        //
+        // B-112: Pricing used to be insert()ed at build time "before the last
+        // item", which actually landed it AFTER Messages — position 8 of 9 for a
+        // daily task — and left it tagged `operations` while sitting among
+        // `network` items, so the desktop sidebar filed it under the wrong header.
+        // It is declared here like everything else; the MANAGE_PRICING gate is the
+        // same capability filter every other item uses.
         return [
           _NavItem(
             Icons.dashboard_outlined,
@@ -359,6 +369,18 @@ class AppShell extends ConsumerWidget {
             l.navChildren,
             '/agent1/entities',
             group: 'network',
+          ),
+          // B-112: Pricing LEADS the overflow. It used to be insert()ed "before the
+          // last item", which put it after Messages — position 8 of 9 for a core
+          // task. It is periodic rather than daily, so it should not displace an
+          // established primary either; first-in-More is the honest slot.
+          _NavItem(
+            Icons.sell_outlined,
+            Icons.sell,
+            l.navPrices,
+            '/agent1/pricing',
+            required: Capability.MANAGE_PRICING,
+            group: 'operations',
           ),
           // After the 4 primaries (Dashboard/Transactions/Inventory/Children) so it lands
           // in the More overflow, not on the phone bar.
@@ -517,25 +539,9 @@ class AppShell extends ConsumerWidget {
     final entity = (auth is AuthAuthenticated) ? auth.entity : null;
     final type = entity?.type ?? EntityType.STORE;
 
-    // Capability-gated Pricing item for AGENT1 (behind MANAGE_PRICING).
-    // Inserted before the last item (Notifications) so it lands at the correct
-    // frequency position: Dashboard, Transactions, Inventory, Children,
-    // Stores, Pricing, Notifications.
-    final base = [..._navFor(l, type)];
-    if (type == EntityType.AGENT1 &&
-        auth is AuthAuthenticated &&
-        auth.can({Capability.MANAGE_PRICING})) {
-      base.insert(
-        base.length - 1,
-        _NavItem(
-          Icons.sell_outlined,
-          Icons.sell,
-          l.navPrices,
-          '/agent1/pricing',
-          group: 'operations',
-        ),
-      );
-    }
+    // B-112: every destination is declarative in _navFor now — Pricing used to be
+    // insert()ed here and landed in the wrong slot under the wrong group header.
+    final base = _navFor(l, type);
 
     // Users see only the sections their capabilities allow. B-055: auth.can() is
     // ceiling-aware (server-resolved effective set beats the ADMIN-role bypass),

@@ -62,11 +62,13 @@ void main() {
 
     // Primary four are present; the three setup routes are NOT on the bar.
     // (HQ home/index-0 is the System Activity oversight screen, not a dashboard.)
-    // B-051: Transactions is retired — Print Ops moves up into the primaries.
-    for (final label in ['System Activity', 'Hierarchy', 'Inventory', 'Print Ops', 'More']) {
+    // B-112: Reports holds the 4th slot, not Print Ops. A platform admin opens
+    // Reports daily; Print Ops is an investigation tool for when something looks
+    // wrong, so it sits one tap deeper.
+    for (final label in ['System Activity', 'Hierarchy', 'Inventory', 'Reports', 'More']) {
       expect(find.text(label), findsWidgets, reason: '$label should be on the bar');
     }
-    for (final hidden in ['Catalog', 'Templates', 'Batch Add']) {
+    for (final hidden in ['Catalog', 'Templates', 'Batch Add', 'Print Ops']) {
       expect(find.text(hidden), findsNothing, reason: '$hidden belongs in the More sheet');
     }
   });
@@ -80,6 +82,13 @@ void main() {
     expect(find.text('Catalog'), findsOneWidget);
     expect(find.text('Templates'), findsOneWidget);
     expect(find.text('Batch Add'), findsOneWidget);
+    expect(find.text('Print Ops'), findsOneWidget, reason: 'demoted, not deleted');
+
+    // B-112 (retracted finding): the overflow is NOT a flat list — it carries the
+    // same bilingual section headers as the desktop sidebar. Pin that, because I
+    // nearly "fixed" a problem that did not exist.
+    expect(find.text('CATALOG'), findsOneWidget, reason: 'More sheet must stay grouped');
+    expect(find.text('ADMINISTRATION'), findsOneWidget);
   });
 
   testWidgets('Store role (4 routes) shows all tabs without a More overflow', (tester) async {

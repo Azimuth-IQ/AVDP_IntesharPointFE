@@ -23,6 +23,12 @@ class _S {
 
   String get eyebrow => p('Administration', 'الإدارة');
   String get title => p('Working Hours', 'ساعات العمل');
+  String get totpTitle =>
+      p('Two-factor (Google Authenticator)', 'التحقق بخطوتين (Google Authenticator)');
+  String get totpBody => p(
+      'Choose which account tiers must enter an authenticator code at login. POS points are off by default — a shop counter already has a PIN.',
+      'حدّد أي مستويات الحسابات تحتاج إدخال رمز المصادقة عند الدخول. نقاط البيع مُعطّلة افتراضياً — نقطة البيع لديها رمز سري أصلاً.');
+  String get totpDefault => p('Using the default', 'القيمة الافتراضية');
   String get subtitle =>
       p('Control login time windows for accounts', 'تحكم في أوقات تسجيل دخول الحسابات');
 
@@ -75,6 +81,10 @@ class WorkingHoursPage extends ConsumerStatefulWidget {
 class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
   // ── Global toggle ─────────────────────────────────────────────────────────
   bool _globalEnabled = false;
+  // B-107: per-tier 2FA. null = never set → the backend default applies.
+  final Map<EntityType, bool?> _totp = {};
+  bool _totpLoading = true;
+  EntityType? _totpSaving;
   bool _globalLoading = true;
   bool _globalSaving = false;
   Object? _globalError;
@@ -109,9 +119,17 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
     });
     try {
       final enabled = await _settingsRepo.getGlobalWorkingHoursEnabled();
+      final totp = <EntityType, bool?>{};
+      for (final t in _totpTiers) {
+        totp[t] = await _settingsRepo.getTotpRequired(t);
+      }
       if (!mounted) return;
       setState(() {
         _globalEnabled = enabled;
+        _totp
+          ..clear()
+          ..addAll(totp);
+        _totpLoading = false;
         _globalLoading = false;
       });
     } catch (e) {
@@ -215,6 +233,8 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
                 children: [
                   _globalCard(s),
                   const SizedBox(height: 20),
+                  _totpCard(s),
+                  const SizedBox(height: 20),
                   _entityWindowCard(s),
                 ],
               ),
@@ -222,6 +242,68 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _toggleTotp(EntityType tier, bool value) async {
+    setState(() => _totpSaving = tier);
+    try {
+      await _settingsRepo.setTotpRequired(tier, value);
+      if (!mounted) return;
+      setState(() {
+        _totp[tier] = value;
+        _totpSaving = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _totpSaving = null);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+    }
+  }
+
+  /// B-107: the tiers HQ can decide 2FA for. STORE last — it is the one the
+  /// customer asked to exempt, and the backend already defaults it to off.
+  static const _totpTiers = [
+    EntityType.INTESHAR,
+    EntityType.AGENT1,
+    EntityType.AGENT2,
+    EntityType.STORE,
+  ];
+
+  /// Effective state for [tier] when nothing has been stored — mirrors
+  /// SystemSettingHelper.isTotpRequiredFor so the switch never lies about what
+  /// the server will actually do.
+  bool _totpEffective(EntityType tier) =>
+      _totp[tier] ?? (tier != EntityType.STORE);
+
+  Widget _totpCard(_S s) {
+    final cs = Theme.of(context).colorScheme;
+    return InkCard(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(s.totpTitle, style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w800)),
+        const SizedBox(height: 4),
+        Text(s.totpBody, style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+        const SizedBox(height: 8),
+        if (_totpLoading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 18),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else
+          for (final t in _totpTiers)
+            SwitchListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text(t.label, style: IntesharType.sans(13.5, color: cs.onSurface)),
+              // Say when a tier is on the default rather than an explicit choice.
+              subtitle: _totp[t] == null
+                  ? Text(s.totpDefault, style: IntesharType.sans(11.5, color: cs.onSurfaceVariant))
+                  : null,
+              value: _totpEffective(t),
+              onChanged: _totpSaving != null ? null : (v) => _toggleTotp(t, v),
+            ),
+      ]),
     );
   }
 

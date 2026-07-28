@@ -1,5 +1,6 @@
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/endpoints.dart';
+import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
 
 /// Repository for platform-wide settings that do not belong to a specific
@@ -34,6 +35,20 @@ class SettingsRepository {
       Endpoints.settingsWorkingHours,
       data: {'value': enabled},
     );
+  }
+
+  /// B-107: whether [tier] must satisfy TOTP (Google Authenticator) at login.
+  ///
+  /// `null` = never set, so the backend applies its default — which is "not
+  /// required" for STORE and the legacy global flag for everyone else. Returned
+  /// as a nullable so the UI can show the real state instead of guessing.
+  Future<bool?> getTotpRequired(EntityType tier) async {
+    final r = await _api.get(Endpoints.settingsTotpRequired(tier.name));
+    return _api.unwrap(r, (d) => d is bool ? d : null);
+  }
+
+  Future<void> setTotpRequired(EntityType tier, bool required) async {
+    await _api.post(Endpoints.settingsTotpRequired(tier.name), data: {'value': required});
   }
 
   /// Configures the [WorkingHours] login window for a specific entity.

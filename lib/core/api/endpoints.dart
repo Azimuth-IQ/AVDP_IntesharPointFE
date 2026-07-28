@@ -159,4 +159,7 @@ class Endpoints {
   // setting; the per-entity window is a targeted patch on the entity.
   static const settingsWorkingHours = '/api/settings/auth.workinghours.enabled';
   static const settingsWorkingHoursEntity = '/api/entity/workingHours';
+  /// B-107: per-tier 2FA requirement. `<TIER>` is an EntityType name.
+  static String settingsTotpRequired(String tier) =>
+      '/api/settings/auth.totp.required.\$tier';
 }

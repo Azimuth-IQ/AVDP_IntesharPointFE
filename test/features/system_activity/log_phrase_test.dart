@@ -36,10 +36,46 @@ void main() {
           'Account updated');
     });
 
-    test('report/admin/health families collapse to one phrase each', () {
-      expect(logPhrase(log(path: '/api/reports/sales'), ar: false).title, 'Report viewed');
-      expect(logPhrase(log(path: '/api/admin/overview'), ar: false).title, 'Oversight feed');
+    test('B-110: each report names ITSELF rather than collapsing', () {
+      // The first pass lumped every report into "Report viewed", which told an
+      // admin nothing about what was actually looked at.
+      expect(logPhrase(log(path: '/api/reports/sales'), ar: false).title, 'Sales report');
+      expect(logPhrase(log(path: '/api/reports/balances'), ar: false).title, 'Balances report');
+      expect(logPhrase(log(path: '/api/admin/overview'), ar: false).title, 'Oversight dashboard');
       expect(logPhrase(log(path: '/api/health/ram'), ar: false).title, 'Health check');
+    });
+
+    test('B-110: reads are named too — they are most of the feed', () {
+      // Every screen load fires several GETs; leaving them as "Request" is why
+      // the monitor still looked untranslated after the first pass.
+      expect(logPhrase(log(path: '/api/entity/me'), ar: false).title, 'Session loaded');
+      expect(logPhrase(log(path: '/api/entity/children'), ar: false).title, 'Sub-accounts list');
+      expect(logPhrase(log(path: '/api/inventory/product/sellable'), ar: false).title,
+          'Sellable stock');
+      expect(logPhrase(log(path: '/api/pricing/catalog'), ar: false).title, 'Price list');
+      expect(logPhrase(log(path: '/api/chat/threads'), ar: false).title, 'Conversations list');
+    });
+
+    test('B-110: id-bearing routes resolve, not just static ones', () {
+      expect(logPhrase(log(path: '/api/notifications/abc123/read'), ar: false).title,
+          'Notification read');
+      expect(logPhrase(log(path: '/api/settings/auth.totp.required.STORE'), ar: false).title,
+          'Platform setting changed');
+      expect(logPhrase(log(path: '/api/slider/xyz'), ar: false).title, 'Slider updated');
+    });
+
+    test('B-110: a more specific route wins over its prefix', () {
+      // /product/draw-bulk and /product/draw/recover must not be eaten by /product/draw.
+      expect(logPhrase(log(path: '/api/inventory/product/draw'), ar: false).title,
+          'Voucher drawn');
+      expect(logPhrase(log(path: '/api/inventory/product/draw-bulk'), ar: false).title,
+          'Bulk voucher sale');
+      expect(logPhrase(log(path: '/api/inventory/product/draw/recover'), ar: false).title,
+          'Sale recovery');
+      expect(logPhrase(log(path: '/api/inventory/product/draw/recover-batch'), ar: false).title,
+          'Bulk sale recovery');
+      expect(logPhrase(log(path: '/api/entity/users/add'), ar: false).title, 'User added');
+      expect(logPhrase(log(path: '/api/entity/users'), ar: false).title, 'User list');
     });
   });
 

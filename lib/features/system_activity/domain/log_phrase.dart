@@ -1,6 +1,6 @@
 import 'package:inteshar/features/system_activity/domain/operation_log.dart';
 
-/// Turns a logged request into a sentence a human reads (B-108).
+/// Turns a logged request into a sentence a human reads (B-108, B-110).
 ///
 /// The activity feed used to print the raw route — an admin saw
 /// `POST /api/auth/login` sitting next to a phone number and had to know the API
@@ -8,8 +8,10 @@ import 'package:inteshar/features/system_activity/domain/operation_log.dart';
 /// path, action and the rest still show in the row's tap-through detail sheet.
 /// This is the headline only.
 ///
-/// Anything unrecognised — including automated/bot traffic — degrades to a
-/// translated "request", never a URL.
+/// B-110: the dictionary now covers **every** route the backend exposes (all 123
+/// `@…Mapping`s, enumerated from the controllers rather than guessed), because
+/// the first pass covered ~40 and the feed was still mostly "Request" — reads
+/// dominate the log, and reads were exactly what was missing.
 class LogPhrase {
   /// The human headline, e.g. "Login request" / "طلب تسجيل دخول".
   final String title;
@@ -22,7 +24,8 @@ class LogPhrase {
   String get line => by == null || by!.isEmpty ? title : '$title · $by';
 }
 
-/// Normalises a logged path so query strings and ids don't defeat matching.
+/// Normalises a logged path so query strings, trailing slashes and casing don't
+/// defeat matching. Lowercased — every key below must be lowercase too.
 String _norm(String path) {
   var p = path.trim();
   final q = p.indexOf('?');
@@ -31,12 +34,11 @@ String _norm(String path) {
   return p.toLowerCase();
 }
 
-/// Route → phrase. Ordered: the first key the path ENDS WITH (after /api) wins,
-/// so `/api/inventory/product/create` matches before the `/product` family.
-///
-/// Keys are the API path with the `/api` prefix dropped.
-const Map<String, (String en, String ar)> _routes = {
-  // ── auth
+/// Route → (en, ar). Matched by exact-or-endsWith in insertion order, so the
+/// MORE SPECIFIC key must come first: `/product/draw/recover-batch` before
+/// `/product/draw/recover` before `/product/draw`.
+const Map<String, (String, String)> _routes = {
+  // ── auth ────────────────────────────────────────────────────────────────
   '/auth/login': ('Login request', 'طلب تسجيل دخول'),
   '/auth/logout': ('Signed out', 'تسجيل خروج'),
   '/auth/change-password': ('Password change', 'تغيير كلمة المرور'),
@@ -44,55 +46,156 @@ const Map<String, (String en, String ar)> _routes = {
   '/auth/set-pin': ('POS PIN set', 'تعيين الرمز السري'),
   '/auth/verify-pin': ('POS unlock attempt', 'محاولة فتح نقطة البيع'),
 
-  // ── selling / inventory
+  // ── selling (the events that matter most in an audit) ────────────────────
   '/product/sendforprinting': ('Voucher sold', 'بيع كرت'),
   '/product/draw-bulk': ('Bulk voucher sale', 'بيع عدة كروت'),
+  '/product/draw/recover-batch': ('Bulk sale recovery', 'استرجاع بيع متعدد'),
+  '/product/draw/recover': ('Sale recovery', 'استرجاع عملية بيع'),
+  '/product/draw': ('Voucher drawn', 'سحب كرت'),
   '/product/bulk-quote': ('Bulk sale quote', 'تسعير بيع متعدد'),
+  '/product/confirmprint': ('Print confirmed', 'تأكيد الطباعة'),
+  '/product/print-operations': ('Print history', 'سجل الطباعة'),
+
+  // ── stock ───────────────────────────────────────────────────────────────
+  '/product/batch': ('Voucher batch uploaded', 'رفع دفعة كروت'),
   '/product/create': ('Vouchers uploaded', 'رفع كروت'),
+  '/product/update': ('Voucher updated', 'تعديل كرت'),
+  '/product/delete': ('Voucher deleted', 'حذف كرت'),
+  '/product/sellable': ('Sellable stock', 'المخزون القابل للبيع'),
   '/product/summarybyentity': ('Stock summary', 'ملخص المخزون'),
+  '/product/readbyentityandsku': ('Stock by category', 'المخزون حسب الفئة'),
+  '/product/readbyentityvalue': ('Stock value', 'قيمة المخزون'),
+  '/product/readfullinventoryvalue': ('Inventory value', 'قيمة المخزون الكلية'),
+  '/product/readbyentity': ('Stock list', 'قائمة المخزون'),
+  '/product/read': ('Voucher lookup', 'استعلام كرت'),
+  '/inventory/batch/export': ('Batch exported', 'تصدير دفعة'),
+  '/inventory/batch/pause': ('Batch paused', 'إيقاف دفعة'),
+  '/inventory/batch/withdraw': ('Batch withdrawn', 'سحب دفعة'),
+  '/inventory/batches': ('Batch list', 'قائمة الدفعات'),
+  '/inventory/batch': ('Batch deleted', 'حذف دفعة'),
+
+  // ── categories (product definitions) ─────────────────────────────────────
   '/definition/create': ('Category created', 'إنشاء فئة'),
   '/definition/update': ('Category updated', 'تعديل فئة'),
   '/definition/delete': ('Category deleted', 'حذف فئة'),
-  '/inventory/batch': ('Voucher batch', 'دفعة كروت'),
+  '/definition/restrictions': ('Category restrictions', 'قيود الفئات'),
+  '/definition/restrict': ('Category restricted', 'تقييد فئة'),
+  '/definition/readall': ('Category list', 'قائمة الفئات'),
+  '/definition/read': ('Category lookup', 'استعلام فئة'),
 
-  // ── money
+  // ── money ───────────────────────────────────────────────────────────────
   '/balance/grant': ('Balance transfer', 'تحويل رصيد'),
   '/balance/grants': ('Transfer history', 'سجل التحويلات'),
   '/balance': ('Balance check', 'استعلام رصيد'),
-  '/pricing/set': ('Price set', 'تعديل سعر'),
   '/pricing/set-bulk': ('Prices uploaded', 'رفع الأسعار'),
+  '/pricing/set': ('Price set', 'تعديل سعر'),
   '/pricing/catalog': ('Price list', 'قائمة الأسعار'),
+  '/pricing/unpriced-agents': ('Unpriced agents check', 'فحص الوكلاء بلا أسعار'),
 
-  // ── accounts
+  // ── POS quota / network ─────────────────────────────────────────────────
+  '/pos-quota/network/summary': ('POS network summary', 'ملخص شبكة نقاط البيع'),
+  '/pos-quota/network': ('POS network', 'شبكة نقاط البيع'),
+  '/pos-quota/grants': ('POS slot history', 'سجل حصص نقاط البيع'),
+  '/pos-quota/grant': ('POS slots granted', 'منح حصص نقاط بيع'),
+  '/pos-quota': ('POS quota', 'حصة نقاط البيع'),
+
+  // ── POS points ──────────────────────────────────────────────────────────
   '/pos-users/onboard': ('POS point created', 'إنشاء نقطة بيع'),
   '/pos-users/revoke': ('POS point removed', 'حذف نقطة بيع'),
   '/pos-users/reset-password': ('POS password reset', 'إعادة تعيين كلمة مرور نقطة بيع'),
   '/pos-users/reset-pin': ('POS PIN reset', 'إعادة تعيين رمز نقطة بيع'),
-  '/pos-users/reset-totp': ('POS 2FA reset', 'إعادة تعيين التحقق بخطوتين'),
+  '/pos-users/reset-totp': ('POS 2FA reset', 'إعادة تعيين تحقق نقطة بيع'),
+  '/pos-users/update': ('POS point updated', 'تعديل نقطة بيع'),
+  '/pos-users/list/page': ('POS points list', 'قائمة نقاط البيع'),
+  '/pos-users/list': ('POS points list', 'قائمة نقاط البيع'),
+  '/pos/confirm-location': ('POS location confirmed', 'تأكيد موقع نقطة البيع'),
+  '/pos/statement': ('POS statement', 'كشف حساب نقطة البيع'),
+
+  // ── accounts ────────────────────────────────────────────────────────────
+  '/entity/users/resettotp': ('2FA reset', 'إعادة تعيين التحقق بخطوتين'),
+  '/entity/users/add': ('User added', 'إضافة مستخدم'),
+  '/entity/users/remove': ('User removed', 'حذف مستخدم'),
+  '/entity/users/update': ('User updated', 'تعديل مستخدم'),
+  '/entity/users': ('User list', 'قائمة المستخدمين'),
   '/entity/create': ('Account created', 'إنشاء حساب'),
   '/entity/update': ('Account updated', 'تعديل حساب'),
   '/entity/delete': ('Account deleted', 'حذف حساب'),
-  '/entity/setactive': ('Account enabled/disabled', 'تفعيل/إيقاف حساب'),
+  '/entity/setactive': ('Account enabled or disabled', 'تفعيل أو إيقاف حساب'),
   '/entity/resetpassword': ('Password reset', 'إعادة تعيين كلمة المرور'),
-  '/entity/users/add': ('User added', 'إضافة مستخدم'),
-  '/entity/users/remove': ('User removed', 'حذف مستخدم'),
+  '/entity/workinghours': ('Working hours changed', 'تعديل ساعات العمل'),
+  '/entity/branding': ('Branding loaded', 'تحميل الهوية'),
+  '/entity/children': ('Sub-accounts list', 'قائمة الحسابات الفرعية'),
+  '/entity/readwithchildren': ('Account tree', 'شجرة الحسابات'),
+  '/entity/readall': ('Account list', 'قائمة الحسابات'),
+  '/entity/search': ('Account search', 'بحث في الحسابات'),
+  '/entity/summary': ('Accounts overview', 'نظرة عامة على الحسابات'),
+  '/entity/posstats': ('POS statistics', 'إحصائيات نقاط البيع'),
+  '/entity/me': ('Session loaded', 'تحميل الجلسة'),
+  '/entity/read': ('Account lookup', 'استعلام حساب'),
 
-  // ── everything else people actually look at
-  '/chat/send': ('Message sent', 'إرسال رسالة'),
-  '/pos/confirm-location': ('POS location confirmed', 'تأكيد موقع نقطة البيع'),
+  // ── companies ───────────────────────────────────────────────────────────
+  '/company/create': ('Company created', 'إنشاء شركة'),
+  '/company/update': ('Company updated', 'تعديل شركة'),
+  '/company/delete': ('Company deleted', 'حذف شركة'),
+  '/company/restrictions': ('Company restrictions', 'قيود الشركات'),
+  '/company/restrict': ('Company restricted', 'تقييد شركة'),
+  '/company/readall': ('Company list', 'قائمة الشركات'),
+  '/company/read': ('Company lookup', 'استعلام شركة'),
+
+  // ── transfers (legacy transaction flow) ──────────────────────────────────
   '/transactions/create': ('Transfer created', 'إنشاء تحويل'),
-  '/storage/upload': ('File uploaded', 'رفع ملف'),
+  '/transactions/update': ('Transfer updated', 'تعديل تحويل'),
+  '/transactions/delete': ('Transfer deleted', 'حذف تحويل'),
+  '/transactions/feed': ('Transfers feed', 'تدفق التحويلات'),
+  '/transactions/recent': ('Recent transfers', 'أحدث التحويلات'),
+  '/transactions/page': ('Transfers list', 'قائمة التحويلات'),
+  '/transactions/readall': ('Transfers list', 'قائمة التحويلات'),
+  '/transactions/read': ('Transfer lookup', 'استعلام تحويل'),
+
+  // ── messaging ───────────────────────────────────────────────────────────
+  '/chat/send': ('Message sent', 'إرسال رسالة'),
+  '/chat/read': ('Messages read', 'قراءة الرسائل'),
+  '/chat/messages': ('Conversation opened', 'فتح المحادثة'),
+  '/chat/threads': ('Conversations list', 'قائمة المحادثات'),
+  '/notifications': ('Notification sent', 'إرسال إشعار'),
+
+  // ── reports ─────────────────────────────────────────────────────────────
+  '/reports/balances': ('Balances report', 'تقرير الأرصدة'),
+  '/reports/sales': ('Sales report', 'تقرير المبيعات'),
+  '/reports/transfers': ('Transfers report', 'تقرير التحويلات'),
+  '/reports/uploads': ('Uploads report', 'تقرير الكروت المرفوعة'),
+
+  // ── oversight / platform ────────────────────────────────────────────────
+  '/admin/overview': ('Oversight dashboard', 'لوحة المتابعة'),
+  '/admin/users': ('User directory', 'دليل المستخدمين'),
   '/logs/client': ('App error reported', 'تقرير خطأ من التطبيق'),
+  '/logs/read': ('Activity entry opened', 'فتح سجل نشاط'),
+  '/logs': ('Activity log', 'سجل النشاط'),
+  '/slider/reorder': ('Slider reordered', 'ترتيب الشرائح'),
+  '/slider': ('Slider', 'الشرائح'),
+  '/storage/upload': ('File uploaded', 'رفع ملف'),
+
+  // ── app updates ─────────────────────────────────────────────────────────
+  '/app/upload-apk': ('App file uploaded', 'رفع ملف التطبيق'),
+  '/app/release': ('App release published', 'نشر إصدار جديد'),
+  '/app/download': ('App downloaded', 'تنزيل التطبيق'),
+  '/app/check': ('Update check', 'فحص التحديثات'),
+  '/app/latest': ('Update check', 'فحص التحديثات'),
 };
 
-/// Report routes collapse to one phrase — which report is detail, not headline.
-const _reportRoots = ['/reports/', '/admin/', '/health/'];
-const _reportPhrase = ('Report viewed', 'عرض تقرير');
-const _adminPhrase = ('Oversight feed', 'لوحة المتابعة');
-const _healthPhrase = ('Health check', 'فحص النظام');
+/// Routes carrying an id in the middle, which `endsWith` can't match.
+const List<(String prefix, String suffix, String en, String ar)> _patterns = [
+  ('/notifications/', '/read', 'Notification read', 'قراءة إشعار'),
+];
 
-/// Fallback for anything unmatched, including automated traffic — a translated
-/// "request", never a raw URL.
+/// Path-prefix families where the tail varies (a settings key, a slider id).
+const List<(String prefix, String en, String ar)> _prefixes = [
+  ('/settings/', 'Platform setting changed', 'تعديل إعداد النظام'),
+  ('/health/', 'Health check', 'فحص النظام'),
+  ('/slider/', 'Slider updated', 'تعديل الشرائح'),
+];
+
+/// Fallback — a translated "request", never a URL.
 const _fallback = ('Request', 'طلب');
 
 LogPhrase logPhrase(OperationLog log, {required bool ar}) {
@@ -106,28 +209,21 @@ LogPhrase logPhrase(OperationLog log, {required bool ar}) {
   if (path.isEmpty) {
     // Client-side entries carry an action instead of a route.
     final action = log.action.trim();
-    if (action.isNotEmpty) return LogPhrase(action, by: by);
-    return LogPhrase(pick(_fallback), by: by);
+    return LogPhrase(action.isNotEmpty ? action : pick(_fallback), by: by);
   }
 
-  final stripped = path.startsWith('/api') ? path.substring(4) : path;
+  final p = path.startsWith('/api') ? path.substring(4) : path;
 
   for (final e in _routes.entries) {
-    if (stripped == e.key || stripped.endsWith(e.key)) {
-      return LogPhrase(pick(e.value), by: by);
+    if (p == e.key || p.endsWith(e.key)) return LogPhrase(pick(e.value), by: by);
+  }
+  for (final (prefix, suffix, en, arT) in _patterns) {
+    if (p.contains(prefix) && p.endsWith(suffix)) {
+      return LogPhrase(ar ? arT : en, by: by);
     }
   }
-  for (final root in _reportRoots) {
-    if (stripped.startsWith(root)) {
-      return LogPhrase(
-        pick(switch (root) {
-          '/reports/' => _reportPhrase,
-          '/admin/' => _adminPhrase,
-          _ => _healthPhrase,
-        }),
-        by: by,
-      );
-    }
+  for (final (prefix, en, arT) in _prefixes) {
+    if (p.contains(prefix)) return LogPhrase(ar ? arT : en, by: by);
   }
   return LogPhrase(pick(_fallback), by: by);
 }

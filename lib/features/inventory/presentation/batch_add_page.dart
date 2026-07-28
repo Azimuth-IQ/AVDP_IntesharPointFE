@@ -372,10 +372,14 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
         downloadBytes(fileName, bytes);
         path = fileName;
       } else if (Platform.isAndroid || Platform.isIOS) {
+        // B-106: name the type for SAF, or the picker can write a document
+        // whose MIME does not match its .xlsx name → "unknown format".
         path = await FilePicker.platform.saveFile(
             dialogTitle: l.batchAddDownloadTemplate,
             fileName: fileName,
-            bytes: bytes);
+            bytes: bytes,
+            type: FileType.custom,
+            allowedExtensions: const ['xlsx']);
       } else {
         path = await FilePicker.platform
             .saveFile(dialogTitle: l.batchAddDownloadTemplate, fileName: fileName);
@@ -955,6 +959,8 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
           dialogTitle: saveFileTitle,
           fileName: fileName,
           bytes: bytes,
+          type: FileType.custom,
+          allowedExtensions: const ['txt'],
         );
       } else {
         final path = await FilePicker.platform.saveFile(

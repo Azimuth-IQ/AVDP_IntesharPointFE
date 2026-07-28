@@ -65,5 +65,14 @@ Future<String?> exportRowsToXlsx({
     return name;
   }
   // Android/iOS: the system save dialog writes the bytes directly (no dart:io).
-  return FilePicker.platform.saveFile(fileName: name, bytes: bytes);
+  // B-106: WITHOUT type/allowedExtensions this goes to SAF as FileType.any →
+  // MIME `*/*`, and an OEM picker (Sunmi ships stock Android 7.1) can then write
+  // a document whose type does not match its name — which is why a valid
+  // workbook opened as "unknown format".
+  return FilePicker.platform.saveFile(
+    fileName: name,
+    bytes: bytes,
+    type: FileType.custom,
+    allowedExtensions: const ['xlsx'],
+  );
 }

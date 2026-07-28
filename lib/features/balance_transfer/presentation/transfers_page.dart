@@ -18,7 +18,7 @@ import 'package:inteshar/shared/widgets/responsive.dart';
 /// Shows the available balance, sends credit to a DIRECT child (server-enforced
 /// rule) with the B-040 confirm dialog, and lists the grant-ledger history.
 /// B-092: which slice of the direct children the destination picker is showing.
-enum _DestKind { all, subAgents, pos }
+enum _DestKind { subAgents, pos }
 
 class TransfersPage extends ConsumerStatefulWidget {
   const TransfersPage({super.key});
@@ -43,6 +43,8 @@ class _TS {
   String get to => p('To', 'إلى');
   String get amount => p('Amount (IQD)', 'المبلغ (د.ع)');
   String get send => p('Send', 'إرسال');
+  String confirmSend(String amount, String to) =>
+      p('Confirm: send \$amount to \$to', 'تأكيد: إرسال \$amount إلى \$to');
   String get cancel => p('Cancel', 'إلغاء');
   String get confirmTitle => p('Confirm transfer', 'تأكيد التحويل');
   String confirmBody(String amount, String dest) => p(
@@ -127,44 +129,66 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
     return out;
   }
 
-  /// A searchable single-select over the loaded direct children (transfers must
-  /// target a direct child, so this stays scoped to that set — B-076), with a
-  /// list-type filter so an agent can jump straight to its POS points (B-092).
-  Future<EntitySummaryRow?> _pickChild(BuildContext context) async {
+  /// B-105: ONE dialog. Recipient type, search, the list itself, the amount and
+  /// the before→after readout are all present at once.
+  ///
+  /// The old flow was three dialogs and ~5 taps: new-transfer → tap "إلى" → a
+  /// second picker dialog → pick → amount → send → a third confirm dialog. Worse,
+  /// the "إلى" field rendered as a read-only InputDecorator that did not look
+  /// tappable, so an agent's own POS points — reachable since B-092 — were
+  /// effectively invisible, and the customer reported transfers as "sub-agents
+  /// only". Their own reference system puts the same choice on a single form
+  /// (a الوكلاء ⁄ ادارة نقاط البيع radio + dropdown + amount), so this matches it.
+  ///
+  /// The B-040 money-movement confirmation is kept, but folded in: Send arms, and
+  /// a second press commits. Money still never moves on one mis-tap.
+  Future<void> _newTransferDialog(_TS s) async {
+    if (_children.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(s.noChildren)));
+      return;
+    }
     final ar = Localizations.localeOf(context).languageCode == 'ar';
+    final posCount = _children.where((e) => e.type == EntityType.STORE).length;
+    final agentCount = _children.length - posCount;
+
+    // Open on whichever list the agent actually has; agents first when it has both.
+    var kind = agentCount > 0 ? _DestKind.subAgents : _DestKind.pos;
+    EntitySummaryRow? dest;
     var query = '';
-    var kind = _DestKind.all;
-    return showDialog<EntitySummaryRow>(
+    var armed = false; // second press commits (B-040 confirmation, inlined)
+    final amountCtrl = TextEditingController();
+    String? fieldError;
+
+    final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(builder: (ctx, setD) {
+        final cs = Theme.of(ctx).colorScheme;
         final q = query.trim().toLowerCase();
-        final byKind = switch (kind) {
-          _DestKind.subAgents =>
-            _children.where((e) => e.type != EntityType.STORE).toList(),
-          _DestKind.pos =>
-            _children.where((e) => e.type == EntityType.STORE).toList(),
-          _ => _children,
-        };
+        final byKind = kind == _DestKind.pos
+            ? _children.where((e) => e.type == EntityType.STORE).toList()
+            : _children.where((e) => e.type != EntityType.STORE).toList();
         final rows = q.isEmpty
             ? byKind
             : byKind.where((e) => e.label.toLowerCase().contains(q)).toList();
-        final posCount = _children.where((e) => e.type == EntityType.STORE).length;
-        final agentCount = _children.length - posCount;
+        final avail = _balance?.available ?? 0;
+        final amt = parseAmount(amountCtrl.text) ?? 0;
+        final after = avail - amt;
+        final ready = dest != null && amt > 0 && after >= 0;
+
+        void disarm() => armed = false;
+
         return AlertDialog(
-          title: Text(ar ? 'اختر الحساب' : 'Select account'),
+          title: Text(s.newTransfer),
           content: SizedBox(
-            width: 420,
-            height: 420,
-            child: Column(children: [
-              // Jump straight to sub-agents or POS points — an agent's own POS
-              // points were previously buried under a long sub-agent list.
+            width: 460,
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              // Recipient type — the agent's OWN POS points are a first-class
+              // choice here, not something hidden behind another dialog.
               SegmentedButton<_DestKind>(
                 showSelectedIcon: false,
                 style: const ButtonStyle(visualDensity: VisualDensity.compact),
                 segments: [
-                  ButtonSegment(
-                      value: _DestKind.all,
-                      label: Text(ar ? 'الكل' : 'All')),
                   ButtonSegment(
                       value: _DestKind.subAgents,
                       label: Text(ar ? 'الوكلاء ($agentCount)' : 'Agents ($agentCount)')),
@@ -173,133 +197,133 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                       label: Text(ar ? 'نقاط البيع ($posCount)' : 'POS ($posCount)')),
                 ],
                 selected: {kind},
-                onSelectionChanged: (sel) => setD(() => kind = sel.first),
+                onSelectionChanged: (sel) => setD(() {
+                  kind = sel.first;
+                  dest = null; // never carry a selection across lists
+                  disarm();
+                }),
               ),
               const SizedBox(height: 8),
-              TextField(
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: ar ? 'بحث بالاسم…' : 'Search by name…',
-                  prefixIcon: const Icon(Icons.search, size: 18),
-                  isDense: true,
+              if (byKind.length > 6)
+                TextField(
+                  decoration: InputDecoration(
+                    hintText: ar ? 'بحث بالاسم…' : 'Search by name…',
+                    prefixIcon: const Icon(Icons.search, size: 18),
+                    isDense: true,
+                  ),
+                  onChanged: (v) => setD(() { query = v; disarm(); }),
                 ),
-                onChanged: (v) => setD(() => query = v),
-              ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: rows.isEmpty
-                    ? Center(child: Text(ar ? 'لا توجد حسابات مطابقة' : 'No matching accounts'))
-                    : ListView.builder(
-                        itemCount: rows.length,
-                        itemBuilder: (_, i) => ListTile(
-                          dense: true,
-                          title: Text(rows[i].label, overflow: TextOverflow.ellipsis),
-                          subtitle: Text(rows[i].type.label),
-                          onTap: () => Navigator.pop(ctx, rows[i]),
+              if (byKind.length > 6) const SizedBox(height: 8),
+              // The list itself — visible, not behind a tap.
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 210),
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: cs.outlineVariant),
+                    borderRadius: BorderRadius.circular(IntesharRadii.md),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: rows.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Center(
+                              child: Text(ar ? 'لا توجد حسابات مطابقة' : 'No matching accounts',
+                                  style: IntesharType.sans(12.5, color: cs.onSurfaceVariant))),
+                        )
+                      : ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: rows.length,
+                          itemBuilder: (_, i) {
+                            final r = rows[i];
+                            final selected = dest?.id == r.id;
+                            return ListTile(
+                              dense: true,
+                              selected: selected,
+                              selectedTileColor: cs.primary.withValues(alpha: 0.10),
+                              leading: Icon(
+                                  r.type == EntityType.STORE
+                                      ? Icons.storefront_outlined
+                                      : Icons.apartment_outlined,
+                                  size: 18,
+                                  color: selected ? cs.onSurface : cs.onSurfaceVariant),
+                              title: Text(r.label,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: IntesharType.sans(13,
+                                      color: cs.onSurface,
+                                      w: selected ? FontWeight.w800 : FontWeight.w500)),
+                              trailing: selected
+                                  ? Icon(Icons.check_circle, size: 18, color: cs.primary)
+                                  : null,
+                              onTap: () => setD(() { dest = r; disarm(); }),
+                            );
+                          },
                         ),
-                      ),
+                ),
               ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: amountCtrl,
+                keyboardType: TextInputType.number,
+                inputFormatters: const [ThousandsInputFormatter()],
+                decoration: InputDecoration(
+                  labelText: s.amount,
+                  isDense: true,
+                  errorText: fieldError,
+                ),
+                onChanged: (_) => setD(() { fieldError = null; disarm(); }),
+              ),
+              const SizedBox(height: 12),
+              // Live before → after so the sender sees the impact at decision time.
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text(ar ? 'الرصيد المتاح' : 'Available',
+                    style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+                Text(Formatters.iqd(avail.round()),
+                    style: IntesharType.mono(12.5, color: cs.onSurface)),
+              ]),
+              const SizedBox(height: 4),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text(ar ? 'بعد التحويل' : 'After transfer',
+                    style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+                Text(Formatters.iqd(after.round()),
+                    style: IntesharType.mono(12.5,
+                        w: FontWeight.w700,
+                        color: after < 0 ? cs.error : cs.onSurface)),
+              ]),
             ]),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(ar ? 'إلغاء' : 'Cancel')),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.cancel)),
+            FilledButton(
+              onPressed: !ready
+                  ? null
+                  : () {
+                      final n = parseAmount(amountCtrl.text);
+                      if (n == null || n <= 0) {
+                        setD(() => fieldError = s.invalidAmount);
+                        return;
+                      }
+                      if (n > avail) {
+                        setD(() =>
+                            fieldError = s.insufficient(Formatters.iqd(avail.round())));
+                        return;
+                      }
+                      // Arm first, commit second — the confirmation, without a
+                      // third dialog.
+                      if (!armed) {
+                        setD(() => armed = true);
+                        return;
+                      }
+                      Navigator.pop(ctx, true);
+                    },
+              child: Text(armed && ready
+                  ? s.confirmSend(Formatters.iqd(amt.round()), dest!.label)
+                  : s.send),
+            ),
           ],
         );
       }),
     );
-  }
 
-  Future<void> _newTransferDialog(_TS s) async {
-    if (_children.isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(s.noChildren)));
-      return;
-    }
-    EntitySummaryRow? dest = _children.first;
-    final amountCtrl = TextEditingController();
-    String? fieldError;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setD) => AlertDialog(
-          title: Text(s.newTransfer),
-          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            // Searchable direct-child picker (was a plain dropdown capped at 200).
-            InkWell(
-              onTap: () async {
-                final picked = await _pickChild(ctx);
-                if (picked != null) setD(() => dest = picked);
-              },
-              child: InputDecorator(
-                decoration: InputDecoration(labelText: s.to, isDense: true, suffixIcon: const Icon(Icons.search, size: 18)),
-                child: Text(
-                  dest != null ? '${dest!.label} (${dest!.type.label})' : '—',
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: amountCtrl,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              inputFormatters: const [ThousandsInputFormatter()],
-              decoration: InputDecoration(
-                labelText: s.amount,
-                isDense: true,
-                errorText: fieldError,
-              ),
-              onChanged: (_) => setD(() => fieldError = null),
-            ),
-            const SizedBox(height: 12),
-            // Live before → after readout so the sender sees the impact at decision time.
-            Builder(builder: (ctx) {
-              final ar = Localizations.localeOf(ctx).languageCode == 'ar';
-              final cs = Theme.of(ctx).colorScheme;
-              final avail = _balance?.available ?? 0;
-              final amt = parseAmount(amountCtrl.text) ?? 0;
-              final after = avail - amt;
-              TextStyle lbl = IntesharType.sans(12.5, color: cs.onSurfaceVariant);
-              return Column(children: [
-                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  Text(ar ? 'الرصيد المتاح' : 'Available', style: lbl),
-                  Text(Formatters.iqd(avail.round()), style: IntesharType.mono(12.5, color: cs.onSurface)),
-                ]),
-                const SizedBox(height: 4),
-                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  Text(ar ? 'بعد التحويل' : 'After transfer', style: lbl),
-                  Text(Formatters.iqd(after.round()),
-                      style: IntesharType.mono(12.5, w: FontWeight.w700,
-                          color: after < 0 ? cs.error : cs.onSurface)),
-                ]),
-              ]);
-            }),
-          ]),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: Text(s.cancel)),
-            FilledButton(
-              onPressed: () {
-                final n = parseAmount(amountCtrl.text);
-                if (n == null || n <= 0) {
-                  setD(() => fieldError = s.invalidAmount);
-                  return;
-                }
-                final avail = _balance?.available ?? 0;
-                if (n > avail) {
-                  setD(() => fieldError =
-                      s.insufficient(Formatters.iqd(avail.round())));
-                  return;
-                }
-                Navigator.pop(ctx, true);
-              },
-              child: Text(s.send),
-            ),
-          ],
-        ),
-      ),
-    );
     final amount = parseAmount(amountCtrl.text);
     final target = dest;
     if (ok != true || amount == null || amount <= 0 || target == null) return;

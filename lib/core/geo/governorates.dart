@@ -46,3 +46,23 @@ Governorate? governorateByCode(String? code) {
 /// Localized label for a code; falls back to the raw code if unrecognized.
 String governorateLabel(String code, String localeCode) =>
     governorateByCode(code)?.label(localeCode) ?? code;
+
+/// Reverse of [governorateLabel]: resolves a code OR either language's name back
+/// to the stored code. Returns null when [value] matches nothing.
+///
+/// B-114: the prices sheet exports a READABLE governorate, so the re-upload path
+/// has to accept what it exported. Matching the code too keeps older sheets
+/// (which carried raw codes) working.
+String? governorateFromAnything(String? value) {
+  final v = value?.trim();
+  if (v == null || v.isEmpty) return null;
+  final lower = v.toLowerCase();
+  for (final g in kGovernorates) {
+    if (g.code.toLowerCase() == lower ||
+        g.en.toLowerCase() == lower ||
+        g.ar == v) {
+      return g.code;
+    }
+  }
+  return null;
+}

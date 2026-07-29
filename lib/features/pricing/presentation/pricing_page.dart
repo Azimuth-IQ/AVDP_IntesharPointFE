@@ -53,6 +53,11 @@ class _S {
   String get colSku => p('SKU', 'الرمز');
   String get colName => p('Name', 'الاسم');
   String get colGov => p('Governorate', 'المحافظة');
+  String get searchHint => p('Search category, SKU or company…', 'ابحث بالفئة أو الرمز أو الشركة…');
+  String get company => p('Company', 'الشركة');
+  String get allCompanies => p('All companies', 'كل الشركات');
+  String get allGovernorates => p('All governorates', 'كل المحافظات');
+  String get clearFilters => p('Clear filters', 'مسح عوامل التصفية');
   String get colOfficial => p('Official price', 'السعر الرسمي');
   String get colYour => p('Your price', 'سعرك');
   String parsed(int n) => p('$n prices parsed', 'تم قراءة $n سعر');
@@ -81,6 +86,11 @@ class _PricingPageState extends ConsumerState<PricingPage> {
   bool _loading = true;
   bool _saving = false;
   bool _unpricedOnly = false; // B-080: filter the list to categories still on defaults
+  // B-114: the unpriced pill was the ONLY filter — no way to find one category in
+  // a multi-company catalog, or to see just the SKUs priced for one governorate.
+  String _query = '';
+  String _company = ''; // '' = every company
+  String _gov = ''; // '' = every governorate
   Object? _error;
   bool _authorized = true;
   final Map<String, TextEditingController> _ctrls = {};
@@ -203,6 +213,13 @@ class _PricingPageState extends ConsumerState<PricingPage> {
   Future<void> _exportXlsx(_S s) async {
     final catalog = _catalog;
     if (catalog == null) return;
+    // B-114: the governorate column read as "missing" because it held a raw code
+    // for regional SKUs and was EMPTY for the rest — and most SKUs are untagged.
+    // Write a readable name, and say "all governorates" explicitly rather than
+    // leaving a blank the customer has to interpret. The upload path resolves
+    // both back (governorateFromAnything), so an exported sheet still re-imports.
+    final loc = Localizations.localeOf(context).languageCode;
+    final allGovs = loc == 'ar' ? 'كل المحافظات' : 'All governorates';
     final rows = <List<String>>[];
     for (final row in catalog.rows) {
       if (_regionalRow(row)) {
@@ -210,7 +227,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
           rows.add([
             row.sku,
             row.name,
-            g.governorate,
+            governorateLabel(g.governorate, loc),
             _fmt(g.officialPrice),
             _fmt(g.agentPrice ?? g.officialPrice),
           ]);
@@ -219,7 +236,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
         rows.add([
           row.sku,
           row.name,
-          '',
+          allGovs,
           _fmt(row.officialPrice),
           _fmt(row.agentPrice ?? row.officialPrice),
         ]);
@@ -255,7 +272,10 @@ class _PricingPageState extends ConsumerState<PricingPage> {
           String cell(int idx) =>
               (idx < r.length ? r[idx]?.value?.toString().trim() : '') ?? '';
           final sku = cell(0);
-          final gov = cell(2);
+          // B-114: the sheet now carries a readable governorate, so map it back.
+          // Anything unrecognised (incl. the "all governorates" marker and older
+          // sheets' blanks) means SKU-wide, which is what '' encodes.
+          final gov = governorateFromAnything(cell(2)) ?? '';
           final priceStr = cell(4).replaceAll(',', '');
           final price = num.tryParse(priceStr);
           if (sku.isEmpty || price == null) continue;
@@ -431,6 +451,79 @@ class _PricingPageState extends ConsumerState<PricingPage> {
     );
   }
 
+  /// B-114: search + company + governorate, beside the existing unpriced pill.
+  /// The pill was the only filter, so finding one category in a multi-company
+  /// catalog meant scrolling.
+  Widget _filterBar(_S s, String loc, List<String> companies, List<String> govs,
+      int shown, int total) {
+    final cs = Theme.of(context).colorScheme;
+    final filtering = _query.isNotEmpty || _company.isNotEmpty || _gov.isNotEmpty;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      child: Column(children: [
+        TextField(
+          decoration: InputDecoration(
+            isDense: true,
+            prefixIcon: const Icon(Icons.search, size: 18),
+            hintText: s.searchHint,
+            // Say what the filter DID, not just that one is on.
+            suffixText: filtering ? '$shown/$total' : null,
+          ),
+          onChanged: (v) => setState(() => _query = v.trim()),
+        ),
+        if (companies.length > 1 || govs.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Row(children: [
+            if (companies.length > 1)
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: _company,
+                  isExpanded: true,
+                  decoration: InputDecoration(labelText: s.company, isDense: true),
+                  items: [
+                    DropdownMenuItem(value: '', child: Text(s.allCompanies)),
+                    for (final c in companies)
+                      DropdownMenuItem(value: c, child: Text(c, overflow: TextOverflow.ellipsis)),
+                  ],
+                  onChanged: (v) => setState(() => _company = v ?? ''),
+                ),
+              ),
+            if (companies.length > 1 && govs.isNotEmpty) const SizedBox(width: 8),
+            if (govs.isNotEmpty)
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: _gov,
+                  isExpanded: true,
+                  decoration: InputDecoration(labelText: s.colGov, isDense: true),
+                  items: [
+                    DropdownMenuItem(value: '', child: Text(s.allGovernorates)),
+                    for (final g in govs)
+                      DropdownMenuItem(
+                        value: g,
+                        child: Text(governorateLabel(g, loc), overflow: TextOverflow.ellipsis),
+                      ),
+                  ],
+                  onChanged: (v) => setState(() => _gov = v ?? ''),
+                ),
+              ),
+            if (filtering) ...[
+              const SizedBox(width: 4),
+              IconButton(
+                tooltip: s.clearFilters,
+                icon: Icon(Icons.filter_alt_off_outlined, size: 20, color: cs.onSurfaceVariant),
+                onPressed: () => setState(() {
+                  _query = '';
+                  _company = '';
+                  _gov = '';
+                }),
+              ),
+            ],
+          ]),
+        ],
+      ]),
+    );
+  }
+
   Widget _body(_S s) {
     if (!_authorized) {
       final cs = Theme.of(context).colorScheme;
@@ -463,8 +556,32 @@ class _PricingPageState extends ConsumerState<PricingPage> {
 
     // Group rows by company, preserving the server's (company, name) order.
     // The "N unpriced" pill filters to categories still on default prices (B-080).
-    final visibleRows =
-        _unpricedOnly ? catalog.rows.where((r) => !r.priced).toList() : catalog.rows;
+    final loc = Localizations.localeOf(context).languageCode;
+    final visibleRows = catalog.rows.where((r) {
+      if (_unpricedOnly && r.priced) return false;
+      if (_company.isNotEmpty && r.companyName != _company) return false;
+      if (_gov.isNotEmpty &&
+          !r.governorates.any((g) => g.governorate == _gov)) {
+        return false;
+      }
+      if (_query.isEmpty) return true;
+      final q = _query.toLowerCase();
+      // Search what the card SHOWS — name, SKU and company.
+      return r.name.toLowerCase().contains(q) ||
+          r.sku.toLowerCase().contains(q) ||
+          r.companyName.toLowerCase().contains(q);
+    }).toList();
+    final companies = <String>{
+      for (final r in catalog.rows)
+        if (r.companyName.isNotEmpty) r.companyName,
+    }.toList()
+      ..sort();
+    final govs = <String>{
+      for (final r in catalog.rows)
+        for (final g in r.governorates)
+          if (g.governorate.isNotEmpty) g.governorate,
+    }.toList()
+      ..sort();
     final groups = <String, List<CategoryPriceRow>>{};
     for (final row in visibleRows) {
       final key = row.companyName.isNotEmpty
@@ -482,6 +599,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
           unpricedOnly: _unpricedOnly,
           onToggleUnpriced: () => setState(() => _unpricedOnly = !_unpricedOnly),
         ),
+        _filterBar(s, loc, companies, govs, visibleRows.length, catalog.rows.length),
         Expanded(
           child: visibleRows.isEmpty
               ? Center(

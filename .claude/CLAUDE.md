@@ -138,14 +138,41 @@ A `USER`-role login on a `STORE` entity is treated as a POS session (`isPosUser 
 
 ---
 
-## Bluetooth / printing
+## Printing (CR-06 — one byte stream, many transports)
 
-- `BluetoothService` (`lib/core/printing/bluetooth_service.dart`) wraps `flutter_blue_plus` for scan/connect/write.
-- `EscPosBuilder` (`lib/core/printing/escpos_builder.dart`) builds 58 mm ESC/POS byte arrays using `esc_pos_utils_plus`.
-- Printing is DUAL 58 mm ESC/POS: the native **Sunmi inner printer** (`IWoyouService` AIDL via a `MethodChannel`, `lib/core/printing/sunmi_printer.dart`) AND **Bluetooth** (`flutter_blue_plus`); the POS auto-picks the inner printer when `SunmiPrinter.isAvailable()`. Confirmed on a real Sunmi V2 (Android 7.1).
-- Target Android first; iOS Bluetooth Classic to non-MFi printers is unreliable.
-- Android 12+ requires runtime `BLUETOOTH_SCAN` and `BLUETOOTH_CONNECT` permissions before scanning.
-- Persist the last-connected device ID to `SharedPreferences` for auto-reconnect on the next POS session.
+**The receipt is built once and every transport sends those exact bytes.** That is the
+whole design; do not add a path that re-renders content instead of sending bytes.
+
+- `escpos_builder.dart` is the **single source of bytes** (58 mm, `esc_pos_utils_plus`).
+  `buildVoucherPrintJob()` returns a `PrintJob` = ESC/POS bytes **+** a plain-text twin
+  that ONLY the lossy vendor-intent path may use. Callers build one job and never branch
+  on the terminal's brand.
+- `PrinterService` (`lib/core/printing/printer_service.dart`, provider
+  `printerServiceProvider`) owns the connection; its `send(PrintJob)` is the only code
+  that knows how bytes reach paper. `PrintQueue` serializes jobs.
+- Transports, in detection order (`PrinterTransport`):
+  1. **Sunmi** inner head — `IWoyouService` AIDL `sendRAWData` (`sunmi_printer.dart`).
+     **The only path confirmed on real hardware (Sunmi V2, Android 7.1). Do not regress it.**
+  2. **Bluetooth Classic SPP** — `transports/spp_printer.dart` → `SppPrinterChannel.kt`
+     (RFCOMM `00001101-0000-1000-8000-00805F9B34FB`). **`flutter_blue_plus` is BLE/GATT
+     ONLY** — it has no `createRfcommSocket` — while nearly every ESC/POS thermal printer
+     is Classic. That mismatch, not the UI, is why external printers never connected.
+  3. **USB (OTG)** — `transports/usb_printer.dart` → `UsbPrinterChannel.kt`.
+  4. **Network TCP :9100** — `transports/network_printer.dart`, pure Dart, conditional
+     import so the web build still compiles.
+  5. **Vendor `ACTION_SEND` intent** (Rovo/BLD) — last resort, `isApproximate == true`;
+     the UI must say its output differs. It cannot accept bytes at all.
+- **Auto-connect** (`auto_connect.dart`, pure + tested): Sunmi → remembered
+  transport+address → **exactly one** plausible candidate. Two candidates and nothing
+  remembered ⇒ connect to NOTHING and set `PrinterStatus.needsChoice`. Only printer-class
+  or printer-named devices are candidates, so a paired headset is never adopted. The
+  vendor intent is never persisted, or it would outrank a real printer paired later.
+- The remembered target is persisted as JSON (`last_printer_target`); the pre-CR-06
+  `last_printer_id` MAC is still read back as a BLE target so existing shops keep theirs.
+- Bonded **Classic** devices and BLE scan results are **different lists** — never merge
+  them in the UI.
+- Android 12+ needs runtime `BLUETOOTH_SCAN`/`BLUETOOTH_CONNECT`; Android only (every
+  transport degrades to empty/unsupported elsewhere).
 
 ---
 

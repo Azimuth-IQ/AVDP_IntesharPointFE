@@ -164,6 +164,9 @@ class AppShell extends ConsumerWidget {
     final transfersLabel = l.localeName.startsWith('ar') ? 'التحويل' : 'Transfers';
     final chatLabel = l.localeName.startsWith('ar') ? 'التواصل' : 'Messages';
     final posLabel = l.localeName.startsWith('ar') ? 'نقاط البيع' : 'POS points';
+    // A store hosts no POS points — it IS one. Singular, so the destination
+    // does not promise a list of shops it can never have (see StorePosView).
+    final storePosLabel = l.localeName.startsWith('ar') ? 'نقطة البيع' : 'My POS';
     final sliderLabel = l.localeName.startsWith('ar') ? 'شريط الصور' : 'Home slider';
     final appDownloadLabel = l.localeName.startsWith('ar') ? 'تحميل التطبيق' : 'Get the app';
     switch (type) {
@@ -499,7 +502,7 @@ class AppShell extends ConsumerWidget {
           _NavItem(
             Icons.storefront_outlined,
             Icons.storefront,
-            posLabel,
+            storePosLabel,
             '/store/pos-users',
           ),
           _NavItem(

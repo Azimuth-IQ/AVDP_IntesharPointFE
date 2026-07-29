@@ -14,6 +14,7 @@ import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/pos_admin/data/pos_admin_repository.dart';
 import 'package:inteshar/features/pos_admin/domain/pos_slot_balance.dart';
 import 'package:inteshar/features/pos_admin/presentation/pos_network_view.dart';
+import 'package:inteshar/features/pos_admin/presentation/store_pos_view.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/password_field.dart';
@@ -117,11 +118,17 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
   /// HQ on its own screen shows the network oversight, not a self-management body.
   bool get _showNetwork => !_isDrill && _signedInType == EntityType.INTESHAR;
 
-  @override
-  void initState() {
-    super.initState();
-    if (!_showNetwork) _load();
-  }
+  /// A STORE *is* a POS point: it can never host one (the server only onboards
+  /// under an agent), so this body — quota, onboard, list of hosted shops —
+  /// would be an empty list under a permanent 0/0/0 quota. It gets the shop's
+  /// own POS view instead. Drill mode is unaffected: HQ only drills into agents.
+  bool get _showStoreSelf => !_isDrill && _signedInType == EntityType.STORE;
+
+  /// Guards the one-shot initial fetch. It cannot live in `initState`: which
+  /// body this screen is depends on the signed-in tier, and on a cold mount the
+  /// auth state can still be resolving on the first frame — so HQ and stores
+  /// would fire the agent feeds (with an empty entityId) before swapping.
+  bool _started = false;
 
   static const _pageSize = 50;
 
@@ -185,7 +192,19 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Watch (not read) the session: the tier picks the body, so a still-resolving
+    // auth state must rebuild here rather than fall through to the agent body.
+    if (ref.watch(authStateProvider).isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
     if (_showNetwork) return const PosNetworkView();
+    if (_showStoreSelf) return const StorePosView();
+    if (!_started) {
+      _started = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _load();
+      });
+    }
     final s = _S.of(context);
     // Drill mode is a pushed route — give it its own Scaffold + back button.
     if (_isDrill) {

@@ -11,6 +11,7 @@ import 'package:inteshar/features/entities/data/entity_repository.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/pos_admin/data/pos_admin_repository.dart';
 import 'package:inteshar/features/pos_admin/domain/pos_network.dart';
+import 'package:inteshar/features/pos_admin/domain/pos_roles.dart';
 import 'package:inteshar/features/pos_admin/presentation/pos_admin_page.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/entity_search_picker.dart';
@@ -49,10 +50,10 @@ class _NS {
   String get empty => p('No agents match.', 'لا يوجد وكلاء مطابقون.');
   String get loadMore => p('Load more', 'تحميل المزيد');
   String get grantAny => p('Grant POS points', 'منح نقاط بيع');
-  String get grantAnySubtitle => p('Give points to any agent or store', 'منح النقاط لأي وكيل أو متجر');
-  String get searchAny => p('Search account by name…', 'بحث عن حساب بالاسم…');
+  String get grantAnySubtitle => p('Give points to any main or sub agent', 'منح النقاط لأي وكيل رئيسي أو فرعي');
+  String get searchAny => p('Search agent by name…', 'بحث عن وكيل بالاسم…');
   String get count => p('Number of points', 'عدد النقاط');
-  String get noMatches => p('No matching accounts', 'لا توجد حسابات مطابقة');
+  String get noMatches => p('No matching agents', 'لا يوجد وكلاء مطابقون');
   String get cancel => p('Cancel', 'إلغاء');
   String get grant => p('Grant', 'منح');
   String get done => p('Done', 'تم');
@@ -146,16 +147,19 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
     _reload(); // reflect any grant/onboard/revoke done in the drill
   }
 
-  /// HQ grants POS points directly to ANY account — agent or store (B-043).
-  /// Server-searched picker (B-023: no more downloading every entity), then a
-  /// count prompt for the chosen account.
+  /// HQ grants POS points directly to any AGENT — main or sub (B-043), skipping
+  /// the intermediate tier. Server-searched picker (B-023: no more downloading
+  /// every entity), then a count prompt for the chosen agent.
   Future<void> _grantAnyDialog(_NS s) async {
-    // HQ can't grant points to itself — offer only agent/store tiers.
+    // Recipients are the tiers that can actually SPEND a point by onboarding a
+    // shop. Stores used to be offered here, but a store is itself a POS point:
+    // the server refuses to onboard under one, so points granted to a store
+    // were unspendable — while still counting as "issued" in the KPIs above.
     final picked = await showEntitySearchPicker(
       context,
       repository: EntityRepository(ref.read(apiClientProvider)),
       title: s.grantAny,
-      types: const [EntityType.AGENT1, EntityType.AGENT2, EntityType.STORE],
+      types: kPosPointHolderTypes,
     );
     if (picked == null || !mounted) return;
     final countCtrl = TextEditingController(text: '1');

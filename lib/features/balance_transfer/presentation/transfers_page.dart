@@ -5,6 +5,7 @@ import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/balance_transfer/presentation/recipient_tile.dart';
+import 'package:inteshar/features/reports/data/reports_repository.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
 import 'package:inteshar/features/entities/domain/entity_summary_row.dart';
@@ -17,7 +18,8 @@ import 'package:inteshar/shared/widgets/responsive.dart';
 
 /// B-056 — التحويل: the agent's balance-transfer page (AGENT1 + AGENT2).
 /// Shows the available balance, sends credit to a DIRECT child (server-enforced
-/// rule) with the B-040 confirm dialog, and lists the grant-ledger history.
+/// rule); the B-040 money-movement confirmation is the arm-then-commit Send
+/// button inside that dialog (B-113). Also lists the grant-ledger history.
 /// B-092: which slice of the direct children the destination picker is showing.
 enum _DestKind { subAgents, pos }
 
@@ -27,6 +29,12 @@ class TransfersPage extends ConsumerStatefulWidget {
   @override
   ConsumerState<TransfersPage> createState() => _TransfersPageState();
 }
+
+/// Test seam: the money-button copy is worth asserting after a `\$`-escaping
+/// bug shipped a literal "send \$amount to \$to" to users (B-113).
+TransferStrings transferStringsFor(bool ar) => TransferStrings(ar);
+
+typedef TransferStrings = _TS;
 
 class _TS {
   final bool ar;
@@ -45,12 +53,8 @@ class _TS {
   String get amount => p('Amount (IQD)', 'المبلغ (د.ع)');
   String get send => p('Send', 'إرسال');
   String confirmSend(String amount, String to) =>
-      p('Confirm: send \$amount to \$to', 'تأكيد: إرسال \$amount إلى \$to');
+      p('Confirm: send $amount to $to', 'تأكيد: إرسال $amount إلى $to');
   String get cancel => p('Cancel', 'إلغاء');
-  String get confirmTitle => p('Confirm transfer', 'تأكيد التحويل');
-  String confirmBody(String amount, String dest) => p(
-      'You are about to transfer $amount to "$dest". This cannot be undone.',
-      'سيتم تحويل $amount إلى "$dest". لا يمكن التراجع عن هذا الإجراء.');
   String get sent => p('Balance transferred', 'تم تحويل الرصيد');
   String get history => p('Transfer history', 'سجل التحويلات');
   String get empty => p('No transfers yet.', 'لا توجد تحويلات بعد.');
@@ -68,6 +72,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
   AgentBalance? _balance;
   List<GrantRow> _grants = const [];
   List<EntitySummaryRow> _children = const [];
+  Map<String, num> _childBal = const {};
   bool _loading = true;
   bool _busy = false;
   Object? _error;
@@ -84,6 +89,28 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
     _load();
   }
 
+  /// destId → current balance, for the "recipient has / will have" readout.
+  /// Best-effort: the roster is VIEW_REPORTS-gated, and an agent may hold
+  /// CREATE_TRANSACTIONS without it — a 403 must not break the transfer page.
+  Future<Map<String, num>> _childBalances(dynamic api) async {
+    try {
+      final out = <String, num>{};
+      var page = 0;
+      while (true) {
+        final res = await ReportsRepository(api)
+            .balancesRoster(rootId: _myId, page: page, size: 200);
+        for (final r in res.items) {
+          out[r.entityId] = r.available;
+        }
+        if (!res.hasMore || page > 50) break;
+        page++;
+      }
+      return out;
+    } catch (_) {
+      return const {};
+    }
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -95,6 +122,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
         PricingRepository(api).balance(),
         PricingRepository(api).grants(),
         _allChildren(api),
+        _childBalances(api),
       ]);
       final grants = (results[1] as List<GrantRow>).toList()
         ..sort((a, b) => '${b.date} ${b.time}'.compareTo('${a.date} ${a.time}'));
@@ -103,6 +131,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
         _balance = results[0] as AgentBalance;
         _grants = grants;
         _children = results[2] as List<EntitySummaryRow>;
+        _childBal = results[3] as Map<String, num>;
         _loading = false;
       });
     } catch (e) {
@@ -274,6 +303,30 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                         w: FontWeight.w700,
                         color: after < 0 ? cs.error : cs.onSurface)),
               ]),
+              // The OTHER side of the transfer. Sending blind to a recipient whose
+              // balance you can't see is how an agent double-tops-up a shop that
+              // was already funded. Hidden when the roster is unavailable (the
+              // feed is VIEW_REPORTS-gated) rather than showing a misleading zero.
+              if (dest != null && _childBal.containsKey(dest!.id)) ...[
+                const SizedBox(height: 10),
+                Divider(height: 1, color: cs.outlineVariant),
+                const SizedBox(height: 10),
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  Text(ar ? 'رصيد المستلم' : 'Recipient balance',
+                      style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+                  Text(Formatters.iqd(_childBal[dest!.id]!.round()),
+                      style: IntesharType.mono(12.5, color: cs.onSurface)),
+                ]),
+                const SizedBox(height: 4),
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  Text(ar ? 'بعد الاستلام' : 'After receiving',
+                      style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+                  Text(
+                      Formatters.iqd((_childBal[dest!.id]! + amt).round()),
+                      style: IntesharType.mono(12.5,
+                          w: FontWeight.w700, color: IntesharColors.sage)),
+                ]),
+              ],
             ]),
           ),
           actions: [
@@ -314,23 +367,11 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
     if (ok != true || amount == null || amount <= 0 || target == null) return;
     if (!mounted) return;
 
-    // B-040: explicit confirmation before money moves.
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(s.confirmTitle),
-        content: Text(
-            s.confirmBody(Formatters.iqd(amount.round()), target.label)),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(s.cancel)),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true), child: Text(s.send)),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
+    // B-113: no second confirmation dialog. The B-040 requirement is satisfied
+    // INSIDE the transfer dialog — Send arms, and a second press on a button that
+    // spells out the amount and recipient commits. A further "are you sure" after
+    // that is a third confirmation of the same intent, and users stop reading the
+    // ones that always appear.
 
     setState(() => _busy = true);
     final messenger = ScaffoldMessenger.of(context);

@@ -51,6 +51,67 @@ class BluetoothPrinterService extends Notifier<BluetoothPrinterState> {
 
   void stopScan() => FlutterBluePlus.stopScan();
 
+  /// Printers that will NEVER show up in a scan (CR-05).
+  ///
+  /// A terminal's built-in printer — the Rovo's internal link is the reported
+  /// case — is already **bonded** to the device and does not advertise, so
+  /// `startScan()` can never surface it. Android exposes those through
+  /// `bondedDevices`; `systemDevices` adds anything already connected. Both are
+  /// no-ops on iOS, where the section simply doesn't render.
+  ///
+  /// Returns real devices, not just printers: a paired headset or phone lands
+  /// here too, which is why the picker lists them under their own heading rather
+  /// than mixed into the scan results.
+  Future<List<BluetoothDevice>> knownDevices() async {
+    final seen = <String, BluetoothDevice>{};
+    try {
+      for (final d in await FlutterBluePlus.bondedDevices) {
+        seen[d.remoteId.str] = d;
+      }
+    } catch (_) {/* unsupported platform / permission denied */}
+    try {
+      // 1800 = Generic Access; every GATT peripheral exposes it.
+      for (final d in await FlutterBluePlus.systemDevices([Guid('1800')])) {
+        seen.putIfAbsent(d.remoteId.str, () => d);
+      }
+    } catch (_) {}
+    final out = seen.values.toList()
+      ..sort((a, b) {
+        // Anything that names itself a printer first — on a POS terminal that is
+        // almost always the built-in head the operator is looking for.
+        final ap = looksLikePrinterName(a.platformName) ? 0 : 1;
+        final bp = looksLikePrinterName(b.platformName) ? 0 : 1;
+        if (ap != bp) return ap - bp;
+        return a.platformName.toLowerCase().compareTo(b.platformName.toLowerCase());
+      });
+    return out;
+  }
+
+  /// Name-only predicate — pure, so it is testable without a BluetoothDevice
+  /// (which cannot be constructed with a name outside the plugin).
+  static bool looksLikePrinterName(String name) {
+    final n = name.toLowerCase();
+    // Substring matches must be specific enough not to catch everyday devices:
+    // a bare 'rp' matches "AiRPods", which a test caught. Model prefixes are
+    // matched with their separator.
+    return n.contains('print') ||
+        n.contains('rovo') ||
+        n.contains('bld') ||
+        n.contains('inner') ||
+        n.contains('escpos') ||
+        n.contains('pos-') ||
+        n.contains('pos_') ||
+        n.startsWith('pos') ||
+        n.contains('rp-') ||
+        n.startsWith('rp') ||
+        n.contains('tm-');
+  }
+
+  /// Whether [device] advertises a name that reads like a printer — used to mark
+  /// the likely candidate in the picker so an operator isn't guessing.
+  static bool looksLikePrinter(BluetoothDevice device) =>
+      looksLikePrinterName(device.platformName);
+
   Future<void> connect(BluetoothDevice device) async {
     state = state.copyWith(
       status: PrinterStatus.connecting,

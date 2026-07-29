@@ -5,7 +5,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/printing/bluetooth_service.dart';
 import 'package:inteshar/core/printing/escpos_builder.dart';
-import 'package:inteshar/core/printing/printer_registry.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/brand_cta.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
@@ -19,6 +18,10 @@ class PrinterPickerPage extends ConsumerStatefulWidget {
 
 class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
   List<ScanResult> _results = [];
+  // CR-05: a terminal's built-in printer (the Rovo internal link) is already
+  // BONDED and never advertises, so a scan can never surface it. These come from
+  // the system's paired/connected lists instead.
+  List<BluetoothDevice> _known = const [];
   bool _scanning = false;
   String?
   _connectingId; // the device id currently being connected (per-row spinner)
@@ -32,6 +35,7 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
     super.initState();
     _service = ref.read(bluetoothServiceProvider.notifier);
     _startScan();
+    _loadKnown();
     _loadLastPrinterId();
   }
 
@@ -80,6 +84,11 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
     } finally {
       if (mounted) setState(() => _connectingId = null);
     }
+  }
+
+  Future<void> _loadKnown() async {
+    final known = await _service.knownDevices();
+    if (mounted) setState(() => _known = known);
   }
 
   void _startScan() {
@@ -175,48 +184,6 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
         children: [
-          SectionLabel(l.aboutSupportedPrinters),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: supportedPrinterModels
-                .map(
-                  (m) => Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 7,
-                    ),
-                    decoration: BoxDecoration(
-                      color: cs.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          m.name,
-                          style: TextStyle(
-                            fontFamily: 'CodecPro',
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: cs.onSurface,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '${m.paperMm}mm',
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 10,
-                            color: cs.onSurfaceVariant,
-                            letterSpacing: 0.4,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-                .toList(),
-          ),
           const SizedBox(height: 22),
           // Connected status
           if (isConnected) ...[
@@ -332,6 +299,53 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
                     label: Text(l.printerPickerRescan),
                   ),
           ),
+          // Paired / built-in printers, listed separately: these are real bonded
+          // devices, so a headset or phone can appear here too — mixing them into
+          // the scan results would invite connecting to the wrong thing.
+          if (_known.isNotEmpty) ...[
+            SectionLabel(l.printerPickerPaired),
+            ..._known.map(
+              (d) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: InkCard(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+                  onTap: _connectingId == null ? () => _connect(d) : null,
+                  child: Row(
+                    children: [
+                      Icon(
+                        BluetoothPrinterService.looksLikePrinter(d)
+                            ? Icons.print_outlined
+                            : Icons.bluetooth,
+                        size: 18,
+                        color: BluetoothPrinterService.looksLikePrinter(d)
+                            ? IntesharColors.sage
+                            : cs.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          d.platformName.isNotEmpty
+                              ? d.platformName
+                              : l.printerPickerUnknown,
+                          style: IntesharType.sans(13.5,
+                              color: cs.onSurface, w: FontWeight.w700),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (_connectingId == d.remoteId.str)
+                        const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                      else
+                        Icon(Icons.chevron_right, size: 18, color: cs.onSurfaceVariant),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
           if (_results.isEmpty && !_scanning)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 16),

@@ -971,6 +971,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get printerPickerRescan => 'إعادة البحث';
 
   @override
+  String get printerPickerPaired => 'المقترنة والمدمجة';
+
+  @override
   String get printerPickerNoDevices =>
       'لم يتم العثور على أجهزة. تأكد من تشغيل البلوتوث وتشغيل الطابعة.';
 

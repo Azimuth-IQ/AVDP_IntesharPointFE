@@ -969,6 +969,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get printerPickerRescan => 'Re-scan';
 
   @override
+  String get printerPickerPaired => 'Paired & built-in';
+
+  @override
   String get printerPickerNoDevices =>
       'No devices found. Make sure Bluetooth is on and the printer is powered.';
 

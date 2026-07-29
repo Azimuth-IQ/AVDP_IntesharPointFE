@@ -1802,6 +1802,12 @@ abstract class AppLocalizations {
   /// **'Re-scan'**
   String get printerPickerRescan;
 
+  /// No description provided for @printerPickerPaired.
+  ///
+  /// In en, this message translates to:
+  /// **'Paired & built-in'**
+  String get printerPickerPaired;
+
   /// No description provided for @printerPickerNoDevices.
   ///
   /// In en, this message translates to:

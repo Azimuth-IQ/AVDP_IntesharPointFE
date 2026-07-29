@@ -670,6 +670,8 @@
   "@printerPickerNearbyDevices": {},
   "printerPickerRescan": "Re-scan",
   "@printerPickerRescan": {},
+  "printerPickerPaired": "Paired & built-in",
+  "@printerPickerPaired": {},
   "printerPickerNoDevices": "No devices found. Make sure Bluetooth is on and the printer is powered.",
   "@printerPickerNoDevices": {},
   "printerPickerUnknown": "Unknown",

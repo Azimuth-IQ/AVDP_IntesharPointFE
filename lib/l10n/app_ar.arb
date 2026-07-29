@@ -419,6 +419,7 @@
   "printerPickerPair": "اقتران",
   "printerPickerNearbyDevices": "الأجهزة المجاورة",
   "printerPickerRescan": "إعادة البحث",
+  "printerPickerPaired": "المقترنة والمدمجة",
   "printerPickerNoDevices": "لم يتم العثور على أجهزة. تأكد من تشغيل البلوتوث وتشغيل الطابعة.",
   "printerPickerUnknown": "غير معروف",
 

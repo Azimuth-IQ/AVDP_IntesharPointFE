@@ -979,6 +979,64 @@ class AppLocalizationsEn extends AppLocalizations {
   String get printerPickerUnknown => 'Unknown';
 
   @override
+  String get printerPickerBuiltIn => 'Built-in printer';
+
+  @override
+  String get printerPickerBuiltInHint =>
+      'Inside this terminal — nothing to pair.';
+
+  @override
+  String get printerPickerBluetoothClassic => 'Bluetooth printers (paired)';
+
+  @override
+  String get printerPickerBluetoothClassicHint =>
+      'Printers are listed first. A paired headset or phone can appear here too — those will not print.';
+
+  @override
+  String get printerPickerNoPaired =>
+      'No paired Bluetooth devices. Pair the printer in Android settings, then refresh.';
+
+  @override
+  String get printerPickerUsb => 'USB printers';
+
+  @override
+  String get printerPickerUsbNeedsPermission => 'Tap to allow USB access';
+
+  @override
+  String get printerPickerNetwork => 'Network printer';
+
+  @override
+  String get printerPickerNetworkHint =>
+      'For a LAN or WiFi printer, enter its IP address. Use port 9100 unless the printer says otherwise.';
+
+  @override
+  String get printerPickerHost => 'IP address';
+
+  @override
+  String get printerPickerPort => 'Port';
+
+  @override
+  String get printerPickerConnect => 'Connect';
+
+  @override
+  String get printerPickerBluetoothLe => 'Bluetooth LE (rare)';
+
+  @override
+  String get printerPickerBluetoothLeHint =>
+      'Very few thermal printers use Bluetooth LE. Try this only if the printer is not in the paired list.';
+
+  @override
+  String get printerPickerScan => 'Scan';
+
+  @override
+  String get printerPickerApproximate =>
+      'This printer\'s own app lays out the receipt, so the printout will not exactly match other devices.';
+
+  @override
+  String get printerPickerChooseOne =>
+      'More than one printer was found, so none was connected automatically. Choose the one at this counter.';
+
+  @override
   String get newTxnTitle => 'New transaction';
 
   @override

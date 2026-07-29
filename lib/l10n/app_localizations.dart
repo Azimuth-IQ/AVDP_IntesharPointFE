@@ -1820,6 +1820,108 @@ abstract class AppLocalizations {
   /// **'Unknown'**
   String get printerPickerUnknown;
 
+  /// No description provided for @printerPickerBuiltIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Built-in printer'**
+  String get printerPickerBuiltIn;
+
+  /// No description provided for @printerPickerBuiltInHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Inside this terminal — nothing to pair.'**
+  String get printerPickerBuiltInHint;
+
+  /// No description provided for @printerPickerBluetoothClassic.
+  ///
+  /// In en, this message translates to:
+  /// **'Bluetooth printers (paired)'**
+  String get printerPickerBluetoothClassic;
+
+  /// No description provided for @printerPickerBluetoothClassicHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Printers are listed first. A paired headset or phone can appear here too — those will not print.'**
+  String get printerPickerBluetoothClassicHint;
+
+  /// No description provided for @printerPickerNoPaired.
+  ///
+  /// In en, this message translates to:
+  /// **'No paired Bluetooth devices. Pair the printer in Android settings, then refresh.'**
+  String get printerPickerNoPaired;
+
+  /// No description provided for @printerPickerUsb.
+  ///
+  /// In en, this message translates to:
+  /// **'USB printers'**
+  String get printerPickerUsb;
+
+  /// No description provided for @printerPickerUsbNeedsPermission.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to allow USB access'**
+  String get printerPickerUsbNeedsPermission;
+
+  /// No description provided for @printerPickerNetwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Network printer'**
+  String get printerPickerNetwork;
+
+  /// No description provided for @printerPickerNetworkHint.
+  ///
+  /// In en, this message translates to:
+  /// **'For a LAN or WiFi printer, enter its IP address. Use port 9100 unless the printer says otherwise.'**
+  String get printerPickerNetworkHint;
+
+  /// No description provided for @printerPickerHost.
+  ///
+  /// In en, this message translates to:
+  /// **'IP address'**
+  String get printerPickerHost;
+
+  /// No description provided for @printerPickerPort.
+  ///
+  /// In en, this message translates to:
+  /// **'Port'**
+  String get printerPickerPort;
+
+  /// No description provided for @printerPickerConnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect'**
+  String get printerPickerConnect;
+
+  /// No description provided for @printerPickerBluetoothLe.
+  ///
+  /// In en, this message translates to:
+  /// **'Bluetooth LE (rare)'**
+  String get printerPickerBluetoothLe;
+
+  /// No description provided for @printerPickerBluetoothLeHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Very few thermal printers use Bluetooth LE. Try this only if the printer is not in the paired list.'**
+  String get printerPickerBluetoothLeHint;
+
+  /// No description provided for @printerPickerScan.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan'**
+  String get printerPickerScan;
+
+  /// No description provided for @printerPickerApproximate.
+  ///
+  /// In en, this message translates to:
+  /// **'This printer\'s own app lays out the receipt, so the printout will not exactly match other devices.'**
+  String get printerPickerApproximate;
+
+  /// No description provided for @printerPickerChooseOne.
+  ///
+  /// In en, this message translates to:
+  /// **'More than one printer was found, so none was connected automatically. Choose the one at this counter.'**
+  String get printerPickerChooseOne;
+
   /// No description provided for @newTxnTitle.
   ///
   /// In en, this message translates to:

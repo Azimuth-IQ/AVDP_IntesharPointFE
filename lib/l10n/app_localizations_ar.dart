@@ -981,6 +981,63 @@ class AppLocalizationsAr extends AppLocalizations {
   String get printerPickerUnknown => 'غير معروف';
 
   @override
+  String get printerPickerBuiltIn => 'الطابعة المدمجة';
+
+  @override
+  String get printerPickerBuiltInHint => 'داخل هذا الجهاز — لا حاجة للاقتران.';
+
+  @override
+  String get printerPickerBluetoothClassic => 'طابعات البلوتوث (المقترنة)';
+
+  @override
+  String get printerPickerBluetoothClassicHint =>
+      'تظهر الطابعات أولاً. قد تظهر هنا أيضاً سماعة أو هاتف مقترن — وهذه لن تطبع.';
+
+  @override
+  String get printerPickerNoPaired =>
+      'لا توجد أجهزة بلوتوث مقترنة. اقترن بالطابعة من إعدادات أندرويد ثم حدّث القائمة.';
+
+  @override
+  String get printerPickerUsb => 'طابعات USB';
+
+  @override
+  String get printerPickerUsbNeedsPermission => 'اضغط للسماح بالوصول عبر USB';
+
+  @override
+  String get printerPickerNetwork => 'طابعة شبكة';
+
+  @override
+  String get printerPickerNetworkHint =>
+      'لطابعة على الشبكة أو الواي فاي، أدخل عنوان IP. استخدم المنفذ 9100 ما لم تحدد الطابعة غير ذلك.';
+
+  @override
+  String get printerPickerHost => 'عنوان IP';
+
+  @override
+  String get printerPickerPort => 'المنفذ';
+
+  @override
+  String get printerPickerConnect => 'اتصال';
+
+  @override
+  String get printerPickerBluetoothLe => 'بلوتوث LE (نادر)';
+
+  @override
+  String get printerPickerBluetoothLeHint =>
+      'قليل من الطابعات الحرارية تستخدم بلوتوث LE. جرّب هذا فقط إذا لم تظهر الطابعة في قائمة المقترنة.';
+
+  @override
+  String get printerPickerScan => 'بحث';
+
+  @override
+  String get printerPickerApproximate =>
+      'هذه الطابعة تعيد تنسيق الإيصال ببرنامجها الخاص، لذا لن تتطابق الطباعة تماماً مع بقية الأجهزة.';
+
+  @override
+  String get printerPickerChooseOne =>
+      'تم العثور على أكثر من طابعة، لذلك لم يتم الاتصال تلقائياً. اختر الطابعة الموجودة على هذا الكاونتر.';
+
+  @override
   String get newTxnTitle => 'معاملة جديدة';
 
   @override

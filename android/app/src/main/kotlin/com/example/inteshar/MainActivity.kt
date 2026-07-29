@@ -21,6 +21,12 @@ class MainActivity : FlutterActivity() {
     private var woyouService: IWoyouService? = null
     private var bindRequested = false
 
+    // CR-06 transports. Both send the SAME ESC/POS bytes the Sunmi AIDL path
+    // sends — unlike the Rovo intent below, which hands the content to another
+    // app and lets it re-render. Neither touches flutter_blue_plus (BLE/GATT);
+    // SPP is a different radio protocol on a different socket.
+    private var sppPrinter: SppPrinterChannel? = null
+
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             woyouService = IWoyouService.Stub.asInterface(service)
@@ -140,6 +146,14 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        val spp = SppPrinterChannel(applicationContext)
+        sppPrinter = spp
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SppPrinterChannel.CHANNEL)
+            .setMethodCallHandler(spp)
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, UsbPrinterChannel.CHANNEL)
+            .setMethodCallHandler(UsbPrinterChannel(applicationContext))
     }
 
     // True if the built-in Rovo/BLD print service is installed on this device.
@@ -163,6 +177,8 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        sppPrinter?.dispose()
+        sppPrinter = null
         if (bindRequested) {
             try {
                 unbindService(connection)

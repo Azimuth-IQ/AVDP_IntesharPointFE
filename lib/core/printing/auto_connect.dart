@@ -1,0 +1,197 @@
+import 'package:inteshar/core/printing/printer_target.dart';
+
+/// What the POS should do about printers when it starts.
+enum AutoConnectAction {
+  /// Adopt [AutoConnectDecision.target] without asking.
+  connect,
+
+  /// Say nothing was picked and let the operator choose. Deliberately NOT a
+  /// silent guess.
+  ask,
+
+  /// Nothing to connect to and nothing to ask about.
+  none,
+}
+
+/// Why the decision came out the way it did — surfaced in the UI and asserted
+/// in tests, so a change of policy is visible rather than incidental.
+enum AutoConnectReason {
+  /// A Sunmi inner printer is present. Unambiguous and confirmed on hardware.
+  sunmiBuiltIn,
+
+  /// The transport+address that printed last time is available again.
+  remembered,
+
+  /// Exactly one plausible printer is attached; no other device could be meant.
+  soleCandidate,
+
+  /// Several plausible printers. Guessing here could print a customer's voucher
+  /// on the wrong device — ask instead.
+  ambiguous,
+
+  /// No real printer, but the device ships a vendor print app. Lossy output.
+  intentFallback,
+
+  /// Nothing at all.
+  nothingFound,
+}
+
+class AutoConnectDecision {
+  final AutoConnectAction action;
+  final PrinterTarget? target;
+  final AutoConnectReason reason;
+
+  /// Populated for [AutoConnectAction.ask] so the UI can show exactly what it
+  /// could not choose between.
+  final List<PrinterTarget> candidates;
+
+  const AutoConnectDecision({
+    required this.action,
+    required this.reason,
+    this.target,
+    this.candidates = const [],
+  });
+
+  bool get isApproximate => target?.isApproximate ?? false;
+
+  @override
+  String toString() => 'AutoConnect(${action.name}, ${reason.name}, $target)';
+}
+
+/// Decides what to connect to at POS start. Pure — no plugins, no I/O — so the
+/// policy can be tested without a printer in hand.
+///
+/// Priority, and the reasoning for it:
+/// 1. **Sunmi inner printer.** It is inside the terminal, there is exactly one,
+///    and it is the only path confirmed on real hardware.
+/// 2. **The remembered printer.** An exact transport+address that already
+///    printed for this shop can never be "the wrong device".
+/// 3. **A single plausible candidate.** If only one thing on this terminal looks
+///    like a printer, connecting to it is what the operator wanted anyway.
+/// 4. **Several candidates → ask.** Silently picking one and printing a paid
+///    voucher to a stranger's paired device is worse than one tap of setup.
+/// 5. **Vendor intent app.** Only when nothing else exists, and the caller must
+///    label its output approximate.
+///
+/// [available] is everything enumerable right now (all bonded Classic devices,
+/// all attached USB devices) — used only to skip a remembered device that has
+/// been unpaired or unplugged. [candidates] is the much smaller subset that
+/// plausibly IS a printer; only these are eligible for rules 3 and 4.
+AutoConnectDecision decideAutoConnect({
+  required bool sunmiAvailable,
+  required bool intentAvailable,
+  required PrinterTarget? remembered,
+  required List<PrinterTarget> available,
+  required List<PrinterTarget> candidates,
+}) {
+  if (sunmiAvailable) {
+    return const AutoConnectDecision(
+      action: AutoConnectAction.connect,
+      target: PrinterTarget.sunmiInner,
+      reason: AutoConnectReason.sunmiBuiltIn,
+    );
+  }
+
+  if (remembered != null &&
+      _rememberedIsWorthTrying(
+        remembered,
+        available: available,
+        intentAvailable: intentAvailable,
+      )) {
+    return AutoConnectDecision(
+      action: AutoConnectAction.connect,
+      target: remembered,
+      reason: AutoConnectReason.remembered,
+    );
+  }
+
+  // Never count the same physical printer twice (a unit can be both bonded and
+  // remembered, or listed by two lookups).
+  final unique = <PrinterTarget>[];
+  for (final c in candidates) {
+    if (!unique.contains(c)) unique.add(c);
+  }
+
+  if (unique.length == 1) {
+    return AutoConnectDecision(
+      action: AutoConnectAction.connect,
+      target: unique.single,
+      reason: AutoConnectReason.soleCandidate,
+    );
+  }
+  if (unique.length > 1) {
+    return AutoConnectDecision(
+      action: AutoConnectAction.ask,
+      reason: AutoConnectReason.ambiguous,
+      candidates: unique,
+    );
+  }
+
+  if (intentAvailable) {
+    return const AutoConnectDecision(
+      action: AutoConnectAction.connect,
+      target: PrinterTarget.vendorIntent,
+      reason: AutoConnectReason.intentFallback,
+    );
+  }
+
+  return const AutoConnectDecision(
+    action: AutoConnectAction.none,
+    reason: AutoConnectReason.nothingFound,
+  );
+}
+
+/// A remembered device is only skipped when we can *prove* it is gone.
+///
+/// Bonded-Bluetooth and attached-USB lists are authoritative and cheap, so a
+/// remembered device missing from them has been unpaired or unplugged — trying
+/// it would just burn a ten-second timeout on the sale screen. A network printer
+/// cannot be enumerated at all, and a BLE peripheral only appears during a scan
+/// we deliberately do not run at startup, so both are simply attempted.
+bool _rememberedIsWorthTrying(
+  PrinterTarget remembered, {
+  required List<PrinterTarget> available,
+  required bool intentAvailable,
+}) {
+  switch (remembered.transport) {
+    case PrinterTransport.sunmi:
+      // Only reachable when sunmiAvailable was false — the terminal changed.
+      return false;
+    case PrinterTransport.intent:
+      return intentAvailable;
+    case PrinterTransport.spp:
+    case PrinterTransport.usb:
+      return available.contains(remembered);
+    case PrinterTransport.ble:
+    case PrinterTransport.tcp:
+      return true;
+  }
+}
+
+/// Name-only printer heuristic, shared by the Classic and LE lists.
+///
+/// Substring matches must be specific enough not to catch everyday devices: a
+/// bare `rp` matches "AiRPods", which a test caught.
+bool looksLikePrinterName(String name) {
+  final n = name.toLowerCase();
+  return n.contains('print') ||
+      n.contains('rovo') ||
+      n.contains('bld') ||
+      n.contains('inner') ||
+      n.contains('escpos') ||
+      n.contains('pos-') ||
+      n.contains('pos_') ||
+      n.startsWith('pos') ||
+      n.contains('rp-') ||
+      n.startsWith('rp') ||
+      // X-Printer units (the X50 in the registry) advertise as "XP-58"/"XP58",
+      // which carries none of the words above.
+      n.startsWith('xp') ||
+      n.contains('x-print') ||
+      n.contains('tm-') ||
+      // Sunrise / Capa Z91 have no published SDK; if their heads present as a
+      // bonded SPP device at all, these are the names reported in the field.
+      n.contains('sunrise') ||
+      n.contains('capa') ||
+      n.startsWith('z91');
+}

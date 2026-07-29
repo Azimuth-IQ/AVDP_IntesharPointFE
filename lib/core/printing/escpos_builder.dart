@@ -1,5 +1,6 @@
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:image/image.dart' as img;
+import 'package:inteshar/core/printing/print_job.dart';
 import 'package:inteshar/features/inventory/domain/voucher_template.dart';
 
 String _fmtTs(DateTime t) =>
@@ -272,6 +273,73 @@ String buildVoucherReceiptText({
   }
   return b.toString();
 }
+
+/// One voucher receipt, ready for ANY transport.
+///
+/// CR-06: the ESC/POS bytes are the receipt; the text is a fallback only the
+/// lossy vendor-intent path can use. Building both here is what lets every
+/// caller stop asking "is this a Rovo?" — the transport picks the field it can
+/// handle, and on every raw transport the bytes below are what reaches paper.
+Future<PrintJob> buildVoucherPrintJob({
+  required VoucherTemplate template,
+  required String headerFallback,
+  required String shopName,
+  required String posLabel,
+  required String operatorPhone,
+  required String productName,
+  required String price,
+  required String serial,
+  required String pin,
+  required DateTime timestamp,
+  img.Image? agentLogo,
+  img.Image? companyLogo,
+  String? companyName,
+  String? categoryName,
+  String? expiry,
+  int? receiptNo,
+}) async {
+  final bytes = await buildVoucherReceipt(
+    template: template,
+    headerFallback: headerFallback,
+    shopName: shopName,
+    posLabel: posLabel,
+    operatorPhone: operatorPhone,
+    productName: productName,
+    price: price,
+    serial: serial,
+    pin: pin,
+    timestamp: timestamp,
+    agentLogo: agentLogo,
+    companyLogo: companyLogo,
+    companyName: companyName,
+    categoryName: categoryName,
+    expiry: expiry,
+    receiptNo: receiptNo,
+  );
+  final text = buildVoucherReceiptText(
+    template: template,
+    headerFallback: headerFallback,
+    shopName: shopName,
+    posLabel: posLabel,
+    operatorPhone: operatorPhone,
+    productName: productName,
+    price: price,
+    serial: serial,
+    pin: pin,
+    timestamp: timestamp,
+    companyName: companyName,
+    categoryName: categoryName,
+    expiry: expiry,
+    receiptNo: receiptNo,
+  );
+  return PrintJob(bytes: bytes, text: text);
+}
+
+/// The test receipt, for every transport.
+Future<PrintJob> buildTestPrintJob() async => PrintJob(
+  bytes: await buildTestReceipt(),
+  text: 'Point of Sale\nPrinter OK\n',
+);
 
 Future<List<int>> buildTestReceipt() async {
   final profile = await CapabilityProfile.load();

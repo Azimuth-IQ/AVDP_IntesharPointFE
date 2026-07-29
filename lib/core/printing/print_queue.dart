@@ -1,15 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:inteshar/core/printing/bluetooth_service.dart';
+import 'package:inteshar/core/printing/print_job.dart';
+import 'package:inteshar/core/printing/printer_service.dart';
 
-/// Sends raw ESC/POS bytes to the connected printer (Sunmi inner or Bluetooth).
-typedef RawSender = Future<void> Function(List<int> bytes);
+/// Sends one receipt to whichever transport is connected.
+typedef JobSender = Future<void> Function(PrintJob job);
 
-/// Serializes ESC/POS print jobs so rapid or concurrent prints never interleave
-/// bytes on the printer channel (the BLE path writes in 20-byte chunks — two
-/// overlapping sends would corrupt the receipt). One job prints at a time, FIFO;
-/// transient failures are retried with backoff; a failed job never stalls the queue.
+/// Serializes print jobs so rapid or concurrent prints never interleave on the
+/// printer channel (the BLE path writes in 20-byte chunks and the SPP socket is
+/// a single stream — two overlapping sends would corrupt the receipt). One job
+/// prints at a time, FIFO; transient failures are retried with backoff; a failed
+/// job never stalls the queue.
 class PrintQueue {
-  final RawSender _send;
+  final JobSender _send;
   final int maxAttempts;
   PrintQueue(this._send, {this.maxAttempts = 3});
 
@@ -19,24 +21,24 @@ class PrintQueue {
   /// Number of jobs queued or in flight.
   int get pending => _pending;
 
-  /// Enqueue [bytes] for printing. Returns a future that completes when THIS job
+  /// Enqueue [job] for printing. Returns a future that completes when THIS job
   /// has printed, or throws after [maxAttempts] failed tries. Jobs run strictly
   /// one at a time, in submission order.
-  Future<void> enqueue(List<int> bytes, {int? maxAttempts}) {
+  Future<void> enqueue(PrintJob job, {int? maxAttempts}) {
     _pending++;
     final attempts = maxAttempts ?? this.maxAttempts;
-    final job = _tail.then((_) => _runWithRetry(bytes, attempts));
+    final queued = _tail.then((_) => _runWithRetry(job, attempts));
     // Keep the chain alive regardless of this job's outcome so one failed print
     // doesn't block every subsequent print.
-    _tail = job.then((_) {}, onError: (_) {});
-    return job.whenComplete(() => _pending--);
+    _tail = queued.then((_) {}, onError: (_) {});
+    return queued.whenComplete(() => _pending--);
   }
 
-  Future<void> _runWithRetry(List<int> bytes, int attempts) async {
+  Future<void> _runWithRetry(PrintJob job, int attempts) async {
     Object? lastErr;
     for (var attempt = 1; attempt <= attempts; attempt++) {
       try {
-        await _send(bytes);
+        await _send(job);
         return;
       } catch (e) {
         lastErr = e;
@@ -49,8 +51,8 @@ class PrintQueue {
   }
 }
 
-/// The app-wide serialized print queue, wrapping the printer service's raw send.
+/// The app-wide serialized print queue, wrapping the printer service's send.
 final printQueueProvider = Provider<PrintQueue>((ref) {
-  final printer = ref.read(bluetoothServiceProvider.notifier);
-  return PrintQueue((bytes) => printer.send(bytes));
+  final printer = ref.read(printerServiceProvider.notifier);
+  return PrintQueue(printer.send);
 });

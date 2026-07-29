@@ -8,11 +8,10 @@ import 'package:share_plus/share_plus.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
-import 'package:inteshar/core/printing/bluetooth_service.dart';
+import 'package:inteshar/core/printing/printer_service.dart';
 import 'package:inteshar/core/printing/escpos_builder.dart';
 import 'package:inteshar/core/printing/logo_loader.dart';
 import 'package:inteshar/core/printing/print_queue.dart';
-import 'package:inteshar/core/printing/rovo_printer.dart';
 import 'package:inteshar/core/storage/session_storage.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:inteshar/core/utils/formatters.dart';
@@ -205,7 +204,7 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
         actions: [
           Consumer(
             builder: (ctx, ref, _) {
-              final ps = ref.watch(bluetoothServiceProvider);
+              final ps = ref.watch(printerServiceProvider);
               final isConnected = ps.status == PrinterStatus.connected;
               return Padding(
                 padding: const EdgeInsetsDirectional.only(end: 8),
@@ -1409,46 +1408,29 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
     final p = card.product;
     final def = p.productDefinition;
     final t = def.template;
-    if (ref.read(bluetoothServiceProvider.notifier).isRovo) {
-      await RovoPrinter.printText(buildVoucherReceiptText(
-        template: t,
-        headerFallback: auth?.entity.meta.name ?? 'POS',
-        shopName: auth?.entity.meta.name ?? 'Store',
-        posLabel: 'Counter 1',
-        operatorPhone: auth?.entity.users.firstOrNull?.phone ?? '',
-        productName: def.name,
-        price: Formatters.iqd(def.defaultPrice),
-        serial: p.serialNumber,
-        pin: p.pin,
-        timestamp: DateTime.now(),
-        companyName: card.companyName,
-        categoryName: card.categoryName ?? def.name,
-        expiry: p.expiryDate,
-        receiptNo: card.receiptNo,
-      ));
-    } else {
-      final agentLogo = t.showAgentLogo ? await loadReceiptLogo(card.agentLogoUrl) : null;
-      final companyLogo = t.showCompanyLogo ? await loadReceiptLogo(card.companyLogoUrl) : null;
-      final bytes = await buildVoucherReceipt(
-        template: t,
-        headerFallback: auth?.entity.meta.name ?? 'POS',
-        shopName: auth?.entity.meta.name ?? 'Store',
-        posLabel: 'Counter 1',
-        operatorPhone: auth?.entity.users.firstOrNull?.phone ?? '',
-        productName: def.name,
-        price: Formatters.iqd(def.defaultPrice),
-        serial: p.serialNumber,
-        pin: p.pin,
-        timestamp: DateTime.now(),
-        agentLogo: agentLogo,
-        companyLogo: companyLogo,
-        companyName: card.companyName,
-        categoryName: card.categoryName ?? def.name,
-        expiry: p.expiryDate,
-        receiptNo: card.receiptNo,
-      );
-      await ref.read(printQueueProvider).enqueue(bytes);
-    }
+    // CR-06: one receipt, one queue, whatever the printer. The transport picks
+    // bytes or text; the POS no longer branches on the terminal's brand.
+    final agentLogo = t.showAgentLogo ? await loadReceiptLogo(card.agentLogoUrl) : null;
+    final companyLogo = t.showCompanyLogo ? await loadReceiptLogo(card.companyLogoUrl) : null;
+    final job = await buildVoucherPrintJob(
+      template: t,
+      headerFallback: auth?.entity.meta.name ?? 'POS',
+      shopName: auth?.entity.meta.name ?? 'Store',
+      posLabel: 'Counter 1',
+      operatorPhone: auth?.entity.users.firstOrNull?.phone ?? '',
+      productName: def.name,
+      price: Formatters.iqd(def.defaultPrice),
+      serial: p.serialNumber,
+      pin: p.pin,
+      timestamp: DateTime.now(),
+      agentLogo: agentLogo,
+      companyLogo: companyLogo,
+      companyName: card.companyName,
+      categoryName: card.categoryName ?? def.name,
+      expiry: p.expiryDate,
+      receiptNo: card.receiptNo,
+    );
+    await ref.read(printQueueProvider).enqueue(job);
     final id = card.operationId;
     if (id != null && id.isNotEmpty) {
       try {
@@ -1552,38 +1534,14 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
       final auth = ref.read(authStateProvider).valueOrNull as AuthAuthenticated?;
       final def = revealed.productDefinition;
       final t = def.template;
-      // Rovo/BLD built-in printer prints via an ACTION_SEND intent (no ESC/POS). Print a TEXT
-      // receipt: the text rides IN the intent (EXTRA_TEXT), so — unlike an image — it needs no
-      // shared file for the separate print service (com.bld.settings.print) to read. (The image
-      // path needs the PNG in shared storage; our app-private dir isn't readable by it, which
-      // printed blank paper. TODO: re-enable image once written to a shared/public path.)
-      if (ref.read(bluetoothServiceProvider.notifier).isRovo) {
-        await RovoPrinter.printText(
-          buildVoucherReceiptText(
-            template: t,
-            headerFallback: auth?.entity.meta.name ?? 'POS',
-            shopName: auth?.entity.meta.name ?? 'Store',
-            posLabel: 'Counter 1',
-            operatorPhone: auth?.entity.users.firstOrNull?.phone ?? '',
-            productName: def.name,
-            price: Formatters.iqd(def.defaultPrice),
-            serial: revealed.serialNumber,
-            pin: revealed.pin,
-            timestamp: DateTime.now(),
-            companyName: _companyName,
-            categoryName: _categoryName ?? def.name,
-            expiry: revealed.expiryDate,
-            receiptNo: _receiptNo,
-          ),
-        );
-        await _confirmPrinted();
-        if (mounted) widget.onPrinted();
-        return;
-      }
       // Fetch + decode the logos (best-effort; printing proceeds without them on failure).
       final agentLogo = t.showAgentLogo ? await loadReceiptLogo(_agentLogoUrl) : null;
       final companyLogo = t.showCompanyLogo ? await loadReceiptLogo(_companyLogoUrl) : null;
-      final bytes = await buildVoucherReceipt(
+      // CR-06: build the receipt ONCE. Every raw transport (Sunmi AIDL, Bluetooth
+      // Classic SPP, USB, TCP, BLE) prints these exact bytes, so the paper is the
+      // same on every terminal. Only the vendor-intent fallback uses the text
+      // twin — and the UI labels that output approximate.
+      final job = await buildVoucherPrintJob(
         template: t,
         headerFallback: auth?.entity.meta.name ?? 'POS',
         shopName: auth?.entity.meta.name ?? 'Store',
@@ -1601,10 +1559,10 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
         expiry: revealed.expiryDate,
         receiptNo: _receiptNo,
       );
-      // Enqueue on the serialized print queue: one ESC/POS write at a time (so
+      // Enqueue on the serialized print queue: one write at a time (so
       // rapid/concurrent prints never interleave bytes) with retry on transient
       // printer failures.
-      await ref.read(printQueueProvider).enqueue(bytes);
+      await ref.read(printQueueProvider).enqueue(job);
       await _confirmPrinted();
       if (mounted) widget.onPrinted();
     } catch (e) {
@@ -2037,7 +1995,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
           Consumer(
             builder: (ctx, ref, _) {
               final connected =
-                  ref.watch(bluetoothServiceProvider).status == PrinterStatus.connected;
+                  ref.watch(printerServiceProvider).status == PrinterStatus.connected;
               if (connected) return const SizedBox.shrink();
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
@@ -2160,7 +2118,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
       constraints: const BoxConstraints(maxWidth: 360),
       child: Consumer(
         builder: (ctx, ref, _) {
-          final ps = ref.watch(bluetoothServiceProvider);
+          final ps = ref.watch(printerServiceProvider);
           final isConnected = ps.status == PrinterStatus.connected;
           return Column(
             children: [
@@ -2190,6 +2148,34 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                   ),
                 ),
                 const SizedBox(height: 12),
+              ],
+              // CR-06: the vendor-intent path hands the receipt to another app to
+              // lay out, so its paper genuinely differs from every other terminal.
+              // Say so at the counter, not only in the setup screen.
+              if (isConnected && ps.isApproximate) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: IntesharColors.warn.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(IntesharRadii.md),
+                    border: Border.all(color: IntesharColors.warn.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.warning_amber_rounded, size: 16, color: IntesharColors.warn),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          ar
+                              ? 'هذه الطابعة تعيد تنسيق الإيصال — قد يختلف شكله عن بقية الأجهزة.'
+                              : 'This printer re-formats the receipt — it may not match other devices.',
+                          style: TextStyle(fontFamily: 'CodecPro', fontSize: 11.5, height: 1.3, fontWeight: FontWeight.w600, color: cs.onSurface),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
               ],
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

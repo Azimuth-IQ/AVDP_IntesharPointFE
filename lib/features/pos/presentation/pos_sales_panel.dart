@@ -285,7 +285,10 @@ class _ReprintSheetState extends ConsumerState<_ReprintSheet> {
       final t = def.template;
       final agentLogo = t.showAgentLogo ? await loadReceiptLogo(widget.recovered.agentLogoUrl) : null;
       final companyLogo = t.showCompanyLogo ? await loadReceiptLogo(widget.recovered.companyLogoUrl) : null;
-      final bytes = await buildVoucherReceipt(
+      // CR-06: the reprint used to build ESC/POS only, so on a vendor-intent
+      // terminal it threw "no printer" instead of reprinting. One job now covers
+      // every transport.
+      final job = await buildVoucherPrintJob(
         template: t,
         headerFallback: auth?.entity.meta.name ?? 'POS',
         shopName: auth?.entity.meta.name ?? 'Store',
@@ -303,7 +306,7 @@ class _ReprintSheetState extends ConsumerState<_ReprintSheet> {
         expiry: p.expiryDate,
         receiptNo: widget.recovered.receiptNo,
       );
-      await ref.read(printQueueProvider).enqueue(bytes);
+      await ref.read(printQueueProvider).enqueue(job);
       // B-054: a successful physical print confirms the sale's print outcome.
       final opId = widget.recovered.operationId ?? widget.op.id;
       if (opId.isNotEmpty) {

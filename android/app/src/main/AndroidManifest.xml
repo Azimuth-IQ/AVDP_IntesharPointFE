@@ -7,6 +7,9 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- In-app self-update: launch the package installer for the downloaded APK. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+    <!-- CR-06: USB (OTG) thermal printers. Optional — a terminal without a USB
+         host port must still install; the transport just reports no devices. -->
+    <uses-feature android:name="android.hardware.usb.host" android:required="false"/>
     <application
         android:label="Inteshar Point"
         android:name="${applicationName}"

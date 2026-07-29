@@ -8,10 +8,16 @@ import 'package:inteshar/features/system_activity/domain/operation_log.dart';
 /// path, action and the rest still show in the row's tap-through detail sheet.
 /// This is the headline only.
 ///
-/// B-110: the dictionary now covers **every** route the backend exposes (all 123
-/// `@…Mapping`s, enumerated from the controllers rather than guessed), because
-/// the first pass covered ~40 and the feed was still mostly "Request" — reads
-/// dominate the log, and reads were exactly what was missing.
+/// B-110: the dictionary covers **every** route the backend exposes — 121
+/// distinct paths, GENERATED from the controllers, not guessed. The first pass
+/// covered ~40 hand-picked ones and the feed still read as "Request", because
+/// those were nearly all writes while READS dominate the log.
+///
+/// The count was long recorded as 123; that was two parse errors, not two
+/// routes — the old snapshot matched inside comments and counted the two
+/// disabled `/product/{update,delete}` mappings. `tool/gen_backend_routes.dart`
+/// strips comments and is now the single source for both the fixture and the
+/// drift test, so this cannot silently rot again.
 class LogPhrase {
   /// The human headline, e.g. "Login request" / "طلب تسجيل دخول".
   final String title;
@@ -126,6 +132,7 @@ const Map<String, (String, String)> _routes = {
   '/entity/branding': ('Branding loaded', 'تحميل الهوية'),
   '/entity/children': ('Sub-accounts list', 'قائمة الحسابات الفرعية'),
   '/entity/readwithchildren': ('Account tree', 'شجرة الحسابات'),
+  '/entity/getwithchildren': ('Account tree', 'شجرة الحسابات'),
   '/entity/readall': ('Account list', 'قائمة الحسابات'),
   '/entity/search': ('Account search', 'بحث في الحسابات'),
   '/entity/summary': ('Accounts overview', 'نظرة عامة على الحسابات'),

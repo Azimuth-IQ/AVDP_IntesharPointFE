@@ -1,3 +1,18 @@
+# GENERATED FILE — do not hand-edit.
+# Regenerate:  dart run tool/gen_backend_routes.dart
+#
+# Every route the backend controllers map: class @RequestMapping +
+# method @Get/@Post/@Put/@Patch/@DeleteMapping, comments stripped.
+# 121 distinct routes across 21 controllers.
+#
+# The system_activity coverage test asserts each of these resolves to a
+# phrase in lib/features/system_activity/domain/log_phrase.dart, and
+# fails if this list has drifted from the live controllers.
+#
+# NOT COVERED — method-level @RequestMapping (legacy style, not parsed
+# as a route; add a phrase by hand if one of these starts showing up):
+#   /api/entity/getwithchildren  (EntityController.java:546)
+
 /api/admin/overview
 /api/admin/users
 /api/app/check
@@ -65,7 +80,6 @@
 /api/inventory/product/bulk-quote
 /api/inventory/product/confirmPrint
 /api/inventory/product/create
-/api/inventory/product/delete
 /api/inventory/product/draw
 /api/inventory/product/draw-bulk
 /api/inventory/product/draw/recover
@@ -79,7 +93,6 @@
 /api/inventory/product/sellable
 /api/inventory/product/sendForPrinting
 /api/inventory/product/summaryByEntity
-/api/inventory/product/update
 /api/logs
 /api/logs/client
 /api/logs/read

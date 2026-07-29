@@ -412,30 +412,8 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
       child: ListView(
         padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 28),
         children: [
-          // Balance card
-          Container(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-            decoration: BoxDecoration(
-              color: context.tones.brand,
-              borderRadius: BorderRadius.circular(IntesharRadii.lg),
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(s.available,
-                  style: IntesharType.overline(
-                      color: IntesharColors.ink.withValues(alpha: 0.7))),
-              const SizedBox(height: 4),
-              Text(
-                Formatters.iqd((_balance?.available ?? 0).round()),
-                style: const TextStyle(
-                  fontFamily: 'CodecPro',
-                  fontSize: 30,
-                  fontWeight: FontWeight.w900,
-                  color: IntesharColors.ink,
-                  height: 1,
-                ),
-              ),
-            ]),
-          ),
+          TransferBalanceCard(
+              label: s.available, amount: _balance?.available ?? 0),
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
@@ -502,6 +480,73 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
               style: IntesharType.mono(13.5, color: tint)),
         ]),
       ),
+    );
+  }
+}
+
+/// The page's balance hero (B-094).
+///
+/// This card was the last solid-gold slab left in the app: brand gold carried a
+/// whole surface, which is what B-094 demoted everywhere else (dashboard balance
+/// card, POS tally, sign-in, splash). It is now a white card with a hairline
+/// border, `elev1`, and a single 3px brand rule — the number is the hero, ink on
+/// paper, and gold stays a ≤10% accent so it still means something.
+///
+/// Deliberately identical to the dashboard `_BalanceCard` treatment: the two are
+/// the same object seen from two screens, so they must not read differently.
+/// Extracted as a public widget so a test and the preview harness can render it
+/// without a signed-in agent.
+class TransferBalanceCard extends StatelessWidget {
+  final String label;
+  final num amount;
+
+  const TransferBalanceCard({
+    super.key,
+    required this.label,
+    required this.amount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(IntesharRadii.lg),
+        border: Border.all(color: cs.outlineVariant),
+        boxShadow: IntesharShadows.elev1,
+      ),
+      child: Row(children: [
+        // The one flash of brand colour on the card.
+        Container(
+          width: 3,
+          height: 40,
+          decoration: BoxDecoration(
+            color: context.tones.brand,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(label,
+                style: IntesharType.overline(color: cs.onSurfaceVariant)),
+            const SizedBox(height: 4),
+            Text(
+              Formatters.iqd(amount.round()),
+              style: TextStyle(
+                fontFamily: 'CodecPro',
+                fontSize: 32,
+                fontWeight: FontWeight.w900,
+                color: cs.onSurface,
+                letterSpacing: -0.8,
+                height: 1,
+              ),
+            ),
+          ]),
+        ),
+      ]),
     );
   }
 }

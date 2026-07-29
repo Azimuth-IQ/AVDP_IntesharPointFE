@@ -104,7 +104,27 @@ class BluetoothPrinterService extends Notifier<BluetoothPrinterState> {
         n.startsWith('pos') ||
         n.contains('rp-') ||
         n.startsWith('rp') ||
+        // X-Printer units (the X50 in the registry) advertise as "XP-58"/"XP58",
+        // which carries none of the words above.
+        n.startsWith('xp') ||
+        n.contains('x-print') ||
         n.contains('tm-');
+  }
+
+  /// The best human name available for a device.
+  ///
+  /// `device.platformName` is only populated once the OS has learned the name —
+  /// from a bond or a GATT read. A freshly SCANNED peripheral usually carries its
+  /// name ONLY in the advertisement (`advertisementData.advName`), which nothing
+  /// here was reading, so every scanned row fell back to the generic label and
+  /// the whole list looked nameless. Falls back to the MAC, which at least
+  /// distinguishes one row from another.
+  static String displayName(BluetoothDevice device, {AdvertisementData? adv}) {
+    final platform = device.platformName.trim();
+    if (platform.isNotEmpty) return platform;
+    final advertised = adv?.advName.trim() ?? '';
+    if (advertised.isNotEmpty) return advertised;
+    return device.remoteId.str;
   }
 
   /// Whether [device] advertises a name that reads like a printer — used to mark

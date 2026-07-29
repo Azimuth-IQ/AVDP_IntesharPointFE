@@ -324,9 +324,7 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          d.platformName.isNotEmpty
-                              ? d.platformName
-                              : l.printerPickerUnknown,
+                          BluetoothPrinterService.displayName(d),
                           style: IntesharType.sans(13.5,
                               color: cs.onSurface, w: FontWeight.w700),
                           overflow: TextOverflow.ellipsis,
@@ -369,9 +367,8 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            r.device.platformName.isNotEmpty
-                                ? r.device.platformName
-                                : l.printerPickerUnknown,
+                            BluetoothPrinterService.displayName(r.device,
+                                adv: r.advertisementData),
                             style: IntesharType.serif(
                               16,
                               color: cs.onSurface,

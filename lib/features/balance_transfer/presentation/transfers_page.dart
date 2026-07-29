@@ -182,8 +182,10 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
     final posCount = _children.where((e) => e.type == EntityType.STORE).length;
     final agentCount = _children.length - posCount;
 
-    // Open on whichever list the agent actually has; agents first when it has both.
-    var kind = agentCount > 0 ? _DestKind.subAgents : _DestKind.pos;
+    // POS points first — topping up a shop is the routine transfer; funding a
+    // sub-agent is occasional. Falls back to agents when the account has no POS
+    // points, so the dialog never opens on an empty list.
+    var kind = posCount > 0 ? _DestKind.pos : _DestKind.subAgents;
     EntitySummaryRow? dest;
     var query = '';
     var armed = false; // second press commits (B-040 confirmation, inlined)

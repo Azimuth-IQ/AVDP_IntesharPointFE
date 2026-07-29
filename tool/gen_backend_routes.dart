@@ -144,7 +144,14 @@ RouteScan scanBackendRoutes(Directory backendSrc) {
     var base = '';
     for (final m in _requestMapping.allMatches(source)) {
       if (m.start >= classAt) break;
-      base = _pathsOf(_annotationArgs(source, m.end)).first;
+      final args = _annotationArgs(source, m.end);
+      base = _pathsOf(args).first;
+      // A base built from a constant would silently truncate every route in
+      // this controller to its suffix, so say so loudly rather than emit them.
+      if (base.isEmpty && _looksLikeExpression(args)) {
+        unresolved.add('$name:${_lineAt(source, m.start)} (class base path) '
+            '— ${args!.trim()}');
+      }
       break;
     }
 

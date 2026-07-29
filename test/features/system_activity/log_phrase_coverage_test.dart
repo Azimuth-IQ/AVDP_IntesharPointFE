@@ -25,16 +25,20 @@ import '../../../tool/gen_backend_routes.dart' as gen;
 /// assertion still runs against the committed fixture.
 void main() {
   final fixture = File(gen.fixturePath);
-  List<String> fixtureRoutes() => gen
-      .parseFixture(fixture.readAsStringSync())
-      .where((l) => l.startsWith('/api'))
-      .toList();
+  List<String> fixtureRoutes() => gen.parseFixture(fixture.readAsStringSync());
 
   test('the fixture exists and looks like a full route dump', () {
     expect(fixture.existsSync(), isTrue,
         reason: 'regenerate with: ${gen.regenerateCommand}');
-    expect(fixtureRoutes().length, greaterThan(100),
+    final routes = fixtureRoutes();
+    expect(routes.length, greaterThan(100),
         reason: 'a truncated dump would make the coverage assertion meaningless');
+    // Every line is asserted on below. Nothing here may be quietly filtered out
+    // — a route parsed without its `/api` base would mean the generator read a
+    // class-level @RequestMapping it could not resolve.
+    expect(routes.where((r) => !r.startsWith('/api')), isEmpty,
+        reason: 'these fixture lines are not API routes; the parser in '
+            'tool/gen_backend_routes.dart probably lost a base path');
   });
 
   test('the fixture is in sync with the backend controllers', () {

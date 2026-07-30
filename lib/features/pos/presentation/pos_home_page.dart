@@ -564,13 +564,8 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
               itemCount: buckets.length,
               itemBuilder: (context, i) {
                 final b = buckets[i];
-                final count = rows.where((s) {
-                  final g = (s.governorate ?? '').trim();
-                  return b == _kRegionFree ? g.isEmpty : g == b;
-                }).length;
                 return _GovCard(
                   label: b == _kRegionFree ? (_ar ? 'بدون تخصيص' : 'Region-free') : b,
-                  cardTypes: count,
                   onTap: () => _openBucket(b),
                 );
               },
@@ -989,14 +984,12 @@ class _CompanyCard extends StatelessWidget {
 
 class _GovCard extends StatelessWidget {
   final String label;
-  final int cardTypes;
   final VoidCallback onTap;
-  const _GovCard({required this.label, required this.cardTypes, required this.onTap});
+  const _GovCard({required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final ar = Localizations.localeOf(context).languageCode == 'ar';
     return PressableScale(
       onTap: onTap,
       child: Container(
@@ -1017,11 +1010,6 @@ class _GovCard extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(fontFamily: 'CodecPro', color: cs.onSurface, fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.2, height: 1.1),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              ar ? '$cardTypes نوع' : '$cardTypes types',
-              style: TextStyle(fontFamily: 'CodecPro', color: cs.onSurfaceVariant, fontSize: 11, fontWeight: FontWeight.w600),
             ),
           ],
         ),

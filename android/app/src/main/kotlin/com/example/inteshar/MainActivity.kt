@@ -26,6 +26,7 @@ class MainActivity : FlutterActivity() {
     // app and lets it re-render. Neither touches flutter_blue_plus (BLE/GATT);
     // SPP is a different radio protocol on a different socket.
     private var sppPrinter: SppPrinterChannel? = null
+    private var centermPrinter: CentermPrinterChannel? = null
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
@@ -154,6 +155,13 @@ class MainActivity : FlutterActivity() {
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, UsbPrinterChannel.CHANNEL)
             .setMethodCallHandler(UsbPrinterChannel(applicationContext))
+
+        // Centerm/Rovo built-in head: raw ESC/POS over the vendor AIDL, the
+        // direct counterpart of the Sunmi path above.
+        val centerm = CentermPrinterChannel(applicationContext)
+        centermPrinter = centerm
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CentermPrinterChannel.CHANNEL)
+            .setMethodCallHandler(centerm)
     }
 
     // True if the built-in Rovo/BLD print service is installed on this device.
@@ -179,6 +187,8 @@ class MainActivity : FlutterActivity() {
     override fun onDestroy() {
         sppPrinter?.dispose()
         sppPrinter = null
+        centermPrinter?.dispose()
+        centermPrinter = null
         if (bindRequested) {
             try {
                 unbindService(connection)

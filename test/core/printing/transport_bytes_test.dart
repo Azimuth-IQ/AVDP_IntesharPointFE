@@ -25,6 +25,7 @@ void main() {
   const rovoChannel = MethodChannel('inteshar/rovo_printer');
   const sppChannel = MethodChannel('inteshar/spp_printer');
   const usbChannel = MethodChannel('inteshar/usb_printer');
+  const centermChannel = MethodChannel('inteshar/centerm_printer');
 
   /// A recognisable ESC/POS fragment: ESC @ (init), text, LF, GS V (cut).
   const receipt = <int>[27, 64, 80, 73, 78, 32, 49, 50, 51, 10, 29, 86, 65, 0];
@@ -38,6 +39,7 @@ void main() {
   // head nor a vendor print app, so a test opts in to what it is exercising.
   var sunmiPresent = false;
   var vendorAppPresent = false;
+  var centermPresent = false;
   var bonded = <Map<String, Object?>>[];
   var sppConnectFails = false;
 
@@ -52,6 +54,7 @@ void main() {
     textSent = [];
     sunmiPresent = false;
     vendorAppPresent = false;
+    centermPresent = false;
     bonded = [];
     sppConnectFails = false;
     messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -65,6 +68,16 @@ void main() {
           return sunmiPresent;
         case 'printRaw':
           sent['sunmi'] = bytesOf(call);
+          return true;
+      }
+      return null;
+    });
+    mock(centermChannel, (call) async {
+      switch (call.method) {
+        case 'isAvailable':
+          return centermPresent;
+        case 'printRaw':
+          sent['centerm'] = bytesOf(call);
           return true;
       }
       return null;
@@ -115,7 +128,13 @@ void main() {
 
   tearDown(() {
     debugDefaultTargetPlatformOverride = null;
-    for (final c in [sunmiChannel, rovoChannel, sppChannel, usbChannel]) {
+    for (final c in [
+      sunmiChannel,
+      rovoChannel,
+      sppChannel,
+      usbChannel,
+      centermChannel,
+    ]) {
       messenger.setMockMethodCallHandler(c, null);
     }
   });
@@ -148,11 +167,17 @@ void main() {
     );
     await svc.send(job);
 
-    expect(sent.keys.toSet(), {'sunmi', 'spp', 'usb'});
+    centermPresent = true;
+    await svc.use(PrinterTarget.centermInner);
+    await svc.send(job);
+
+    expect(sent.keys.toSet(), {'sunmi', 'spp', 'usb', 'centerm'});
     expect(sent['sunmi'], receipt);
     expect(sent['spp'], receipt,
         reason: 'Bluetooth Classic must not reformat the receipt');
     expect(sent['usb'], receipt, reason: 'USB must not reformat the receipt');
+    expect(sent['centerm'], receipt,
+        reason: 'the Rovo head gets the SAME bytes as Sunmi — that is the point');
   });
 
   test('a TCP printer on port 9100 receives the identical byte stream', () async {
@@ -329,6 +354,29 @@ void main() {
       final svc = await service();
       expect(svc.target, PrinterTarget.vendorIntent);
       expect(await svc.rememberedTarget(), isNull);
+    });
+  });
+
+  group('the Rovo VirtualBT black hole', () {
+    test('is never auto-adopted, even though it claims to be a printer', () async {
+      // Real device: class IMAGING, connect OK, write OK, NO PAPER. Adopting it
+      // would confirm every sale as printed and hand the customer nothing.
+      bonded = [
+        {'address': '18:10:77:00:10:55', 'name': 'VirtualBT', 'isPrinterClass': true},
+      ];
+      final svc = await service();
+      expect(svc.target, isNull);
+      expect(svc.state.status, PrinterStatus.idle);
+    });
+
+    test('the built-in Centerm head is taken instead on that same terminal', () async {
+      centermPresent = true;
+      bonded = [
+        {'address': '18:10:77:00:10:55', 'name': 'VirtualBT', 'isPrinterClass': true},
+      ];
+      final svc = await service();
+      expect(svc.target, PrinterTarget.centermInner);
+      expect(svc.isConnected, isTrue);
     });
   });
 }

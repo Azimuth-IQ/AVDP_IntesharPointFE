@@ -15,6 +15,11 @@ enum PrinterTransport {
   /// The ONLY path confirmed on real hardware — keep it first, keep it working.
   sunmi,
 
+  /// The Centerm/Rovo built-in head via the vendor AIDL
+  /// (`sendEscPrintCommand`). Same idea as [sunmi]: OUR bytes, straight to the
+  /// head, nothing re-rendering them. Verified on a ROVOO MTHD-M1.
+  centerm,
+
   /// Bluetooth **Classic** SPP (RFCOMM, UUID 0000_1101). What nearly every
   /// external ESC/POS thermal printer actually speaks.
   spp,
@@ -60,6 +65,13 @@ class PrinterTarget {
     name: 'Sunmi Printer',
   );
 
+  /// The Centerm/Rovo inner head. One per device, no address needed.
+  static const centermInner = PrinterTarget(
+    transport: PrinterTransport.centerm,
+    id: 'inner',
+    name: 'Built-in printer',
+  );
+
   /// The vendor print app (Rovo/BLD). Also exactly one per device.
   static const vendorIntent = PrinterTarget(
     transport: PrinterTransport.intent,
@@ -85,7 +97,9 @@ class PrinterTarget {
 
   /// A device-fixed printer needs no discovery, pairing or address.
   bool get isBuiltIn =>
-      transport == PrinterTransport.sunmi || transport == PrinterTransport.intent;
+      transport == PrinterTransport.sunmi ||
+      transport == PrinterTransport.centerm ||
+      transport == PrinterTransport.intent;
 
   /// Host part of a [PrinterTransport.tcp] id.
   String get host {

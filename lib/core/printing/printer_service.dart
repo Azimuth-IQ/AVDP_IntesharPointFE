@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/core/printing/auto_connect.dart';
+import 'package:inteshar/core/printing/centerm_printer.dart';
 import 'package:inteshar/core/printing/print_job.dart';
 import 'package:inteshar/core/printing/printer_target.dart';
 import 'package:inteshar/core/printing/rovo_printer.dart';
@@ -17,6 +18,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// something the operator asks for, not something the POS does on launch.
 class PrinterInventory {
   final bool sunmiAvailable;
+  final bool centermAvailable;
   final bool intentAvailable;
   final List<SppDevice> bondedClassic;
   final List<UsbPrinterDevice> usbDevices;
@@ -24,6 +26,7 @@ class PrinterInventory {
 
   const PrinterInventory({
     this.sunmiAvailable = false,
+    this.centermAvailable = false,
     this.intentAvailable = false,
     this.bondedClassic = const [],
     this.usbDevices = const [],
@@ -33,8 +36,12 @@ class PrinterInventory {
   /// A bonded Classic device that plausibly IS a printer. Class first (when the
   /// unit bothers to declare one), name heuristic second — most cheap ESC/POS
   /// printers declare nothing useful.
-  static bool isLikelyPrinter(SppDevice d) =>
-      d.isPrinterClass || looksLikePrinterName(d.name);
+  static bool isLikelyPrinter(SppDevice d) {
+    // A loopback that accepts bytes and prints nothing must never be adopted —
+    // it would false-confirm every sale. See isVirtualLoopbackName.
+    if (isVirtualLoopbackName(d.name)) return false;
+    return d.isPrinterClass || looksLikePrinterName(d.name);
+  }
 
   /// Everything enumerable — used only to tell whether a *remembered* device is
   /// still paired/plugged in. Never used to pick a printer.
@@ -94,6 +101,7 @@ class PrinterService extends Notifier<PrinterState> {
   /// What is attached right now. Cheap enough to call on every picker open.
   Future<PrinterInventory> discover() async {
     final sunmi = await _safeBool(SunmiPrinter.isAvailable);
+    final centerm = await _safeBool(CentermPrinter.isAvailable);
     final intent = await _safeBool(RovoPrinter.isAvailable);
     final classic = await SppPrinter.bondedDevices();
     final usb = await UsbPrinter.list();
@@ -105,6 +113,7 @@ class PrinterService extends Notifier<PrinterState> {
     });
     return PrinterInventory(
       sunmiAvailable: sunmi,
+      centermAvailable: centerm,
       intentAvailable: intent,
       bondedClassic: classic,
       usbDevices: usb,
@@ -141,6 +150,8 @@ class PrinterService extends Notifier<PrinterState> {
         final remembered = inv.remembered;
         final decision = decideAutoConnect(
           sunmiAvailable: inv.sunmiAvailable && !failed.contains(PrinterTarget.sunmiInner),
+          centermAvailable:
+              inv.centermAvailable && !failed.contains(PrinterTarget.centermInner),
           intentAvailable:
               inv.intentAvailable && !failed.contains(PrinterTarget.vendorIntent),
           remembered: (remembered == null || failed.contains(remembered))
@@ -217,6 +228,10 @@ class PrinterService extends Notifier<PrinterState> {
         case PrinterTransport.sunmi:
           if (!await SunmiPrinter.isAvailable()) {
             throw Exception('Sunmi printer service not available');
+          }
+        case PrinterTransport.centerm:
+          if (!await CentermPrinter.isAvailable()) {
+            throw Exception('Centerm printer service not available');
           }
         case PrinterTransport.spp:
           await SppPrinter.connect(target.id);
@@ -339,6 +354,8 @@ class PrinterService extends Notifier<PrinterState> {
     switch (t.transport) {
       case PrinterTransport.sunmi:
         await SunmiPrinter.printRaw(job.bytes);
+      case PrinterTransport.centerm:
+        await CentermPrinter.printRaw(job.bytes);
       case PrinterTransport.spp:
         await SppPrinter.write(t.id, job.bytes);
       case PrinterTransport.usb:

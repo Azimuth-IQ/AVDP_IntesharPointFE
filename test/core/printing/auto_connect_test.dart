@@ -15,12 +15,14 @@ void main() {
 
   AutoConnectDecision decide({
     bool sunmi = false,
+    bool centerm = false,
     bool intent = false,
     PrinterTarget? remembered,
     List<PrinterTarget> available = const [],
     List<PrinterTarget> candidates = const [],
   }) => decideAutoConnect(
     sunmiAvailable: sunmi,
+    centermAvailable: centerm,
     intentAvailable: intent,
     remembered: remembered,
     available: available,
@@ -181,5 +183,60 @@ void main() {
       ],
     );
     expect(d.action, AutoConnectAction.none);
+  });
+
+  group('the Centerm/Rovo built-in head', () {
+    test('beats a paired printer and the vendor intent', () {
+      // Measured on a ROVOO MTHD-M1: this is the only path that reaches the head
+      // with our own bytes. Anything paired on that terminal is a distraction.
+      final d = decide(
+        centerm: true,
+        intent: true,
+        available: const [xprinter],
+        candidates: const [xprinter],
+      );
+      expect(d.action, AutoConnectAction.connect);
+      expect(d.target, PrinterTarget.centermInner);
+      expect(d.reason, AutoConnectReason.centermBuiltIn);
+      expect(d.isApproximate, isFalse);
+    });
+
+    test('still loses to Sunmi, so that path is never displaced', () {
+      final d = decide(sunmi: true, centerm: true);
+      expect(d.target, PrinterTarget.sunmiInner);
+    });
+
+    test('resolves what would otherwise be an ambiguous two-printer terminal', () {
+      final d = decide(
+        centerm: true,
+        available: const [xprinter, counterUnit],
+        candidates: const [xprinter, counterUnit],
+      );
+      expect(d.action, AutoConnectAction.connect,
+          reason: 'a built-in head is not ambiguous with anything');
+      expect(d.target, PrinterTarget.centermInner);
+    });
+
+    test('a remembered Centerm head on a terminal without one is not attempted', () {
+      final d = decide(remembered: PrinterTarget.centermInner);
+      expect(d.action, AutoConnectAction.none);
+    });
+  });
+
+  group('virtual loopback sockets are not printers', () {
+    test('the Rovo VirtualBT name is recognised however it is written', () {
+      // 18:10:77:00:10:55 "VirtualBT" reports Bluetooth class IMAGING and
+      // swallows every byte written to it. Recognising the name is what keeps it
+      // out of the candidate list.
+      for (final n in ['VirtualBT', 'virtualbt', 'Virtual-BT', 'virtual_bt', 'VirtualBT 2']) {
+        expect(isVirtualLoopbackName(n), isTrue, reason: n);
+      }
+    });
+
+    test('a real printer name is not mistaken for a loopback', () {
+      for (final n in ['XP-58', 'RovoPrinter', 'InnerPrinter', 'Virtuoso 58', '']) {
+        expect(isVirtualLoopbackName(n), isFalse, reason: n);
+      }
+    });
   });
 }

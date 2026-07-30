@@ -19,6 +19,10 @@ enum AutoConnectReason {
   /// A Sunmi inner printer is present. Unambiguous and confirmed on hardware.
   sunmiBuiltIn,
 
+  /// A Centerm/Rovo inner head is present — same standing as Sunmi: built in,
+  /// exactly one, and it takes our raw bytes.
+  centermBuiltIn,
+
   /// The transport+address that printed last time is available again.
   remembered,
 
@@ -80,6 +84,7 @@ class AutoConnectDecision {
 AutoConnectDecision decideAutoConnect({
   required bool sunmiAvailable,
   required bool intentAvailable,
+  bool centermAvailable = false,
   required PrinterTarget? remembered,
   required List<PrinterTarget> available,
   required List<PrinterTarget> candidates,
@@ -89,6 +94,16 @@ AutoConnectDecision decideAutoConnect({
       action: AutoConnectAction.connect,
       target: PrinterTarget.sunmiInner,
       reason: AutoConnectReason.sunmiBuiltIn,
+    );
+  }
+
+  // A built-in head beats anything paired, for the same reasons Sunmi does: it
+  // is inside the terminal, there is exactly one, and it takes raw bytes.
+  if (centermAvailable) {
+    return const AutoConnectDecision(
+      action: AutoConnectAction.connect,
+      target: PrinterTarget.centermInner,
+      reason: AutoConnectReason.centermBuiltIn,
     );
   }
 
@@ -155,7 +170,8 @@ bool _rememberedIsWorthTrying(
 }) {
   switch (remembered.transport) {
     case PrinterTransport.sunmi:
-      // Only reachable when sunmiAvailable was false — the terminal changed.
+    case PrinterTransport.centerm:
+      // Only reachable when that head reported unavailable — hardware changed.
       return false;
     case PrinterTransport.intent:
       return intentAvailable;
@@ -194,4 +210,24 @@ bool looksLikePrinterName(String name) {
       n.contains('sunrise') ||
       n.contains('capa') ||
       n.startsWith('z91');
+}
+
+/// Bluetooth names that are NOT a printer even though the stack says otherwise.
+///
+/// Measured on a ROVOO MTHD-M1: the bonded device `VirtualBT`
+/// (`18:10:77:00:10:55`) reports Bluetooth major class **IMAGING**, so it looks
+/// like the obvious printer — and it is a **black hole**. The OEM patched the
+/// framework `BluetoothSocket` to route that name to a loopback `LocalSocket`,
+/// so `connect()` succeeds, `write()` returns success, and **nothing prints**.
+/// The vendor print engine logs a job for every real print and logged none for
+/// ours.
+///
+/// That is the worst failure this app can have: the POS would mark the voucher
+/// printed, confirm it server-side, and hand the customer nothing — on every
+/// sale. So these are excluded from auto-connect entirely. The same terminals
+/// expose a real raw path ([PrinterTransport.centerm]), which is what auto-connect
+/// picks instead.
+bool isVirtualLoopbackName(String name) {
+  final n = name.toLowerCase().replaceAll(RegExp(r'[\s_-]'), '');
+  return n == 'virtualbt' || n.startsWith('virtualbt');
 }

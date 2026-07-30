@@ -67,20 +67,23 @@ class AutoConnectDecision {
 ///
 /// Priority, and the reasoning for it:
 /// 1. **Sunmi inner printer.** It is inside the terminal, there is exactly one,
-///    and it is the only path confirmed on real hardware.
-/// 2. **The remembered printer.** An exact transport+address that already
+///    and it takes our raw bytes. Confirmed on hardware.
+/// 2. **Centerm/Rovo inner head.** Same standing as Sunmi, and it outranks
+///    anything paired for a measured reason: the only bonded device on a ROVOO
+///    MTHD-M1 is `VirtualBT`, which accepts every byte and prints nothing.
+/// 3. **The remembered printer.** An exact transport+address that already
 ///    printed for this shop can never be "the wrong device".
-/// 3. **A single plausible candidate.** If only one thing on this terminal looks
+/// 4. **A single plausible candidate.** If only one thing on this terminal looks
 ///    like a printer, connecting to it is what the operator wanted anyway.
-/// 4. **Several candidates → ask.** Silently picking one and printing a paid
+/// 5. **Several candidates → ask.** Silently picking one and printing a paid
 ///    voucher to a stranger's paired device is worse than one tap of setup.
-/// 5. **Vendor intent app.** Only when nothing else exists, and the caller must
+/// 6. **Vendor intent app.** Only when nothing else exists, and the caller must
 ///    label its output approximate.
 ///
 /// [available] is everything enumerable right now (all bonded Classic devices,
 /// all attached USB devices) — used only to skip a remembered device that has
 /// been unpaired or unplugged. [candidates] is the much smaller subset that
-/// plausibly IS a printer; only these are eligible for rules 3 and 4.
+/// plausibly IS a printer; only these are eligible for rules 4 and 5.
 AutoConnectDecision decideAutoConnect({
   required bool sunmiAvailable,
   required bool intentAvailable,

@@ -10,8 +10,12 @@ import 'package:inteshar/core/printing/escpos_builder.dart';
 import 'package:inteshar/core/printing/logo_loader.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
+import 'package:inteshar/core/printing/report_receipt.dart';
+import 'package:inteshar/features/entities/data/entity_repository.dart';
+import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/inventory/data/product_repository.dart';
 import 'package:inteshar/features/inventory/domain/print_operation.dart';
+import 'package:inteshar/features/pos/domain/pos_report_summary.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:share_plus/share_plus.dart';
@@ -39,12 +43,96 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
   bool _loadingMore = false;
   bool _notPrintedOnly = false; // end-of-day recovery filter
 
+  // سستم A95/التقارير!A1: the window's own figures, and who the report belongs
+  // to. The feed returns a bare list with no total, so the summary is walked
+  // over the whole window rather than derived from the visible page — a total
+  // that silently described only the first 50 sales would read as authoritative.
+  static const int _summaryPageCap = 40; // 2,000 sales
+  PosReportSummary _summary = PosReportSummary.empty;
+  PosReportIdentity _identity = const PosReportIdentity();
+  bool _summaryLoading = false;
+
   @override
   void initState() {
     super.initState();
     final now = DateTime.now();
     _range = DateTimeRange(start: now.subtract(const Duration(days: 30)), end: now);
     _load();
+    _resolveIdentity();
+  }
+
+  /// The report header the spec mandates. The shop knows itself from the
+  /// session; the agent chain needs entity reads a shop may be refused, so each
+  /// step is best-effort and a line it cannot resolve is simply omitted.
+  Future<void> _resolveIdentity() async {
+    final auth = ref.read(authStateProvider).valueOrNull;
+    if (auth is! AuthAuthenticated) return;
+    var identity = PosReportIdentity(
+      shopName: auth.entity.meta.name,
+      ownerName: auth.entity.profile?.ownerName ?? '',
+    );
+    if (mounted) setState(() => _identity = identity);
+
+    final repo = EntityRepository(ref.read(apiClientProvider));
+    try {
+      final parentId = auth.entity.parent;
+      if (parentId.isEmpty) return;
+      final parent = await repo.read(parentId);
+      // A shop hangs off a sub-agent, but a flatter tree can put it straight
+      // under the main agent — so label by the parent's TYPE, not its depth.
+      identity = parent.type == EntityType.AGENT1
+          ? PosReportIdentity(
+              shopName: identity.shopName,
+              ownerName: identity.ownerName,
+              mainAgentName: parent.meta.name,
+            )
+          : PosReportIdentity(
+              shopName: identity.shopName,
+              ownerName: identity.ownerName,
+              subAgentName: parent.meta.name,
+            );
+      if (mounted) setState(() => _identity = identity);
+
+      if (parent.type == EntityType.AGENT1 || parent.parent.isEmpty) return;
+      final grand = await repo.read(parent.parent);
+      if (grand.type != EntityType.AGENT1) return;
+      identity = PosReportIdentity(
+        shopName: identity.shopName,
+        ownerName: identity.ownerName,
+        subAgentName: identity.subAgentName,
+        mainAgentName: grand.meta.name,
+      );
+      if (mounted) setState(() => _identity = identity);
+    } catch (_) {
+      // Keep whatever resolved — a partial header beats no report.
+    }
+  }
+
+  /// Walks the whole window for the totals. Stops at [_summaryPageCap] and
+  /// marks the summary truncated rather than quietly under-reporting.
+  Future<void> _loadSummary() async {
+    setState(() => _summaryLoading = true);
+    final repo = ProductRepository(ref.read(apiClientProvider));
+    final all = <PrintOperation>[];
+    var truncated = false;
+    try {
+      for (var p = 0; p < _summaryPageCap; p++) {
+        final batch = await repo.printOperations(
+            from: _day(_range.start), to: _day(_range.end), page: p, size: _size);
+        all.addAll(batch);
+        if (batch.length < _size) break;
+        if (p == _summaryPageCap - 1) truncated = true;
+      }
+      if (!mounted) return;
+      setState(() {
+        _summary = PosReportSummary.from(all, truncated: truncated);
+        _summaryLoading = false;
+      });
+    } catch (_) {
+      // The list itself already surfaces load errors; a failed summary must not
+      // replace a usable report with an error screen.
+      if (mounted) setState(() => _summaryLoading = false);
+    }
   }
 
   String _day(DateTime d) =>
@@ -65,6 +153,13 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
         _hasMore = ops.length == _size; // a full page suggests there may be more
         _loading = false;
       });
+      // Only worth a second walk when the first page was full; otherwise the
+      // page we already hold IS the whole window.
+      if (_hasMore) {
+        _loadSummary();
+      } else {
+        setState(() => _summary = PosReportSummary.from(ops));
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -165,6 +260,8 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
             ),
           ]),
           const SizedBox(height: 12),
+          _summaryCard(ar, cs),
+          const SizedBox(height: 12),
           if (shown.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 40),
@@ -198,6 +295,138 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
         ],
       ),
     );
+  }
+
+  /// سستم التقارير!A1 + A4: who the report belongs to, what the window totals,
+  /// and the ability to put it on paper / share it — none of which the panel had.
+  Widget _summaryCard(bool ar, ColorScheme cs) {
+    final s = _summary;
+    return InkCard(
+      padding: const EdgeInsets.all(14),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (!_identity.isEmpty) ...[
+          if (_identity.shopName.trim().isNotEmpty)
+            Text(_identity.shopName.trim(),
+                style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w800)),
+          for (final line in [
+            if (_identity.ownerName.trim().isNotEmpty)
+              '${ar ? 'صاحب النقطة' : 'Owner'}: ${_identity.ownerName.trim()}',
+            if (_identity.subAgentName.trim().isNotEmpty)
+              '${ar ? 'الوكيل الفرعي' : 'Sub agent'}: ${_identity.subAgentName.trim()}',
+            if (_identity.mainAgentName.trim().isNotEmpty)
+              '${ar ? 'الوكيل الرئيسي' : 'Main agent'}: ${_identity.mainAgentName.trim()}',
+          ])
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(line,
+                  style: IntesharType.sans(11.5, color: cs.onSurfaceVariant)),
+            ),
+          const SizedBox(height: 10),
+        ],
+        Row(children: [
+          _stat(ar ? 'عدد الكروت' : 'Cards', '${s.cards}', cs),
+          _stat(ar ? 'المجموع' : 'Total', Formatters.iqd(s.total.round()), cs),
+          if (s.notPrinted > 0)
+            _stat(ar ? 'لم تُطبع' : 'Not printed', '${s.notPrinted}', cs,
+                tint: IntesharColors.oxblood),
+        ]),
+        if (s.unpriced > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              ar
+                  ? '${s.unpriced} بطاقة بدون سعر مسجل — غير محتسبة في المجموع'
+                  : '${s.unpriced} card(s) have no recorded price — not counted in the total',
+              style: IntesharType.sans(11, color: cs.onSurfaceVariant),
+            ),
+          ),
+        if (s.truncated)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              ar
+                  ? 'الفترة تحتوي على مبيعات أكثر مما تم تحميله — المجموع جزئي'
+                  : 'This window holds more sales than were loaded — the total is partial',
+              style: IntesharType.sans(11, color: IntesharColors.oxblood, w: FontWeight.w600),
+            ),
+          ),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: (_busy || _summaryLoading || s.cards == 0) ? null : _printReport,
+              icon: _summaryLoading
+                  ? const SizedBox(
+                      width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.print_outlined, size: 16),
+              label: Text(ar ? 'طباعة التقرير' : 'Print report'),
+            ),
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton.icon(
+            onPressed: (_summaryLoading || s.cards == 0) ? null : _shareReport,
+            icon: const Icon(Icons.share_outlined, size: 16),
+            label: Text(ar ? 'مشاركة' : 'Share'),
+          ),
+        ]),
+      ]),
+    );
+  }
+
+  Widget _stat(String label, String value, ColorScheme cs, {Color? tint}) => Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label, style: IntesharType.sans(11, color: cs.onSurfaceVariant)),
+          const SizedBox(height: 2),
+          Text(value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: IntesharType.mono(15, color: tint ?? cs.onSurface, w: FontWeight.w700)),
+        ]),
+      );
+
+  Future<void> _printReport() async {
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final job = await buildSalesReportPrintJob(
+        identity: _identity,
+        summary: _summary,
+        fromDay: _day(_range.start),
+        toDay: _day(_range.end),
+        printedAt: DateTime.now(),
+        ar: ar,
+      );
+      await ref.read(printQueueProvider).enqueue(job);
+      if (mounted) {
+        messenger.showSnackBar(SnackBar(content: Text(ar ? 'تمت الطباعة' : 'Printed')));
+      }
+    } catch (e) {
+      if (mounted) messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _shareReport() async {
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    final text = buildSalesReportText(
+      identity: _identity,
+      summary: _summary,
+      fromDay: _day(_range.start),
+      toDay: _day(_range.end),
+      printedAt: DateTime.now(),
+      ar: ar,
+    );
+    try {
+      await SharePlus.instance.share(ShareParams(text: text));
+    } catch (_) {
+      await Clipboard.setData(ClipboardData(text: text));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(ar ? 'نُسخ التقرير' : 'Report copied')));
+      }
+    }
   }
 
   Widget _opCard(PrintOperation op, bool ar, ColorScheme cs) {

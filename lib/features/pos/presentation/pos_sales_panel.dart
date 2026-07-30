@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
+import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/core/printing/print_queue.dart';
 import 'package:inteshar/core/printing/escpos_builder.dart';
 import 'package:inteshar/core/printing/logo_loader.dart';
@@ -276,6 +277,10 @@ class _ReprintSheetState extends ConsumerState<_ReprintSheet> {
 
   Future<void> _print() async {
     final ar = Localizations.localeOf(context).languageCode == 'ar';
+    // Same labels as the on-screen voucher; read before any await.
+    final l = AppLocalizations.of(context)!;
+    final labelExpiry = ar ? 'تاريخ الانتهاء' : 'Expiry';
+    final labelReceiptNo = ar ? 'رقم العملية' : 'Receipt #';
     setState(() => _printing = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
@@ -305,6 +310,10 @@ class _ReprintSheetState extends ConsumerState<_ReprintSheet> {
         categoryName: widget.recovered.categoryName ?? def.name,
         expiry: p.expiryDate,
         receiptNo: widget.recovered.receiptNo,
+        labelSerial: l.posSerial,
+        labelPin: l.posPin,
+        labelExpiry: labelExpiry,
+        labelReceiptNo: labelReceiptNo,
       );
       await ref.read(printQueueProvider).enqueue(job);
       // B-054: a successful physical print confirms the sale's print outcome.

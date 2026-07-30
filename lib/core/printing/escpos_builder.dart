@@ -1,6 +1,8 @@
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:image/image.dart' as img;
+import 'package:flutter/painting.dart';
 import 'package:inteshar/core/printing/print_job.dart';
+import 'package:inteshar/core/printing/receipt_raster.dart';
 import 'package:inteshar/features/inventory/domain/voucher_template.dart';
 
 String _fmtTs(DateTime t) =>
@@ -29,177 +31,139 @@ Future<List<int>> buildVoucherReceipt({
   String? categoryName,
   String? expiry,
   int? receiptNo,
+  bool cutAtEnd = false,
+  // Field labels, passed in from the caller's AppLocalizations so the printed
+  // receipt uses the SAME wording as the voucher on screen (الرقم السري, not a
+  // hardcoded "PIN:"). English defaults keep non-localized callers working.
+  String labelSerial = 'Serial',
+  String labelPin = 'PIN',
+  String labelExpiry = 'Expiry',
+  String labelReceiptNo = 'Receipt #',
 }) async {
   final profile = await CapabilityProfile.load();
   final g = Generator(PaperSize.mm58, profile);
-  final out = <int>[];
+  final width = PaperSize.mm58.width;
 
-  // Main-agent logo at the very top (white-label branding).
+  // The receipt is laid out as PIXELS, not ESC/POS text. `Generator.text()`
+  // encodes Latin-1, so one Arabic character threw "Contains invalid
+  // characters" and the receipt could not be built at all — every real Iraqi
+  // template hit this. Rendering through Flutter's text engine also fixes
+  // Arabic shaping and RTL, which no ESC/POS code page does for us. See
+  // receipt_raster.dart.
+  final blocks = <ReceiptBlock>[];
+
   if (template.showAgentLogo && agentLogo != null) {
-    out.addAll(g.imageRaster(agentLogo, align: PosAlign.center));
-    out.addAll(g.feed(1));
+    blocks.add(ImageBlock(agentLogo));
   }
 
   final header = template.headerText.trim().isNotEmpty
       ? template.headerText.trim()
       : headerFallback;
-  out.addAll(
-    g.text(
-      header,
-      styles: const PosStyles(
-        align: PosAlign.center,
-        bold: true,
-        height: PosTextSize.size2,
-        width: PosTextSize.size2,
-      ),
-    ),
-  );
-  out.addAll(g.text(shopName, styles: const PosStyles(align: PosAlign.center)));
-  out.addAll(g.text(posLabel, styles: const PosStyles(align: PosAlign.center)));
-  out.addAll(g.hr());
+  blocks.add(TextBlock(header, fontSize: 36, weight: FontWeight.w800, padBottom: 5));
+  // The callers pass the entity name as BOTH the header fallback and the shop
+  // name, so it printed twice. Only add it when it says something new.
+  if (shopName.trim().isNotEmpty && shopName.trim() != header.trim()) {
+    blocks.add(TextBlock(shopName, fontSize: 26));
+  }
+  if (posLabel.trim().isNotEmpty) blocks.add(TextBlock(posLabel, fontSize: 22));
+  blocks.add(RuleBlock());
 
-  // Company logo (e.g. Asiacell) above the product/code.
   if (template.showCompanyLogo && companyLogo != null) {
-    out.addAll(g.imageRaster(companyLogo, align: PosAlign.center));
-    out.addAll(g.feed(1));
+    blocks.add(ImageBlock(companyLogo));
   }
-
-  // Telecom company name (e.g. Asiacell) then the category name beneath it,
-  // each gated by its template flag (and only when a value is present).
-  if (template.showCompanyName &&
-      companyName != null &&
-      companyName.trim().isNotEmpty) {
-    out.addAll(
-      g.text(
-        companyName.trim(),
-        styles: const PosStyles(
-          align: PosAlign.center,
-          bold: true,
-          height: PosTextSize.size2,
-        ),
-      ),
+  if (template.showCompanyName && (companyName ?? '').trim().isNotEmpty) {
+    blocks.add(
+      TextBlock(companyName!.trim(), fontSize: 30, weight: FontWeight.w700, padBottom: 4),
     );
   }
+  // categoryName defaults to the product name at every call site, so printing
+  // both repeated the same line twice on a 48mm-wide receipt.
   if (template.showCategoryName &&
-      categoryName != null &&
-      categoryName.trim().isNotEmpty) {
-    out.addAll(
-      g.text(
-        categoryName.trim(),
-        styles: const PosStyles(align: PosAlign.center, bold: true),
-      ),
+      (categoryName ?? '').trim().isNotEmpty &&
+      categoryName!.trim() != productName.trim()) {
+    blocks.add(
+      TextBlock(categoryName.trim(), fontSize: 26, weight: FontWeight.w700),
     );
   }
-
   if (template.showProductName) {
-    out.addAll(
-      g.text(
-        productName,
-        styles: const PosStyles(
-          align: PosAlign.center,
-          bold: true,
-          height: PosTextSize.size2,
-        ),
-      ),
-    );
+    blocks.add(TextBlock(productName, fontSize: 34, weight: FontWeight.w700, padBottom: 4));
   }
   if (template.showPrice) {
-    out.addAll(
-      g.text(
-        price,
-        styles: const PosStyles(align: PosAlign.center, bold: true),
-      ),
-    );
+    blocks.add(TextBlock(price, fontSize: 30, weight: FontWeight.w700));
   }
-  if (template.showProductName || template.showPrice) out.addAll(g.feed(1));
+  if (template.showProductName || template.showPrice) blocks.add(GapBlock(8));
 
   if (template.showSerial) {
-    out.addAll(
-      g.text(
-        'Serial: $serial',
-        styles: const PosStyles(align: PosAlign.center),
-      ),
-    );
+    blocks.add(TextBlock('$labelSerial: $serial', fontSize: 26, padBottom: 5));
   }
   if (template.showPin) {
-    out.addAll(
-      g.text(
-        'PIN: $pin',
-        styles: const PosStyles(
-          align: PosAlign.center,
-          bold: true,
-          height: PosTextSize.size2,
-        ),
+    // The one field the customer actually needs, and the one they key into a
+    // phone: biggest thing on the paper, spaced like the on-screen voucher.
+    blocks.add(
+      LabelValueBlock(
+        labelPin,
+        pin,
+        labelSize: 24,
+        valueSize: 46,
+        valueWeight: FontWeight.w800,
+        valueSpacing: 2,
+        padBottom: 10,
       ),
     );
   }
 
   if (template.qrEnabled) {
     final payload = template.qrPayload(pin: pin, serial: serial);
-    out.addAll(g.feed(1));
-    out.addAll(g.qrcode(payload));
+    blocks.add(GapBlock(8));
+    blocks.add(QrBlock(payload, size: 170));
     final caption = template.redeemInstructions.trim().isNotEmpty
         ? template.redeemInstructions.trim()
         : payload;
-    out.addAll(
-      g.text(caption, styles: const PosStyles(align: PosAlign.center)),
-    );
+    blocks.add(TextBlock(caption, fontSize: 24, padBottom: 5));
   } else if (template.redeemInstructions.trim().isNotEmpty) {
-    out.addAll(g.feed(1));
-    out.addAll(
-      g.text(
-        template.redeemInstructions.trim(),
-        styles: const PosStyles(align: PosAlign.center),
-      ),
+    blocks.add(GapBlock(8));
+    blocks.add(TextBlock(template.redeemInstructions.trim(), fontSize: 24, padBottom: 5));
+  }
+
+  if (template.showExpiry && (expiry ?? '').trim().isNotEmpty) {
+    blocks.add(GapBlock(8));
+    blocks.add(
+      TextBlock('$labelExpiry: ${expiry!.trim()}', fontSize: 24, padBottom: 4),
     );
   }
 
-  // Expiry below the code (per the client's note).
-  if (template.showExpiry && expiry != null && expiry.trim().isNotEmpty) {
-    out.addAll(g.feed(1));
-    out.addAll(
-      g.text(
-        'Expiry: ${expiry.trim()}',
-        styles: const PosStyles(align: PosAlign.center, bold: true),
-      ),
-    );
-  }
-
-  out.addAll(g.hr());
-  // Operation reference: per-store receipt number + the voucher serial.
+  blocks.add(RuleBlock());
   if (receiptNo != null && receiptNo > 0) {
-    out.addAll(
-      g.text(
-        'Receipt #$receiptNo',
-        styles: const PosStyles(align: PosAlign.center, bold: true),
-      ),
+    blocks.add(
+      TextBlock('$labelReceiptNo: $receiptNo', fontSize: 24, padBottom: 4),
     );
   }
-  out.addAll(
-    g.text('Ref: $serial', styles: const PosStyles(align: PosAlign.center)),
-  );
-  out.addAll(
-    g.text(_fmtTs(timestamp), styles: const PosStyles(align: PosAlign.center)),
-  );
+  blocks.add(TextBlock(_fmtTs(timestamp), fontSize: 20));
   if (operatorPhone.isNotEmpty) {
-    out.addAll(
-      g.text(
-        'Op: $operatorPhone',
-        styles: const PosStyles(align: PosAlign.center),
-      ),
-    );
+    blocks.add(TextBlock('Op: $operatorPhone', fontSize: 20));
   }
   if (template.footerText.trim().isNotEmpty) {
-    out.addAll(g.feed(1));
-    out.addAll(
-      g.text(
-        template.footerText.trim(),
-        styles: const PosStyles(align: PosAlign.center),
-      ),
-    );
+    blocks.add(GapBlock(8));
+    blocks.add(TextBlock(template.footerText.trim(), fontSize: 24));
   }
+
+  // Logos must be decoded into GPU images before layout can measure them.
+  for (final b in blocks) {
+    if (b is ImageBlock) await b.prepare();
+  }
+
+  final raster = await renderReceiptRaster(width: width, blocks: blocks);
+
+  final out = <int>[];
+  out.addAll(g.imageRaster(raster));
+  // Paper handling, NOT content. `Generator.cut()` emits FIVE blank lines plus a
+  // full-cut command, and the built-in heads in this fleet (Sunmi, Centerm/Rovo)
+  // have no cutter — their firmware treats a cut as "advance to the tear-off
+  // position", which added several centimetres of blank paper between receipts.
+  // Feed just enough to clear the tear bar. A cutter-equipped model can opt in
+  // via [cutAtEnd] rather than every device paying for it.
   out.addAll(g.feed(2));
-  out.addAll(g.cut());
+  if (cutAtEnd) out.addAll(g.cut());
   return out;
 }
 
@@ -297,6 +261,10 @@ Future<PrintJob> buildVoucherPrintJob({
   String? categoryName,
   String? expiry,
   int? receiptNo,
+  String labelSerial = 'Serial',
+  String labelPin = 'PIN',
+  String labelExpiry = 'Expiry',
+  String labelReceiptNo = 'Receipt #',
 }) async {
   final bytes = await buildVoucherReceipt(
     template: template,
@@ -315,6 +283,10 @@ Future<PrintJob> buildVoucherPrintJob({
     categoryName: categoryName,
     expiry: expiry,
     receiptNo: receiptNo,
+    labelSerial: labelSerial,
+    labelPin: labelPin,
+    labelExpiry: labelExpiry,
+    labelReceiptNo: labelReceiptNo,
   );
   final text = buildVoucherReceiptText(
     template: template,
@@ -336,12 +308,12 @@ Future<PrintJob> buildVoucherPrintJob({
 }
 
 /// The test receipt, for every transport.
-Future<PrintJob> buildTestPrintJob() async => PrintJob(
-  bytes: await buildTestReceipt(),
+Future<PrintJob> buildTestPrintJob({bool cutAtEnd = false}) async => PrintJob(
+  bytes: await buildTestReceipt(cutAtEnd: cutAtEnd),
   text: 'Point of Sale\nPrinter OK\n',
 );
 
-Future<List<int>> buildTestReceipt() async {
+Future<List<int>> buildTestReceipt({bool cutAtEnd = false}) async {
   final profile = await CapabilityProfile.load();
   final g = Generator(PaperSize.mm58, profile);
   final out = <int>[];
@@ -358,7 +330,11 @@ Future<List<int>> buildTestReceipt() async {
   out.addAll(
     g.text('Printer OK', styles: const PosStyles(align: PosAlign.center)),
   );
+  // Same cutterless-head reasoning as the voucher receipt above — and it matters
+  // more here, because this is the slip you print repeatedly while triaging an
+  // unknown printer. A cut on a cutterless head spends a receipt's worth of
+  // paper per probe.
   out.addAll(g.feed(2));
-  out.addAll(g.cut());
+  if (cutAtEnd) out.addAll(g.cut());
   return out;
 }

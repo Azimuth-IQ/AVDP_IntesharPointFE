@@ -8,6 +8,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.Parcel
+import android.util.Log
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.IOException
@@ -60,7 +61,22 @@ class CentermPrinterChannel(private val context: Context) : MethodChannel.Method
         private const val TX_OPEN = 2
         private const val TX_SEND_ESC_PRINT_COMMAND = 76
 
-        private const val BIND_WAIT_MS = 4000L
+        /**
+         * A real voucher receipt (logos + QR raster) is orders of magnitude larger
+         * than a text test print, so feed the vendor parser in slices instead of
+         * one big parcel. Cheap insurance against a per-transaction size limit,
+         * and it mirrors what the SPP path already does.
+         */
+        private const val CHUNK = 4096
+
+        /**
+         * The first print of a session can race a cold bind — the service only
+         * starts because of our bindService call, and a sale is a busy moment.
+         * A print is worth waiting for; a spurious failure on a SOLD voucher is not.
+         */
+        private const val BIND_WAIT_MS = 12000L
+
+        private const val TAG = "IntesharCenterm"
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -98,6 +114,11 @@ class CentermPrinterChannel(private val context: Context) : MethodChannel.Method
                         printRaw(data)
                         main.post { result.success(true) }
                     } catch (e: Exception) {
+                        // Logged unconditionally. Release builds strip Dart's
+                        // debugPrint, and a print failing on a voucher that is
+                        // ALREADY SOLD is precisely when the reason has to be
+                        // recoverable from logcat.
+                        Log.e(TAG, "print failed, " + data.size + " bytes", e)
                         main.post { result.error("PRINT_FAIL", e.message ?: e.toString(), null) }
                     }
                 }.start()
@@ -140,6 +161,7 @@ class CentermPrinterChannel(private val context: Context) : MethodChannel.Method
 
     private fun printRaw(bytes: ByteArray) {
         val service = awaitBinder()
+        Log.i(TAG, "printing " + bytes.size + " bytes")
         // open() is idempotent in practice and the service is normally already
         // open; a refusal here is not fatal, so it must not block the receipt.
         try {
@@ -147,7 +169,12 @@ class CentermPrinterChannel(private val context: Context) : MethodChannel.Method
         } catch (e: Exception) {
             // fall through to the write — it reports the real failure
         }
-        sendEsc(service, bytes)
+        var offset = 0
+        while (offset < bytes.size) {
+            val end = minOf(offset + CHUNK, bytes.size)
+            sendEsc(service, bytes.copyOfRange(offset, end))
+            offset = end
+        }
     }
 
     private fun callOpen(service: IBinder) {
@@ -169,7 +196,9 @@ class CentermPrinterChannel(private val context: Context) : MethodChannel.Method
         try {
             data.writeInterfaceToken(DESCRIPTOR)
             data.writeByteArray(bytes)
-            service.transact(TX_SEND_ESC_PRINT_COMMAND, data, reply, 0)
+            if (!service.transact(TX_SEND_ESC_PRINT_COMMAND, data, reply, 0)) {
+                throw IOException("Printer service rejected the ESC/POS transaction")
+            }
             // Surfaces a vendor-side error as an exception rather than letting the
             // POS believe a voucher printed when it did not.
             reply.readException()

@@ -1403,7 +1403,23 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
   /// Print ONE card of a batch, confirming its own PrintOperation. Each card is a real
   /// sale record, so a failure here just leaves that row "not printed" — recoverable from
   /// the التقارير tab exactly like a single sale.
+
+  /// Localized receipt labels, read while a BuildContext is still valid.
+  ReceiptLabels _receiptLabels() {
+    final l = AppLocalizations.of(context)!;
+    final arabic = Localizations.localeOf(context).languageCode == 'ar';
+    return ReceiptLabels(
+      serial: l.posSerial,
+      pin: l.posPin,
+      expiry: arabic ? 'تاريخ الانتهاء' : 'Expiry',
+      receiptNo: arabic ? 'رقم العملية' : 'Receipt #',
+    );
+  }
+
   Future<void> _printCard(RevealResult card) async {
+    // Captured before any await: the printed labels must match the voucher the
+    // operator is looking at, and context must not be read across an async gap.
+    final labels = _receiptLabels();
     final auth = ref.read(authStateProvider).valueOrNull as AuthAuthenticated?;
     final p = card.product;
     final def = p.productDefinition;
@@ -1429,6 +1445,10 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
       categoryName: card.categoryName ?? def.name,
       expiry: p.expiryDate,
       receiptNo: card.receiptNo,
+      labelSerial: labels.serial,
+      labelPin: labels.pin,
+      labelExpiry: labels.expiry,
+      labelReceiptNo: labels.receiptNo,
     );
     await ref.read(printQueueProvider).enqueue(job);
     final id = card.operationId;
@@ -1526,6 +1546,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
   Future<void> _print() async {
     final revealed = _sent;
     if (revealed == null) return; // print is only reachable after reveal
+    final labels = _receiptLabels();
     setState(() {
       _printing = true;
       _printError = null; // clear the last failure while a retry is in flight
@@ -1558,6 +1579,10 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
         categoryName: _categoryName ?? def.name,
         expiry: revealed.expiryDate,
         receiptNo: _receiptNo,
+        labelSerial: labels.serial,
+        labelPin: labels.pin,
+        labelExpiry: labels.expiry,
+        labelReceiptNo: labels.receiptNo,
       );
       // Enqueue on the serialized print queue: one write at a time (so
       // rapid/concurrent prints never interleave bytes) with retry on transient
@@ -2578,4 +2603,19 @@ class _BulkCardRowState extends State<_BulkCardRow> {
       ),
     );
   }
+}
+
+/// The field labels the printed receipt uses, taken from the SAME strings as the
+/// on-screen voucher (`_ReceiptRow`) so paper and screen never disagree.
+class ReceiptLabels {
+  final String serial;
+  final String pin;
+  final String expiry;
+  final String receiptNo;
+  const ReceiptLabels({
+    required this.serial,
+    required this.pin,
+    required this.expiry,
+    required this.receiptNo,
+  });
 }

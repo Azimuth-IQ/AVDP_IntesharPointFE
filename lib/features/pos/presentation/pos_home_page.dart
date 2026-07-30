@@ -12,7 +12,6 @@ import 'package:inteshar/core/printing/printer_service.dart';
 import 'package:inteshar/core/printing/escpos_builder.dart';
 import 'package:inteshar/core/printing/logo_loader.dart';
 import 'package:inteshar/core/printing/print_queue.dart';
-import 'package:inteshar/core/storage/session_storage.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
@@ -58,7 +57,6 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
   List<SellableSku>? _sellable;
   AgentBalance? _balance;
   List<String> _sliderUrls = const [];
-  List<String> _recentKeys = const []; // B-064: recently sold SKU keys (quick-sell)
   Object? _error;
   bool _loading = true;
   String _search = '';
@@ -143,14 +141,11 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
       // HQ-managed home slider comes from the resolved session brand (fetched once at
       // login via /api/entity/branding), so no extra call on every refresh.
       final slider = auth.brand.sliderUrls;
-      // B-064: recently sold SKUs (device-local) power the quick-sell row.
-      final recent = await sessionStorage.getRecentPosSkus();
       if (mounted) {
         setState(() {
           _sellable = sellable;
           _balance = balance;
           _sliderUrls = slider;
-          _recentKeys = recent;
         });
       }
     } catch (e) {
@@ -351,21 +346,6 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
         .toList();
   }
 
-  /// B-064: the recently sold SKUs that are still sellable now (available > 0),
-  /// in recency order, resolved against the current pool. Powers the quick-sell row.
-  List<SellableSku> _recentSellables() {
-    final sellable = _sellable ?? const <SellableSku>[];
-    final sep = SessionStorage.recentPosSkuSep;
-    final byKey = {for (final s in sellable) '${s.sku}$sep${s.governorate ?? ''}': s};
-    final out = <SellableSku>[];
-    for (final k in _recentKeys) {
-      final s = byKey[k];
-      if (s != null && s.available > 0) out.add(s);
-      if (out.length >= 6) break;
-    }
-    return out;
-  }
-
   /// B-064: every sellable SKU matching [q] across ALL companies/governorates —
   /// the home-step global search that skips the company→region→card drill.
   List<SellableSku> _globalMatches(String q) {
@@ -456,9 +436,8 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
 
     final searching = _search.trim().isNotEmpty;
     final matches = searching ? _globalMatches(_search) : const <SellableSku>[];
-    final recents = searching ? const <SellableSku>[] : _recentSellables();
 
-    // SKU-card grid geometry, reused for the recents row and the global results.
+    // SKU-card grid geometry for the global search results.
     final skuExtent = switch (context.screenSize) {
       ScreenSize.desktop => 240.0,
       ScreenSize.tablet => 210.0,
@@ -519,33 +498,6 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
             ] else ...[
               if (_sliderUrls.isNotEmpty)
                 SliverToBoxAdapter(child: _HomeSlider(urls: _sliderUrls)),
-              // Quick-sell: recently sold cards as a one-tap horizontal row.
-              if (recents.isNotEmpty) ...[
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
-                    child: Text(
-                      _ar ? 'الأكثر مبيعاً' : 'Recent',
-                      style: IntesharType.display(18, color: cs.onSurface, w: FontWeight.w800),
-                    ),
-                  ),
-                ),
-                SliverToBoxAdapter(
-                  child: SizedBox(
-                    height: skuRowHeight,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      itemCount: recents.length,
-                      separatorBuilder: (_, _) => const SizedBox(width: 14),
-                      itemBuilder: (context, i) => SizedBox(
-                        width: skuExtent,
-                        child: _SkuCard(sellable: recents[i], onTap: () => _showVoucher(recents[i])),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
@@ -579,7 +531,6 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
                         return _CompanyCard(
                           name: _companyLabel(key),
                           logoUrl: rows.firstWhere((s) => (s.companyLogoUrl ?? '').isNotEmpty, orElse: () => rows.first).companyLogoUrl,
-                          cardTypes: rows.length,
                           onTap: () => _openCompany(key, rows),
                         );
                       },
@@ -712,11 +663,7 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
       enableDrag: false,
       builder: (ctx) => _VoucherSheet(
         sku: sku,
-        onConsumed: () {
-          consumed = true;
-          // B-064: remember this SKU so it surfaces in the quick-sell row next time.
-          sessionStorage.pushRecentPosSku(sku.sku, sku.governorate ?? '');
-        },
+        onConsumed: () => consumed = true,
         onPrinted: () => Navigator.pop(ctx),
       ),
     ).whenComplete(() {
@@ -982,14 +929,12 @@ class _HomeSliderState extends State<_HomeSlider> {
 class _CompanyCard extends StatelessWidget {
   final String name;
   final String? logoUrl;
-  final int cardTypes;
   final VoidCallback onTap;
-  const _CompanyCard({required this.name, required this.logoUrl, required this.cardTypes, required this.onTap});
+  const _CompanyCard({required this.name, required this.logoUrl, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final ar = Localizations.localeOf(context).languageCode == 'ar';
     final hasLogo = (logoUrl ?? '').trim().isNotEmpty;
     return PressableScale(
       onTap: onTap,
@@ -1021,11 +966,6 @@ class _CompanyCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: TextStyle(fontFamily: 'CodecPro', color: cs.onSurface, fontSize: 15, fontWeight: FontWeight.w800, letterSpacing: -0.2),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              ar ? '$cardTypes نوع' : '$cardTypes types',
-              style: TextStyle(fontFamily: 'CodecPro', color: cs.onSurfaceVariant, fontSize: 11, fontWeight: FontWeight.w600),
             ),
           ],
         ),

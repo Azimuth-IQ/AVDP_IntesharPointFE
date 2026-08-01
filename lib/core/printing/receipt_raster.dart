@@ -84,6 +84,20 @@ class TextBlock extends ReceiptBlock {
   final double padBottom;
   final double letterSpacing;
 
+  /// Never wrap: shrink the type until the text fits on ONE line.
+  ///
+  /// For the PIN this is correctness, not neatness. A code broken across two
+  /// lines is read back wrong — the customer keys in half of it, or reads the
+  /// wrap as a space or a dash. Denominations differ per operator, so the PIN
+  /// length is not fixed and any single font size that fits the longest code
+  /// would waste the paper for every shorter one.
+  final bool singleLine;
+
+  /// Floor for [singleLine] shrinking. Below this thermal output stops being
+  /// legible, so the block stays on one line and accepts the smaller type
+  /// rather than wrapping — one line is the invariant.
+  final double minFontSize;
+
   TextPainter? _painter;
 
   TextBlock(
@@ -94,34 +108,64 @@ class TextBlock extends ReceiptBlock {
     this.padTop = 0,
     this.padBottom = 3,
     this.letterSpacing = 0,
+    this.singleLine = false,
+    this.minFontSize = 14,
   });
+
+  /// The size [text] was actually painted at — equals [fontSize] unless
+  /// [singleLine] had to shrink it. Exposed so a test can prove the fit.
+  double get renderedFontSize => _rendered;
+  double _rendered = 0;
 
   @override
   void measure(int width) {
+    final avail = width.toDouble() - 8;
+    var size = fontSize;
+    var spacing = letterSpacing;
+
+    if (singleLine) {
+      // Measure unconstrained, then scale once — a search loop would cost
+      // several layout passes per block for the same answer.
+      final probe = _paint(text, size, spacing, maxLines: 1)
+        ..layout(maxWidth: double.infinity);
+      final natural = probe.width;
+      if (natural > avail && natural > 0) {
+        final scale = avail / natural;
+        size = (size * scale).clamp(minFontSize, fontSize);
+        // Tracking has to shrink with the type or it eats the space just freed.
+        spacing = spacing * scale;
+      }
+    }
+
     // Deliberately NOT pinned to the brand font: a receipt has to render Arabic
     // above all, so the platform font stack is allowed to supply glyphs the
     // bundled face lacks.
-    final tp = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: TextStyle(
-          color: const ui.Color(0xFF000000),
-          fontSize: fontSize,
-          fontWeight: weight,
-          letterSpacing: letterSpacing,
-          // Thermal paper is unforgiving: leading that is fine on a screen reads
-          // as cramped once printed at 203 dpi.
-          height: 1.35,
-        ),
-      ),
-      textAlign: align,
-      textDirection:
-          containsArabic(text) ? TextDirection.rtl : TextDirection.ltr,
-      maxLines: null,
-    )..layout(maxWidth: width.toDouble() - 8);
+    final tp = _paint(text, size, spacing, maxLines: singleLine ? 1 : null)
+      ..layout(maxWidth: avail);
     _painter = tp;
+    _rendered = size;
     _height = tp.height + padTop + padBottom;
   }
+
+  TextPainter _paint(String s, double size, double spacing, {int? maxLines}) =>
+      TextPainter(
+        text: TextSpan(
+          text: s,
+          style: TextStyle(
+            color: const ui.Color(0xFF000000),
+            fontSize: size,
+            fontWeight: weight,
+            letterSpacing: spacing,
+            // Thermal paper is unforgiving: leading that is fine on a screen
+            // reads as cramped once printed at 203 dpi.
+            height: 1.35,
+          ),
+        ),
+        textAlign: align,
+        textDirection:
+            containsArabic(s) ? TextDirection.rtl : TextDirection.ltr,
+        maxLines: maxLines,
+      );
 
   @override
   void paint(ui.Canvas canvas, int width, double y) {
@@ -273,6 +317,12 @@ class LabelValueBlock extends ReceiptBlock {
   late TextBlock _label;
   late TextBlock _value;
 
+  /// Keep [value] on one line, shrinking it to fit (see [TextBlock.singleLine]).
+  final bool singleLineValue;
+
+  /// Floor for that shrinking.
+  final double minValueSize;
+
   LabelValueBlock(
     this.label,
     this.value, {
@@ -281,7 +331,12 @@ class LabelValueBlock extends ReceiptBlock {
     this.valueWeight = FontWeight.w700,
     this.valueSpacing = 0,
     this.padBottom = 8,
+    this.singleLineValue = false,
+    this.minValueSize = 14,
   });
+
+  /// What the value was actually painted at, for tests.
+  double get renderedValueSize => _value.renderedFontSize;
 
   @override
   void measure(int width) {
@@ -292,6 +347,8 @@ class LabelValueBlock extends ReceiptBlock {
       weight: valueWeight,
       letterSpacing: valueSpacing,
       padBottom: 0,
+      singleLine: singleLineValue,
+      minFontSize: minValueSize,
     );
     _label.measure(width);
     _value.measure(width);

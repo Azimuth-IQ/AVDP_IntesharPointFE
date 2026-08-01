@@ -99,6 +99,11 @@ Future<List<int>> buildVoucherReceipt({
   if (template.showPin) {
     // The one field the customer actually needs, and the one they key into a
     // phone: biggest thing on the paper, spaced like the on-screen voucher.
+    //
+    // It must NEVER wrap. A PIN broken across two lines gets read back wrong —
+    // half of it keyed in, or the wrap taken for a space or a dash. PIN length
+    // varies by operator and denomination, so 46px is the ceiling and the block
+    // shrinks only as far as a longer code actually requires.
     blocks.add(
       LabelValueBlock(
         labelPin,
@@ -108,6 +113,8 @@ Future<List<int>> buildVoucherReceipt({
         valueWeight: FontWeight.w800,
         valueSpacing: 2,
         padBottom: 10,
+        singleLineValue: true,
+        minValueSize: 18,
       ),
     );
   }

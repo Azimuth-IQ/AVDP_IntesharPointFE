@@ -13,6 +13,8 @@ import 'package:inteshar/core/files/report_export.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/pricing/data/pricing_repository.dart';
+import 'package:inteshar/features/pricing/domain/price_filter.dart';
+import 'package:inteshar/features/pricing/domain/price_sheet.dart';
 import 'package:inteshar/features/pricing/domain/pricing_models.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/entity_search_picker.dart';
@@ -63,6 +65,16 @@ class _S {
   String parsed(int n) => p('$n prices parsed', 'تم قراءة $n سعر');
   String applied(int agents) => p('Applied to $agents account(s)', 'تم التطبيق على $agents حساب');
   String get nothingParsed => p('No prices found in the file', 'لا توجد أسعار في الملف');
+  // B-117: export/upload follow the filters on screen.
+  String get nothingToExport =>
+      p('Nothing to export in the current filter', 'لا توجد بيانات ضمن التصفية الحالية');
+  String get allRowsOutOfScope => p('Every row in the file is outside the current filter',
+      'كل صفوف الملف خارج نطاق التصفية الحالية');
+  String skippedOutOfScope(int n) => p(
+      '$n row(s) skipped — outside the current filter',
+      'تم تخطي $n صفًا — خارج نطاق التصفية الحالية');
+  String scopedTo(String scope) =>
+      p('Export & upload follow: $scope', 'التصدير والرفع يتبعان: $scope');
   String get cancel => p('Cancel', 'إلغاء');
   String get apply => p('Apply', 'تطبيق');
 }
@@ -92,6 +104,16 @@ class _PricingPageState extends ConsumerState<PricingPage> {
   String _company = ''; // '' = every company
   String _gov = ''; // '' = every governorate
   Object? _error;
+
+  /// B-117: one description of "in scope", shared by the list, the Excel export
+  /// and the upload. Derived rather than stored so it cannot fall out of step
+  /// with the controls that set these fields.
+  PriceFilter get _filter => PriceFilter(
+        query: _query,
+        company: _company,
+        governorate: _gov,
+        unpricedOnly: _unpricedOnly,
+      );
   bool _authorized = true;
   final Map<String, TextEditingController> _ctrls = {};
 
@@ -218,32 +240,28 @@ class _PricingPageState extends ConsumerState<PricingPage> {
     // Write a readable name, and say "all governorates" explicitly rather than
     // leaving a blank the customer has to interpret. The upload path resolves
     // both back (governorateFromAnything), so an exported sheet still re-imports.
+    //
+    // B-117: the sheet is the FILTERED view. Exporting everything while the
+    // screen showed one governorate is what made the export unusable — you had
+    // to re-filter in Excel to find the rows you were already looking at.
     final loc = Localizations.localeOf(context).languageCode;
-    final allGovs = loc == 'ar' ? 'كل المحافظات' : 'All governorates';
-    final rows = <List<String>>[];
-    for (final row in catalog.rows) {
-      if (_regionalRow(row)) {
-        for (final g in row.governorates) {
-          rows.add([
-            row.sku,
-            row.name,
-            governorateLabel(g.governorate, loc),
-            _fmt(g.officialPrice),
-            _fmt(g.agentPrice ?? g.officialPrice),
-          ]);
-        }
-      } else {
-        rows.add([
-          row.sku,
-          row.name,
-          allGovs,
-          _fmt(row.officialPrice),
-          _fmt(row.agentPrice ?? row.officialPrice),
-        ]);
+    final filter = _filter;
+    final rows = buildPriceSheetRows(
+      rows: catalog.rows,
+      filter: filter,
+      locale: loc,
+      allGovernoratesLabel: loc == 'ar' ? 'كل المحافظات' : 'All governorates',
+      fmt: _fmt,
+    );
+    if (rows.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(s.nothingToExport)));
       }
+      return;
     }
     await exportRowsToXlsx(
-      fileName: 'inteshar-prices',
+      fileName: priceSheetFileName(filter),
       sheetName: 'Prices',
       headers: [s.colSku, s.colName, s.colGov, s.colOfficial, s.colYour],
       rows: rows,
@@ -287,8 +305,30 @@ class _PricingPageState extends ConsumerState<PricingPage> {
       // Fall through to the "nothing parsed" message.
     }
     if (!mounted) return;
+
+    // B-117: the upload obeys the same scope as the view and the export. A
+    // filtered screen is a working scope, so a sheet carrying other companies or
+    // regions must not quietly rewrite prices the operator cannot even see.
+    // Skipped rows are COUNTED and shown — silently dropping them would be the
+    // same failure as silently applying them.
+    var outOfScope = 0;
+    final filter = _filter;
+    final known = _catalog?.rows ?? const <CategoryPriceRow>[];
+    if (filter.isActive) {
+      parsed.removeWhere((p) {
+        final drop = filter.excludesUpload(
+          sku: p['sku'] as String,
+          governorate: p['governorate'] as String,
+          knownRows: known,
+        );
+        if (drop) outOfScope++;
+        return drop;
+      });
+    }
+
     if (parsed.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.nothingParsed)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(outOfScope > 0 ? s.allRowsOutOfScope : s.nothingParsed)));
       return;
     }
 
@@ -317,6 +357,16 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                   style: IntesharType.sans(12.5,
                       color: sheetDataRows > parsed.length ? cs.error : cs.onSurfaceVariant, w: FontWeight.w700),
                 ),
+                // B-117: say plainly that the active filter held rows back, so a
+                // partial apply is never mistaken for the whole sheet landing.
+                if (outOfScope > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      s.skippedOutOfScope(outOfScope),
+                      style: IntesharType.sans(12, color: cs.error, w: FontWeight.w600),
+                    ),
+                  ),
                 const SizedBox(height: 8),
                 // Preview table: SKU · governorate · new price.
                 Container(
@@ -520,8 +570,32 @@ class _PricingPageState extends ConsumerState<PricingPage> {
             ],
           ]),
         ],
+        // B-117: Export/Upload sit up in the header, far from these controls, so
+        // say here that they follow them — otherwise "Export" reads as "export
+        // everything" and the scoped file looks like data loss.
+        if (_filter.isActive) ...[
+          const SizedBox(height: 6),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Text(
+              s.scopedTo(_scopeLabel(s, loc)),
+              style: IntesharType.sans(11.5, color: cs.onSurfaceVariant, w: FontWeight.w600),
+            ),
+          ),
+        ],
       ]),
     );
+  }
+
+  /// Human description of the active scope, for the hint and the dialogs.
+  String _scopeLabel(_S s, String loc) {
+    final parts = <String>[
+      if (_company.isNotEmpty) _company,
+      if (_gov.isNotEmpty) governorateLabel(_gov, loc),
+      if (_unpricedOnly) (loc == 'ar' ? 'غير المسعّرة' : 'unpriced'),
+      if (_query.trim().isNotEmpty) '"${_query.trim()}"',
+    ];
+    return parts.isEmpty ? s.allCompanies : parts.join(' · ');
   }
 
   Widget _body(_S s) {
@@ -557,20 +631,9 @@ class _PricingPageState extends ConsumerState<PricingPage> {
     // Group rows by company, preserving the server's (company, name) order.
     // The "N unpriced" pill filters to categories still on default prices (B-080).
     final loc = Localizations.localeOf(context).languageCode;
-    final visibleRows = catalog.rows.where((r) {
-      if (_unpricedOnly && r.priced) return false;
-      if (_company.isNotEmpty && r.companyName != _company) return false;
-      if (_gov.isNotEmpty &&
-          !r.governorates.any((g) => g.governorate == _gov)) {
-        return false;
-      }
-      if (_query.isEmpty) return true;
-      final q = _query.toLowerCase();
-      // Search what the card SHOWS — name, SKU and company.
-      return r.name.toLowerCase().contains(q) ||
-          r.sku.toLowerCase().contains(q) ||
-          r.companyName.toLowerCase().contains(q);
-    }).toList();
+    // B-117: the SAME filter object the export and the upload use, so what is
+    // on screen and what lands in the sheet can never disagree.
+    final visibleRows = _filter.apply(catalog.rows);
     final companies = <String>{
       for (final r in catalog.rows)
         if (r.companyName.isNotEmpty) r.companyName,

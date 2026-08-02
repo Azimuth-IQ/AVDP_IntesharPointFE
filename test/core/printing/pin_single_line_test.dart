@@ -98,8 +98,6 @@ void main() {
       ),
       headerFallback: 'انتشار',
       shopName: 'محل سعد',
-      posLabel: 'Counter 1',
-      operatorPhone: '',
       productName: 'اسيا سيل 5000',
       price: '5000',
       serial: '10317061784',

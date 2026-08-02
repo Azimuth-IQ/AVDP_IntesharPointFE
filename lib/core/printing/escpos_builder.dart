@@ -18,8 +18,6 @@ Future<List<int>> buildVoucherReceipt({
   required VoucherTemplate template,
   required String headerFallback,
   required String shopName,
-  required String posLabel,
-  required String operatorPhone,
   required String productName,
   required String price,
   required String serial,
@@ -65,7 +63,6 @@ Future<List<int>> buildVoucherReceipt({
   if (shopName.trim().isNotEmpty && shopName.trim() != header.trim()) {
     blocks.add(TextBlock(shopName, fontSize: 26));
   }
-  if (posLabel.trim().isNotEmpty) blocks.add(TextBlock(posLabel, fontSize: 22));
   blocks.add(RuleBlock());
 
   if (template.showCompanyLogo && companyLogo != null) {
@@ -93,8 +90,13 @@ Future<List<int>> buildVoucherReceipt({
   }
   if (template.showProductName || template.showPrice) blocks.add(GapBlock(8));
 
+  // Detail lines align to their own reading direction: TextAlign.start resolves
+  // to the RIGHT under RTL and the left under LTR, so an Arabic receipt no longer
+  // reads left-aligned. Headline blocks stay centred — that is conventional on a
+  // receipt in either language, and centring is direction-neutral anyway.
   if (template.showSerial) {
-    blocks.add(TextBlock('$labelSerial: $serial', fontSize: 26, padBottom: 5));
+    blocks.add(TextBlock('$labelSerial: $serial',
+        fontSize: 26, padBottom: 5, align: TextAlign.start));
   }
   if (template.showPin) {
     // The one field the customer actually needs, and the one they key into a
@@ -135,20 +137,19 @@ Future<List<int>> buildVoucherReceipt({
   if (template.showExpiry && (expiry ?? '').trim().isNotEmpty) {
     blocks.add(GapBlock(8));
     blocks.add(
-      TextBlock('$labelExpiry: ${expiry!.trim()}', fontSize: 24, padBottom: 4),
+      TextBlock('$labelExpiry: ${expiry!.trim()}',
+          fontSize: 24, padBottom: 4, align: TextAlign.start),
     );
   }
 
   blocks.add(RuleBlock());
   if (receiptNo != null && receiptNo > 0) {
     blocks.add(
-      TextBlock('$labelReceiptNo: $receiptNo', fontSize: 24, padBottom: 4),
+      TextBlock('$labelReceiptNo: $receiptNo',
+          fontSize: 24, padBottom: 4, align: TextAlign.start),
     );
   }
   blocks.add(TextBlock(_fmtTs(timestamp), fontSize: 20));
-  if (operatorPhone.isNotEmpty) {
-    blocks.add(TextBlock('Op: $operatorPhone', fontSize: 20));
-  }
   if (template.footerText.trim().isNotEmpty) {
     blocks.add(GapBlock(8));
     blocks.add(TextBlock(template.footerText.trim(), fontSize: 24));
@@ -182,8 +183,6 @@ String buildVoucherReceiptText({
   required VoucherTemplate template,
   required String headerFallback,
   required String shopName,
-  required String posLabel,
-  required String operatorPhone,
   required String productName,
   required String price,
   required String serial,
@@ -204,7 +203,6 @@ String buildVoucherReceiptText({
         : headerFallback,
   );
   if (shopName.isNotEmpty) line(shopName);
-  if (posLabel.isNotEmpty) line(posLabel);
   line(sep);
 
   if (template.showCompanyName && (companyName ?? '').trim().isNotEmpty) {
@@ -237,7 +235,6 @@ String buildVoucherReceiptText({
   if (receiptNo != null && receiptNo > 0) line('Receipt #$receiptNo');
   line('Ref: $serial');
   line(_fmtTs(timestamp));
-  if (operatorPhone.isNotEmpty) line('Op: $operatorPhone');
   if (template.footerText.trim().isNotEmpty) {
     line();
     line(template.footerText.trim());
@@ -255,8 +252,6 @@ Future<PrintJob> buildVoucherPrintJob({
   required VoucherTemplate template,
   required String headerFallback,
   required String shopName,
-  required String posLabel,
-  required String operatorPhone,
   required String productName,
   required String price,
   required String serial,
@@ -277,8 +272,6 @@ Future<PrintJob> buildVoucherPrintJob({
     template: template,
     headerFallback: headerFallback,
     shopName: shopName,
-    posLabel: posLabel,
-    operatorPhone: operatorPhone,
     productName: productName,
     price: price,
     serial: serial,
@@ -299,8 +292,6 @@ Future<PrintJob> buildVoucherPrintJob({
     template: template,
     headerFallback: headerFallback,
     shopName: shopName,
-    posLabel: posLabel,
-    operatorPhone: operatorPhone,
     productName: productName,
     price: price,
     serial: serial,

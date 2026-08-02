@@ -28,8 +28,6 @@ void main() {
       template: VoucherTemplate(qrEnabled: qr, redeemInstructions: redeem),
       headerFallback: header,
       shopName: 'saad',
-      posLabel: 'Counter 1',
-      operatorPhone: '07701111113',
       productName: product,
       price: '5000',
       serial: '10317061784',
@@ -135,8 +133,8 @@ void main() {
     test('no cut command by default — these heads have no cutter', () async {
       final job = await buildVoucherPrintJob(
         template: VoucherTemplate(),
-        headerFallback: 'Inteshar', shopName: 'saad', posLabel: 'Counter 1',
-        operatorPhone: '07701111113', productName: 'Asiacell 5000', price: '5000',
+        headerFallback: 'Inteshar', shopName: 'saad',
+        productName: 'Asiacell 5000', price: '5000',
         serial: 'SN1', pin: 'PIN1', timestamp: DateTime(2026, 7, 30),
       );
       expect(_containsGsV(job.bytes), isFalse);
@@ -145,8 +143,8 @@ void main() {
     test('a cutter-equipped printer can still opt in', () async {
       final bytes = await buildVoucherReceipt(
         template: VoucherTemplate(),
-        headerFallback: 'Inteshar', shopName: 'saad', posLabel: 'Counter 1',
-        operatorPhone: '07701111113', productName: 'Asiacell 5000', price: '5000',
+        headerFallback: 'Inteshar', shopName: 'saad',
+        productName: 'Asiacell 5000', price: '5000',
         serial: 'SN1', pin: 'PIN1', timestamp: DateTime(2026, 7, 30),
         cutAtEnd: true,
       );

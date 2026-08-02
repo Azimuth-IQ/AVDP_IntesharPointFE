@@ -28,6 +28,18 @@ class EntityRepository {
     return _api.unwrap(response, (d) => Entity.fromJson(d as Map<String, dynamic>));
   }
 
+  /// The caller's own ancestor chain, nearest parent first, as display rows.
+  ///
+  /// Carries id/name/type only — no users, no KYC. A shop needs its agents' NAMES
+  /// for the report header; it has no business reading their documents, and until
+  /// the read guard landed it could read anyone's.
+  Future<List<EntitySummaryRow>> chain() async {
+    final response = await _api.get(Endpoints.entityChain);
+    return _api.unwrap(response, (d) => (d as List<dynamic>)
+        .map((e) => EntitySummaryRow.fromJson((e as Map).cast<String, dynamic>()))
+        .toList());
+  }
+
   /// The caller's own entity (B-023) — O(1); used at login instead of [readAll].
   Future<Entity> me() async {
     final response = await _api.get(Endpoints.entityMe);

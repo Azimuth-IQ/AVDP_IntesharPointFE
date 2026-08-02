@@ -21,6 +21,9 @@ class Endpoints {
   static const entitySearch = '/api/entity/search';
   static const entityChildren = '/api/entity/children';
   static const entityReadWithChildren = '/api/entity/readwithchildren';
+  /// The caller's own ancestor chain as display rows (id/name/type), nearest first.
+  /// Replaces reading a parent's whole document just to print its name.
+  static const entityChain = '/api/entity/chain';
   static const entityBranding = '/api/entity/branding';
 
   // POS slider management (HQ-only). The POS itself gets resolved sliders via

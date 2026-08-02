@@ -62,8 +62,14 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
   }
 
   /// The report header the spec mandates. The shop knows itself from the
-  /// session; the agent chain needs entity reads a shop may be refused, so each
-  /// step is best-effort and a line it cannot resolve is simply omitted.
+  /// session; the agent names come from `/entity/chain`, which returns display
+  /// rows only.
+  ///
+  /// This used to call `/entity/read` on the parent and then the grandparent —
+  /// pulling two whole entity documents (users, phones, KYC) to print two names.
+  /// That route is scoped to self-or-descendant now, so an upward read is
+  /// correctly refused; the chain endpoint answers the question that was
+  /// actually being asked.
   Future<void> _resolveIdentity() async {
     final auth = ref.read(authStateProvider).valueOrNull;
     if (auth is! AuthAuthenticated) return;
@@ -73,38 +79,27 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
     );
     if (mounted) setState(() => _identity = identity);
 
-    final repo = EntityRepository(ref.read(apiClientProvider));
     try {
-      final parentId = auth.entity.parent;
-      if (parentId.isEmpty) return;
-      final parent = await repo.read(parentId);
-      // A shop hangs off a sub-agent, but a flatter tree can put it straight
-      // under the main agent — so label by the parent's TYPE, not its depth.
-      identity = parent.type == EntityType.AGENT1
-          ? PosReportIdentity(
-              shopName: identity.shopName,
-              ownerName: identity.ownerName,
-              mainAgentName: parent.meta.name,
-            )
-          : PosReportIdentity(
-              shopName: identity.shopName,
-              ownerName: identity.ownerName,
-              subAgentName: parent.meta.name,
-            );
-      if (mounted) setState(() => _identity = identity);
+      final chain = await EntityRepository(ref.read(apiClientProvider)).chain();
+      // Match BY TYPE, not by position: a shop usually hangs off a sub-agent,
+      // but a flatter tree can put it straight under the main agent, and taking
+      // "the first ancestor" would then label a main agent as the sub-agent.
+      String nameOf(EntityType t) {
+        for (final row in chain) {
+          if (row.type == t) return row.name;
+        }
+        return '';
+      }
 
-      if (parent.type == EntityType.AGENT1 || parent.parent.isEmpty) return;
-      final grand = await repo.read(parent.parent);
-      if (grand.type != EntityType.AGENT1) return;
       identity = PosReportIdentity(
         shopName: identity.shopName,
         ownerName: identity.ownerName,
-        subAgentName: identity.subAgentName,
-        mainAgentName: grand.meta.name,
+        subAgentName: nameOf(EntityType.AGENT2),
+        mainAgentName: nameOf(EntityType.AGENT1),
       );
       if (mounted) setState(() => _identity = identity);
     } catch (_) {
-      // Keep whatever resolved — a partial header beats no report.
+      // Keep the shop's own lines — a partial header beats no report.
     }
   }
 
@@ -377,10 +372,16 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: IntesharType.sans(11, color: cs.onSurfaceVariant)),
           const SizedBox(height: 2),
-          Text(value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: IntesharType.mono(15, color: tint ?? cs.onSurface, w: FontWeight.w700)),
+          // Money SHRINKS, it never ellipsizes. A daily total of 25,876,000 IQD
+          // clipped to "25,876…" is worse than small type — it reads as a
+          // different number. Same rule as the POS balance tally.
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: AlignmentDirectional.centerStart,
+            child: Text(value,
+                maxLines: 1,
+                style: IntesharType.mono(15, color: tint ?? cs.onSurface, w: FontWeight.w700)),
+          ),
         ]),
       );
 
@@ -526,8 +527,6 @@ class _ReprintSheetState extends ConsumerState<_ReprintSheet> {
         template: t,
         headerFallback: auth?.entity.meta.name ?? 'POS',
         shopName: auth?.entity.meta.name ?? 'Store',
-        posLabel: 'Counter 1',
-        operatorPhone: auth?.entity.users.firstOrNull?.phone ?? '',
         productName: def.name,
         price: Formatters.iqd(def.defaultPrice),
         serial: p.serialNumber,

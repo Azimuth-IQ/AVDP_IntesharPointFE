@@ -131,6 +131,7 @@ const Map<String, (String, String)> _routes = {
   '/entity/workinghours': ('Working hours changed', 'تعديل ساعات العمل'),
   '/entity/branding': ('Branding loaded', 'تحميل الهوية'),
   '/entity/children': ('Sub-accounts list', 'قائمة الحسابات الفرعية'),
+  '/entity/chain': ('Parent accounts', 'الحسابات الأعلى'),
   '/entity/readwithchildren': ('Account tree', 'شجرة الحسابات'),
   '/entity/getwithchildren': ('Account tree', 'شجرة الحسابات'),
   '/entity/readall': ('Account list', 'قائمة الحسابات'),

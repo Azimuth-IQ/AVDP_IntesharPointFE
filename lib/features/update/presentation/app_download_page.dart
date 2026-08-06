@@ -124,12 +124,40 @@ class _AppDownloadPageState extends State<AppDownloadPage> {
     );
   }
 
+  /// B-135: this used to announce "تم نسخ الرابط" unconditionally.
+  ///
+  /// A browser only grants clipboard access in a SECURE CONTEXT, and the app is
+  /// served over plain HTTP, so the write can fail silently — and the app then
+  /// claimed it had worked. An operator copies nothing, pastes the previous
+  /// clipboard contents, and has no reason to suspect the button.
+  ///
+  /// So the write is now VERIFIED by reading the clipboard back. When it did not
+  /// take, the message says so and points at the link above, which is
+  /// SelectableText precisely so it can be copied by hand.
   Future<void> _copy(bool ar) async {
-    await Clipboard.setData(ClipboardData(text: _url ?? ''));
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ar ? 'تم نسخ الرابط' : 'Link copied')),
-      );
+    final url = _url ?? '';
+    if (url.isEmpty) return;
+    var copied = false;
+    try {
+      await Clipboard.setData(ClipboardData(text: url));
+      final back = await Clipboard.getData(Clipboard.kTextPlain);
+      // A platform that refuses to READ the clipboard still may have written it,
+      // so treat "cannot verify" as success rather than crying wolf; only a
+      // readable-but-different value proves the write was lost.
+      copied = back == null || back.text == null || back.text == url;
+    } catch (_) {
+      copied = false;
     }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(copied
+            ? (ar ? 'تم نسخ الرابط' : 'Link copied')
+            : (ar
+                ? 'تعذّر النسخ تلقائياً — حدّد الرابط أعلاه وانسخه يدوياً'
+                : 'Could not copy automatically — select the link above and copy it')),
+        duration: Duration(seconds: copied ? 2 : 5),
+      ),
+    );
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/core/push/push_subscriber.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
+import 'package:inteshar/features/chat/application/chat_provider.dart';
 import 'package:inteshar/features/notifications/application/notification_provider.dart';
 
 /// B-061: keeps a single [PushSubscriber] alive for the signed-in session. On a
@@ -34,8 +35,11 @@ class _PushListenerState extends ConsumerState<PushListener> {
       topic: token,
       onPing: (_) {
         // Refresh the providers the shell watches. Cheap; deduped by autoDispose.
+        // B-133: chat is included, otherwise a pushed message lights nothing
+        // until the next cold start — which is exactly the complaint.
         ref.invalidate(unreadAlertsProvider);
         ref.invalidate(notificationsUnreadCountProvider);
+        ref.invalidate(chatUnreadCountProvider);
       },
     )..start();
   }

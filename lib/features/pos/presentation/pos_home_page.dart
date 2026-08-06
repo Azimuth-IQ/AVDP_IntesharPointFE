@@ -15,6 +15,7 @@ import 'package:inteshar/core/printing/print_queue.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
+import 'package:inteshar/features/chat/application/chat_provider.dart';
 import 'package:inteshar/features/inventory/data/product_repository.dart';
 import 'package:inteshar/features/inventory/domain/product.dart';
 import 'package:inteshar/features/pricing/data/pricing_repository.dart';
@@ -266,7 +267,14 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
           // "كشف الحساب" (statement), disambiguated from tab 4 "الحساب" (profile).
           NavigationDestination(icon: const Icon(Icons.account_balance_wallet_outlined), selectedIcon: const Icon(Icons.account_balance_wallet), label: _ar ? 'كشف الحساب' : 'Statement'),
           NavigationDestination(icon: const Icon(Icons.receipt_long_outlined), selectedIcon: const Icon(Icons.receipt_long), label: _ar ? 'التقارير' : 'Reports'),
-          NavigationDestination(icon: const Icon(Icons.forum_outlined), selectedIcon: const Icon(Icons.forum), label: _ar ? 'التواصل' : 'Chat'),
+          // B-133: the shop had no way to learn a reply had arrived short of
+          // opening the tab. The count comes from the per-thread `unread` the
+          // backend already returned and nothing consumed.
+          NavigationDestination(
+            icon: _chatBadge(const Icon(Icons.forum_outlined)),
+            selectedIcon: _chatBadge(const Icon(Icons.forum)),
+            label: _ar ? 'التواصل' : 'Chat',
+          ),
           NavigationDestination(icon: const Icon(Icons.person_outline), selectedIcon: const Icon(Icons.person), label: _ar ? 'الحساب' : 'Profile'),
         ],
       ),
@@ -428,6 +436,14 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
       };
 
   // Home: HQ slider + a grid of telecom companies (printing companies).
+  /// Unread-chat badge for the التواصل tab. Silent on error (the provider yields
+  /// 0), because a failed count must never break the navigation it decorates.
+  Widget _chatBadge(Widget icon) {
+    final n = ref.watch(chatUnreadCountProvider).valueOrNull ?? 0;
+    if (n == 0) return icon;
+    return Badge(label: Text('$n'), isLabelVisible: true, child: icon);
+  }
+
   Widget _homeStep(AppLocalizations l) {
     final cs = Theme.of(context).colorScheme;
     final groups = _companyGroups();

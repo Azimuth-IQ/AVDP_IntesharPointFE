@@ -9,6 +9,7 @@ import 'package:inteshar/core/printing/printer_registry.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
+import 'package:inteshar/features/chat/application/chat_provider.dart';
 import 'package:inteshar/features/notifications/application/notification_provider.dart';
 import 'package:inteshar/features/notifications/presentation/alert_banner.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
@@ -60,10 +61,34 @@ class _NavItem {
   });
 }
 
-/// Wraps [icon] in a Material [Badge] when [route] ends with `/notifications`
-/// and [count] > 0. Applied to bottom-bar, rail, sidebar, and the More sheet.
-Widget _wrapBadge(Widget icon, String route, int count) {
-  if (!route.endsWith('/notifications') || count == 0) return icon;
+/// Wraps [icon] in a Material [Badge] for the destinations that carry an unread
+/// count. Applied to bottom-bar, rail, sidebar, and the More sheet.
+///
+/// B-133: chat was left out, so a reply arrived with no sign of it anywhere in
+/// the navigation — the only way to find out was to open التواصل and look.
+/// Keyed by route suffix rather than by index because the destination list is
+/// filtered per role, so positions differ between tiers.
+class UnreadCounts {
+  final int notifications;
+  final int chat;
+  const UnreadCounts({this.notifications = 0, this.chat = 0});
+
+  /// Unread for a destination, keyed by route SUFFIX rather than by index —
+  /// the destination list is filtered per role, so positions differ by tier.
+  int forRoute(String route) {
+    if (route.endsWith('/notifications')) return notifications;
+    if (route.endsWith('/chat')) return chat;
+    return 0;
+  }
+
+  /// Total for the destinations currently hidden behind "More".
+  int forRoutes(Iterable<String> routes) =>
+      routes.fold<int>(0, (sum, r) => sum + forRoute(r));
+}
+
+Widget _wrapBadge(Widget icon, String route, UnreadCounts unread) {
+  final count = unread.forRoute(route);
+  if (count == 0) return icon;
   return Badge(label: Text('$count'), isLabelVisible: true, child: icon);
 }
 
@@ -560,9 +585,14 @@ class AppShell extends ConsumerWidget {
     final location = GoRouterState.of(context).matchedLocation;
     final activeIndex = _activeIndex(items, location);
 
-    // Unread notification badge count — fails silently (returns 0 on any error).
-    final unreadCount =
-        ref.watch(notificationsUnreadCountProvider).valueOrNull ?? 0;
+    // Unread badge counts — both fail silently (0 on any error), because a badge
+    // is an ambient hint and a failed count must never break the navigation it
+    // decorates. B-133 adds chat, which had no indicator anywhere.
+    final unreadCount = UnreadCounts(
+      notifications:
+          ref.watch(notificationsUnreadCountProvider).valueOrNull ?? 0,
+      chat: ref.watch(chatUnreadCountProvider).valueOrNull ?? 0,
+    );
 
     void go(int i) {
       final target = items[i].route;
@@ -628,7 +658,7 @@ class _MobileLayout extends StatelessWidget {
   final String signOutTooltip;
   final VoidCallback onLogout;
   final Entity? entity;
-  final int unreadCount;
+  final UnreadCounts unreadCount;
   final Widget body;
 
   const _MobileLayout({
@@ -691,13 +721,13 @@ class _MobileLayout extends StatelessWidget {
         : const <_NavItem>[];
     final activeInExtras = activeIndex >= primaryCount;
 
-    // When the notifications item is hidden in the More overflow, its unread badge
-    // would be invisible — so bubble the count onto the "More" tab itself.
-    final moreHasUnread = overflow &&
-        unreadCount > 0 &&
-        extras.any((e) => e.route.endsWith('/notifications'));
-    Widget moreIcon() => moreHasUnread
-        ? Badge(label: Text('$unreadCount'), child: const Icon(Icons.more_horiz))
+    // A badge-bearing destination hidden in the More overflow would be invisible,
+    // so bubble the hidden count onto the "More" tab itself. B-133: this now
+    // covers chat as well as notifications — it previously counted only
+    // notifications, so an unread chat in the overflow showed nothing at all.
+    final hiddenUnread = overflow ? unreadCount.forRoutes(extras.map((e) => e.route)) : 0;
+    Widget moreIcon() => hiddenUnread > 0
+        ? Badge(label: Text('$hiddenUnread'), child: const Icon(Icons.more_horiz))
         : const Icon(Icons.more_horiz);
 
     final destinations = <NavigationDestination>[
@@ -780,7 +810,7 @@ class _MobileLayout extends StatelessWidget {
 class _MoreSheet extends StatelessWidget {
   final List<_NavItem> items;
   final int activeIndex;
-  final int unreadCount;
+  final UnreadCounts unreadCount;
   final ValueChanged<int> onSelect;
   const _MoreSheet({
     required this.items,
@@ -849,13 +879,13 @@ class _MoreSheet extends StatelessWidget {
 class _MoreRow extends StatelessWidget {
   final _NavItem item;
   final bool active;
-  final int unreadCount;
+  final UnreadCounts unreadCount;
   final VoidCallback onTap;
   const _MoreRow({
     required this.item,
     required this.active,
     required this.onTap,
-    this.unreadCount = 0,
+    this.unreadCount = const UnreadCounts(),
   });
 
   @override
@@ -916,7 +946,7 @@ class _TabletLayout extends StatelessWidget {
   final String signOutTooltip;
   final VoidCallback onLogout;
   final Entity? entity;
-  final int unreadCount;
+  final UnreadCounts unreadCount;
   final Widget body;
 
   const _TabletLayout({
@@ -1029,7 +1059,7 @@ class _DesktopLayout extends StatelessWidget {
   final String signOutLabel;
   final VoidCallback onLogout;
   final Entity? entity;
-  final int unreadCount;
+  final UnreadCounts unreadCount;
   final Widget body;
 
   const _DesktopLayout({
@@ -1079,7 +1109,7 @@ class _Sidebar extends StatelessWidget {
   final String signOutLabel;
   final VoidCallback onLogout;
   final Entity? entity;
-  final int unreadCount;
+  final UnreadCounts unreadCount;
 
   const _Sidebar({
     required this.items,
@@ -1265,14 +1295,14 @@ class _NavRow extends StatefulWidget {
   final IconData? iconOverride;
   final String? labelOverride;
   final bool active;
-  final int unreadCount;
+  final UnreadCounts unreadCount;
   final VoidCallback onTap;
 
   const _NavRow({
     required this.item,
     required this.active,
     required this.onTap,
-    this.unreadCount = 0,
+    this.unreadCount = const UnreadCounts(),
   }) : iconOverride = null,
        labelOverride = null;
 
@@ -1284,7 +1314,7 @@ class _NavRow extends StatefulWidget {
        iconOverride = icon,
        labelOverride = label,
        active = false,
-       unreadCount = 0;
+       unreadCount = const UnreadCounts();
 
   @override
   State<_NavRow> createState() => _NavRowState();

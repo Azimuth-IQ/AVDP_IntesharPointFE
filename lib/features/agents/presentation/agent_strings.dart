@@ -67,9 +67,14 @@ class AgentStrings {
   String get sectionIdentity => pick('Identity', 'الهوية');
   String get fieldName => pick('Commercial name', 'الاسم التجاري');
   String get fieldLogo => pick('Logo URL (optional)', 'رابط الشعار (اختياري)');
-  String get sectionGovernorates => pick('Governorates (coverage)', 'المحافظات (التغطية)');
+  // B-127: a sub agent covers ONE governorate; a main agent may span several.
+  // The label has to say which, or the single-choice behaviour reads as a bug.
+  String get sectionGovernorates => _sub
+      ? pick('Governorate', 'المحافظة')
+      : pick('Governorates (coverage)', 'المحافظات (التغطية)');
   String get governoratesHint => _sub
-      ? pick('Select the governorate(s) this sub agent operates in.', 'اختر محافظة (أو محافظات) عمل هذا الوكيل الفرعي.')
+      ? pick('A sub agent covers a single governorate — choosing another replaces it.',
+          'الوكيل الفرعي يغطي محافظة واحدة — اختيار محافظة أخرى يستبدلها.')
       : pick('Select every governorate this agent operates in.', 'اختر كل محافظة يعمل بها هذا الوكيل.');
   String get sectionOwner => pick('Owner & contact', 'المالك والتواصل');
   String get fieldOwnerName => pick('Owner full name', 'اسم المالك الثلاثي');

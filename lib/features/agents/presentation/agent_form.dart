@@ -8,6 +8,7 @@ import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/auth/capabilities.dart';
 import 'package:inteshar/core/geo/governorate_picker.dart';
+import 'package:inteshar/features/agents/domain/governorate_choice.dart';
 import 'package:inteshar/features/agents/data/agent_repository.dart';
 import 'package:inteshar/features/agents/domain/agent_tier.dart';
 import 'package:inteshar/features/agents/presentation/agent_strings.dart';
@@ -566,7 +567,15 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         GovernorateMultiSelect(
           selected: _governorates,
           allowedCodes: _allowedGovernorates,
-          onChanged: (v) => setState(() => _governorates = v),
+          // B-127: a SUB agent covers exactly one governorate, so picking a second
+          // REPLACES the first. A Main Agent may span several and is untouched.
+          onChanged: (v) => setState(() {
+            _governorates = resolveGovernorateChoice(
+              current: _governorates,
+              next: v,
+              singleChoice: tier == AgentTier.sub,
+            );
+          }),
         ),
         const SizedBox(height: 22),
         SectionLabel(

@@ -62,3 +62,15 @@ String friendlyErrorL(Object? e, AppLocalizations l) {
     _ => hasRealBackendMessage ? msg : l.errGeneric,
   };
 }
+
+/// B-132: true when a write failed because the phone is already registered.
+///
+/// The server answers `409 Phone is already in use` when onboarding a POS whose
+/// phone belongs to an existing user. Callers need to distinguish it from every
+/// other failure so it can stop the operator with a modal rather than a
+/// snackbar they can miss and retype the same number into.
+///
+/// Uses [ApiException.from] rather than a bare type check: a raw `catch (e)`
+/// yields the DioException the interceptor packs the ApiException into, so
+/// `e is ApiException` never matches.
+bool isDuplicatePhone(Object? e) => ApiException.from(e)?.statusCode == 409;

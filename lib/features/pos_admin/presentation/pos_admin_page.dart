@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,7 +7,7 @@ import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:inteshar/core/geo/governorates.dart';
-import 'package:inteshar/shared/widgets/map_location_picker.dart';
+import 'package:inteshar/core/geo/maps_link.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
@@ -65,6 +67,10 @@ class _S {
   String get create => p('Onboard', 'إضافة');
   String get count => p('Number of slots', 'عدد النقاط');
   String get search => p('Search by name…', 'بحث بالاسم…');
+  // B-129: POS list search (server-side, name or operator phone).
+  String get searchPos => p('Search shop name or phone…', 'ابحث باسم المتجر أو الهاتف…');
+  String get noPosMatches =>
+      p('No points of sale match that search.', 'لا توجد نقاط بيع مطابقة لهذا البحث.');
   String get noMatches => p('No matching agents', 'لا يوجد وكلاء مطابقون');
   String get mainAgents => p('Main agents', 'الوكلاء الرئيسيون');
   String get subAgents => p('Sub agents', 'الوكلاء الفرعيون');
@@ -72,6 +78,15 @@ class _S {
   String get loadMore => p('Load more', 'تحميل المزيد');
   String get change => p('Change', 'تغيير');
   String get pickOnMap => p('Pick on map', 'تحديد على الخريطة');
+  // B-131: a pasted map link replaces pinning on a map.
+  String get locationLink => p('Location link (optional)', 'رابط الموقع (اختياري)');
+  String get locationFound => p('Location', 'الموقع');
+  String get linkUnreadable => p(
+      'No location found in that link — paste a Google/Apple Maps link, or type "lat, lng".',
+      'لم يتم العثور على موقع في هذا الرابط — الصق رابط خرائط جوجل/آبل، أو اكتب "خط العرض، خط الطول".');
+  String get linkShortened => p(
+      'Short links cannot be read — open it once, then paste the full link from the address bar.',
+      'لا يمكن قراءة الروابط المختصرة — افتحه مرة ثم الصق الرابط الكامل من شريط العنوان.');
   String get locationHintNone =>
       p('Location (optional hint)', 'الموقع (اختياري — مبدئي)');
   String get revokeConfirm => p('Revoke this POS user? Their login stops and the slot is returned.',
@@ -92,6 +107,12 @@ class _S {
   String get activate => p('Activate', 'تفعيل');
   String get deactivate => p('Deactivate', 'إيقاف');
   String get disabled => p('Disabled', 'موقوف');
+  // B-132: a duplicate phone gets a modal, not a snackbar.
+  String get alreadyExistsTitle =>
+      p('This customer already exists', 'هذا الزبون موجود بالفعل');
+  String get alreadyExistsBody => p(
+      'A POS user is already registered with this phone number. Use a different number, or find the existing point in the list.',
+      'يوجد مستخدم نقطة بيع مسجل بهذا الرقم. استخدم رقماً آخر، أو ابحث عن النقطة الموجودة في القائمة.');
 }
 
 class _PosAdminPageState extends ConsumerState<PosAdminPage> {
@@ -130,7 +151,28 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
   /// would fire the agent feeds (with an empty entityId) before swapping.
   bool _started = false;
 
+  /// B-129: server-side POS search (name or operator phone), debounced so a
+  /// manager typing a name does not fire a request per keystroke.
+  String _query = '';
+  Timer? _searchDebounce;
+
   static const _pageSize = 50;
+
+  /// Debounced so typing a name fires one request, not one per keystroke.
+  void _onSearchChanged(String v) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (!mounted) return;
+      setState(() => _query = v);
+      _load();
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    super.dispose();
+  }
 
   Future<void> _load() async {
     setState(() {
@@ -143,7 +185,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
       // B-052: each POS is a STORE child entity of the host agent.
       // B-023 P2: paged — a Main Agent with hundreds of shops used to get them
       // all in one response and stall on a list it renders a card at a time.
-      final first = await _repo.listPaged(entityId: id, size: _pageSize);
+      final first = await _repo.listPaged(entityId: id, q: _query, size: _pageSize);
       if (!mounted) return;
       setState(() {
         _stores = first.items;
@@ -162,7 +204,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     setState(() => _loadingMore = true);
     try {
       final next = await _repo.listPaged(
-          entityId: _effectiveId ?? '', page: _page + 1, size: _pageSize);
+          entityId: _effectiveId ?? '', q: _query, page: _page + 1, size: _pageSize);
       if (!mounted) return;
       setState(() {
         _stores = [..._stores, ...next.items];
@@ -265,10 +307,36 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
             Text(s.noSlots, style: IntesharType.sans(12, color: cs.error)),
           ],
           const SizedBox(height: 16),
+          // B-129: find one shop without scrolling a paged list.
+          TextField(
+            decoration: InputDecoration(
+              isDense: true,
+              prefixIcon: const Icon(Icons.search, size: 18),
+              hintText: s.searchPos,
+              suffixIcon: _query.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: () {
+                        _searchDebounce?.cancel();
+                        setState(() => _query = '');
+                        _load();
+                      },
+                    ),
+            ),
+            onChanged: _onSearchChanged,
+          ),
+          const SizedBox(height: 12),
           if (_stores.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 40),
-              child: Center(child: Text(s.empty, style: IntesharType.sans(14, color: cs.onSurfaceVariant))),
+              child: Center(
+                child: Text(
+                  _query.isEmpty ? s.empty : s.noPosMatches,
+                  textAlign: TextAlign.center,
+                  style: IntesharType.sans(14, color: cs.onSurfaceVariant),
+                ),
+              ),
             )
           else
             for (final st in _stores) _posCard(s, st, loc, cs),
@@ -312,11 +380,21 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
   Widget _divider() => Container(width: 1, height: 34, color: IntesharColors.ink.withValues(alpha: 0.18));
 
   /// The shop's single POS operator (isPos) — falls back to the first user.
+  /// The shop's POS operator, or null when it has none.
+  ///
+  /// B-130: this used to fall back to `users.first` when no user carried
+  /// `isPos`. The server refuses every operator action for such a user —
+  /// revoke returns 400 "No POS user with that phone on this entity", and the
+  /// PIN/password/TOTP resets resolve no user at all. So the card showed a
+  /// phone, enabled four buttons, and the server declined all of them: exactly
+  /// the reported "الغاء الوصول غير فعال".
+  ///
+  /// Strict now, so the UI only offers what the server will accept.
   EntityUser? _operator(Entity store) {
     for (final u in store.users) {
       if (u.isPos) return u;
     }
-    return store.users.isNotEmpty ? store.users.first : null;
+    return null;
   }
 
   Widget _posCard(_S s, Entity store, String loc, ColorScheme cs) {
@@ -340,6 +418,18 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
         Text(phone, style: IntesharType.mono(12, color: cs.onSurfaceVariant)),
         if (owner.isNotEmpty) Text(owner, style: IntesharType.sans(12.5, color: cs.onSurface)),
         if (gov.isNotEmpty) Text(governorateLabel(gov, loc), style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
+        // B-130: greying four buttons with no explanation is what made this read
+        // as broken. Say the shop has no POS operator, which is the actual state.
+        if (phone.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              loc == 'ar'
+                  ? 'لا يوجد مستخدم نقطة بيع لهذا المتجر — إجراءات المستخدم غير متاحة'
+                  : 'This shop has no POS user — operator actions are unavailable',
+              style: IntesharType.sans(11.5, color: cs.error, w: FontWeight.w600),
+            ),
+          ),
         const SizedBox(height: 10),
         Wrap(spacing: 8, runSpacing: 8, children: [
           OutlinedButton(onPressed: _busy ? null : () => _editDialog(s, store), child: Text(s.edit)),
@@ -474,6 +564,8 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     // its map gate before it can sell — this just pre-centres that map, so the
     // operator isn't dropped in the middle of the country.
     LatLng? hint;
+    final mapLink = TextEditingController();
+    String? linkError;
     final formKey = GlobalKey<FormState>();
     final loc = Localizations.localeOf(context).languageCode;
     final ok = await showDialog<bool>(
@@ -511,25 +603,48 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
                 ),
                 _field(addr, s.address, validator: _req(s)),
                 const SizedBox(height: 8),
-                Row(children: [
-                  Expanded(
-                    child: Text(
-                      hint == null
-                          ? s.locationHintNone
-                          : '${hint!.latitude.toStringAsFixed(5)}, ${hint!.longitude.toStringAsFixed(5)}',
-                      style: IntesharType.sans(12,
-                          color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+                // B-131: paste the shared map link instead of pinning on a map.
+                // Pinning is awkward on a phone and impossible unless you are
+                // standing in the shop; in practice the location arrives as a
+                // WhatsApp link. This is only the optional hint — the on-site
+                // confirmation that gates selling (B-054) is untouched, and a
+                // pasted link deliberately cannot satisfy it.
+                TextFormField(
+                  controller: mapLink,
+                  decoration: InputDecoration(
+                    labelText: s.locationLink,
+                    hintText: 'https://maps.google.com/...',
+                    isDense: true,
+                    prefixIcon: const Icon(Icons.link, size: 18),
+                  ),
+                  onChanged: (v) {
+                    final parsed = parseLatLngFromMapsLink(v);
+                    setD(() {
+                      hint = parsed == null
+                          ? null
+                          : LatLng(parsed.latitude, parsed.longitude);
+                      linkError = v.trim().isEmpty || parsed != null
+                          ? null
+                          : (isShortenedMapLink(v) ? s.linkShortened : s.linkUnreadable);
+                    });
+                  },
+                ),
+                const SizedBox(height: 4),
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Text(
+                    linkError ??
+                        (hint == null
+                            ? s.locationHintNone
+                            : '${s.locationFound}: ${hint!.latitude.toStringAsFixed(5)}, ${hint!.longitude.toStringAsFixed(5)}'),
+                    style: IntesharType.sans(
+                      11.5,
+                      color: linkError != null
+                          ? Theme.of(ctx).colorScheme.error
+                          : Theme.of(ctx).colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  TextButton.icon(
-                    icon: const Icon(Icons.map_outlined, size: 18),
-                    label: Text(hint == null ? s.pickOnMap : s.change),
-                    onPressed: () async {
-                      final picked = await pickLocationOnMap(ctx, initial: hint);
-                      if (picked != null) setD(() => hint = picked);
-                    },
-                  ),
-                ]),
+                ),
               ]),
             ),
           ),
@@ -546,8 +661,15 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
       ),
     );
     if (ok == true) {
-      await _run(
-        () => _repo.onboard(
+      // B-132: a duplicate phone is the one outcome that needs to STOP the
+      // operator. The server answers 409 "Phone is already in use"; a snackbar
+      // for that is missable, and the operator re-types the same number
+      // believing the save simply failed. Everything else keeps the snackbar.
+      if (!mounted) return; // the confirm dialog above is an async gap
+      setState(() => _busy = true);
+      final messenger = ScaffoldMessenger.of(context);
+      try {
+        await _repo.onboard(
           entityId: _effectiveId ?? '',
           phone: phone.text.trim(),
           password: pw.text,
@@ -557,10 +679,45 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
           posAddress: addr.text.trim(),
           posLatitude: hint?.latitude,
           posLongitude: hint?.longitude,
-        ),
-        s.done,
-      );
+        );
+        if (mounted) messenger.showSnackBar(SnackBar(content: Text(s.done)));
+        await _load();
+      } catch (e) {
+        if (!mounted) return;
+        if (isDuplicatePhone(e)) {
+          await _showAlreadyExistsDialog(s, phone.text.trim());
+        } else {
+          messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+        }
+      } finally {
+        if (mounted) setState(() => _busy = false);
+      }
     }
+  }
+
+  /// A modal the operator has to acknowledge — the point of B-132 is that this
+  /// outcome cannot be missed the way a snackbar can.
+  Future<void> _showAlreadyExistsDialog(_S s, String phone) async {
+    final cs = Theme.of(context).colorScheme;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        icon: Icon(Icons.person_off_outlined, color: cs.error),
+        title: Text(s.alreadyExistsTitle),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(s.alreadyExistsBody, textAlign: TextAlign.center),
+          const SizedBox(height: 8),
+          Text(phone, style: IntesharType.mono(14, color: cs.onSurface)),
+        ]),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(s.close),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Edit an existing POS profile (B-045, unified B-052: fields live on the STORE

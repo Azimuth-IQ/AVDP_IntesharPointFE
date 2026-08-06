@@ -51,9 +51,18 @@ class PosAdminRepository {
   ///
   /// `Paged.from` tolerates a bare array, so this still works against a backend
   /// that predates the paged route — it just comes back as one page.
-  Future<Paged<Entity>> listPaged({String? entityId, int page = 0, int size = 50}) async {
+  /// [q] searches the shop name OR its operator's phone, SERVER-side (B-129) —
+  /// filtering the fetched page would only ever search the rows already on
+  /// screen, which is the trap B-066 fixed elsewhere.
+  Future<Paged<Entity>> listPaged({
+    String? entityId,
+    String q = '',
+    int page = 0,
+    int size = 50,
+  }) async {
     final r = await _api.get(Endpoints.posUsersListPaged, params: {
       if (entityId != null && entityId.isNotEmpty) 'entityId': entityId,
+      if (q.trim().isNotEmpty) 'q': q.trim(),
       'page': page,
       'size': size,
     });

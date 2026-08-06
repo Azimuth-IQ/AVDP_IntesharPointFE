@@ -200,9 +200,17 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
         final byKind = kind == _DestKind.pos
             ? _children.where((e) => e.type == EntityType.STORE).toList()
             : _children.where((e) => e.type != EntityType.STORE).toList();
+        // B-128: a search spans BOTH kinds. Scoped to the selected segment, you
+        // could not find an agent while POS was active — you had to guess which
+        // tab a recipient lived on before you could look for it, which defeats
+        // searching. The tier is on every row, so a mixed result stays readable.
         final rows = q.isEmpty
             ? byKind
-            : byKind.where((e) => e.label.toLowerCase().contains(q)).toList();
+            : _children
+                .where((e) =>
+                    e.label.toLowerCase().contains(q) ||
+                    e.id.toLowerCase().contains(q))
+                .toList();
         final avail = _balance?.available ?? 0;
         final amt = parseAmount(amountCtrl.text) ?? 0;
         final after = avail - amt;
@@ -236,16 +244,18 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                 }),
               ),
               const SizedBox(height: 8),
-              if (byKind.length > 6)
+              if (_children.length > 6)
                 TextField(
                   decoration: InputDecoration(
-                    hintText: ar ? 'بحث بالاسم…' : 'Search by name…',
+                    hintText: ar
+                        ? 'ابحث عن نقطة بيع أو وكيل…'
+                        : 'Search a POS point or an agent…',
                     prefixIcon: const Icon(Icons.search, size: 18),
                     isDense: true,
                   ),
                   onChanged: (v) => setD(() { query = v; disarm(); }),
                 ),
-              if (byKind.length > 6) const SizedBox(height: 8),
+              if (_children.length > 6) const SizedBox(height: 8),
               // The list itself — visible, not behind a tap.
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 260), // taller: rows gained a tier line

@@ -11,6 +11,7 @@ import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/core/files/report_export.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
+import 'package:inteshar/features/entities/domain/entity_summary_row.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/pricing/data/pricing_repository.dart';
 import 'package:inteshar/features/pricing/domain/price_filter.dart';
@@ -52,6 +53,10 @@ class _S {
   String get uploadXlsx => p('Upload', 'رفع');
   String get applyToSelf => p('Apply to me', 'تطبيق على حسابي');
   String get alsoAgents => p('Also apply to agents…', 'تطبيق على وكلاء أيضاً…');
+  // B-125: apply one sheet to every sub-agent in one action.
+  String allSubAgents(int n) =>
+      p('All my sub-agents ($n)', 'كل وكلائي الفرعيين ($n)');
+  String get clearTargets => p('Clear', 'مسح');
   String get colSku => p('SKU', 'الرمز');
   String get colName => p('Name', 'الاسم');
   String get colGov => p('Governorate', 'المحافظة');
@@ -68,13 +73,16 @@ class _S {
   // B-117: export/upload follow the filters on screen.
   String get nothingToExport =>
       p('Nothing to export in the current filter', 'لا توجد بيانات ضمن التصفية الحالية');
-  String get allRowsOutOfScope => p('Every row in the file is outside the current filter',
-      'كل صفوف الملف خارج نطاق التصفية الحالية');
-  String skippedOutOfScope(int n) => p(
-      '$n row(s) skipped — outside the current filter',
-      'تم تخطي $n صفًا — خارج نطاق التصفية الحالية');
   String scopedTo(String scope) =>
       p('Export & upload follow: $scope', 'التصدير والرفع يتبعان: $scope');
+  // B-121/B-126: whose prices are being edited.
+  String get pricingFor => p('Pricing for', 'التسعير لـ');
+  String get myOwnPrices => p('My own prices', 'أسعار حسابي');
+  String get pricingForMeHint =>
+      p('These are your own selling prices.', 'هذه أسعار البيع الخاصة بحسابك.');
+  String get pricingForAgentHint => p(
+      'Editing this sub-agent’s prices. Export and upload follow this choice.',
+      'تعديل أسعار هذا الوكيل الفرعي. التصدير والرفع يتبعان هذا الاختيار.');
   String get cancel => p('Cancel', 'إلغاء');
   String get apply => p('Apply', 'تطبيق');
 }
@@ -101,6 +109,11 @@ class _PricingPageState extends ConsumerState<PricingPage> {
   // B-114: the unpriced pill was the ONLY filter — no way to find one category in
   // a multi-company catalog, or to see just the SKUs priced for one governorate.
   String _query = '';
+  // B-121: WHICH account these prices belong to. Null = my own. A Main Agent
+  // picks a sub-agent and the whole screen — list, export, upload — follows it.
+  String? _targetId;
+  String _targetName = '';
+  List<EntitySummaryRow> _subAgents = const [];
   String _company = ''; // '' = every company
   String _gov = ''; // '' = every governorate
   Object? _error;
@@ -130,6 +143,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
         auth is AuthAuthenticated && auth.can({Capability.MANAGE_PRICING});
     if (_authorized) {
       _load();
+      _loadSubAgents();
     } else {
       _loading = false;
     }
@@ -143,13 +157,30 @@ class _PricingPageState extends ConsumerState<PricingPage> {
     super.dispose();
   }
 
+  /// B-121: the sub-agents this account may price for. Best-effort — the picker
+  /// simply does not appear when there are none (a sub-agent pricing itself, or
+  /// an agent with no children), which is the correct behaviour rather than an
+  /// empty dropdown.
+  Future<void> _loadSubAgents() async {
+    try {
+      final rows = await EntityRepository(ref.read(apiClientProvider))
+          .children((ref.read(authStateProvider).valueOrNull as AuthAuthenticated?)?.entity.id ?? '',
+              page: 0, size: 200);
+      if (!mounted) return;
+      setState(() => _subAgents =
+          rows.items.where((e) => e.type == EntityType.AGENT2).toList());
+    } catch (_) {
+      // No picker; the screen still prices the caller's own account.
+    }
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final catalog = await _repo.catalog();
+      final catalog = await _repo.catalog(entityId: _targetId);
       if (!mounted) return;
       for (final c in _ctrls.values) {
         c.dispose();
@@ -194,7 +225,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
           final baseVal = parseAmount(_ctrls['${row.sku}::']?.text);
           if (baseVal != null &&
               (row.agentPrice == null || row.agentPrice != baseVal)) {
-            await _repo.setPrice(entityId: '', sku: row.sku, price: baseVal);
+            await _repo.setPrice(entityId: _targetId ?? '', sku: row.sku, price: baseVal);
           }
           continue;
         }
@@ -205,7 +236,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
           if (value == null) continue;
           if (g.agentPrice == null || g.agentPrice != value) {
             await _repo.setPrice(
-              entityId: '',
+              entityId: _targetId ?? '',
               sku: row.sku,
               governorate: g.governorate,
               price: value,
@@ -232,6 +263,16 @@ class _PricingPageState extends ConsumerState<PricingPage> {
 
   /// B-059: download the catalog to XLSX — official prices as the baseline, plus
   /// a "your price" column (current price if set, else the official default).
+  /// Filename-safe agent name. Arabic is kept — the OS handles it and a
+  /// transliteration would make the file harder for the operator to recognise.
+  String _slugName(String name) {
+    final cleaned = name
+        .trim()
+        .replaceAll(RegExp(r'[\\/:*?"<>|\s]+'), '-')
+        .replaceAll(RegExp(r'^-+|-+$'), '');
+    return cleaned.isEmpty ? 'agent' : cleaned;
+  }
+
   Future<void> _exportXlsx(_S s) async {
     final catalog = _catalog;
     if (catalog == null) return;
@@ -260,8 +301,14 @@ class _PricingPageState extends ConsumerState<PricingPage> {
       }
       return;
     }
+    // B-123: the file is named for the agent it belongs to. Two sheets for two
+    // sub-agents landing in Downloads as `inteshar-prices.xlsx` and
+    // `inteshar-prices (1).xlsx` is how the wrong prices get uploaded back.
+    final stem = _targetId == null
+        ? priceSheetFileName(filter)
+        : '${priceSheetFileName(filter)}-${_slugName(_targetName)}';
     await exportRowsToXlsx(
-      fileName: priceSheetFileName(filter),
+      fileName: stem,
       sheetName: 'Prices',
       headers: [s.colSku, s.colName, s.colGov, s.colOfficial, s.colYour],
       rows: rows,
@@ -311,24 +358,15 @@ class _PricingPageState extends ConsumerState<PricingPage> {
     // regions must not quietly rewrite prices the operator cannot even see.
     // Skipped rows are COUNTED and shown — silently dropping them would be the
     // same failure as silently applying them.
-    var outOfScope = 0;
-    final filter = _filter;
-    final known = _catalog?.rows ?? const <CategoryPriceRow>[];
-    if (filter.isActive) {
-      parsed.removeWhere((p) {
-        final drop = filter.excludesUpload(
-          sku: p['sku'] as String,
-          governorate: p['governorate'] as String,
-          knownRows: known,
-        );
-        if (drop) outOfScope++;
-        return drop;
-      });
-    }
+    // B-124: the upload is NO LONGER narrowed by the on-screen filter. B-117 tied
+    // them together; the customer asked for the opposite ("الغاء رفع ملف الأسعار
+    // حسب التصفية"), and with the agent picker doing the scoping (B-121) the
+    // filter is a view convenience again, not a write scope. A sheet applies in
+    // full to the chosen account(s), so nothing is silently held back.
 
     if (parsed.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(outOfScope > 0 ? s.allRowsOutOfScope : s.nothingParsed)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(s.nothingParsed)));
       return;
     }
 
@@ -337,7 +375,10 @@ class _PricingPageState extends ConsumerState<PricingPage> {
 
     // Confirm with a PREVIEW of exactly what will change + an explicit target.
     final extraAgents = <String, String>{}; // id -> name
-    var applyToSelf = true; // default: write MY own prices
+    // Default target follows the picker: editing a sub-agent uploads to THAT
+    // agent, not silently to my own account (B-121).
+    var applyToSelf = _targetId == null;
+    if (_targetId != null) extraAgents[_targetId!] = _targetName;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -357,16 +398,6 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                   style: IntesharType.sans(12.5,
                       color: sheetDataRows > parsed.length ? cs.error : cs.onSurfaceVariant, w: FontWeight.w700),
                 ),
-                // B-117: say plainly that the active filter held rows back, so a
-                // partial apply is never mistaken for the whole sheet landing.
-                if (outOfScope > 0)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      s.skippedOutOfScope(outOfScope),
-                      style: IntesharType.sans(12, color: cs.error, w: FontWeight.w600),
-                    ),
-                  ),
                 const SizedBox(height: 8),
                 // Preview table: SKU · governorate · new price.
                 Container(
@@ -415,19 +446,39 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                       onDeleted: () => setD(() => extraAgents.remove(e.key)),
                     ),
                 ]),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    final picked = await showEntitySearchPicker(
-                      ctx,
-                      repository: EntityRepository(ref.read(apiClientProvider)),
-                      title: s.alsoAgents,
-                      types: const [EntityType.AGENT1, EntityType.AGENT2],
-                    );
-                    if (picked != null) setD(() => extraAgents[picked.id] = picked.label);
-                  },
-                  icon: const Icon(Icons.group_add, size: 16),
-                  label: Text(s.alsoAgents),
-                ),
+                Wrap(spacing: 8, children: [
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final picked = await showEntitySearchPicker(
+                        ctx,
+                        repository: EntityRepository(ref.read(apiClientProvider)),
+                        title: s.alsoAgents,
+                        types: const [EntityType.AGENT1, EntityType.AGENT2],
+                      );
+                      if (picked != null) setD(() => extraAgents[picked.id] = picked.label);
+                    },
+                    icon: const Icon(Icons.group_add, size: 16),
+                    label: Text(s.alsoAgents),
+                  ),
+                  // B-125: 'اريد تحديد كل الوكلاء دفعة واحدة'. Picking sub-agents
+                  // one at a time was the whole complaint. The count is on the
+                  // button because this writes prices to every one of them.
+                  if (_subAgents.isNotEmpty)
+                    OutlinedButton.icon(
+                      onPressed: () => setD(() {
+                        for (final a in _subAgents) {
+                          extraAgents[a.id] = a.name;
+                        }
+                      }),
+                      icon: const Icon(Icons.select_all, size: 16),
+                      label: Text(s.allSubAgents(_subAgents.length)),
+                    ),
+                  if (extraAgents.isNotEmpty)
+                    TextButton(
+                      onPressed: () => setD(extraAgents.clear),
+                      child: Text(s.clearTargets),
+                    ),
+                ]),
               ]),
             ),
             actions: [
@@ -501,6 +552,52 @@ class _PricingPageState extends ConsumerState<PricingPage> {
     );
   }
 
+
+  /// B-121: whose prices am I editing? B-126 puts each agent's governorate on the
+  /// row, so the one-governorate rule is legible instead of assumed.
+  Widget _agentPicker(_S s, String loc) {
+    final cs = Theme.of(context).colorScheme;
+    String labelFor(EntitySummaryRow r) {
+      final g = r.governorates.isNotEmpty ? r.governorates.first : '';
+      return g.isEmpty ? r.name : '${r.name} — ${governorateLabel(g, loc)}';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: DropdownButtonFormField<String?>(
+        initialValue: _targetId,
+        isExpanded: true,
+        decoration: InputDecoration(
+          labelText: s.pricingFor,
+          isDense: true,
+          prefixIcon: const Icon(Icons.storefront_outlined, size: 18),
+          helperText: _targetId == null ? s.pricingForMeHint : s.pricingForAgentHint,
+          helperMaxLines: 2,
+          helperStyle: IntesharType.sans(11, color: cs.onSurfaceVariant),
+        ),
+        items: [
+          DropdownMenuItem(value: null, child: Text(s.myOwnPrices)),
+          for (final a in _subAgents)
+            DropdownMenuItem(
+              value: a.id,
+              child: Text(labelFor(a), overflow: TextOverflow.ellipsis),
+            ),
+        ],
+        onChanged: (v) {
+          if (v == _targetId) return;
+          setState(() {
+            _targetId = v;
+            _targetName = v == null
+                ? ''
+                : _subAgents.firstWhere((a) => a.id == v).name;
+          });
+          // Reload: the catalog IS the target's prices, so a stale list would
+          // show one agent's numbers under another agent's name.
+          _load();
+        },
+      ),
+    );
+  }
   /// B-114: search + company + governorate, beside the existing unpriced pill.
   /// The pill was the only filter, so finding one category in a multi-company
   /// catalog meant scrolling.
@@ -538,24 +635,9 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                   onChanged: (v) => setState(() => _company = v ?? ''),
                 ),
               ),
-            if (companies.length > 1 && govs.isNotEmpty) const SizedBox(width: 8),
-            if (govs.isNotEmpty)
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  initialValue: _gov,
-                  isExpanded: true,
-                  decoration: InputDecoration(labelText: s.colGov, isDense: true),
-                  items: [
-                    DropdownMenuItem(value: '', child: Text(s.allGovernorates)),
-                    for (final g in govs)
-                      DropdownMenuItem(
-                        value: g,
-                        child: Text(governorateLabel(g, loc), overflow: TextOverflow.ellipsis),
-                      ),
-                  ],
-                  onChanged: (v) => setState(() => _gov = v ?? ''),
-                ),
-              ),
+            // B-122: the governorate dropdown is gone. A sub-agent covers exactly
+            // one governorate (B-127), so choosing the AGENT already chooses the
+            // region — two controls for one fact just let them disagree.
             if (filtering) ...[
               const SizedBox(width: 4),
               IconButton(
@@ -662,6 +744,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
           unpricedOnly: _unpricedOnly,
           onToggleUnpriced: () => setState(() => _unpricedOnly = !_unpricedOnly),
         ),
+        if (_subAgents.isNotEmpty) _agentPicker(s, loc),
         _filterBar(s, loc, companies, govs, visibleRows.length, catalog.rows.length),
         Expanded(
           child: visibleRows.isEmpty

@@ -74,3 +74,17 @@ String friendlyErrorL(Object? e, AppLocalizations l) {
 /// yields the DioException the interceptor packs the ApiException into, so
 /// `e is ApiException` never matches.
 bool isDuplicatePhone(Object? e) => ApiException.from(e)?.statusCode == 409;
+
+/// The message the SERVER sent, when there is one worth showing.
+///
+/// Most failures should go through [friendlyError], which deliberately replaces
+/// backend text with something an operator can act on. This is the exception:
+/// a few endpoints answer with the one detail the client cannot work out for
+/// itself — which shop holds a phone number, why a window is closed — and
+/// discarding it leaves the user with a dead end (B-108 was the same lesson for
+/// 401/403). Returns null for an empty message or a non-API error, so the caller
+/// can fall back to its own copy.
+String? serverReason(Object? e) {
+  final message = ApiException.from(e)?.message.trim();
+  return (message == null || message.isEmpty) ? null : message;
+}

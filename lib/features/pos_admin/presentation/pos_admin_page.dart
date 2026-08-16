@@ -685,7 +685,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
       } catch (e) {
         if (!mounted) return;
         if (isDuplicatePhone(e)) {
-          await _showAlreadyExistsDialog(s, phone.text.trim());
+          await _showAlreadyExistsDialog(s, phone.text.trim(), serverReason(e));
         } else {
           messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
         }
@@ -697,7 +697,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
 
   /// A modal the operator has to acknowledge — the point of B-132 is that this
   /// outcome cannot be missed the way a snackbar can.
-  Future<void> _showAlreadyExistsDialog(_S s, String phone) async {
+  Future<void> _showAlreadyExistsDialog(_S s, String phone, String? reason) async {
     final cs = Theme.of(context).colorScheme;
     await showDialog<void>(
       context: context,
@@ -706,7 +706,13 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
         icon: Icon(Icons.person_off_outlined, color: cs.error),
         title: Text(s.alreadyExistsTitle),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(s.alreadyExistsBody, textAlign: TextAlign.center),
+          // C-06: prefer what the SERVER says. A phone is unique platform-wide, so
+          // the clashing shop is often under another agent and therefore missing
+          // from this operator's list — telling them to search it is what made
+          // this look broken. The server names the holder when the caller may see
+          // it, and says "another agent" when they may not.
+          Text(reason?.trim().isNotEmpty == true ? reason!.trim() : s.alreadyExistsBody,
+              textAlign: TextAlign.center),
           const SizedBox(height: 8),
           Text(phone, style: IntesharType.mono(14, color: cs.onSurface)),
         ]),

@@ -127,9 +127,22 @@ class PosAdminRepository {
     });
   }
 
-  /// Revoke a POS user (removes the login + releases the slot).
-  Future<void> revoke({required String entityId, required String phone}) async {
-    await _api.delete(Endpoints.posUsersRevoke, params: {'entityId': entityId, 'phone': phone});
+  /// Revoke a POS user (removes the shop + its login, and releases the slot).
+  ///
+  /// [totp] is the caller's authenticator code. The server requires it whenever
+  /// the caller has 2FA enrolled — this destroys the shop and its history and
+  /// cannot be undone. Callers on a tier where HQ has switched 2FA off are waved
+  /// through, so the code is optional on the wire.
+  Future<void> revoke({
+    required String entityId,
+    required String phone,
+    String? totp,
+  }) async {
+    await _api.delete(Endpoints.posUsersRevoke, params: {
+      'entityId': entityId,
+      'phone': phone,
+      if (totp != null && totp.isNotEmpty) 'totp': totp,
+    });
   }
 
   /// Reset a POS user's PIN and return the fresh manager-visible PIN (B-047).

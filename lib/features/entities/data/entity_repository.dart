@@ -4,6 +4,7 @@ import 'package:inteshar/core/api/paged.dart';
 import 'package:inteshar/core/auth/capabilities.dart';
 import 'package:inteshar/features/entities/domain/branding.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
+import 'package:inteshar/features/entities/domain/entity_dependents.dart';
 import 'package:inteshar/features/entities/domain/entity_summary_row.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 
@@ -156,6 +157,15 @@ class EntityRepository {
   Future<Entity> updateWithUsers(Entity entity) async {
     final response = await _api.put(Endpoints.entityUpdate, data: entity.toJson(includeUsers: true));
     return _api.unwrap(response, (d) => Entity.fromJson(d as Map<String, dynamic>));
+  }
+
+  /// What still hangs off [id]: its sub-agents and points of sale, including the
+  /// shops nested under those sub-agents. Drives the clear-out screen.
+  /// `GET /api/entity/dependents?id=`.
+  Future<EntityDependents> dependents(String id) async {
+    final response = await _api.get(Endpoints.entityDependents, params: {'id': id});
+    return _api.unwrap(
+        response, (d) => EntityDependents.fromJson(d as Map<String, dynamic>));
   }
 
   /// Deletes an entity.

@@ -127,6 +127,7 @@ const Map<String, (String, String)> _routes = {
   '/entity/users': ('User list', 'قائمة المستخدمين'),
   '/entity/create': ('Account created', 'إنشاء حساب'),
   '/entity/update': ('Account updated', 'تعديل حساب'),
+  '/entity/dependents': ('Checked what an account holds', 'فحص الحسابات التابعة'),
   '/entity/delete': ('Account deleted', 'حذف حساب'),
   '/entity/setactive': ('Account enabled or disabled', 'تفعيل أو إيقاف حساب'),
   '/entity/resetpassword': ('Password reset', 'إعادة تعيين كلمة المرور'),

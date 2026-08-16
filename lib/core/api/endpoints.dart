@@ -32,6 +32,8 @@ class Endpoints {
   static const sliderReorder = '/api/slider/reorder';
   static const entityUpdate = '/api/entity/update';
   static const entityDelete = '/api/entity/delete';
+  // What still hangs off an account, i.e. what blocks deleting it.
+  static const entityDependents = '/api/entity/dependents';
   // Point (STORE/POS) management
   static const entitySetActive = '/api/entity/setActive';
   static const entityResetPassword = '/api/entity/resetPassword';

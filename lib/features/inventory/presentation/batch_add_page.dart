@@ -1218,17 +1218,24 @@ class _BatchCard extends StatelessWidget {
                   icon: const Icon(Icons.undo_outlined, size: 16),
                   label: Text(_tr(context, 'سحب', 'Withdraw')),
                 ),
-                OutlinedButton.icon(
-                  onPressed: onTogglePause,
-                  icon: Icon(
-                      paused
-                          ? Icons.play_arrow_outlined
-                          : Icons.pause_outlined,
-                      size: 16),
-                  label: Text(paused
-                      ? _tr(context, 'استئناف', 'Resume')
-                      : _tr(context, 'إيقاف مؤقت', 'Pause')),
-                ),
+                // "والزر خلي يتغير لونة عند الضغط" — a paused batch is a state
+                // somebody has to notice from across the room, so the button
+                // carries the colour rather than only swapping its icon.
+                paused
+                    ? FilledButton.icon(
+                        onPressed: onTogglePause,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: cs.error,
+                          foregroundColor: cs.onError,
+                        ),
+                        icon: const Icon(Icons.play_arrow_outlined, size: 16),
+                        label: Text(_tr(context, 'استئناف', 'Resume')),
+                      )
+                    : OutlinedButton.icon(
+                        onPressed: onTogglePause,
+                        icon: const Icon(Icons.pause_outlined, size: 16),
+                        label: Text(_tr(context, 'إيقاف مؤقت', 'Pause')),
+                      ),
                 OutlinedButton.icon(
                   onPressed: batch.canDelete ? onDelete : null,
                   icon: const Icon(Icons.delete_outline, size: 16),

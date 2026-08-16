@@ -65,6 +65,8 @@ const Map<String, (String, String)> _routes = {
   // ── stock ───────────────────────────────────────────────────────────────
   '/product/batch': ('Voucher batch uploaded', 'رفع دفعة كروت'),
   '/product/create': ('Vouchers uploaded', 'رفع كروت'),
+  '/product/setstatus': ('Voucher status corrected', 'تصحيح حالة كرت'),
+  '/product/setpin': ('Voucher code corrected', 'تعديل رمز كرت'),
   '/product/update': ('Voucher updated', 'تعديل كرت'),
   '/product/delete': ('Voucher deleted', 'حذف كرت'),
   '/product/sellable': ('Sellable stock', 'المخزون القابل للبيع'),

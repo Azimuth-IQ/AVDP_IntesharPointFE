@@ -70,8 +70,11 @@ class Endpoints {
   static const productDrawRecoverBatch = '/api/inventory/product/draw/recover-batch';
   static const productPrintOperations = '/api/inventory/product/print-operations';
   static const productConfirmPrint = '/api/inventory/product/confirmPrint';
-  static const productUpdate = '/api/inventory/product/update';
-  static const productDelete = '/api/inventory/product/delete';
+  // Correcting a single voucher. These replace the general product/update and
+  // product/delete, which are disabled server-side — the row menu used to call
+  // update and simply got a 403.
+  static const productSetStatus = '/api/inventory/product/setStatus';
+  static const productSetPin = '/api/inventory/product/setPin';
 
   static const transactionCreate = '/api/transactions/create';
   static const transactionRead = '/api/transactions/read';

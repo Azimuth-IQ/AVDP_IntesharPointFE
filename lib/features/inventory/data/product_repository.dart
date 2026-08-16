@@ -392,15 +392,32 @@ class ProductRepository {
         params: {'id': id, 'printed': printed});
   }
 
-  Future<Product> update(Product product) async {
-    final response =
-        await _api.put(Endpoints.productUpdate, data: product.toJson());
+  /// Corrects a single voucher's status (HQ only).
+  ///
+  /// Only AVAILABLE and DAMAGED are accepted; the server refuses to move a sold
+  /// voucher, whose code is already in a customer's hands. Never returns a PIN.
+  /// `POST /api/inventory/product/setStatus?id=&status=`.
+  Future<Product> setStatus(String id, ProductStatus status) async {
+    final response = await _api.post(
+      Endpoints.productSetStatus,
+      params: {'id': id, 'status': status.name},
+    );
     return _api.unwrap(
         response, (d) => Product.fromJson(d as Map<String, dynamic>));
   }
 
-  Future<void> delete(String id) async {
-    await _api.delete(Endpoints.productDelete, params: {'id': id});
+  /// Replaces the code on a voucher that is still available (HQ only).
+  ///
+  /// The server re-encrypts it and never echoes it back.
+  /// `POST /api/inventory/product/setPin?id=` with `{pin}`.
+  Future<Product> setPin(String id, String pin) async {
+    final response = await _api.post(
+      Endpoints.productSetPin,
+      params: {'id': id},
+      data: {'pin': pin},
+    );
+    return _api.unwrap(
+        response, (d) => Product.fromJson(d as Map<String, dynamic>));
   }
 
   /// Lists all voucher batches (newest first). The endpoint is HQ-only and

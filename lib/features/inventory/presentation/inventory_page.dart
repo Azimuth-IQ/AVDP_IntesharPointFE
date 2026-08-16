@@ -7,6 +7,7 @@ import 'package:inteshar/core/storage/session_storage.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/inventory/data/product_repository.dart';
+import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:inteshar/features/inventory/domain/product.dart';
 import 'package:inteshar/features/inventory/domain/sku_summary.dart';
 import 'package:inteshar/features/agents/data/agent_repository.dart';
@@ -578,13 +579,86 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
 
   Future<void> _changeStatus(Product product, ProductStatus newStatus) async {
     try {
-      await _repo.update(product.copyWith(status: newStatus));
+      await _repo.setStatus(product.id, newStatus);
       await _reloadLoaded();
       widget.onChanged(); // refresh the summary (counts, tallies, value)
     } catch (e) {
       if (mounted) {
-        _snack(AppLocalizations.of(context)!.commonUpdateFailed('$e'));
+        _snack(friendlyError(e, context));
       }
+    }
+  }
+
+  /// Replaces the code on a voucher that has not been sold. The current PIN is
+  /// never shown — it is encrypted at rest and only the sale reveals it — so this
+  /// asks for the replacement rather than pretending to be an edit of a value.
+  Future<void> _editPin(Product product) async {
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
+    final controller = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    final entered = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(isAr ? 'تعديل رمز القسيمة' : 'Correct voucher code'),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                isAr
+                    ? 'الرقم التسلسلي: ${product.serialNumber}'
+                    : 'Serial: ${product.serialNumber}',
+                style: Theme.of(ctx).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: controller,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: isAr ? 'الرمز الجديد' : 'New code',
+                ),
+                validator: (v) => (v == null || v.trim().isEmpty)
+                    ? (isAr ? 'أدخل الرمز الجديد' : 'Enter the new code')
+                    : null,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                isAr
+                    ? 'الرمز الحالي غير معروض لأنه مشفّر. لا يمكن تعديل قسيمة تم بيعها.'
+                    : 'The current code is not shown because it is encrypted. '
+                        'A voucher that has been sold cannot be changed.',
+                style: Theme.of(ctx).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(isAr ? 'إلغاء' : 'Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState?.validate() ?? false) {
+                Navigator.pop(ctx, controller.text.trim());
+              }
+            },
+            child: Text(isAr ? 'حفظ' : 'Save'),
+          ),
+        ],
+      ),
+    );
+    if (entered == null || entered.isEmpty) return;
+    try {
+      await _repo.setPin(product.id, entered);
+      if (!mounted) return;
+      _snack(isAr ? 'تم تحديث رمز القسيمة' : 'Voucher code updated');
+      await _reloadLoaded();
+    } catch (e) {
+      if (mounted) _snack(friendlyError(e, context));
     }
   }
 
@@ -728,6 +802,7 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
                 product: p,
                 readOnly: widget.readOnly,
                 onChangeStatus: (status) => _changeStatus(p, status),
+                onEditPin: () => _editPin(p),
               ),
               if (i < _products.length - 1) const Hairline(),
             ],
@@ -864,11 +939,21 @@ class _ProductRowHeader extends StatelessWidget {
   }
 }
 
+/// Menu value for "correct the code" — kept distinct from every ProductStatus
+/// name so the two kinds of action cannot collide.
+const String _kEditPin = '__edit_pin__';
+
 class _ProductRow extends StatelessWidget {
   final Product product;
   final bool readOnly;
   final ValueChanged<ProductStatus> onChangeStatus;
-  const _ProductRow({required this.product, required this.readOnly, required this.onChangeStatus});
+  final VoidCallback onEditPin;
+  const _ProductRow({
+    required this.product,
+    required this.readOnly,
+    required this.onChangeStatus,
+    required this.onEditPin,
+  });
 
   Color _statusColor(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -953,21 +1038,39 @@ class _ProductRow extends StatelessWidget {
           if (readOnly)
             const SizedBox(width: 36)
           else
-            PopupMenuButton<ProductStatus>(
+            PopupMenuButton<String>(
               tooltip: l.inventoryChangeStatus,
               icon: Icon(Icons.more_horiz, size: 18, color: cs.onSurfaceVariant),
-              onSelected: onChangeStatus,
-              itemBuilder: (_) => ProductStatus.values
-                  .where((s) =>
-                      s != product.status &&
-                      (s == ProductStatus.AVAILABLE || s == ProductStatus.DAMAGED))
-                  .map(
-                    (s) => PopupMenuItem(
-                      value: s,
-                      child: Text(l.inventoryMarkStatus(_statusLabel(context, s))),
+              onSelected: (value) {
+                if (value == _kEditPin) {
+                  onEditPin();
+                } else {
+                  onChangeStatus(ProductStatus.values.byName(value));
+                }
+              },
+              itemBuilder: (_) => [
+                ...ProductStatus.values
+                    .where((s) =>
+                        s != product.status &&
+                        (s == ProductStatus.AVAILABLE || s == ProductStatus.DAMAGED))
+                    .map(
+                      (s) => PopupMenuItem(
+                        value: s.name,
+                        child: Text(l.inventoryMarkStatus(_statusLabel(context, s))),
+                      ),
                     ),
-                  )
-                  .toList(),
+                // Only an unsold voucher can have its code corrected — the server
+                // refuses the rest, so offering it here would be a dead button.
+                if (product.status == ProductStatus.AVAILABLE)
+                  PopupMenuItem(
+                    value: _kEditPin,
+                    child: Text(
+                      Localizations.localeOf(context).languageCode == 'ar'
+                          ? 'تعديل الرمز'
+                          : 'Correct code',
+                    ),
+                  ),
+              ],
             ),
         ],
       ),

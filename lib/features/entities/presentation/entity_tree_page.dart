@@ -846,17 +846,80 @@ class _TreeNode extends ConsumerWidget {
     );
     if (confirm != true) return;
 
+    // C-07: a Main Agent takes its sub-agents and their shops with it, so the
+    // server asks the person doing it to prove they are still at the keyboard.
+    String? totp;
+    if (entity.type == EntityType.AGENT1) {
+      if (!context.mounted) return;
+      totp = await _askForCode(context);
+      if (totp == null) return; // cancelled — nothing is deleted
+    }
+
     final api = ref.read(apiClientProvider);
     final repo = EntityRepository(api);
     try {
-      await repo.delete(entity.id);
+      await repo.delete(entity.id, totp: totp);
       onRefresh();
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(l.entityTreeDeleteFailed)));
+        // The server distinguishes "no code" from "wrong code"; showing that
+        // beats a flat "delete failed" the operator cannot act on.
+        final reason = serverReason(e);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(reason ?? l.entityTreeDeleteFailed)));
       }
     }
+  }
+
+  /// Asks for the six-digit authenticator code that confirms a Main Agent delete.
+  /// Returns null when the operator backs out.
+  Future<String?> _askForCode(BuildContext context) {
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(isAr ? 'تأكيد بالرمز' : 'Confirm with your code'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isAr
+                  ? 'حذف وكيل رئيسي يحذف وكلاءه الفرعيين ونقاط بيعهم. أدخل رمز '
+                      'المصادقة من تطبيق المصادقة للمتابعة.'
+                  : 'Deleting a Main Agent also deletes its sub-agents and their '
+                      'points of sale. Enter the code from your authenticator app '
+                      'to continue.',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              decoration: InputDecoration(
+                labelText: isAr ? 'رمز المصادقة' : 'Authentication code',
+                counterText: '',
+              ),
+              onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(isAr ? 'إلغاء' : 'Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(ctx).colorScheme.error),
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: Text(isAr ? 'حذف' : 'Delete'),
+          ),
+        ],
+      ),
+    );
   }
 }
 

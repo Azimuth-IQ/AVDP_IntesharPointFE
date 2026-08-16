@@ -158,8 +158,17 @@ class EntityRepository {
     return _api.unwrap(response, (d) => Entity.fromJson(d as Map<String, dynamic>));
   }
 
-  Future<void> delete(String id) async {
-    await _api.delete(Endpoints.entityDelete, params: {'id': id});
+  /// Deletes an entity.
+  ///
+  /// Deleting a Main Agent additionally requires [totp] — the caller's own
+  /// authenticator code — because it takes the agent's sub-agents and their shops
+  /// with it and cannot be undone. The server answers 401 when it is missing or
+  /// wrong, and ignores it for every other tier.
+  Future<void> delete(String id, {String? totp}) async {
+    await _api.delete(Endpoints.entityDelete, params: {
+      'id': id,
+      if (totp != null && totp.isNotEmpty) 'totp': totp,
+    });
   }
 
   // ---- HQ users / supervisors (single-user endpoints; avoid the buggy full-PUT) ----

@@ -230,18 +230,4 @@ class EntityRepository {
         params: {'id': entityId, 'phone': phone, 'newPassword': newPassword});
   }
 
-  /// Re-links a child to its parent's childrenIds list.
-  /// The backend has a known bug where creating a child does not always append
-  /// its id to the parent's childrenIds — this workaround handles that.
-  Future<void> relinkChildToParent(String parentId, String childId) async {
-    try {
-      final parent = await read(parentId);
-      if (!parent.childrenIds.contains(childId)) {
-        final updated = parent.copyWith(childrenIds: [...parent.childrenIds, childId]);
-        await updateWithUsers(updated);
-      }
-    } catch (_) {
-      // Non-fatal; flag to backend team.
-    }
-  }
 }

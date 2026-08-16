@@ -34,13 +34,10 @@ class AgentRepository {
   /// Full entity (with users, including hashed passwords) for the edit form.
   Future<Entity> read(String id) => _entities.read(id);
 
-  /// Create an agent with its users, then restore the parent→child link.
+  /// Create an agent with its users. The server links the child to its parent
+  /// atomically, so there is nothing to repair afterwards.
   Future<Entity> create(Entity entity) async {
-    final created = await _entities.create(entity, includeUsers: true);
-    if (entity.parent.isNotEmpty) {
-      await _entities.relinkChildToParent(entity.parent, created.id);
-    }
-    return created;
+    return _entities.create(entity, includeUsers: true);
   }
 
   /// Update including users (existing users keep their hashed password).

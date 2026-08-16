@@ -708,9 +708,6 @@ class _TreeNode extends ConsumerWidget {
             ),
           );
           await repo.updateWithUsers(updated);
-          if (full.parent.isNotEmpty) {
-            await repo.relinkChildToParent(full.parent, full.id);
-          }
           if (ctx.mounted) Navigator.pop(ctx);
           onRefresh();
         },

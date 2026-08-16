@@ -6,6 +6,7 @@ import 'package:inteshar/core/api/api_exception.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/companies/data/company_repository.dart';
 import 'package:inteshar/features/companies/domain/company.dart';
+import 'package:inteshar/features/inventory/domain/sku_from_name.dart';
 import 'package:inteshar/features/inventory/data/definition_repository.dart';
 import 'package:inteshar/features/inventory/domain/product_definition.dart';
 import 'package:inteshar/features/inventory/domain/voucher_template.dart';
@@ -539,6 +540,9 @@ class _DefinitionFormSheetState extends State<_DefinitionFormSheet> {
   late String _imageUrl = widget.initialImageUrl;
   String? _nameError;
   String? _skuError;
+  /// True once the operator has typed in the code field themselves — from then
+  /// on it stops tracking the name, so a deliberate code is never overwritten.
+  bool _skuEdited = false;
   String? _priceError;
 
   // Validates the category (denomination) form before saving: requires a
@@ -600,19 +604,42 @@ class _DefinitionFormSheetState extends State<_DefinitionFormSheet> {
               controller: widget.nameCtrl,
               decoration: InputDecoration(
                   labelText: l.defsFieldName, errorText: _nameError),
-              onChanged: _nameError == null
-                  ? null
-                  : (_) => setState(() => _nameError = null),
+              onChanged: (v) {
+                // C-05: "ورمز المادة من نرفعة ياخذ اسم الفئة وليس اني اقوم
+                // بكتابتة" — the code follows the category name instead of being
+                // typed twice. It stops following the moment someone edits the
+                // code deliberately, and never moves on an existing product,
+                // where the SKU is the identity that stock and prices hang off.
+                if (widget.isNew && !_skuEdited) {
+                  widget.skuCtrl.text = skuFromName(v);
+                }
+                if (_nameError != null || _skuError != null) {
+                  setState(() {
+                    _nameError = null;
+                    _skuError = null;
+                  });
+                } else {
+                  setState(() {}); // reflect the derived code
+                }
+              },
             ),
             const SizedBox(height: 12),
             TextField(
               controller: widget.skuCtrl,
               textCapitalization: TextCapitalization.characters,
               decoration: InputDecoration(
-                  labelText: l.defsFieldSku, errorText: _skuError),
-              onChanged: _skuError == null
-                  ? null
-                  : (_) => setState(() => _skuError = null),
+                labelText: l.defsFieldSku,
+                errorText: _skuError,
+                helperText: widget.isNew && !_skuEdited
+                    ? (Localizations.localeOf(context).languageCode == 'ar'
+                        ? 'مشتق من اسم الفئة — يمكنك تعديله'
+                        : 'Derived from the category name — you can edit it')
+                    : null,
+              ),
+              onChanged: (_) {
+                _skuEdited = true;
+                if (_skuError != null) setState(() => _skuError = null);
+              },
             ),
             const SizedBox(height: 12),
             TextField(

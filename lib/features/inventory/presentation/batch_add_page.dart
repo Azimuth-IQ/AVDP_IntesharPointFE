@@ -214,12 +214,18 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
     }
   }
 
+  /// Extensions this page can actually parse.
+  static const _readableExtensions = {'txt', 'csv', 'xlsx'};
+
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['txt', 'csv', 'xlsx'],
-      withData: true,
-    );
+    // Deliberately FileType.any rather than a custom extension filter.
+    // A filter greys the file out in the OS dialog, which is indistinguishable
+    // from "this app will not take my file" — the customer's report was exactly
+    // that ("ميستقبل الملفات"). An .xls, an uppercase .TXT or a file the OS
+    // types oddly all vanish behind such a filter. Taking any file and then
+    // explaining what happened is the honest version: the user can always select
+    // what they have, and gets a reason when it cannot be read.
+    final result = await FilePicker.platform.pickFiles(withData: true);
     if (result == null || result.files.isEmpty) return;
     final file = result.files.first;
     final bytes = file.bytes;
@@ -228,9 +234,34 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
       setState(() => _error = AppLocalizations.of(context)!.batchAddErrorReadBytes);
       return;
     }
+    final ext = file.extension?.toLowerCase();
+    if (ext != null && !_readableExtensions.contains(ext)) {
+      if (!mounted) return;
+      setState(() {
+        _pickedBytes = null;
+        _pickedExt = null;
+        _fileName = null;
+        _preview = null;
+        _error = ext == 'xls'
+            ? _tr(
+                context,
+                'صيغة xls القديمة غير مدعومة. افتح الملف في Excel واحفظه بصيغة '
+                    'xlsx ثم أعد رفعه.',
+                'The legacy .xls format is not supported. Open it in Excel, save '
+                    'as .xlsx and upload again.')
+            : _tr(
+                context,
+                'صيغة الملف (.$ext) غير مدعومة. الصيغ المقبولة: xlsx أو csv أو txt.',
+                'That file type (.$ext) is not supported. Accepted formats: '
+                    'xlsx, csv or txt.');
+      });
+      return;
+    }
     setState(() {
       _pickedBytes = bytes;
-      _pickedExt = file.extension?.toLowerCase();
+      // A file with no extension is treated as text, which is what a pasted-code
+      // export usually is.
+      _pickedExt = ext ?? 'txt';
       _fileName = file.name;
       _result = null;
       _error = null;

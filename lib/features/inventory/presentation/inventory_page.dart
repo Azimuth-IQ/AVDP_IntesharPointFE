@@ -91,6 +91,12 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
     }
   }
 
+  /// Withdraw is HQ pulling stock back from SOMEBODY ELSE's warehouse. Not on
+  /// HQ's own holding (there is nowhere to pull it to) and not on the read-only
+  /// drill-in, where every other control is hidden too.
+  bool _canWithdrawFrom(String entityId) =>
+      _isHqRoot && !widget.readOnly && entityId != _selfId;
+
   int _statusCount(SkuSummary s, ProductStatus status) => switch (status) {
         ProductStatus.AVAILABLE => s.available,
         ProductStatus.PRINTED => s.printed,
@@ -204,6 +210,7 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
                             entityId: _entityId!,
                             readOnly: widget.readOnly,
                             lowStock: lowStock,
+                            canWithdraw: _canWithdrawFrom(_entityId!),
                             onChanged: _load,
                           ),
                         );
@@ -493,6 +500,9 @@ class _SkuGroupCard extends ConsumerStatefulWidget {
   final bool readOnly;
   final int lowStock;
   final VoidCallback onChanged;
+  /// HQ looking at ANOTHER account's warehouse — the only case where pulling
+  /// stock back means anything.
+  final bool canWithdraw;
   const _SkuGroupCard({
     super.key,
     required this.summary,
@@ -500,6 +510,7 @@ class _SkuGroupCard extends ConsumerStatefulWidget {
     required this.readOnly,
     required this.lowStock,
     required this.onChanged,
+    this.canWithdraw = false,
   });
 
   @override
@@ -666,6 +677,88 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  String _tr(String ar, String en) =>
+      Localizations.localeOf(context).languageCode == 'ar' ? ar : en;
+
+  /// Asks how many cards of this SKU to pull back, then reports what actually
+  /// moved — which can be fewer than asked if some sold in the meantime.
+  Future<void> _withdrawDialog() async {
+    final s = widget.summary;
+    final controller = TextEditingController(text: '${s.available}');
+    final formKey = GlobalKey<FormState>();
+
+    final entered = await showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(_tr('سحب من المخزن', 'Withdraw from warehouse')),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(_tr(
+                'إعادة كروت "${s.name}" من مخزن هذا الوكيل إلى المركز. '
+                    'المتاح الآن ${s.available}. الكروت المباعة لا يمكن سحبها.',
+                'Return "${s.name}" cards from this agent\'s warehouse to HQ. '
+                    '${s.available} available now. Sold cards cannot be taken back.',
+              )),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: controller,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                    labelText: _tr('العدد', 'How many')),
+                validator: (v) {
+                  final n = int.tryParse((v ?? '').trim());
+                  if (n == null || n <= 0) {
+                    return _tr('أدخل عدداً صحيحاً', 'Enter a whole number');
+                  }
+                  if (n > s.available) {
+                    return _tr('المتاح ${s.available} فقط', 'Only ${s.available} available');
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(_tr('إلغاء', 'Cancel')),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState?.validate() ?? false) {
+                Navigator.pop(ctx, int.parse(controller.text.trim()));
+              }
+            },
+            child: Text(_tr('سحب', 'Withdraw')),
+          ),
+        ],
+      ),
+    );
+    if (entered == null || !mounted) return;
+    try {
+      final res = await _repo.withdrawStock(
+        fromEntityId: widget.entityId,
+        sku: s.sku,
+        count: entered,
+      );
+      if (!mounted) return;
+      // Say what actually happened: "asked for 100, got 60" is the useful line.
+      _snack(res.isShort
+          ? _tr('تم سحب ${res.reclaimed} من ${res.requested} — المتبقي ${res.remaining}',
+              'Withdrew ${res.reclaimed} of ${res.requested} — ${res.remaining} left')
+          : _tr('تم سحب ${res.reclaimed} كرت', 'Withdrew ${res.reclaimed} cards'));
+      widget.onChanged();
+    } catch (e) {
+      if (mounted) _snack(serverReason(e) ?? friendlyError(e, context));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
@@ -735,6 +828,18 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
                   if (s.damaged > 0) ...[
                     StampPill(label: l.inventoryDamagedCount(s.damaged), color: cs.error),
                     const SizedBox(width: 6),
+                  ],
+                  // C-09: pull stock back from THIS agent's warehouse — the
+                  // reallocation removed in B-051 ("سحب الكروت من المخزن … سابقا
+                  // جان موجود"). Only where it can actually do something: HQ
+                  // looking at somebody else's stock that is still sellable.
+                  if (widget.canWithdraw && s.available > 0) ...[
+                    IconButton(
+                      tooltip: _tr('سحب من المخزن', 'Withdraw from warehouse'),
+                      icon: const Icon(Icons.undo_outlined, size: 18),
+                      onPressed: _withdrawDialog,
+                    ),
+                    const SizedBox(width: 4),
                   ],
                   AnimatedRotation(
                     duration: const Duration(milliseconds: 180),

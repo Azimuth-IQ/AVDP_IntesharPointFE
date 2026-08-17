@@ -6,6 +6,7 @@ import 'package:inteshar/features/inventory/domain/print_operation.dart';
 import 'package:inteshar/features/inventory/domain/product.dart';
 import 'package:inteshar/features/inventory/domain/sku_summary.dart';
 import 'package:inteshar/features/inventory/domain/batch_withdraw_result.dart';
+import 'package:inteshar/features/inventory/domain/stock_withdraw_result.dart';
 import 'package:inteshar/features/inventory/domain/voucher_batch.dart';
 import 'package:inteshar/features/inventory/domain/voucher_import.dart';
 
@@ -449,6 +450,28 @@ class ProductRepository {
   Future<void> deleteBatch(String batchId) async {
     await _api
         .delete(Endpoints.productBatchDelete, params: {'batchId': batchId});
+  }
+
+  /// Pulls [count] still-sellable vouchers of one SKU back from an agent's
+  /// warehouse to HQ (C-09 — the reallocation removed in B-051).
+  ///
+  /// Returns how many actually moved, which can be fewer than asked: the agent may
+  /// hold fewer, or some may have sold between looking and pressing.
+  /// `POST /api/inventory/withdraw`.
+  Future<StockWithdrawResult> withdrawStock({
+    required String fromEntityId,
+    required String sku,
+    String? governorate,
+    required int count,
+  }) async {
+    final response = await _api.post(Endpoints.productWithdrawStock, params: {
+      'fromEntityId': fromEntityId,
+      'sku': sku,
+      if (governorate != null && governorate.isNotEmpty) 'governorate': governorate,
+      'count': count,
+    });
+    return _api.unwrap(
+        response, (d) => StockWithdrawResult.fromJson(d as Map<String, dynamic>));
   }
 
   /// Withdraws (reclaims) all still-AVAILABLE vouchers in a batch back to the

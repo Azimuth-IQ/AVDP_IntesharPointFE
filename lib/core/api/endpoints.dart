@@ -160,6 +160,8 @@ class Endpoints {
   static const productBatchPause = '/api/inventory/batch/pause';
   static const productBatchDelete = '/api/inventory/batch';
   static const productBatchWithdraw = '/api/inventory/batch/withdraw';
+  // C-09: pull a quantity of one SKU back from an agent's warehouse.
+  static const productWithdrawStock = '/api/inventory/withdraw';
   static const productBatchExport = '/api/inventory/batch/export';
 
   // Broadcast notifications. GET inbox + POST create share the base path;

@@ -78,6 +78,7 @@ const Map<String, (String, String)> _routes = {
   '/product/read': ('Voucher lookup', 'استعلام كرت'),
   '/inventory/batch/export': ('Batch exported', 'تصدير دفعة'),
   '/inventory/batch/pause': ('Batch paused', 'إيقاف دفعة'),
+  '/inventory/withdraw': ('Stock withdrawn from an agent', 'سحب كروت من مخزن وكيل'),
   '/inventory/batch/withdraw': ('Batch withdrawn', 'سحب دفعة'),
   '/inventory/batches': ('Batch list', 'قائمة الدفعات'),
   '/inventory/batch': ('Batch deleted', 'حذف دفعة'),

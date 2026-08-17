@@ -13,6 +13,7 @@ import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/files/web_download.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/core/geo/governorate_picker.dart';
+import 'package:inteshar/core/geo/governorates.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
 import 'package:inteshar/features/entities/domain/entity_summary_row.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
@@ -159,7 +160,10 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
   ProductDefinition? _selectedDef;
   List<EntitySummaryRow> _entities = [];
   EntitySummaryRow? _target; // who receives the vouchers (the agent/warehouse)
-  String? _selectedGovernorate; // region-lock (NEW only)
+  String? _selectedGovernorate;
+  /// null = not answered yet (blocks the import), true = one governorate,
+  /// false = deliberately region-free.
+  bool? _regionLockedScope; // region-lock (NEW only)
   bool _loading = true;
   Object? _loadError;
 
@@ -329,7 +333,35 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
     if (_preview == null || _preview!.isEmpty) {
       m.add(_tr(context, 'قسائم صالحة', 'valid vouchers'));
     }
+    // C-08: an unanswered scope is what silently produced sell-anywhere stock.
+    if (_format.regionLocked) {
+      if (_regionLockedScope == null) {
+        m.add(_tr(context, 'نطاق البيع', 'sale scope'));
+      } else if (_regionLockedScope == true && _selectedGovernorate == null) {
+        m.add(_tr(context, 'المحافظة', 'governorate'));
+      }
+    }
     return m;
+  }
+
+  /// Says in words what the chosen scope will do, because the consequence lands
+  /// weeks later at a POS counter rather than here.
+  String _scopeSummary(BuildContext context) {
+    if (_regionLockedScope == null) {
+      return _tr(context, 'اختر نطاق البيع قبل الرفع.',
+          'Choose where these cards can be sold before importing.');
+    }
+    if (_regionLockedScope == false) {
+      return _tr(context, 'ستكون هذه الكروت قابلة للبيع في كل المحافظات.',
+          'These cards will be sellable in every governorate.');
+    }
+    final gov = _selectedGovernorate;
+    if (gov == null) {
+      return _tr(context, 'اختر المحافظة.', 'Choose the governorate.');
+    }
+    final name = governorateLabel(gov, Localizations.localeOf(context).languageCode);
+    return _tr(context, 'ستكون هذه الكروت قابلة للبيع في $name فقط.',
+        'These cards will be sellable in $name only.');
   }
 
   bool get _canImport =>
@@ -580,13 +612,49 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
             const SizedBox(height: 22),
 
             // ── City / governorate (NEW only) ────────────────────────────
+            //
+            // C-08: this used to be one optional dropdown that defaulted to
+            // "not geo-locked", and nothing asked about it before importing. So
+            // an operator uploading "for Karbala" produced stock sellable
+            // EVERYWHERE and was never told — which is exactly what the customer
+            // reported, and what every voucher on the server looks like.
+            //
+            // The scope is now a decision with two named outcomes. Region-free
+            // is still available; it just has to be chosen.
             if (isNew) ...[
-              SectionLabel(_tr(context, 'المحافظة', 'City / governorate')),
-              GovernorateDropdown(
-                value: _selectedGovernorate,
-                noneLabel: l.batchAddNotGeoLocked,
-                labelText: l.batchAddGovernorate,
-                onChanged: (v) => setState(() => _selectedGovernorate = v),
+              SectionLabel(_tr(context, 'نطاق البيع', 'Where these can be sold')),
+              SegmentedButton<bool>(
+                segments: [
+                  ButtonSegment(
+                      value: true,
+                      label: Text(_tr(context, 'محافظة محددة', 'One governorate'))),
+                  ButtonSegment(
+                      value: false,
+                      label: Text(_tr(context, 'كل المحافظات', 'All governorates'))),
+                ],
+                selected: {_regionLockedScope ?? true},
+                emptySelectionAllowed: _regionLockedScope == null,
+                onSelectionChanged: (v) => setState(() {
+                  _regionLockedScope = v.first;
+                  if (!v.first) _selectedGovernorate = null;
+                }),
+              ),
+              if (_regionLockedScope == true) ...[
+                const SizedBox(height: 12),
+                GovernorateDropdown(
+                  value: _selectedGovernorate,
+                  noneLabel: l.batchAddNotGeoLocked,
+                  labelText: l.batchAddGovernorate,
+                  onChanged: (v) => setState(() => _selectedGovernorate = v),
+                ),
+              ],
+              const SizedBox(height: 8),
+              Text(
+                _scopeSummary(context),
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
               const SizedBox(height: 22),
             ],

@@ -128,7 +128,11 @@ class Endpoints {
   static const posUsersListPaged = '/api/pos-users/list/page'; // paged variant (B-023 P2)
   static const posUsersOnboard = '/api/pos-users/onboard';
   static const posUsersUpdate = '/api/pos-users/update';
+  // C-12: revoke ARCHIVES the shop; these complete the lifecycle.
   static const posUsersRevoke = '/api/pos-users/revoke';
+  static const posUsersArchived = '/api/pos-users/archived';
+  static const posUsersExport = '/api/pos-users/export';
+  static const posUsersPurge = '/api/pos-users/purge';
   static const posUsersResetPin = '/api/pos-users/reset-pin';
   static const posUsersResetTotp = '/api/pos-users/reset-totp';
   static const posUsersResetPassword = '/api/pos-users/reset-password';

@@ -14,6 +14,7 @@ import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/pos_admin/data/pos_admin_repository.dart';
+import 'package:inteshar/features/pos_admin/presentation/pos_archive.dart';
 import 'package:inteshar/features/pos_admin/domain/pos_slot_balance.dart';
 import 'package:inteshar/features/pos_admin/presentation/pos_network_view.dart';
 import 'package:inteshar/features/pos_admin/presentation/store_pos_view.dart';
@@ -56,7 +57,9 @@ class _S {
   String get noSlots => p('No available POS points — ask headquarters to grant more.', 'لا توجد نقاط بيع متاحة — اطلب من الإدارة (المقر) منحك المزيد.');
   String get resetPin => p('Reset PIN', 'إعادة تعيين الرمز');
   String get resetTotp => p('Reset 2FA', 'إعادة تعيين المصادقة');
-  String get revoke => p('Revoke', 'إلغاء الوصول');
+  String get revoke => p('Archive', 'أرشفة');
+  String get tabActive => p('Active', 'العاملة');
+  String get tabArchived => p('Archived', 'الأرشيف');
   String get phone => p('Phone (login)', 'الهاتف (الدخول)');
   String get password => p('Password', 'كلمة المرور');
   String get posName => p('POS name', 'اسم نقطة البيع');
@@ -89,7 +92,7 @@ class _S {
       'لا يمكن قراءة الروابط المختصرة — افتحه مرة ثم الصق الرابط الكامل من شريط العنوان.');
   String get locationHintNone =>
       p('Location (optional hint)', 'الموقع (اختياري — مبدئي)');
-  String get revokeConfirm => p('Revoke this POS user? Their login stops and the slot is returned.',
+  String get revokeConfirm => p('Archive this POS point? It stops trading and the slot is returned.',
       'إلغاء هذه النقطة؟ سيتوقف دخولها وتعود النقطة للرصيد.');
   String get required => p('Required', 'مطلوب');
   String get invalidPhone => p('Invalid phone (e.g. 07XXXXXXXXX)', 'رقم غير صحيح (مثال 07XXXXXXXXX)');
@@ -116,6 +119,13 @@ class _S {
 }
 
 class _PosAdminPageState extends ConsumerState<PosAdminPage> {
+  /// Mirrors the server's pos.archive.retention-days default. Only used for the
+  /// wording of the archive prompt — every countdown and the purge rule itself
+  /// come from the server, so a drift here cannot let a delete happen early.
+  static const int _archiveRetentionDays = 30;
+
+  /// Whether the archive is showing instead of the trading shops.
+  bool _showArchive = false;
   List<Entity> _stores = const [];
   int _page = 0;
   bool _hasMore = false;
@@ -282,6 +292,26 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
         children: [
           if (q != null) _quotaCard(s, q),
           const SizedBox(height: 12),
+          // C-12: the archive is a view of the SAME screen, not a separate
+          // destination — an operator who just archived a shop looks for it here.
+          SegmentedButton<bool>(
+            segments: [
+              ButtonSegment(
+                  value: false,
+                  icon: const Icon(Icons.storefront_outlined, size: 16),
+                  label: Text(s.tabActive)),
+              ButtonSegment(
+                  value: true,
+                  icon: const Icon(Icons.inventory_2_outlined, size: 16),
+                  label: Text(s.tabArchived)),
+            ],
+            selected: {_showArchive},
+            onSelectionChanged: (v) => setState(() => _showArchive = v.first),
+          ),
+          const SizedBox(height: 12),
+          if (_showArchive) ...[
+            PosArchiveView(entityId: _effectiveId),
+          ] else ...[
           Row(children: [
             Expanded(
               child: FilledButton.icon(
@@ -350,6 +380,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
                     : OutlinedButton(onPressed: _loadMore, child: Text(s.loadMore)),
               ),
             ),
+          ],
         ],
       ),
     );
@@ -441,7 +472,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
             child: Text(active ? s.deactivate : s.activate),
           ),
           OutlinedButton(
-            onPressed: (_busy || phone.isEmpty) ? null : () => _confirmRevoke(s, phone),
+            onPressed: (_busy || phone.isEmpty) ? null : () => _confirmArchive(s, store, phone),
             style: OutlinedButton.styleFrom(foregroundColor: cs.error),
             child: Text(s.revoke),
           ),
@@ -472,20 +503,22 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     await _run(() => _repo.setActive(storeId, !active), s.done);
   }
 
-  Future<void> _confirmRevoke(_S s, String phone) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        content: Text(s.revokeConfirm),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(s.cancel)),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(s.revoke)),
-        ],
-      ),
+  /// C-12: removing a shop ARCHIVES it. The dialog puts the data download in
+  /// front of the operator first, because archiving starts a countdown to
+  /// permanent deletion and this is the moment that matters.
+  Future<void> _confirmArchive(_S s, Entity store, String phone) async {
+    final code = await showArchivePosDialog(
+      context,
+      ref,
+      storeId: store.id,
+      storeName: store.meta.name,
+      retentionDays: _archiveRetentionDays,
     );
-    if (ok == true) {
-      await _run(() => _repo.revoke(entityId: _effectiveId ?? '', phone: phone), s.done);
-    }
+    if (code == null) return;
+    await _run(
+        () => _repo.revoke(
+            entityId: _effectiveId ?? '', phone: phone, totp: code),
+        s.done);
   }
 
   /// Reset the POS PIN and reveal the fresh manager-visible PIN once (B-047).

@@ -1,6 +1,7 @@
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/paged.dart';
 import 'package:inteshar/core/api/endpoints.dart';
+import 'package:inteshar/features/pos_admin/domain/archived_pos.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/pos_admin/domain/pos_network.dart';
 import 'package:inteshar/features/pos_admin/domain/pos_slot_balance.dart';
@@ -124,6 +125,38 @@ class PosAdminRepository {
       'posOwnerName': posOwnerName,
       'posGovernorate': posGovernorate,
       'posAddress': posAddress,
+    });
+  }
+
+  /// The archive: shops retired under [entityId] (default the caller) and its
+  /// subtree, newest first, each carrying how many days remain before it can be
+  /// deleted for good. `GET /api/pos-users/archived`.
+  Future<List<ArchivedPos>> archived({String? entityId}) async {
+    final response = await _api.get(Endpoints.posUsersArchived,
+        params: {'entityId': ?entityId});
+    return _api.unwrap(
+        response,
+        (d) => (d as List<dynamic>)
+            .map((e) => ArchivedPos.fromJson(e as Map<String, dynamic>))
+            .toList());
+  }
+
+  /// Everything the platform holds about one shop, so it can be saved before
+  /// archiving starts the countdown. `GET /api/pos-users/export`.
+  Future<PosDataExport> exportPos(String entityId) async {
+    final response =
+        await _api.get(Endpoints.posUsersExport, params: {'entityId': entityId});
+    return _api.unwrap(
+        response, (d) => PosDataExport.fromJson(d as Map<String, dynamic>));
+  }
+
+  /// Permanently deletes an archived shop. The server refuses until the
+  /// retention window has elapsed, and requires the caller's authenticator code.
+  /// `DELETE /api/pos-users/purge`.
+  Future<void> purge({required String entityId, String? totp}) async {
+    await _api.delete(Endpoints.posUsersPurge, params: {
+      'entityId': entityId,
+      if (totp != null && totp.isNotEmpty) 'totp': totp,
     });
   }
 

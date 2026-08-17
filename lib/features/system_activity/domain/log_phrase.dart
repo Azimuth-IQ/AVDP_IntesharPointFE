@@ -109,7 +109,10 @@ const Map<String, (String, String)> _routes = {
 
   // ── POS points ──────────────────────────────────────────────────────────
   '/pos-users/onboard': ('POS point created', 'إنشاء نقطة بيع'),
-  '/pos-users/revoke': ('POS point removed', 'حذف نقطة بيع'),
+  '/pos-users/archived': ('Archived POS points', 'قائمة نقاط البيع المؤرشفة'),
+  '/pos-users/export': ('POS data exported', 'تصدير بيانات نقطة بيع'),
+  '/pos-users/purge': ('POS point deleted permanently', 'حذف نهائي لنقطة بيع'),
+  '/pos-users/revoke': ('POS point archived', 'أرشفة نقطة بيع'),
   '/pos-users/reset-password': ('POS password reset', 'إعادة تعيين كلمة مرور نقطة بيع'),
   '/pos-users/reset-pin': ('POS PIN reset', 'إعادة تعيين رمز نقطة بيع'),
   '/pos-users/reset-totp': ('POS 2FA reset', 'إعادة تعيين تحقق نقطة بيع'),

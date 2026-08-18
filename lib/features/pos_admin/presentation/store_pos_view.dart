@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inteshar/features/pos_admin/presentation/confirm_operator_reset.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
@@ -241,6 +242,8 @@ class _StorePosViewState extends ConsumerState<StorePosView> {
 
   /// Reset the counter PIN and reveal the fresh value ONCE (B-047 rule).
   Future<void> _resetPin(_S s, String phone) async {
+    if (!await confirmResetPin(context)) return;
+    if (!mounted) return;
     setState(() => _busy = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
@@ -304,16 +307,7 @@ class _StorePosViewState extends ConsumerState<StorePosView> {
 
   /// Confirmed: it forces the counter to re-enrol mid-shift.
   Future<void> _resetTotp(_S s, String phone) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        content: Text(s.resetTotpConfirm),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.cancel)),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.resetTotp)),
-        ],
-      ),
-    );
-    if (ok == true) await _run(() => _repo.resetTotp(phone), s.done);
+    if (!await confirmResetTotp(context)) return;
+    await _run(() => _repo.resetTotp(phone), s.done);
   }
 }

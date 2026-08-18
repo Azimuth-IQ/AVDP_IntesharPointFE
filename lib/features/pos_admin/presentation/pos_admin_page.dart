@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:inteshar/features/pos_admin/presentation/confirm_operator_reset.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
@@ -466,7 +467,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
           OutlinedButton(onPressed: _busy ? null : () => _editDialog(s, store), child: Text(s.edit)),
           OutlinedButton(onPressed: (_busy || phone.isEmpty) ? null : () => _resetPin(s, name, phone), child: Text(s.resetPin)),
           OutlinedButton(onPressed: (_busy || phone.isEmpty) ? null : () => _resetPassword(s, name, phone), child: Text(s.resetPassword)),
-          OutlinedButton(onPressed: (_busy || phone.isEmpty) ? null : () => _run(() => _repo.resetTotp(phone), s.done), child: Text(s.resetTotp)),
+          OutlinedButton(onPressed: (_busy || phone.isEmpty) ? null : () => _resetTotp(s, name, phone), child: Text(s.resetTotp)),
           OutlinedButton(
             onPressed: _busy ? null : () => _toggleActive(s, store.id, active),
             child: Text(active ? s.deactivate : s.activate),
@@ -522,7 +523,14 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
   }
 
   /// Reset the POS PIN and reveal the fresh manager-visible PIN once (B-047).
+  Future<void> _resetTotp(_S s, String name, String phone) async {
+    if (!await confirmResetTotp(context, posName: name)) return;
+    await _run(() => _repo.resetTotp(phone), s.done);
+  }
+
   Future<void> _resetPin(_S s, String name, String phone) async {
+    if (!await confirmResetPin(context, posName: name)) return;
+    if (!mounted) return;
     setState(() => _busy = true);
     final messenger = ScaffoldMessenger.of(context);
     try {

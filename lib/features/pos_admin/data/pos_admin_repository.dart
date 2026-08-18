@@ -156,6 +156,17 @@ class PosAdminRepository {
         response, (d) => PosDataExport.fromJson(d as Map<String, dynamic>));
   }
 
+  /// Brings an archived shop back into service, consuming one of its host's POS
+  /// points. The server refuses with 402 when the host has none free — that point
+  /// was returned when the shop was archived and somebody may have taken it since.
+  /// `POST /api/pos-users/restore`.
+  Future<void> restore({required String entityId, String? totp}) async {
+    await _api.post(Endpoints.posUsersRestore, params: {
+      'entityId': entityId,
+      if (totp != null && totp.isNotEmpty) 'totp': totp,
+    });
+  }
+
   /// Permanently deletes an archived shop. The server refuses until the
   /// retention window has elapsed, and requires the caller's authenticator code.
   /// `DELETE /api/pos-users/purge`.

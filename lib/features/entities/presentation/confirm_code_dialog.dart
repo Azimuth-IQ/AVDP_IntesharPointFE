@@ -10,6 +10,12 @@ Future<String?> showConfirmCodeDialog(
   BuildContext context, {
   required String title,
   required String warning,
+  /// Overrides the confirm button's wording. Defaults to "Delete" because that is
+  /// what this prompt guards most often; a restore is not a deletion and must not
+  /// say so.
+  String? confirmLabel,
+  /// Restores are not destructive, so they do not get the alarm colouring.
+  bool destructive = true,
 }) {
   final isAr = Localizations.localeOf(context).languageCode == 'ar';
   final controller = TextEditingController();
@@ -20,7 +26,8 @@ Future<String?> showConfirmCodeDialog(
     builder: (ctx) {
       final cs = Theme.of(ctx).colorScheme;
       return AlertDialog(
-        icon: Icon(Icons.gpp_maybe_outlined, color: cs.error),
+        icon: Icon(Icons.gpp_maybe_outlined,
+            color: destructive ? cs.error : cs.primary),
         title: Text(title),
         content: Form(
           key: formKey,
@@ -67,13 +74,14 @@ Future<String?> showConfirmCodeDialog(
             child: Text(isAr ? 'إلغاء' : 'Cancel'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: cs.error),
+            style: FilledButton.styleFrom(
+                backgroundColor: destructive ? cs.error : cs.primary),
             onPressed: () {
               if (formKey.currentState?.validate() ?? false) {
                 Navigator.pop(ctx, controller.text.trim());
               }
             },
-            child: Text(isAr ? 'حذف' : 'Delete'),
+            child: Text(confirmLabel ?? (isAr ? 'حذف' : 'Delete')),
           ),
         ],
       );

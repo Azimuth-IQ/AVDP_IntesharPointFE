@@ -136,6 +136,7 @@ class Endpoints {
   static const posUsersArchived = '/api/pos-users/archived';
   static const posUsersExport = '/api/pos-users/export';
   static const posUsersPurge = '/api/pos-users/purge';
+  static const posUsersRestore = '/api/pos-users/restore';
   static const posUsersResetPin = '/api/pos-users/reset-pin';
   static const posUsersResetTotp = '/api/pos-users/reset-totp';
   static const posUsersResetPassword = '/api/pos-users/reset-password';

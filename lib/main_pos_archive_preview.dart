@@ -81,6 +81,7 @@ class _PreviewPage extends StatelessWidget {
                   busyIds: const {},
                   onDownload: (_) {},
                   onPurge: (_) {},
+                  onRestore: (_) {},
                 ),
               ],
             ),

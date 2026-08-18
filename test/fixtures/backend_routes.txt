@@ -3,7 +3,7 @@
 #
 # Every route the backend controllers map: class @RequestMapping +
 # method @Get/@Post/@Put/@Patch/@DeleteMapping, comments stripped.
-# 131 distinct routes across 21 controllers.
+# 132 distinct routes across 21 controllers.
 #
 # The system_activity coverage test asserts each of these resolves to a
 # phrase in lib/features/system_activity/domain/log_phrase.dart, and
@@ -119,6 +119,7 @@
 /api/pos-users/reset-password
 /api/pos-users/reset-pin
 /api/pos-users/reset-totp
+/api/pos-users/restore
 /api/pos-users/revoke
 /api/pos-users/update
 /api/pos/confirm-location

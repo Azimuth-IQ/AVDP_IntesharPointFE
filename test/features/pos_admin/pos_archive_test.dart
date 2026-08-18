@@ -30,6 +30,7 @@ void main() {
     Set<String> busy = const {},
     ValueChanged<ArchivedPos>? onPurge,
     ValueChanged<ArchivedPos>? onDownload,
+    ValueChanged<ArchivedPos>? onRestore,
   }) {
     return MaterialApp(
       locale: const Locale('en'),
@@ -47,6 +48,7 @@ void main() {
             busyIds: busy,
             onDownload: onDownload ?? (_) {},
             onPurge: onPurge ?? (_) {},
+            onRestore: onRestore ?? (_) {},
           ),
         ),
       ),
@@ -107,6 +109,48 @@ void main() {
     await tester.pumpWidget(harness([waiting, due]));
     expect(find.text('Rusafa Mobiles'), findsOneWidget);
     expect(find.text('Al Noor'), findsOneWidget);
+  });
+
+  group('restore', () {
+    testWidgets('is offered while the shop is still inside its window',
+        (tester) async {
+      await tester.pumpWidget(harness([waiting]));
+      expect(
+          tester
+              .widget<ButtonStyleButton>(find.byKey(const Key('restore-s1')))
+              .onPressed,
+          isNotNull,
+          reason: 'the countdown is a deadline for deletion, not for changing your mind');
+    });
+
+    testWidgets('is still offered once the window has passed', (tester) async {
+      await tester.pumpWidget(harness([due]));
+      expect(
+          tester
+              .widget<ButtonStyleButton>(find.byKey(const Key('restore-s2')))
+              .onPressed,
+          isNotNull,
+          reason: 'while the record exists it can come back');
+    });
+
+    testWidgets('fires for the row that was tapped', (tester) async {
+      ArchivedPos? tapped;
+      await tester.pumpWidget(
+          harness([waiting, due], onRestore: (r) => tapped = r));
+      await tester.tap(find.byKey(const Key('restore-s2')));
+      await tester.pumpAndSettle();
+      expect(tapped?.id, 's2');
+    });
+
+    testWidgets('a row already being worked on cannot be fired twice',
+        (tester) async {
+      await tester.pumpWidget(harness([waiting], busy: {'s1'}));
+      expect(
+          tester
+              .widget<ButtonStyleButton>(find.byKey(const Key('restore-s1')))
+              .onPressed,
+          isNull);
+    });
   });
 
   _arabicPlurals();

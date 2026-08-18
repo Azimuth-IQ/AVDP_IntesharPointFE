@@ -304,6 +304,121 @@ class _PosArchiveViewState extends ConsumerState<PosArchiveView> {
     _snack(serverReason(e) ?? friendlyError(e, context));
   }
 
+  /// Brings a shop back. The host's free points are fetched FIRST and shown, so
+  /// the one way this can fail is visible before the operator commits rather than
+  /// arriving as an error afterwards.
+  Future<void> _restore(ArchivedPos row) async {
+    setState(() => _busy.add(row.id));
+    int? freePoints;
+    try {
+      if ((row.hostId ?? '').isNotEmpty) {
+        freePoints = (await _repo.quota(entityId: row.hostId)).available;
+      }
+    } catch (_) {
+      // Not fatal — the server still enforces it; we just cannot preview it.
+    } finally {
+      if (mounted) setState(() => _busy.remove(row.id));
+    }
+    if (!mounted) return;
+
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        final blocked = freePoints != null && freePoints <= 0;
+        return AlertDialog(
+          icon: Icon(Icons.restore_outlined, color: cs.primary),
+          title: Text(_t(ctx, 'إعادة تفعيل نقطة البيع', 'Restore point of sale')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(_t(
+                ctx,
+                'ستعود "${row.name}" للعمل فوراً، ويستطيع المشغّل '
+                    '${row.operatorPhone ?? ''} تسجيل الدخول بنفس البيانات. '
+                    'رصيدها وسجلها كما هما.',
+                '"${row.name}" starts trading again and its operator '
+                    '${row.operatorPhone ?? ''} can sign in with the same '
+                    'credentials. Its balance and history are unchanged.',
+              )),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: blocked ? cs.errorContainer : cs.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(children: [
+                  Icon(blocked ? Icons.block : Icons.confirmation_number_outlined,
+                      size: 18,
+                      color: blocked ? cs.onErrorContainer : cs.onSurfaceVariant),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      freePoints == null
+                          ? _t(ctx, 'ستستهلك نقطة بيع واحدة من ${row.hostName ?? ''}.',
+                              'This uses one POS point from ${row.hostName ?? ''}.')
+                          : blocked
+                              ? _t(
+                                  ctx,
+                                  'لا توجد نقاط بيع متاحة لدى ${row.hostName ?? ''}. '
+                                      'حرّر نقطة أو اطلب المزيد من الإدارة.',
+                                  'No POS points free at ${row.hostName ?? ''}. '
+                                      'Free one or ask headquarters for more.')
+                              : _t(
+                                  ctx,
+                                  'ستستهلك نقطة واحدة من ${row.hostName ?? ''} '
+                                      '(المتاح $freePoints).',
+                                  'Uses one point from ${row.hostName ?? ''} '
+                                      '($freePoints free).'),
+                      style: Theme.of(ctx).textTheme.bodySmall,
+                    ),
+                  ),
+                ]),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(_t(ctx, 'إلغاء', 'Cancel'))),
+            FilledButton(
+              onPressed: blocked ? null : () => Navigator.pop(ctx, true),
+              child: Text(_t(ctx, 'إعادة تفعيل', 'Restore')),
+            ),
+          ],
+        );
+      },
+    );
+    if (proceed != true || !mounted) return;
+
+    final code = await showConfirmCodeDialog(
+      context,
+      title: _t(context, 'تأكيد إعادة التفعيل', 'Confirm restore'),
+      warning: _t(
+        context,
+        'إعادة التفعيل تُعيد تشغيل حساب الدخول والرصيد لـ "${row.name}".',
+        'Restoring re-enables the login and balance for "${row.name}".',
+      ),
+      confirmLabel: _t(context, 'إعادة تفعيل', 'Restore'),
+      destructive: false,
+    );
+    if (code == null || !mounted) return;
+
+    setState(() => _busy.add(row.id));
+    try {
+      await _repo.restore(entityId: row.id, totp: code);
+      if (!mounted) return;
+      _snack(_t(context, 'تمت إعادة التفعيل', 'Restored'));
+      await _load();
+    } catch (e) {
+      _report(e);
+    } finally {
+      if (mounted) setState(() => _busy.remove(row.id));
+    }
+  }
+
   Future<void> _purge(ArchivedPos row) async {
     final code = await showConfirmCodeDialog(
       context,
@@ -360,6 +475,7 @@ class _PosArchiveViewState extends ConsumerState<PosArchiveView> {
       busyIds: _busy,
       onDownload: _download,
       onPurge: _purge,
+      onRestore: _restore,
     );
   }
 }
@@ -370,6 +486,7 @@ class PosArchiveList extends StatelessWidget {
   final Set<String> busyIds;
   final ValueChanged<ArchivedPos> onDownload;
   final ValueChanged<ArchivedPos> onPurge;
+  final ValueChanged<ArchivedPos> onRestore;
 
   const PosArchiveList({
     super.key,
@@ -377,6 +494,7 @@ class PosArchiveList extends StatelessWidget {
     required this.busyIds,
     required this.onDownload,
     required this.onPurge,
+    required this.onRestore,
   });
 
   @override
@@ -431,6 +549,15 @@ class PosArchiveList extends StatelessWidget {
         ],
         const SizedBox(height: 10),
         Wrap(spacing: 8, runSpacing: 6, children: [
+          // Restore leads: it is the reason most people open this screen, and it
+          // is available for the whole retention window — the countdown is a
+          // deadline for deletion, not for changing your mind.
+          FilledButton.icon(
+            key: Key('restore-${row.id}'),
+            onPressed: busy ? null : () => onRestore(row),
+            icon: const Icon(Icons.restore_outlined, size: 16),
+            label: Text(_t(context, 'إعادة تفعيل', 'Restore')),
+          ),
           OutlinedButton.icon(
             onPressed: busy ? null : () => onDownload(row),
             icon: busy

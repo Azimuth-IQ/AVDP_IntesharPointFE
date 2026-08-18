@@ -49,6 +49,14 @@ class _TS {
         'إرسال الرصيد إلى حساباتك ومتابعة كل التحويلات');
   String get available => p('Available balance', 'الرصيد المتاح');
   String get newTransfer => p('New transfer', 'تحويل جديد');
+  String get takeBack => p('Take back balance', 'استرجاع رصيد');
+  String takeBackFrom(String name) => p('Take back from $name', 'استرجاع من $name');
+  String confirmTakeBack(String amount, String from) =>
+      p('Confirm: take back $amount from $from', 'تأكيد: استرجاع $amount من $from');
+  String get takenBack => p('Balance taken back', 'تم استرجاع الرصيد');
+  String get takeBackHint => p(
+      'Only balance the account has not spent can come back.',
+      'يمكن استرجاع الرصيد غير المصروف فقط.');
   String get to => p('To', 'إلى');
   String get amount => p('Amount (IQD)', 'المبلغ (د.ع)');
   String get send => p('Send', 'إرسال');
@@ -172,6 +180,110 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
   ///
   /// The B-040 money-movement confirmation is kept, but folded in: Send arms, and
   /// a second press commits. Money still never moves on one mis-tap.
+  /// Takes unspent balance back from a direct child.
+  ///
+  /// The ceiling is the CHILD's unspent balance, which this screen cannot know
+  /// reliably — so it does not guess one. The server refuses and says exactly how
+  /// much is reclaimable, and that message is shown as-is.
+  Future<void> _takeBackDialog(_TS s) async {
+    if (_children.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(s.noChildren)));
+      return;
+    }
+    EntitySummaryRow? from;
+    var armed = false;
+    final amountCtrl = TextEditingController();
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setD) {
+        final amt = parseAmount(amountCtrl.text) ?? 0;
+        final ready = from != null && amt > 0;
+        return AlertDialog(
+          title: Text(s.takeBack),
+          content: SizedBox(
+            width: 420,
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              DropdownButtonFormField<EntitySummaryRow>(
+                initialValue: from,
+                isExpanded: true,
+                decoration: InputDecoration(labelText: s.to),
+                items: _children
+                    .map((e) => DropdownMenuItem(value: e, child: Text(e.label)))
+                    .toList(),
+                onChanged: (v) => setD(() {
+                  from = v;
+                  armed = false;
+                }),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: amountCtrl,
+                keyboardType: TextInputType.number,
+                inputFormatters: [ThousandsInputFormatter()],
+                decoration: InputDecoration(labelText: s.amount),
+                onChanged: (_) => setD(() => armed = false),
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: Text(s.takeBackHint,
+                    style: Theme.of(ctx).textTheme.bodySmall),
+              ),
+            ]),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(s.cancel)),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(ctx).colorScheme.error),
+              onPressed: !ready
+                  ? null
+                  : () {
+                      // Arm then commit, the same shape as sending.
+                      if (!armed) {
+                        setD(() => armed = true);
+                        return;
+                      }
+                      Navigator.pop(ctx, true);
+                    },
+              child: Text(armed && ready
+                  ? s.confirmTakeBack(
+                      Formatters.iqd(amt.round()), from!.label)
+                  : s.takeBack),
+            ),
+          ],
+        );
+      }),
+    );
+
+    final amount = parseAmount(amountCtrl.text);
+    final target = from;
+    if (ok != true || target == null || amount == null || amount <= 0) return;
+    if (!mounted) return;
+
+    setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await PricingRepository(ref.read(apiClientProvider))
+          .reclaim(destId: target.id, amount: amount);
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(s.takenBack)));
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        // The server knows the real ceiling; its wording is the useful one.
+        messenger.showSnackBar(SnackBar(
+            content: Text(serverReason(e) ?? friendlyError(e, context))));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _newTransferDialog(_TS s) async {
     if (_children.isEmpty) {
       ScaffoldMessenger.of(context)
@@ -433,6 +545,19 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
               onPressed: _busy ? null : () => _newTransferDialog(s),
               icon: const Icon(Icons.north_east, size: 18),
               label: Text(s.newTransfer),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // B-034: the inverse a grant never had. Deliberately a SEPARATE action
+          // rather than a mode inside the send dialog — that dialog has been the
+          // subject of three regressions, and money moving the wrong way because
+          // a toggle was missed is exactly the failure it keeps producing.
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _busy ? null : () => _takeBackDialog(s),
+              icon: const Icon(Icons.south_west, size: 18),
+              label: Text(s.takeBack),
             ),
           ),
           const SizedBox(height: 20),

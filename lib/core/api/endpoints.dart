@@ -116,11 +116,14 @@ class Endpoints {
   static const balance = '/api/balance';
   static const balanceGrant = '/api/balance/grant';
   static const balanceGrants = '/api/balance/grants';
+  // B-034 take-back: the inverse of a grant.
+  static const balanceReclaim = '/api/balance/reclaim';
 
   // POS-user quota + management
   static const posQuota = '/api/pos-quota';
   static const posQuotaGrant = '/api/pos-quota/grant';
   static const posQuotaGrants = '/api/pos-quota/grants';
+  static const posQuotaReclaim = '/api/pos-quota/reclaim';
   // HQ network oversight (B-029): all agents' POS-slot rollup
   static const posQuotaNetwork = '/api/pos-quota/network';
   static const posQuotaNetworkSummary = '/api/pos-quota/network/summary';

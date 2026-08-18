@@ -52,6 +52,13 @@ class PricingRepository {
     await _api.post(Endpoints.balanceGrant, data: {'destId': destId, 'amount': amount});
   }
 
+  /// B-034: takes UNSPENT credit back from a direct child — the inverse a grant
+  /// never had. The server refuses more than the child still holds and says how
+  /// much that is, since money already turned into stock or sales cannot return.
+  Future<void> reclaim({required String destId, required num amount}) async {
+    await _api.post(Endpoints.balanceReclaim, data: {'destId': destId, 'amount': amount});
+  }
+
   /// B-060 HQ oversight: Main Agents with unpriced stock.
   Future<List<UnpricedAgent>> unpricedAgents() async {
     final r = await _api.get(Endpoints.pricingUnpricedAgents);

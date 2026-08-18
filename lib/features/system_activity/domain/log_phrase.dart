@@ -93,6 +93,7 @@ const Map<String, (String, String)> _routes = {
   '/definition/read': ('Category lookup', 'استعلام فئة'),
 
   // ── money ───────────────────────────────────────────────────────────────
+  '/balance/reclaim': ('Balance taken back', 'استرجاع رصيد'),
   '/balance/grant': ('Balance transfer', 'تحويل رصيد'),
   '/balance/grants': ('Transfer history', 'سجل التحويلات'),
   '/balance': ('Balance check', 'استعلام رصيد'),
@@ -104,6 +105,7 @@ const Map<String, (String, String)> _routes = {
   // ── POS quota / network ─────────────────────────────────────────────────
   '/pos-quota/network/summary': ('POS network summary', 'ملخص شبكة نقاط البيع'),
   '/pos-quota/network': ('POS network', 'شبكة نقاط البيع'),
+  '/pos-quota/reclaim': ('POS points taken back', 'استرجاع نقاط بيع'),
   '/pos-quota/grants': ('POS slot history', 'سجل حصص نقاط البيع'),
   '/pos-quota/grant': ('POS slots granted', 'منح حصص نقاط بيع'),
   '/pos-quota': ('POS quota', 'حصة نقاط البيع'),

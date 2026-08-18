@@ -24,6 +24,12 @@ class PosAdminRepository {
     await _api.post(Endpoints.posQuotaGrant, data: {'destId': destId, 'count': count});
   }
 
+  /// B-034: takes UNUSED POS points back. The server refuses to strip a point a
+  /// shop is standing on, and says how many are actually free.
+  Future<void> reclaimSlots({required String destId, required int count}) async {
+    await _api.post(Endpoints.posQuotaReclaim, data: {'destId': destId, 'count': count});
+  }
+
   /// HQ network oversight (B-029): network-wide POS-slot totals.
   Future<PosNetworkSummary> networkSummary() async {
     final r = await _api.get(Endpoints.posQuotaNetworkSummary);

@@ -9,6 +9,17 @@ import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/password_field.dart';
 
+/// "Delete N users" in Arabic, which does not simply take a number and a plural:
+/// two is its own dual form, 3–10 take the plural, and 11+ go back to the
+/// singular accusative. Getting this wrong is small but reads as machine output
+/// in a confirmation people are meant to trust.
+String arDeleteUsersCount(int n) {
+  if (n == 1) return 'حذف مستخدم';
+  if (n == 2) return 'حذف مستخدمين';
+  if (n <= 10) return 'حذف $n مستخدمين';
+  return 'حذف $n مستخدماً';
+}
+
 class ManageUsersSheet extends StatefulWidget {
   final Entity entity;
   final Future<void> Function(List<EntityUser> users) onSave;
@@ -30,6 +41,8 @@ class ManageUsersSheet extends StatefulWidget {
 
 class _ManageUsersSheetState extends State<ManageUsersSheet> {
   late List<EntityUser> _users;
+  /// Phones of existing users marked for deletion, committed only on save.
+  final Set<String> _pendingRemoval = {};
   final _phoneCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   UserRole _selectedRole = UserRole.ADMIN;
@@ -91,10 +104,34 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
     _passCtrl.clear();
   }
 
+  /// True when this user already exists on the server, so dropping them is a
+  /// real deletion rather than discarding an unsaved row.
+  bool _isPersisted(EntityUser u) =>
+      widget.entity.users.any((x) => x.phone == u.phone);
+
+  /// The users that would exist after a save — [_users] less anything marked
+  /// for removal. Everything that asks "how many users will be left" must go
+  /// through this and not [_users].
+  List<EntityUser> get _effectiveUsers =>
+      _users.where((u) => !_pendingRemoval.contains(u.phone)).toList();
+
   void _removeUser(EntityUser u) {
-    setState(
-      () => _users.removeWhere((x) => x.id == u.id && x.phone == u.phone),
-    );
+    // A row that was never saved has no server side to delete: dropping it is
+    // free and reversible by re-typing, so it just goes.
+    if (!_isPersisted(u)) {
+      setState(
+        () => _users.removeWhere((x) => x.id == u.id && x.phone == u.phone),
+      );
+      return;
+    }
+    // A real user is only MARKED here. Vanishing on tap read as "done" while
+    // the deletion actually happened later at Save, so the operator never got
+    // a chance to object to something irreversible.
+    setState(() => _pendingRemoval.add(u.phone));
+  }
+
+  void _undoRemove(EntityUser u) {
+    setState(() => _pendingRemoval.remove(u.phone));
   }
 
   bool get _ar => Localizations.localeOf(context).languageCode == 'ar';
@@ -200,13 +237,73 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
 
   Future<void> _save() async {
     final l = AppLocalizations.of(context)!;
-    if (_users.isEmpty) {
+    final remaining = _effectiveUsers;
+    // Counts what SURVIVES the save. Checking _users would happily let the
+    // operator mark every user for removal and only find out server-side.
+    if (remaining.isEmpty) {
       setState(() => _addError = l.manageUsersAtLeastOne);
       return;
     }
+
+    // Deleting a login is the one irreversible thing this sheet does, so it is
+    // named out loud — phone by phone — before anything is written.
+    if (_pendingRemoval.isNotEmpty) {
+      final going = _users
+          .map((u) => u.phone)
+          .where(_pendingRemoval.contains)
+          .toList();
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) {
+          final cs = Theme.of(ctx).colorScheme;
+          return AlertDialog(
+            icon: Icon(Icons.person_remove_outlined, color: cs.error),
+            title: Text(_ar
+                ? '${arDeleteUsersCount(going.length)}؟'
+                : (going.length == 1
+                    ? 'Delete user?'
+                    : 'Delete ${going.length} users?')),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_ar
+                    ? (going.length == 1
+                        ? 'لن يعود بإمكانه تسجيل الدخول. لا يمكن التراجع.'
+                        : 'لن يعود بإمكان هؤلاء تسجيل الدخول. لا يمكن التراجع.')
+                    : (going.length == 1
+                        ? "This person will no longer be able to sign in. This can't be undone."
+                        : "These people will no longer be able to sign in. This can't be undone.")),
+                const SizedBox(height: 12),
+                ...going.map((p) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Text(p,
+                          style: GoogleFonts.jetBrainsMono(
+                              fontSize: 13, letterSpacing: 0.4)),
+                    )),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(_ar ? 'إلغاء' : 'Cancel'),
+              ),
+              FilledButton(
+                key: const Key('confirm-user-removal'),
+                style: FilledButton.styleFrom(backgroundColor: cs.error),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(_ar ? 'حذف' : 'Delete'),
+              ),
+            ],
+          );
+        },
+      );
+      if (ok != true) return;
+    }
+
     setState(() => _saving = true);
     try {
-      await widget.onSave(List.unmodifiable(_users));
+      await widget.onSave(List.unmodifiable(remaining));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -276,8 +373,10 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
               ..._users.map(
                 (u) => _UserRow(
                   user: u,
-                  canReset: widget.entity.users.any((x) => x.phone == u.phone),
+                  canReset: _isPersisted(u),
+                  markedForRemoval: _pendingRemoval.contains(u.phone),
                   onRemove: () => _removeUser(u),
+                  onUndoRemove: () => _undoRemove(u),
                   onResetPassword: () => _resetPassword(u),
                   onResetTotp: () => _resetTotp(u),
                 ),
@@ -375,13 +474,17 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
 class _UserRow extends StatelessWidget {
   final EntityUser user;
   final bool canReset;
+  final bool markedForRemoval;
   final VoidCallback onRemove;
+  final VoidCallback onUndoRemove;
   final VoidCallback onResetPassword;
   final VoidCallback onResetTotp;
   const _UserRow({
     required this.user,
     required this.canReset,
+    required this.markedForRemoval,
     required this.onRemove,
+    required this.onUndoRemove,
     required this.onResetPassword,
     required this.onResetTotp,
   });
@@ -389,9 +492,12 @@ class _UserRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final color = user.role == UserRole.ADMIN
-        ? cs.onPrimaryContainer
-        : IntesharColors.sage;
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    final color = markedForRemoval
+        ? cs.error
+        : user.role == UserRole.ADMIN
+            ? cs.onPrimaryContainer
+            : IntesharColors.sage;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: InkCard(
@@ -406,15 +512,31 @@ class _UserRow extends StatelessWidget {
                 user.phone,
                 style: GoogleFonts.jetBrainsMono(
                   fontSize: 13,
-                  color: cs.onSurface,
+                  color: markedForRemoval ? cs.onSurfaceVariant : cs.onSurface,
                   letterSpacing: 0.4,
+                  decoration:
+                      markedForRemoval ? TextDecoration.lineThrough : null,
                 ),
               ),
             ),
-            StampPill(label: user.role.name, color: color),
+            StampPill(
+              label: markedForRemoval
+                  ? (ar ? 'سيُحذف' : 'Removing')
+                  : user.role.name,
+              color: color,
+            ),
             const SizedBox(width: 4),
-            if (canReset)
+            // A marked row offers only the way back. Leaving the menu live
+            // would let it be "removed" twice and hide the undo behind it.
+            if (markedForRemoval)
+              TextButton(
+                key: Key('undo-remove-${user.phone}'),
+                onPressed: onUndoRemove,
+                child: Text(ar ? 'تراجع' : 'Undo'),
+              )
+            else if (canReset)
               PopupMenuButton<String>(
+                key: Key('remove-${user.phone}'),
                 icon: Icon(
                   Icons.more_vert,
                   size: 18,
@@ -430,7 +552,6 @@ class _UserRow extends StatelessWidget {
                   }
                 },
                 itemBuilder: (ctx) {
-                  final ar = Localizations.localeOf(ctx).languageCode == 'ar';
                   return [
                     PopupMenuItem(
                       value: 'pass',
@@ -453,6 +574,7 @@ class _UserRow extends StatelessWidget {
               )
             else
               IconButton(
+                key: Key('remove-${user.phone}'),
                 icon: Icon(Icons.delete_outline, color: cs.error, size: 18),
                 onPressed: onRemove,
               ),

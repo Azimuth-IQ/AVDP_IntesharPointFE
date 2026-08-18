@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:inteshar/core/api/api_exception.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
@@ -40,6 +41,7 @@ class _S {
   String get edit => p('Edit', 'تعديل');
   String get delete => p('Delete', 'حذف');
   String get deleteTitle => p('Delete company?', 'حذف الشركة؟');
+  String get deleteAnyway => p('Delete anyway', 'حذف على أي حال');
   String deleteBody(String n) => p('Remove "$n"? Its categories will be left uncategorized.',
       'إزالة "$n"؟ ستبقى فئاتها بدون تصنيف.');
   String get errName => p('Name is required', 'الاسم مطلوب');
@@ -121,12 +123,45 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
       ),
     );
     if (ok != true) return;
+    await _runDelete(s, c, force: false);
+  }
+
+  /// The server refuses while the company still has categories and says how many.
+  /// That count is the thing worth confirming — the generic warning above cannot
+  /// know it — so the refusal becomes a second, specific prompt rather than an
+  /// error the operator has to interpret.
+  Future<void> _runDelete(_S s, Company c, {required bool force}) async {
     try {
-      await _repo.delete(c.id);
+      await _repo.delete(c.id, force: force);
       _load();
     } catch (e) {
+      if (!mounted) return;
+      final reason = serverReason(e);
+      if (!force && reason != null && ApiException.from(e)?.statusCode == 409) {
+        final again = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(s.deleteTitle),
+            content: Text(reason),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: Text(s.cancel)),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(ctx).colorScheme.error),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(s.deleteAnyway),
+              ),
+            ],
+          ),
+        );
+        if (again == true) await _runDelete(s, c, force: true);
+        return;
+      }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(reason ?? friendlyError(e, context))));
       }
     }
   }

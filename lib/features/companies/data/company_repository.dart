@@ -25,8 +25,11 @@ class CompanyRepository {
     return _api.unwrap(r, (d) => Company.fromJson(d as Map<String, dynamic>));
   }
 
-  Future<void> delete(String id) async {
-    await _api.delete(Endpoints.companyDelete, params: {'id': id});
+  /// Deleting a company orphans its categories, so the server refuses while it
+  /// still has any and names the count; [force] confirms that specifically.
+  Future<void> delete(String id, {bool force = false}) async {
+    await _api.delete(Endpoints.companyDelete,
+        params: {'id': id, if (force) 'force': true});
   }
 
   /// B-058: the agent ids a company is directly restricted for (HQ view).

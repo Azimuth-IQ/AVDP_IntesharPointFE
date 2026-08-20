@@ -241,7 +241,14 @@ Future<String?> showArchivePosDialog(
 /// passed — the button that removes it for good.
 class PosArchiveView extends ConsumerStatefulWidget {
   final String? entityId;
-  const PosArchiveView({super.key, this.entityId});
+
+  /// Fired after a restore or a purge. The archive is a segment of the POS
+  /// screen, not a separate destination, so the Active list and the slot quota
+  /// sitting beside it are the caller's to refresh — a restored shop that shows
+  /// up in neither segment reads as a failed restore.
+  final VoidCallback? onChanged;
+
+  const PosArchiveView({super.key, this.entityId, this.onChanged});
 
   @override
   ConsumerState<PosArchiveView> createState() => _PosArchiveViewState();
@@ -411,6 +418,7 @@ class _PosArchiveViewState extends ConsumerState<PosArchiveView> {
       await _repo.restore(entityId: row.id, totp: code);
       if (!mounted) return;
       _snack(_t(context, 'تمت إعادة التفعيل', 'Restored'));
+      widget.onChanged?.call();
       await _load();
     } catch (e) {
       _report(e);
@@ -436,6 +444,7 @@ class _PosArchiveViewState extends ConsumerState<PosArchiveView> {
       await _repo.purge(entityId: row.id, totp: code);
       if (!mounted) return;
       _snack(_t(context, 'تم الحذف نهائياً', 'Deleted permanently'));
+      widget.onChanged?.call();
       await _load();
     } catch (e) {
       _report(e);

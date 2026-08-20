@@ -311,7 +311,10 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
           ),
           const SizedBox(height: 12),
           if (_showArchive) ...[
-            PosArchiveView(entityId: _effectiveId),
+            // Restoring a shop moves it back into the Active segment and spends
+            // one of the host's POS points, so both the list and the quota
+            // behind this view are stale until we reload.
+            PosArchiveView(entityId: _effectiveId, onChanged: _load),
           ] else ...[
           Row(children: [
             Expanded(

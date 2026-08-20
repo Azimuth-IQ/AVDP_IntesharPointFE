@@ -10,21 +10,36 @@ import 'package:inteshar/features/entities/presentation/confirm_code_dialog.dart
 import 'package:inteshar/features/pos_admin/data/pos_admin_repository.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 
-/// Opens the clear-out sheet for [entityId]. Returns true when the account
-/// itself was deleted, so the caller can refresh and close whatever showed it.
+/// Opens the clear-out sheet for [entityId].
+///
+/// Returns true when ANYTHING was deleted — the account itself, or any of the
+/// shops and sub-agents cleared out on the way there.
+///
+/// It deliberately does not mean "the account is gone". Clearing three shops and
+/// then closing the sheet used to return false, so the hierarchy behind it kept
+/// listing all three and the operator reasonably concluded the deletes had
+/// failed. The caller's only question is "should I refresh?", so that is what
+/// this answers.
 Future<bool> showDeleteAgentSheet(
   BuildContext context,
   WidgetRef ref, {
   required String entityId,
   required String entityName,
 }) async {
+  // Tracked out here because the sheet can also be dismissed by the scrim, the
+  // drag handle or the back gesture, none of which pop a result.
+  var changed = false;
   final deleted = await showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (_) => DeleteAgentSheet(entityId: entityId, entityName: entityName),
+    builder: (_) => DeleteAgentSheet(
+      entityId: entityId,
+      entityName: entityName,
+      onChanged: () => changed = true,
+    ),
   );
-  return deleted ?? false;
+  return deleted ?? changed;
 }
 
 /// Shows everything still attached to an account and lets it be cleared in the
@@ -41,10 +56,16 @@ class DeleteAgentSheet extends ConsumerStatefulWidget {
   final String entityId;
   final String entityName;
 
+  /// Fired after every successful deletion, so the caller can refresh even when
+  /// the operator clears children and then dismisses without deleting the
+  /// account itself.
+  final VoidCallback? onChanged;
+
   const DeleteAgentSheet({
     super.key,
     required this.entityId,
     required this.entityName,
+    this.onChanged,
   });
 
   @override
@@ -130,6 +151,7 @@ class _DeleteAgentSheetState extends ConsumerState<DeleteAgentSheet> {
         await _entities.delete(store.id, totp: code);
       }
       _snack(_t('تم حذف نقطة البيع', 'Point of sale deleted'));
+      widget.onChanged?.call();
       await _load();
     } catch (e) {
       _reportFailure(e);
@@ -154,6 +176,7 @@ class _DeleteAgentSheetState extends ConsumerState<DeleteAgentSheet> {
     try {
       await _entities.delete(sub.id, totp: code);
       _snack(_t('تم حذف الوكيل الفرعي', 'Sub-agent deleted'));
+      widget.onChanged?.call();
       await _load();
     } catch (e) {
       _reportFailure(e);

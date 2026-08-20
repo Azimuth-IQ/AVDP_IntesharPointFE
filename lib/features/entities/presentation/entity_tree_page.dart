@@ -109,7 +109,16 @@ class _EntityTreePageState extends ConsumerState<EntityTreePage> {
     _load();
   }
 
-  Future<void> _load() async {
+  /// Reloads the tree.
+  ///
+  /// [keepOpen] re-fetches the branches the operator had expanded instead of
+  /// collapsing everything back to the root. A refresh usually follows an action
+  /// taken deep in the tree — deleting a shop three levels down — and dropping
+  /// the operator back at the root to re-drill hides the very result they asked
+  /// for. Cached rows are always discarded; only the SET of open branches is
+  /// kept, so nothing stale survives.
+  Future<void> _load({bool keepOpen = false}) async {
+    final reopen = keepOpen ? Set<String>.from(_expanded) : <String>{};
     setState(() {
       _loading = true;
       _error = null;
@@ -143,6 +152,18 @@ class _EntityTreePageState extends ConsumerState<EntityTreePage> {
         _expanded.add(root.id); // root expanded by default
       });
       await _loadChildren(root.id);
+
+      // Re-open what was open. Quietly: a branch whose parent was just deleted
+      // will fail here, and that is the expected case rather than something to
+      // report — it simply stops being expanded.
+      for (final id in reopen) {
+        if (id == root.id || !mounted) continue;
+        final ok = await _loadChildren(id, quiet: true);
+        if (!mounted) return;
+        if (ok) {
+          setState(() => _expanded.add(id));
+        }
+      }
     } catch (e) {
       if (mounted) setState(() => _error = e);
     } finally {
@@ -150,24 +171,29 @@ class _EntityTreePageState extends ConsumerState<EntityTreePage> {
     }
   }
 
-  Future<void> _loadChildren(String parentId, {bool more = false}) async {
-    if (_loadingNodes.contains(parentId)) return;
+  /// Returns false when the fetch failed, so a caller restoring expansion can
+  /// drop a branch that no longer exists.
+  Future<bool> _loadChildren(String parentId,
+      {bool more = false, bool quiet = false}) async {
+    if (_loadingNodes.contains(parentId)) return false;
     setState(() => _loadingNodes.add(parentId));
     try {
       final nextPage = more ? (_page[parentId] ?? 0) + 1 : 0;
       final res = await _repo.children(parentId, page: nextPage);
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() {
         final current = more ? (_children[parentId] ?? const []) : const <EntitySummaryRow>[];
         _children[parentId] = [...current, ...res.items];
         _hasMore[parentId] = res.hasMore;
         _page[parentId] = nextPage;
       });
+      return true;
     } catch (e) {
-      if (mounted) {
+      if (mounted && !quiet) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
       }
+      return false;
     } finally {
       if (mounted) setState(() => _loadingNodes.remove(parentId));
     }
@@ -208,7 +234,7 @@ class _EntityTreePageState extends ConsumerState<EntityTreePage> {
 
     return MaxWidthBox(
       child: RefreshIndicator(
-        onRefresh: _load,
+        onRefresh: () => _load(keepOpen: true),
         child: CustomScrollView(
           slivers: [
             SliverToBoxAdapter(
@@ -242,7 +268,7 @@ class _EntityTreePageState extends ConsumerState<EntityTreePage> {
                         loadingNodes: _loadingNodes,
                         onToggle: _toggle,
                         onLoadMore: (id) => _loadChildren(id, more: true),
-                        onRefresh: _load,
+                        onRefresh: () => _load(keepOpen: true),
                         visitedIds: {root.id},
                       ),
                     ],

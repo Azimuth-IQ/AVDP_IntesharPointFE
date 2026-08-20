@@ -85,6 +85,12 @@ class _S {
       'تعديل أسعار هذا الوكيل الفرعي. التصدير والرفع يتبعان هذا الاختيار.');
   String get cancel => p('Cancel', 'إلغاء');
   String get apply => p('Apply', 'تطبيق');
+  // UX-69: a bare number in a box labelled "بغداد" reads as a price, a stock
+  // count or a value with equal plausibility. Name the currency, name the field,
+  // and keep the governorate as a heading rather than as the field's own label.
+  String get currency => p('IQD', 'د.ع');
+  String get edited => p('Edited', 'معدّل');
+  String saveN(int n) => p('Save prices ($n)', 'حفظ الأسعار ($n)');
 }
 
 /// A SKU is "regional" when its stock is broken down by governorate (a real
@@ -130,6 +136,22 @@ class _PricingPageState extends ConsumerState<PricingPage> {
   bool _authorized = true;
   final Map<String, TextEditingController> _ctrls = {};
 
+  /// UX-69: the value each field was LOADED with, so an edited row can be marked
+  /// before the single bottom Save writes it. Same key space as [_ctrls].
+  final Map<String, String> _original = {};
+
+  /// How many fields currently differ from what was loaded — the Save button says
+  /// it, so "which of my 60 rows will be written" is answerable without counting.
+  final ValueNotifier<int> _dirtyCount = ValueNotifier<int>(0);
+
+  bool _fieldDirty(String key) =>
+      parseAmount(_ctrls[key]?.text) != parseAmount(_original[key]);
+
+  void _recountDirty() {
+    final n = _ctrls.keys.where(_fieldDirty).length;
+    if (_dirtyCount.value != n) _dirtyCount.value = n;
+  }
+
   PricingRepository get _repo => PricingRepository(ref.read(apiClientProvider));
 
   @override
@@ -154,6 +176,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
     for (final c in _ctrls.values) {
       c.dispose();
     }
+    _dirtyCount.dispose();
     super.dispose();
   }
 
@@ -186,17 +209,15 @@ class _PricingPageState extends ConsumerState<PricingPage> {
         c.dispose();
       }
       _ctrls.clear();
+      _original.clear();
       for (final row in catalog.rows) {
         // Base (SKU-wide) field keyed "sku::"; one field per governorate keyed "sku::gov".
-        _ctrls['${row.sku}::'] = TextEditingController(
-          text: _fmt(row.effectivePrice),
-        );
+        _bind('${row.sku}::', row.effectivePrice);
         for (final g in row.governorates) {
-          _ctrls['${row.sku}::${g.governorate}'] = TextEditingController(
-            text: _fmt(g.effectivePrice),
-          );
+          _bind('${row.sku}::${g.governorate}', g.effectivePrice);
         }
       }
+      _recountDirty();
       setState(() {
         _catalog = catalog;
         _loading = false;
@@ -209,6 +230,14 @@ class _PricingPageState extends ConsumerState<PricingPage> {
         });
       }
     }
+  }
+
+  /// Creates the field for [key], remembers what it was loaded with, and keeps
+  /// the dirty count live as the operator types (UX-69).
+  void _bind(String key, num value) {
+    final text = _fmt(value);
+    _original[key] = text;
+    _ctrls[key] = TextEditingController(text: text)..addListener(_recountDirty);
   }
 
   String _fmt(num v) => v % 1 == 0 ? v.toInt().toString() : v.toString();
@@ -764,7 +793,8 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                       ...entry.value.map(
                         (row) => Padding(
                           padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: _PriceRow(row: row, ctrls: _ctrls, s: s),
+                          child: _PriceRow(
+                              row: row, ctrls: _ctrls, original: _original, s: s),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -778,16 +808,22 @@ class _PricingPageState extends ConsumerState<PricingPage> {
             padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
             child: SizedBox(
               width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: _saving ? null : _save,
-                icon: _saving
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.save_outlined, size: 18),
-                label: Text(s.save),
+              // UX-69: the one Save writes every edited field, so it says how many
+              // it is about to write. "Save prices" over 60 rows told the operator
+              // nothing about what they had actually changed.
+              child: ValueListenableBuilder<int>(
+                valueListenable: _dirtyCount,
+                builder: (context, dirty, _) => FilledButton.icon(
+                  onPressed: _saving ? null : _save,
+                  icon: _saving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save_outlined, size: 18),
+                  label: Text(dirty > 0 ? s.saveN(dirty) : s.save),
+                ),
               ),
             ),
           ),
@@ -870,11 +906,41 @@ class _BalanceHeader extends StatelessWidget {
 class _PriceRow extends StatelessWidget {
   final CategoryPriceRow row;
   final Map<String, TextEditingController> ctrls;
+
+  /// UX-69: the loaded values, so the card can flag itself as edited.
+  final Map<String, String> original;
   final _S s;
-  const _PriceRow({required this.row, required this.ctrls, required this.s});
+  const _PriceRow({
+    required this.row,
+    required this.ctrls,
+    required this.original,
+    required this.s,
+  });
+
+  /// The field keys this card actually RENDERS (a regional row shows only its
+  /// per-governorate fields, never the SKU-wide one).
+  List<String> get _keys => _regionalRow(row)
+      ? [for (final g in row.governorates) '${row.sku}::${g.governorate}']
+      : ['${row.sku}::'];
+
+  bool _dirty(String k) =>
+      parseAmount(ctrls[k]?.text) != parseAmount(original[k]);
 
   @override
   Widget build(BuildContext context) {
+    final listenables = [
+      for (final k in _keys)
+        if (ctrls[k] != null) ctrls[k]!,
+    ];
+    // Rebuilds only THIS card as its own fields change — the page above does not
+    // rebuild per keystroke.
+    return ListenableBuilder(
+      listenable: Listenable.merge(listenables),
+      builder: (context, _) => _card(context, _keys.any(_dirty)),
+    );
+  }
+
+  Widget _card(BuildContext context, bool dirty) {
     final cs = Theme.of(context).colorScheme;
     final loc = Localizations.localeOf(context).languageCode;
     final regional = _regionalRow(row);
@@ -896,6 +962,17 @@ class _PriceRow extends StatelessWidget {
                   ),
                 ),
               ),
+              // UX-69: an unsaved edit is visible on the row it belongs to, so a
+              // list of 60 says which 10 the bottom Save is about to write.
+              if (dirty) ...[
+                StampPill(
+                  label: s.edited,
+                  color: context.tones.brandInk,
+                  icon: Icons.edit_outlined,
+                  filled: false,
+                ),
+                const SizedBox(width: 8),
+              ],
               Text(
                 '${s.official}: ${Formatters.iqd(row.officialPrice.round())}',
                 style: IntesharType.mono(11.5, color: cs.onSurfaceVariant),
@@ -906,8 +983,8 @@ class _PriceRow extends StatelessWidget {
           if (!regional)
             // Non-regional category: one price for all its (untagged) stock.
             _PriceField(
-              label: s.yourPrice,
               ctrl: ctrls['${row.sku}::'],
+              original: original['${row.sku}::'] ?? '',
               available: row.available,
               lineValue: row.lineValue,
               s: s,
@@ -926,8 +1003,11 @@ class _PriceRow extends StatelessWidget {
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: _PriceField(
-                  label: label,
+                  // The governorate is a HEADING over the field now, not the
+                  // field's label — the box itself says "your price · IQD".
+                  region: label,
                   ctrl: ctrls['${row.sku}::${g.governorate}'],
+                  original: original['${row.sku}::${g.governorate}'] ?? '',
                   available: g.available,
                   lineValue: g.lineValue,
                   s: s,
@@ -942,14 +1022,21 @@ class _PriceRow extends StatelessWidget {
 }
 
 class _PriceField extends StatelessWidget {
-  final String label;
+  /// The governorate this price applies to, for a regional row. Null on a
+  /// SKU-wide field. UX-69: it used to BE the field's label, which made a bare
+  /// number under "بغداد" ambiguous between price, stock and value.
+  final String? region;
   final TextEditingController? ctrl;
+
+  /// The value loaded from the server — anything else means unsaved.
+  final String original;
   final int available;
   final num lineValue;
   final _S s;
   const _PriceField({
-    required this.label,
+    this.region,
     required this.ctrl,
+    required this.original,
     required this.available,
     required this.lineValue,
     required this.s,
@@ -957,40 +1044,82 @@ class _PriceField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = ctrl;
+    if (c == null) return _content(context, false);
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: c,
+      builder: (context, v, _) =>
+          _content(context, parseAmount(v.text) != parseAmount(original)),
+    );
+  }
+
+  Widget _content(BuildContext context, bool dirty) {
     final cs = Theme.of(context).colorScheme;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+    final brandInk = context.tones.brandInk;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          width: 130,
-          child: TextField(
-            controller: ctrl,
-            keyboardType: TextInputType.number,
-            inputFormatters: const [ThousandsInputFormatter()],
-            style: IntesharType.mono(14, color: cs.onSurface),
-            decoration: InputDecoration(labelText: label, isDense: true),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '${s.available}: ${Formatters.money(available)}',
-                style: IntesharType.sans(12, color: cs.onSurfaceVariant),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '${s.lineValue}: ${Formatters.iqd(lineValue.round())}',
-                style: IntesharType.mono(
-                  12.5,
-                  color: cs.onSurface,
-                  w: FontWeight.w700,
+        if (region != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(children: [
+              Icon(Icons.place_outlined,
+                  size: 13, color: dirty ? brandInk : cs.onSurfaceVariant),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  // Not colour alone: the edited line says so in words.
+                  dirty ? '${region!} · ${s.edited}' : region!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: IntesharType.sans(12,
+                      color: dirty ? brandInk : cs.onSurfaceVariant,
+                      w: dirty ? FontWeight.w800 : FontWeight.w600),
                 ),
               ),
-            ],
+            ]),
           ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 152,
+              child: TextField(
+                controller: ctrl,
+                keyboardType: TextInputType.number,
+                inputFormatters: const [ThousandsInputFormatter()],
+                style: IntesharType.mono(14, color: cs.onSurface),
+                decoration: InputDecoration(
+                  // Always says WHAT the number is, and in which currency.
+                  labelText: s.yourPrice,
+                  isDense: true,
+                  suffixText: s.currency,
+                  suffixStyle: IntesharType.sans(11.5, color: cs.onSurfaceVariant),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '${s.available}: ${Formatters.money(available)}',
+                    style: IntesharType.sans(12, color: cs.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${s.lineValue}: ${Formatters.iqd(lineValue.round())}',
+                    style: IntesharType.mono(
+                      12.5,
+                      color: cs.onSurface,
+                      w: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ],
     );

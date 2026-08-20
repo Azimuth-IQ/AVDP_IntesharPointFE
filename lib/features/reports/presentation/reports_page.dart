@@ -113,6 +113,15 @@ class _RS {
   String get exportTruncated =>
       p('Export stopped at the row cap — the sheet is incomplete',
         'توقّف التصدير عند الحد الأقصى للصفوف — الملف غير مكتمل');
+  // UX-34: the roster serves BOTH balance tabs, so the tier has to be on the row —
+  // otherwise a Main Agent and a Sub Agent are indistinguishable.
+  String get tier => p('Type', 'النوع');
+  String get hq => p('Headquarters', 'الإدارة');
+  // UX-33: a paged total is a total of what is LOADED, not of what exists. Say so
+  // on screen rather than letting a finance user read page 1 as the whole figure.
+  String partialOf(int n) => p(
+      'Partial — over the $n rows loaded so far. Load more, or export for the full figure.',
+      'جزئي — على $n صفًا محمّلًا حتى الآن. حمّل المزيد، أو صدّر الملف للرقم الكامل.');
 }
 
 /// B-103: the 9 reports are really three families. Flat, they wrapped to FOUR rows
@@ -462,6 +471,16 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     }
   }
 
+  /// The label of the tab [key] belongs to. UX-34: the balances roster and its
+  /// XLSX are shared by two tabs, so the identity column has to be named after
+  /// the tab in view rather than hardcoded to "POS balances".
+  String _labelFor(String key, _RS s) {
+    for (final t in _tabsFor(s)) {
+      if (t.key == key) return t.label;
+    }
+    return '';
+  }
+
   /// The headline total for [key], mirroring the on-screen _TotalStrip. Null for
   /// reports that have no single meaningful total (prices, stock rosters).
   (String, String)? _exportTotal(String key, dynamic data, _RS s) {
@@ -538,13 +557,16 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
       case 'posBalances':
       case 'agentBalances':
         final list = (data as List<BalanceRosterRow>?) ?? const [];
+        // UX-34: name the identity column after the TAB, and carry the tier —
+        // without it an AGENT1 and an AGENT2 row are identical in the sheet too.
         final rows = [
           for (final r in list)
-            [r.name, r.ownerName, r.userPhone, gov(r.governorate), r.address, r.mainAgentName, r.subAgentName,
+            [r.name, _tierLabel(r.tier, s), r.ownerName, r.userPhone, gov(r.governorate), r.address,
+              r.mainAgentName, r.subAgentName,
               m(r.available), m(r.ordersSpent), '${r.storeCount}'],
         ];
         return _Export(
-            [s.tabPosBalances, s.owner, s.phone, s.governorate, s.address, s.mainAgent, s.subAgent, s.balance, s.spent, s.points],
+            [_labelFor(key, s), s.tier, s.owner, s.phone, s.governorate, s.address, s.mainAgent, s.subAgent, s.balance, s.spent, s.points],
             rows, key);
       case 'transfers':
         final list = (data as List<TransferRow>?) ?? const [];
@@ -859,6 +881,10 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         if (_isDated(key) && data is List && data.isEmpty) {
           return _emptyDated(s);
         }
+        // UX-33: a paged feed with more pages behind it means every figure folded
+        // over the loaded rows is PARTIAL. The reports that show a headline total
+        // say so instead of presenting page 1 as the whole story.
+        final more = _accMore[_sourceKey(key)] ?? false;
         final body = RefreshIndicator(
           onRefresh: () async => setState(() => _cache.remove(_sourceKey(key))),
           child: switch (key) {
@@ -869,17 +895,22 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                 gov: _stockGov,
                 s: s),
             'detailed' => _DetailedReport(catalog: data as PricingCatalog, s: s),
-            'transfers' => _TransfersReport(rows: (data as List<TransferRow>?) ?? const [], s: s),
+            'transfers' => _TransfersReport(
+                rows: (data as List<TransferRow>?) ?? const [], s: s, partial: more),
             'sold' => _SalesReport(rows: (data as List<SalesRow>?) ?? const [], s: s),
             'totalSold' => _TotalSoldReport(rows: (data as List<SalesRow>?) ?? const [], s: s),
             'uploaded' => _UploadsReport(rows: (data as List<UploadsRow>?) ?? const [], s: s),
-            _ => _RosterReport(rows: (data as List<BalanceRosterRow>?) ?? const [], s: s),
+            _ => _RosterReport(
+                rows: (data as List<BalanceRosterRow>?) ?? const [],
+                s: s,
+                identityLabel: _labelFor(key, s),
+                partial: more),
           },
         );
         // B-097: the paged feeds show the first page with a Load-more tail rather
         // than pulling the whole subtree/ledger up front. Export still walks every
         // page — see _fetchAllPages.
-        if (!(_accMore[_sourceKey(key)] ?? false)) return body;
+        if (!more) return body;
         return Column(children: [
           Expanded(child: body),
           Padding(
@@ -1116,10 +1147,33 @@ class _ReportSurface extends StatelessWidget {
 }
 
 // ── #1/#2 Balances roster ────────────────────────────────────────────────────
+
+/// UX-34: the roster serves BOTH balance tabs, and `tier` is the only thing that
+/// tells a Main Agent from a Sub Agent. Rendered whenever the roster is mixed.
+String _tierLabel(String tier, _RS s) => switch (tier) {
+      'INTESHAR' => s.hq,
+      'AGENT1' => s.mainAgent,
+      'AGENT2' => s.subAgent,
+      'STORE' => s.store,
+      _ => '',
+    };
+
+bool _mixedTiers(List<BalanceRosterRow> rows) =>
+    rows.map((r) => r.tier).where((t) => t.isNotEmpty).toSet().length > 1;
+
 class _RosterReport extends StatefulWidget {
   final List<BalanceRosterRow> rows;
   final _RS s;
-  const _RosterReport({required this.rows, required this.s});
+
+  /// UX-34: the identity column is headed with the TAB's own label. Hardcoding
+  /// "POS balances" put that header over a list of Main and Sub Agents.
+  final String identityLabel;
+
+  /// UX-33: more pages exist, so `rows` is a prefix of the roster — the search
+  /// denominator counts what is LOADED, not what exists.
+  final bool partial;
+  const _RosterReport(
+      {required this.rows, required this.s, this.identityLabel = '', this.partial = false});
 
   @override
   State<_RosterReport> createState() => _RosterReportState();
@@ -1140,6 +1194,9 @@ class _RosterReportState extends State<_RosterReport> {
     final rows = widget.rows
         .where((r) => rosterMatches(r, _q, govLabel: (g) => governorateLabel(g, loc)))
         .toList();
+    // Only worth a column when the list actually mixes tiers (the agent-balances
+    // tab); a roster of nothing but shops would just repeat "Store" 200 times.
+    final showTier = _mixedTiers(widget.rows);
 
     return _ReportTable(
       leading: Padding(
@@ -1150,12 +1207,18 @@ class _RosterReportState extends State<_RosterReport> {
             isDense: true,
             prefixIcon: const Icon(Icons.search, size: 18),
             hintText: s.searchRoster,
-            suffixText: _q.isEmpty ? null : '${rows.length}/${widget.rows.length}',
+            // UX-33: "12/100+" — the trailing + says the denominator is the rows
+            // loaded so far, not the size of the roster.
+            suffixText: _q.isEmpty
+                ? null
+                : '${rows.length}/${widget.rows.length}${widget.partial ? '+' : ''}',
           ),
         ),
       ),
       columns: [
-        _RCol(s.tabPosBalances, flex: 4, primary: true),
+        _RCol(widget.identityLabel.isEmpty ? s.tabPosBalances : widget.identityLabel,
+            flex: 4, primary: true),
+        if (showTier) _RCol(s.tier, flex: 2),
         _RCol(s.owner, flex: 3),
         _RCol(s.phone, flex: 3),
         _RCol(s.governorate, flex: 2),
@@ -1166,6 +1229,7 @@ class _RosterReportState extends State<_RosterReport> {
         for (final r in rows)
           [
             _RCell(r.name),
+            if (showTier) _RCell(_tierLabel(r.tier, s)),
             _RCell(r.ownerName),
             _RCell(r.userPhone),
             _RCell(r.governorate.isEmpty ? '' : governorateLabel(r.governorate, loc)),
@@ -1189,7 +1253,12 @@ class _RosterReportState extends State<_RosterReport> {
 class _TransfersReport extends StatelessWidget {
   final List<TransferRow> rows;
   final _RS s;
-  const _TransfersReport({required this.rows, required this.s});
+
+  /// UX-33: the ledger is paged, so "Total moved" folds over the pages loaded so
+  /// far — while the export walks every page and stamps the complete figure. The
+  /// two legitimately disagree, so the screen must say which one it is showing.
+  final bool partial;
+  const _TransfersReport({required this.rows, required this.s, this.partial = false});
 
   @override
   Widget build(BuildContext context) {
@@ -1203,6 +1272,7 @@ class _TransfersReport extends StatelessWidget {
         value: Formatters.iqd(moved.round()),
         subLabel: s.tabTransfers,
         subValue: Formatters.money(rows.length),
+        note: partial ? s.partialOf(rows.length) : null,
       ),
       columns: [
         _RCol(s.date, flex: 3),
@@ -1557,11 +1627,17 @@ class _TotalStrip extends StatelessWidget {
   final String? subLabel;
   final String? subValue;
 
+  /// UX-33: a caveat printed WITH the figure — used when the number is folded
+  /// over loaded pages only. A headline total that is silently partial is the
+  /// one thing a finance user cannot recover from by reading more carefully.
+  final String? note;
+
   const _TotalStrip({
     required this.label,
     required this.value,
     this.subLabel,
     this.subValue,
+    this.note,
   });
 
   @override
@@ -1576,7 +1652,8 @@ class _TotalStrip extends StatelessWidget {
         border: Border.all(color: cs.outlineVariant),
         boxShadow: IntesharShadows.elev1,
       ),
-      child: Row(
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+      Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
@@ -1638,6 +1715,18 @@ class _TotalStrip extends StatelessWidget {
           const Spacer(),
         ],
       ),
+      if (note != null) ...[
+        const SizedBox(height: 8),
+        Row(children: [
+          const Icon(Icons.info_outline, size: 14, color: IntesharColors.warn),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(note!,
+                style: IntesharType.sans(11.5, color: IntesharColors.warn, w: FontWeight.w600)),
+          ),
+        ]),
+      ],
+      ]),
     );
   }
 }
@@ -1686,6 +1775,21 @@ class ReportsPreviewPage extends StatelessWidget {
         mainAgentName: 'وكيل النجف', subAgentName: ''),
   ];
 
+  /// UX-34: the agent-balances tab feeds the SAME widget a mixed roster. Kept
+  /// distinct from `_roster` so the tier column and the tab-specific header are
+  /// visible in the preview instead of being taken on trust.
+  static final _agentRoster = [
+    const BalanceRosterRow(
+        entityId: 'a1', name: 'وكيل بغداد', ownerName: 'كريم جاسم',
+        userPhone: '07701110000', governorate: 'BAGHDAD', tier: 'AGENT1',
+        available: 480000000, storeCount: 62, mainAgentName: 'وكيل بغداد'),
+    const BalanceRosterRow(
+        entityId: 'a2', name: 'الرصافة', ownerName: 'مثنى قيس',
+        userPhone: '07702220000', governorate: 'BAGHDAD', tier: 'AGENT2',
+        available: 96000000, storeCount: 18,
+        mainAgentName: 'وكيل بغداد', subAgentName: 'الرصافة'),
+  ];
+
   static final _transfers = [
     const TransferRow(
         id: 'g1', date: '2026-07-26', time: '14:05', sourceName: 'Inteshar HQ',
@@ -1731,8 +1835,11 @@ class ReportsPreviewPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = _RS.of(context);
     final sections = <(String, Widget)>[
-      ('POS balances (roster)', _RosterReport(rows: _roster, s: s)),
-      ('Transfers', _TransfersReport(rows: _transfers, s: s)),
+      ('POS balances (roster)',
+          _RosterReport(rows: _roster, s: s, identityLabel: s.tabPosBalances)),
+      ('Agent balances',
+          _RosterReport(rows: _agentRoster, s: s, identityLabel: s.tabAgentBalances)),
+      ('Transfers', _TransfersReport(rows: _transfers, s: s, partial: true)),
       ('Sold cards', _SalesReport(rows: _sales, s: s)),
       ('Total sold', _TotalSoldReport(rows: _sales, s: s)),
       ('Uploaded', _UploadsReport(rows: _uploads, s: s)),

@@ -235,9 +235,14 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
                     ],
                   ),
                 ),
+                // UX-144: `cs.outline` is a hairline BORDER token — as pill text
+                // on white it is 1.22:1, so "معطّل" was effectively invisible and
+                // the only signal was the absence of green. Readable neutral, and
+                // an icon so the state is not carried by colour alone.
                 StampPill(
                   label: c.active ? s.active : s.inactive,
-                  color: c.active ? IntesharColors.sage : cs.outline,
+                  color: c.active ? IntesharColors.sage : cs.onSurfaceVariant,
+                  icon: c.active ? Icons.check_circle_outline : Icons.cancel_outlined,
                   filled: false,
                 ),
                 if (canManage)

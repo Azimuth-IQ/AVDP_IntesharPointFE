@@ -369,9 +369,12 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
                     ),
             ),
             const SizedBox(height: 4),
+            // UX-144: `cs.outline` is a hairline BORDER token — 1.22:1 as pill
+            // text on white, so the inactive state was invisible. The icon was
+            // already here; the colour just had to be a readable neutral.
             StampPill(
               label: _globalEnabled ? s.active : s.inactive,
-              color: _globalEnabled ? IntesharColors.sage : cs.outline,
+              color: _globalEnabled ? IntesharColors.sage : cs.onSurfaceVariant,
               icon: _globalEnabled
                   ? Icons.check_circle_outline
                   : Icons.cancel_outlined,

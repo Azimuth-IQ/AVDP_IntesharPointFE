@@ -83,12 +83,15 @@ class _S {
 }
 
 class _StorePosViewState extends ConsumerState<StorePosView> {
-  bool _busy = false;
+  /// UX-83: WHICH action is running ('pin' | 'password' | 'totp'), not just
+  /// "something is". A page-wide bool greyed all three buttons and put the
+  /// spinner on none of them, so the only feedback was everything going grey.
+  String? _busy;
 
   PosAdminRepository get _repo => PosAdminRepository(ref.read(apiClientProvider));
 
-  Future<void> _run(Future<void> Function() action, String okMsg) async {
-    setState(() => _busy = true);
+  Future<void> _run(Future<void> Function() action, String okMsg, {required String key}) async {
+    setState(() => _busy = key);
     final messenger = ScaffoldMessenger.of(context);
     try {
       await action();
@@ -96,9 +99,18 @@ class _StorePosViewState extends ConsumerState<StorePosView> {
     } catch (e) {
       if (mounted) messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _busy = null);
     }
   }
+
+  /// A counter action that shows its own progress in place of its label.
+  Widget _actionButton(String key, String label, VoidCallback onPressed) => OutlinedButton(
+        onPressed: _busy == null ? onPressed : null,
+        child: _busy == key
+            ? const SizedBox(
+                width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+            : Text(label),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -171,9 +183,13 @@ class _StorePosViewState extends ConsumerState<StorePosView> {
               style: IntesharType.sans(16, color: cs.onSurface, w: FontWeight.w800),
             ),
           ),
+          // UX-144: `cs.outline` is a hairline BORDER token — 1.22:1 as text on
+          // white, so "موقوف" was effectively invisible and the state was carried
+          // by the absence of green alone. Readable neutral + an icon.
           StampPill(
             label: store.active ? 'POS' : s.disabled,
-            color: store.active ? IntesharColors.sage : cs.outline,
+            color: store.active ? IntesharColors.sage : cs.onSurfaceVariant,
+            icon: store.active ? Icons.check_circle_outline : Icons.block,
           ),
         ]),
         if (owner.isNotEmpty) _row(s.owner, owner, cs),
@@ -223,18 +239,10 @@ class _StorePosViewState extends ConsumerState<StorePosView> {
           Text(s.legacyCounter, style: IntesharType.sans(12.5, color: cs.onSurfaceVariant))
         else
           Wrap(spacing: 8, runSpacing: 8, children: [
-            OutlinedButton(
-              onPressed: _busy ? null : () => _resetPin(s, counter.phone),
-              child: Text(s.resetPin),
-            ),
-            OutlinedButton(
-              onPressed: _busy ? null : () => _resetPassword(s, counter.phone),
-              child: Text(s.resetPassword),
-            ),
-            OutlinedButton(
-              onPressed: _busy ? null : () => _resetTotp(s, counter.phone),
-              child: Text(s.resetTotp),
-            ),
+            _actionButton('pin', s.resetPin, () => _resetPin(s, counter.phone)),
+            _actionButton(
+                'password', s.resetPassword, () => _resetPassword(s, counter.phone)),
+            _actionButton('totp', s.resetTotp, () => _resetTotp(s, counter.phone)),
           ]),
       ]),
     );
@@ -244,7 +252,7 @@ class _StorePosViewState extends ConsumerState<StorePosView> {
   Future<void> _resetPin(_S s, String phone) async {
     if (!await confirmResetPin(context)) return;
     if (!mounted) return;
-    setState(() => _busy = true);
+    setState(() => _busy = 'pin');
     final messenger = ScaffoldMessenger.of(context);
     try {
       final pin = await _repo.resetPin(phone);
@@ -269,7 +277,7 @@ class _StorePosViewState extends ConsumerState<StorePosView> {
     } catch (e) {
       if (mounted) messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _busy = null);
     }
   }
 
@@ -301,13 +309,14 @@ class _StorePosViewState extends ConsumerState<StorePosView> {
       ),
     );
     if (ok == true) {
-      await _run(() => _repo.resetPassword(phone, ctrl.text.trim()), s.passwordResetDone);
+      await _run(() => _repo.resetPassword(phone, ctrl.text.trim()), s.passwordResetDone,
+          key: 'password');
     }
   }
 
   /// Confirmed: it forces the counter to re-enrol mid-shift.
   Future<void> _resetTotp(_S s, String phone) async {
     if (!await confirmResetTotp(context)) return;
-    await _run(() => _repo.resetTotp(phone), s.done);
+    await _run(() => _repo.resetTotp(phone), s.done, key: 'totp');
   }
 }

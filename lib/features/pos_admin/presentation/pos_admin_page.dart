@@ -96,6 +96,8 @@ class _S {
   String get revokeConfirm => p('Archive this POS point? It stops trading and the slot is returned.',
       'إلغاء هذه النقطة؟ سيتوقف دخولها وتعود النقطة للرصيد.');
   String get required => p('Required', 'مطلوب');
+  // UX-73: an empty or zero slot count used to close the dialog and do nothing.
+  String get atLeastOne => p('Enter at least 1', 'أدخل 1 على الأقل');
   String get invalidPhone => p('Invalid phone (e.g. 07XXXXXXXXX)', 'رقم غير صحيح (مثال 07XXXXXXXXX)');
   String get edit => p('Edit', 'تعديل');
   String get editPos => p('Edit POS', 'تعديل نقطة البيع');
@@ -136,8 +138,24 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
   // points (to any account), via the network view — so this page carries no recipient picker.
   // The one grant here is HQ drilling into a specific agent (see _grantToTargetDialog).
   bool _loading = true;
-  bool _busy = false;
+
+  /// UX-83: which controls are working, keyed `'<storeId>:<action>'` for a row
+  /// button and `'page:<action>'` for the page-level ones. A single page-wide
+  /// bool greyed EVERY row on every card while putting the spinner nowhere — the
+  /// only feedback was "everything went grey". Scoped the way
+  /// `printer_picker_page` (`_busyId`) and `delete_agent_sheet` (`Set<String>`)
+  /// already do it.
+  final Set<String> _busy = {};
   Object? _error;
+
+  bool _isBusy(String key) => _busy.contains(key);
+
+  /// Another control on the SAME shop is mid-action — that row waits, the rest
+  /// of the list does not.
+  bool _rowBusy(String storeId) => _busy.any((k) => k.startsWith('$storeId:'));
+
+  /// Onboarding or granting reloads the whole list, so those do hold the page.
+  bool get _pageBusy => _busy.any((k) => k.startsWith('page:'));
 
   PosAdminRepository get _repo => PosAdminRepository(ref.read(apiClientProvider));
   String? get _myId => (ref.read(authStateProvider).valueOrNull as AuthAuthenticated?)?.entity.id;
@@ -229,8 +247,10 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
   }
 
 
-  Future<void> _run(Future<void> Function() action, String okMsg) async {
-    setState(() => _busy = true);
+  /// [key] scopes the progress to the control that was tapped (UX-83).
+  Future<void> _run(Future<void> Function() action, String okMsg,
+      {required String key}) async {
+    setState(() => _busy.add(key));
     final messenger = ScaffoldMessenger.of(context);
     try {
       await action();
@@ -239,7 +259,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     } catch (e) {
       if (mounted) messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _busy.remove(key));
     }
   }
 
@@ -319,8 +339,13 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
           Row(children: [
             Expanded(
               child: FilledButton.icon(
-                onPressed: (_busy || (q != null && q.available <= 0)) ? null : () => _onboardDialog(s),
-                icon: const Icon(Icons.point_of_sale, size: 18),
+                onPressed: (_pageBusy || (q != null && q.available <= 0))
+                    ? null
+                    : () => _onboardDialog(s),
+                icon: _isBusy('page:onboard')
+                    ? const SizedBox(
+                        width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.point_of_sale, size: 18),
                 label: Text(s.onboard),
               ),
             ),
@@ -329,8 +354,11 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
               const SizedBox(width: 12),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: _busy ? null : () => _grantToTargetDialog(s),
-                  icon: const Icon(Icons.card_giftcard, size: 18),
+                  onPressed: _pageBusy ? null : () => _grantToTargetDialog(s),
+                  icon: _isBusy('page:grant')
+                      ? const SizedBox(
+                          width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.card_giftcard, size: 18),
                   label: Text(s.grant),
                 ),
               ),
@@ -444,9 +472,14 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(child: Text(name, style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w700))),
+          // UX-144: `cs.outline` is a hairline BORDER token — as pill text on
+          // white it is 1.22:1, so "موقوف" was invisible and the only real signal
+          // was the absence of green. Readable neutral + an icon, so the state is
+          // never carried by colour alone.
           StampPill(
             label: active ? 'POS' : s.disabled,
-            color: active ? IntesharColors.sage : cs.outline,
+            color: active ? IntesharColors.sage : cs.onSurfaceVariant,
+            icon: active ? Icons.check_circle_outline : Icons.block,
           ),
         ]),
         const SizedBox(height: 4),
@@ -466,22 +499,38 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
             ),
           ),
         const SizedBox(height: 10),
+        // UX-83: each control carries its OWN progress and only this shop's row
+        // waits — acting on one shop no longer greys out the whole list.
         Wrap(spacing: 8, runSpacing: 8, children: [
-          OutlinedButton(onPressed: _busy ? null : () => _editDialog(s, store), child: Text(s.edit)),
-          OutlinedButton(onPressed: (_busy || phone.isEmpty) ? null : () => _resetPin(s, name, phone), child: Text(s.resetPin)),
-          OutlinedButton(onPressed: (_busy || phone.isEmpty) ? null : () => _resetPassword(s, name, phone), child: Text(s.resetPassword)),
-          OutlinedButton(onPressed: (_busy || phone.isEmpty) ? null : () => _resetTotp(s, name, phone), child: Text(s.resetTotp)),
-          OutlinedButton(
-            onPressed: _busy ? null : () => _toggleActive(s, store.id, active),
-            child: Text(active ? s.deactivate : s.activate),
-          ),
-          OutlinedButton(
-            onPressed: (_busy || phone.isEmpty) ? null : () => _confirmArchive(s, store, phone),
-            style: OutlinedButton.styleFrom(foregroundColor: cs.error),
-            child: Text(s.revoke),
-          ),
+          _rowButton(store.id, 'edit', s.edit, () => _editDialog(s, store)),
+          _rowButton(store.id, 'pin', s.resetPin,
+              phone.isEmpty ? null : () => _resetPin(s, store.id, name, phone)),
+          _rowButton(store.id, 'password', s.resetPassword,
+              phone.isEmpty ? null : () => _resetPassword(s, store.id, name, phone)),
+          _rowButton(store.id, 'totp', s.resetTotp,
+              phone.isEmpty ? null : () => _resetTotp(s, store.id, name, phone)),
+          _rowButton(store.id, 'active', active ? s.deactivate : s.activate,
+              () => _toggleActive(s, store.id, active)),
+          _rowButton(store.id, 'archive', s.revoke,
+              phone.isEmpty ? null : () => _confirmArchive(s, store, phone),
+              style: OutlinedButton.styleFrom(foregroundColor: cs.error)),
         ]),
       ]),
+    );
+  }
+
+  /// One control on a POS card. Shows a spinner in place of its own label while
+  /// it works, and disables only the controls of the SAME shop meanwhile (UX-83).
+  Widget _rowButton(String storeId, String action, String label, VoidCallback? onPressed,
+      {ButtonStyle? style}) {
+    final key = '$storeId:$action';
+    final busy = _isBusy(key);
+    return OutlinedButton(
+      style: style,
+      onPressed: (onPressed == null || _pageBusy || _rowBusy(storeId)) ? null : onPressed,
+      child: busy
+          ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+          : Text(label),
     );
   }
 
@@ -504,7 +553,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
       );
       if (ok != true) return;
     }
-    await _run(() => _repo.setActive(storeId, !active), s.done);
+    await _run(() => _repo.setActive(storeId, !active), s.done, key: '$storeId:active');
   }
 
   /// C-12: removing a shop ARCHIVES it. The dialog puts the data download in
@@ -522,19 +571,21 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     await _run(
         () => _repo.revoke(
             entityId: _effectiveId ?? '', phone: phone, totp: code),
-        s.done);
+        s.done,
+        key: '${store.id}:archive');
   }
 
   /// Reset the POS PIN and reveal the fresh manager-visible PIN once (B-047).
-  Future<void> _resetTotp(_S s, String name, String phone) async {
+  Future<void> _resetTotp(_S s, String storeId, String name, String phone) async {
     if (!await confirmResetTotp(context, posName: name)) return;
-    await _run(() => _repo.resetTotp(phone), s.done);
+    await _run(() => _repo.resetTotp(phone), s.done, key: '$storeId:totp');
   }
 
-  Future<void> _resetPin(_S s, String name, String phone) async {
+  Future<void> _resetPin(_S s, String storeId, String name, String phone) async {
     if (!await confirmResetPin(context, posName: name)) return;
     if (!mounted) return;
-    setState(() => _busy = true);
+    final key = '$storeId:pin';
+    setState(() => _busy.add(key));
     final messenger = ScaffoldMessenger.of(context);
     try {
       final pin = await _repo.resetPin(phone);
@@ -560,12 +611,12 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     } catch (e) {
       if (mounted) messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _busy.remove(key));
     }
   }
 
   /// Change a POS user's login password (B-047).
-  Future<void> _resetPassword(_S s, String name, String phone) async {
+  Future<void> _resetPassword(_S s, String storeId, String name, String phone) async {
     final ctrl = TextEditingController();
     final formKey = GlobalKey<FormState>();
     final ok = await showDialog<bool>(
@@ -593,7 +644,8 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
       ),
     );
     if (ok == true) {
-      await _run(() => _repo.resetPassword(phone, ctrl.text.trim()), s.passwordResetDone);
+      await _run(() => _repo.resetPassword(phone, ctrl.text.trim()), s.passwordResetDone,
+          key: '$storeId:password');
     }
   }
 
@@ -710,7 +762,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
       // for that is missable, and the operator re-types the same number
       // believing the save simply failed. Everything else keeps the snackbar.
       if (!mounted) return; // the confirm dialog above is an async gap
-      setState(() => _busy = true);
+      setState(() => _busy.add('page:onboard'));
       final messenger = ScaffoldMessenger.of(context);
       try {
         await _repo.onboard(
@@ -734,7 +786,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
           messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
         }
       } finally {
-        if (mounted) setState(() => _busy = false);
+        if (mounted) setState(() => _busy.remove('page:onboard'));
       }
     }
   }
@@ -827,27 +879,54 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
           posAddress: addr.text.trim(),
         ),
         s.done,
+        key: '${store.id}:edit',
       );
     }
   }
 
   /// Drill mode: HQ grants slots straight to the target agent (no recipient picker).
+  ///
+  /// UX-73: this field had NO validator and no `Form`, and the result was gated on
+  /// `n > 0` after the dialog closed — so clearing the box or typing 0 dismissed
+  /// the dialog and granted nothing, silently. POS slots are the scarce thing
+  /// agents chase HQ for, so that silence reads as "HQ says they granted them, we
+  /// see nothing". Validated like every other dialog on this page.
   Future<void> _grantToTargetDialog(_S s) async {
     final countCtrl = TextEditingController(text: '1');
+    final formKey = GlobalKey<FormState>();
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('${s.grant} — ${widget.targetName ?? ''}'.trim()),
-        content: _field(countCtrl, s.count, keyboard: TextInputType.number, digitsOnly: true),
+        content: Form(
+          key: formKey,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          child: _field(countCtrl, s.count,
+              keyboard: TextInputType.number,
+              digitsOnly: true,
+              validator: (v) {
+                final t = v?.trim() ?? '';
+                if (t.isEmpty) return s.required;
+                final n = int.tryParse(t);
+                if (n == null || n < 1) return s.atLeastOne;
+                return null;
+              }),
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.cancel)),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.grant)),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState?.validate() ?? false) Navigator.pop(ctx, true);
+            },
+            child: Text(s.grant),
+          ),
         ],
       ),
     );
     final n = int.tryParse(countCtrl.text.trim()) ?? 0;
     if (ok == true && n > 0) {
-      await _run(() => _repo.grantSlots(destId: _effectiveId ?? '', count: n), s.done);
+      await _run(() => _repo.grantSlots(destId: _effectiveId ?? '', count: n), s.done,
+          key: 'page:grant');
     }
   }
 

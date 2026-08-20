@@ -316,12 +316,16 @@ class _PricingPageState extends ConsumerState<PricingPage> {
     // to re-filter in Excel to find the rows you were already looking at.
     final loc = Localizations.localeOf(context).languageCode;
     final filter = _filter;
-    final rows = buildPriceSheetRows(
+    //
+    // UX-42: the two price columns go out as real numbers, so the sheet can be
+    // summed and sorted in Excel instead of being 60 rows of left-aligned text.
+    // The upload reads a numeric cell back as its digits, so the round trip is
+    // unchanged.
+    final rows = buildPriceSheetCells(
       rows: catalog.rows,
       filter: filter,
       locale: loc,
       allGovernoratesLabel: loc == 'ar' ? 'كل المحافظات' : 'All governorates',
-      fmt: _fmt,
     );
     if (rows.isEmpty) {
       if (mounted) {

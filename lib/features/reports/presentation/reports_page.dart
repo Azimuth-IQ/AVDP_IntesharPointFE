@@ -66,8 +66,9 @@ class _RS {
   String get owner => p('Owner', 'المالك');
   String get phone => p('Phone', 'الهاتف');
   String get balance => p('Balance', 'الرصيد');
+  // Export-only columns: the table has no room for them, the sheet does.
   String get spent => p('Spent', 'المصروف');
-  String get points => p('POS points', 'نقاط البيع');
+  String get posPoints => p('POS points', 'نقاط البيع');
   String get mainAgent => p('Main agent', 'الوكيل الرئيسي');
   String get subAgent => p('Sub agent', 'الوكيل الفرعي');
   String get governorate => p('Governorate', 'المحافظة');
@@ -88,11 +89,8 @@ class _RS {
   String get time => p('Time', 'الوقت');
   String get from => p('From', 'من');
   String get to => p('To', 'إلى');
-  String get address => p('Address', 'العنوان');
   String get source => p('Source', 'المصدر');
   String get destination => p('Destination', 'الوجهة');
-  String get user => p('User', 'المستخدم');
-  String get currentBalance => p('Current balance', 'الرصيد الحالي');
   String get agentLabel => p('Agent', 'الوكيل');
   String get loadMore => p('Load more', 'تحميل المزيد');
   String get totalMoved => p('Total moved', 'إجمالي المحوَّل');
@@ -117,6 +115,16 @@ class _RS {
   // otherwise a Main Agent and a Sub Agent are indistinguishable.
   String get tier => p('Type', 'النوع');
   String get hq => p('Headquarters', 'الإدارة');
+  // UX-43: the pricing screen states its export scope on screen; the reports now
+  // do the same, so a filtered view and its sheet can't quietly differ.
+  String exportFollows(String scope) =>
+      p('Export follows: $scope', 'التصدير يتبع: $scope');
+  // UX-39: a sorted column over a paged feed is sorted over what is LOADED.
+  String sortedOf(int n) => p(
+      'Sorted over the $n rows loaded so far — not the whole report.',
+      'الترتيب على $n صفًا محمّلًا فقط — وليس على كامل التقرير.');
+  String get sortBy => p('Sort', 'ترتيب');
+  String get sortNone => p('Original order', 'الترتيب الأصلي');
   // UX-33: a paged total is a total of what is LOADED, not of what exists. Say so
   // on screen rather than letting a finance user read page 1 as the whole figure.
   String partialOf(int n) => p(
@@ -136,9 +144,13 @@ class _Tab {
   const _Tab(this.key, this.label, this.family);
 }
 
+/// A built sheet. UX-42: a cell is a `String` (identity: names, phones, dates) or
+/// a `num` (a REAL number in the workbook — see `XlsxCell`). Amounts are handed
+/// over unformatted; the number format does the grouping, so the sheet reads like
+/// the screen and still sums, sorts and pivots.
 class _Export {
   final List<String> headers;
-  final List<List<String>> rows;
+  final List<List<XlsxCell>> rows;
   final String file;
   const _Export(this.headers, this.rows, this.file);
 }
@@ -504,9 +516,16 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
   }
 
   /// Flattens the active tab's loaded data into (headers, rows, filename) for XLSX.
+  ///
+  /// UX-42: money and counts go in as `num`, never as pre-grouped text — a text
+  /// column is why nothing summed in Excel.
+  /// UX-43: the sheet follows the screen's FILTERS — the stock sheet ignoring the
+  /// on-screen governorate was the real defect. It does not follow the screen's
+  /// columns: identity noise the operator cannot preview (`address`,
+  /// `operatorPhone`) is dropped, but quantities stay, because an export is for
+  /// arithmetic and a missing column breaks a formula silently.
   _Export? _exportRows(String key, dynamic data, _RS s, String loc) {
     String gov(String g) => g.isEmpty ? s.untagged : governorateLabel(g, loc);
-    String m(num n) => Formatters.money(n);
 
     List<(String, num, num?, num)> priceGovs(CategoryPriceRow r) {
       final has = r.governorates.length > 1 ||
@@ -527,66 +546,69 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         final c = data as PricingCatalog?;
         if (c == null) return null;
         final agent = _currentAgentLabel;
-        final rows = [
+        final rows = <List<XlsxCell>>[
           for (final r in c.rows)
             for (final g in priceGovs(r))
-              [agent, r.companyName, r.name, gov(g.$1), m(g.$2), g.$3 == null ? '' : m(g.$3!), m(g.$4)],
+              // An unset agent price stays BLANK rather than 0 — a zero would
+              // both look like a real price and drag any average down.
+              [agent, r.companyName, r.name, gov(g.$1), g.$2, g.$3 ?? '', g.$4],
         ];
         return _Export([s.agentLabel, s.company, s.category, s.governorate, s.base, s.agent, s.effective], rows, 'prices');
       case 'stock':
         final list = (data as List<SkuSummary>?) ?? const [];
-        final rows = <List<String>>[];
-        for (final sku in list) {
-          final buckets = sku.governorates.isEmpty
-              ? [('', sku.available, sku.total, sku.printed)]
-              : [for (final g in sku.governorates) (g.governorate, g.available, g.total, g.printed)];
-          for (final b in buckets) {
-            rows.add([sku.name, gov(b.$1), '${b.$2}', '${b.$3}', '${b.$4}']);
-          }
-        }
+        // UX-43: the SAME projection the grid renders, governorate filter included.
+        final rows = <List<XlsxCell>>[
+          for (final l in stockExportLines(list, _stockGov))
+            [l.name, gov(l.governorate), l.available, l.total, l.used],
+        ];
         return _Export([s.category, s.governorate, s.available, s.total, s.used], rows, 'stock');
       case 'detailed':
         final c = data as PricingCatalog?;
         if (c == null) return null;
-        final rows = [
+        final rows = <List<XlsxCell>>[
           for (final r in c.rows)
-            for (final g in detailGovs(r)) [r.name, gov(g.$1), '${g.$2}', m(g.$3), m(g.$4)],
+            for (final g in detailGovs(r)) [r.name, gov(g.$1), g.$2, g.$3, g.$4],
         ];
-        rows.add([s.grandTotal, '', '', '', m(c.inventoryWorth)]);
+        rows.add([s.grandTotal, '', '', '', c.inventoryWorth]);
         return _Export([s.category, s.governorate, s.available, s.effective, s.value], rows, 'detailed');
       case 'posBalances':
       case 'agentBalances':
         final list = (data as List<BalanceRosterRow>?) ?? const [];
         // UX-34: name the identity column after the TAB, and carry the tier —
         // without it an AGENT1 and an AGENT2 row are identical in the sheet too.
-        final rows = [
+        final rows = <List<XlsxCell>>[
           for (final r in list)
-            [r.name, _tierLabel(r.tier, s), r.ownerName, r.userPhone, gov(r.governorate), r.address,
-              r.mainAgentName, r.subAgentName,
-              m(r.available), m(r.ordersSpent), '${r.storeCount}'],
+            [r.name, _tierLabel(r.tier, s), r.ownerName, r.userPhone, gov(r.governorate),
+              r.mainAgentName, r.subAgentName, r.available, r.ordersSpent, r.storeCount],
         ];
+        // Spent and POS points stay in the SHEET even though the table has no
+        // room for them. A screen is for attention and an export is for
+        // arithmetic: an extra column costs a reader nothing, while removing one
+        // silently breaks whatever formula downstream already points at it — and
+        // "spent" beside "balance" is the pair reconciliation is actually done on.
         return _Export(
-            [_labelFor(key, s), s.tier, s.owner, s.phone, s.governorate, s.address, s.mainAgent, s.subAgent, s.balance, s.spent, s.points],
+            [_labelFor(key, s), s.tier, s.owner, s.phone, s.governorate, s.mainAgent,
+              s.subAgent, s.balance, s.spent, s.posPoints],
             rows, key);
       case 'transfers':
         final list = (data as List<TransferRow>?) ?? const [];
-        final rows = [
+        final rows = <List<XlsxCell>>[
           for (final r in list)
-            [r.date, r.time, r.sourceName, r.destName, m(r.amount), m(r.balanceAfter), m(r.destAvailable),
+            [r.date, r.time, r.sourceName, r.destName, r.amount, r.balanceAfter,
               r.destOwnerName, r.destPhone, gov(r.destGovernorate), r.mainAgentName, r.subAgentName],
         ];
         return _Export(
-            [s.date, s.time, s.source, s.destination, s.transferAmount, s.balanceAfter, s.currentBalance, s.owner, s.phone, s.governorate, s.mainAgent, s.subAgent],
+            [s.date, s.time, s.source, s.destination, s.transferAmount, s.balanceAfter, s.owner, s.phone, s.governorate, s.mainAgent, s.subAgent],
             rows, 'transfers');
       case 'sold':
         final list = (data as List<SalesRow>?) ?? const [];
-        final rows = [
+        final rows = <List<XlsxCell>>[
           for (final r in list)
-            [r.storeName, r.ownerName, r.userPhone, r.operatorPhone, gov(r.governorate), r.companyName, r.category,
-              r.mainAgentName, r.subAgentName, '${r.count}'],
+            [r.storeName, r.ownerName, r.userPhone, gov(r.governorate), r.companyName, r.category,
+              r.mainAgentName, r.subAgentName, r.count],
         ];
         return _Export(
-            [s.store, s.owner, s.phone, s.user, s.governorate, s.company, s.category, s.mainAgent, s.subAgent, s.cards],
+            [s.store, s.owner, s.phone, s.governorate, s.company, s.category, s.mainAgent, s.subAgent, s.cards],
             rows, 'sold_cards');
       case 'totalSold':
         final list = (data as List<SalesRow>?) ?? const [];
@@ -597,17 +619,17 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
           totals[k] = (totals[k] ?? 0) + r.count;
           meta.putIfAbsent(k, () => r);
         }
-        final rows = [
+        final rows = <List<XlsxCell>>[
           for (final k in totals.keys)
             [meta[k]!.mainAgentName, meta[k]!.subAgentName, gov(meta[k]!.governorate),
-              meta[k]!.companyName, meta[k]!.category, '${totals[k]}'],
+              meta[k]!.companyName, meta[k]!.category, totals[k] ?? 0],
         ];
         return _Export([s.mainAgent, s.subAgent, s.governorate, s.company, s.category, s.cards], rows, 'total_sold');
       case 'uploaded':
         final list = (data as List<UploadsRow>?) ?? const [];
-        final rows = [
+        final rows = <List<XlsxCell>>[
           for (final r in list)
-            [r.agentName, gov(r.governorate), r.companyName, r.category, '${r.count}'],
+            [r.agentName, gov(r.governorate), r.companyName, r.category, r.count],
         ];
         return _Export([s.mainAgent, s.governorate, s.company, s.category, s.cards], rows, 'uploaded');
       default:
@@ -723,23 +745,56 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
   /// to live in different places (toolbar vs inside the body); export was an
   /// unlabelled icon whose tooltip never appears on a touch device.
   Widget _filterBar(_RS s, String key) {
+    final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 2, 16, 4),
-      child: Row(children: [
-        if (_isDated(key))
-          Expanded(child: _dateBar(s))
-        else if (key == 'stock')
-          Expanded(child: _stockGovBar(s))
-        else
-          const Spacer(),
-        const SizedBox(width: 8),
-        OutlinedButton.icon(
-          icon: const Icon(Icons.download_outlined, size: 16),
-          label: Text(s.export),
-          onPressed: _booting ? null : () => _export(key, s),
-        ),
+      child: Column(children: [
+        Row(children: [
+          if (_isDated(key))
+            Expanded(child: _dateBar(s))
+          else if (key == 'stock')
+            Expanded(child: _stockGovBar(s))
+          else
+            const Spacer(),
+          const SizedBox(width: 8),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.download_outlined, size: 16),
+            label: Text(s.export),
+            onPressed: _booting ? null : () => _export(key, s),
+          ),
+        ]),
+        // UX-43: say what the sheet will contain, the way the pricing screen does.
+        // "Export" beside a filtered screen otherwise reads as "export everything",
+        // and the two silently disagreeing is exactly what went wrong on stock.
+        // Only when something actually narrows it — this bar is already the third
+        // row of chrome on a 360dp phone (B-103).
+        if (_exportScopeLabel(s, key) case final scope?)
+          Padding(
+            padding: const EdgeInsetsDirectional.only(top: 4, bottom: 2),
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Text(
+                s.exportFollows(scope),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: IntesharType.sans(11.5, color: cs.onSurfaceVariant, w: FontWeight.w600),
+              ),
+            ),
+          ),
       ]),
     );
+  }
+
+  /// What the export for [key] will cover, or null when nothing narrows it and
+  /// the sheet is simply the whole report.
+  String? _exportScopeLabel(_RS s, String key) {
+    final loc = Localizations.localeOf(context).languageCode;
+    final parts = <String>[
+      if (_targetId != null && _currentAgentLabel.isNotEmpty) _currentAgentLabel,
+      if (_isDated(key)) (_allDates ? s.allDates : '${_ymd(_from)} → ${_ymd(_to)}'),
+      if (key == 'stock' && _stockGov.isNotEmpty) governorateLabel(_stockGov, loc),
+    ];
+    return parts.isEmpty ? null : parts.join(' · ');
   }
 
   /// Empty state for a DATED report — says which window returned nothing and
@@ -946,7 +1001,11 @@ class _RCol {
 class _RCell {
   final String text;
   final Color? color;
-  const _RCell(this.text, {this.color});
+
+  /// UX-39: the underlying figure. Sorting on the rendered text would put
+  /// "9,000" after "80,000", and a `+` or a currency word ahead of both.
+  final num? value;
+  const _RCell(this.text, {this.color, this.value});
 }
 
 /// The report surface, replacing card-per-record (B-104).
@@ -967,12 +1026,18 @@ class _ReportTable extends StatelessWidget {
   final List<List<_RCell>> rows;
   final Widget? leading;
   final Widget? emptyRows;
+  final _RS s;
+
+  /// UX-39: more pages exist behind these rows, so any sort is over a prefix.
+  final bool partial;
 
   const _ReportTable({
     required this.columns,
     required this.rows,
+    required this.s,
     this.leading,
     this.emptyRows,
+    this.partial = false,
   });
 
   @override
@@ -980,25 +1045,85 @@ class _ReportTable extends StatelessWidget {
         padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
         children: [
           ?leading,
-          _ReportSurface(columns: columns, rows: rows, emptyRows: emptyRows),
+          _ReportSurface(
+              columns: columns, rows: rows, emptyRows: emptyRows, s: s, partial: partial),
         ],
       );
 }
 
 /// The bordered table itself — no scroll view of its own, so it can also be
 /// embedded in a list that already scrolls (Prices groups one per company).
-class _ReportSurface extends StatelessWidget {
+class _ReportSurface extends StatefulWidget {
   final List<_RCol> columns;
   final List<List<_RCell>> rows;
   final Widget? emptyRows;
+  final _RS s;
 
-  const _ReportSurface({required this.columns, required this.rows, this.emptyRows});
+  /// UX-39: these rows are a prefix of the report (more pages behind them), so a
+  /// sorted "lowest balance" is the lowest of what has been LOADED.
+  final bool partial;
+
+  const _ReportSurface({
+    required this.columns,
+    required this.rows,
+    required this.s,
+    this.emptyRows,
+    this.partial = false,
+  });
+
+  @override
+  State<_ReportSurface> createState() => _ReportSurfaceState();
+}
+
+/// UX-39: nothing in the app could be sorted, so "who has the lowest balance" and
+/// "who sold most" could not be asked at all. Sorting is client-side over the rows
+/// in hand — which is exactly why it is labelled as partial when more pages exist.
+class _ReportSurfaceState extends State<_ReportSurface> {
+  int? _sortIndex;
+  bool _desc = true;
 
   static const _wide = 720.0;
+
+  List<int> get _sortable => [
+        for (var i = 0; i < widget.columns.length; i++)
+          if (widget.columns[i].numeric) i,
+      ];
+
+  /// Tap cycles: descending (the useful default for money) → ascending → off.
+  void _tapColumn(int i) => setState(() {
+        if (_sortIndex != i) {
+          _sortIndex = i;
+          _desc = true;
+        } else if (_desc) {
+          _desc = false;
+        } else {
+          _sortIndex = null;
+        }
+      });
+
+  List<List<_RCell>> get _rows {
+    final i = _sortIndex;
+    // Columns change with the data (the roster's tier column appears only on a
+    // mixed roster), so a stale index must not sort by whatever now sits there.
+    if (i == null || i >= widget.columns.length || !widget.columns[i].numeric) {
+      return widget.rows;
+    }
+    int cmp(List<_RCell> a, List<_RCell> b) {
+      final av = i < a.length ? a[i].value : null;
+      final bv = i < b.length ? b[i].value : null;
+      if (av != null && bv != null) return av.compareTo(bv);
+      if (av != null) return -1;
+      if (bv != null) return 1;
+      return (i < a.length ? a[i].text : '').compareTo(i < b.length ? b[i].text : '');
+    }
+
+    return [...widget.rows]..sort((a, b) => _desc ? cmp(b, a) : cmp(a, b));
+  }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final rows = _rows;
     return LayoutBuilder(
       builder: (context, c) {
         final wide = c.maxWidth >= _wide;
@@ -1012,9 +1137,14 @@ class _ReportSurface extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           child: Column(
             children: [
+              // A phone has no column header to tap, and every POS user is on one.
+              if (!wide && _sortable.isNotEmpty && widget.rows.isNotEmpty) _narrowSortBar(cs),
               if (wide) _header(cs),
-              if (rows.isEmpty && emptyRows != null)
-                emptyRows!
+              // Sorting a partial feed answers "the lowest of the ones loaded",
+              // which is a different question from the one being asked.
+              if (_sortIndex != null && widget.partial) _partialSortNote(rows.length),
+              if (rows.isEmpty && widget.emptyRows != null)
+                widget.emptyRows!
               else
                 for (var i = 0; i < rows.length; i++) ...[
                   if (i > 0) Divider(height: 1, thickness: 1, color: cs.outlineVariant),
@@ -1027,6 +1157,86 @@ class _ReportSurface extends StatelessWidget {
     );
   }
 
+  Widget _partialSortNote(int n) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+        color: IntesharColors.warn.withValues(alpha: 0.08),
+        child: Row(children: [
+          const Icon(Icons.info_outline, size: 14, color: IntesharColors.warn),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(widget.s.sortedOf(n),
+                style: IntesharType.sans(11.5, color: IntesharColors.warn, w: FontWeight.w600)),
+          ),
+        ]),
+      );
+
+  Widget _narrowSortBar(ColorScheme cs) {
+    final i = _sortIndex;
+    final label = i == null
+        ? widget.s.sortBy
+        : '${widget.s.sortBy}: ${widget.columns[i].label} ${_desc ? '↓' : '↑'}';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsetsDirectional.fromSTEB(6, 2, 6, 2),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
+        border: Border(bottom: BorderSide(color: cs.outlineVariant)),
+      ),
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: PopupMenuButton<int>(
+          tooltip: widget.s.sortBy,
+          position: PopupMenuPosition.under,
+          // -1 = back to the order the server returned.
+          onSelected: (v) => setState(() {
+            if (v < 0) {
+              _sortIndex = null;
+            } else if (_sortIndex == v) {
+              _desc = !_desc;
+            } else {
+              _sortIndex = v;
+              _desc = true;
+            }
+          }),
+          itemBuilder: (_) => [
+            for (final c in _sortable)
+              PopupMenuItem(
+                value: c,
+                child: Row(children: [
+                  Icon(
+                    _sortIndex == c
+                        ? (_desc ? Icons.arrow_downward : Icons.arrow_upward)
+                        : Icons.swap_vert,
+                    size: 16,
+                    color: cs.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(child: Text(widget.columns[c].label, overflow: TextOverflow.ellipsis)),
+                ]),
+              ),
+            if (_sortIndex != null)
+              PopupMenuItem(value: -1, child: Text(widget.s.sortNone)),
+          ],
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.swap_vert, size: 15, color: cs.onSurfaceVariant),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: IntesharType.sans(11.5,
+                        color: cs.onSurfaceVariant, w: FontWeight.w700)),
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _header(ColorScheme cs) => Container(
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
         decoration: BoxDecoration(
@@ -1035,29 +1245,55 @@ class _ReportSurface extends StatelessWidget {
         ),
         child: Row(
           children: [
-            for (final col in columns)
+            for (var i = 0; i < widget.columns.length; i++)
               Expanded(
-                flex: col.flex,
-                child: Text(
-                  col.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: col.numeric ? TextAlign.end : TextAlign.start,
-                  style: IntesharType.overline(color: cs.onSurfaceVariant),
-                ),
+                flex: widget.columns[i].flex,
+                child: _headerCell(cs, i),
               ),
           ],
         ),
       );
 
+  /// A figure column is tappable to sort; everything else is a plain label.
+  Widget _headerCell(ColorScheme cs, int i) {
+    final col = widget.columns[i];
+    final text = Text(
+      col.label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      textAlign: col.numeric ? TextAlign.end : TextAlign.start,
+      style: IntesharType.overline(
+          color: _sortIndex == i ? context.tones.brandInk : cs.onSurfaceVariant),
+    );
+    if (!col.numeric) return text;
+    return InkWell(
+      onTap: () => _tapColumn(i),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Flexible(child: text),
+          const SizedBox(width: 2),
+          Icon(
+            _sortIndex == i
+                ? (_desc ? Icons.arrow_downward : Icons.arrow_upward)
+                : Icons.unfold_more,
+            size: 13,
+            color: _sortIndex == i ? context.tones.brandInk : cs.onSurfaceVariant,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _wideRow(ColorScheme cs, List<_RCell> cells) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
         child: Row(
           children: [
-            for (var i = 0; i < columns.length; i++)
+            for (var i = 0; i < widget.columns.length; i++)
               Expanded(
-                flex: columns[i].flex,
-                child: _cellText(cs, columns[i], i < cells.length ? cells[i] : const _RCell('')),
+                flex: widget.columns[i].flex,
+                child: _cellText(
+                    cs, widget.columns[i], i < cells.length ? cells[i] : const _RCell('')),
               ),
           ],
         ),
@@ -1083,7 +1319,15 @@ class _ReportSurface extends StatelessWidget {
   }
 
   /// Identity + headline figure on line 1; everything else muted on line 2.
+  ///
+  /// UX-41: the meta line used to join every remaining cell with `·` and NO
+  /// labels, so an unlabelled `balanceAfter` sat between a governorate and an
+  /// owner name while a second, equally unlabelled money figure led the row —
+  /// two amounts on one row and no way to tell which was which. Figures now carry
+  /// their column name (names and places still speak for themselves), and the
+  /// headline figure is captioned with its own.
   Widget _narrowRow(ColorScheme cs, List<_RCell> cells) {
+    final columns = widget.columns;
     String? at(bool Function(_RCol) test) {
       for (var i = 0; i < columns.length && i < cells.length; i++) {
         if (test(columns[i]) && cells[i].text.trim().isNotEmpty) return cells[i].text;
@@ -1094,13 +1338,17 @@ class _ReportSurface extends StatelessWidget {
     final title = at((c) => c.primary) ?? '';
     final trailing = at((c) => c.trailing);
     Color? trailingColor;
+    String trailingLabel = '';
     for (var i = 0; i < columns.length && i < cells.length; i++) {
-      if (columns[i].trailing) trailingColor = cells[i].color;
+      if (columns[i].trailing) {
+        trailingColor = cells[i].color;
+        trailingLabel = columns[i].label;
+      }
     }
     final meta = <String>[
       for (var i = 0; i < columns.length && i < cells.length; i++)
         if (!columns[i].primary && !columns[i].trailing && cells[i].text.trim().isNotEmpty)
-          cells[i].text,
+          columns[i].numeric ? '${columns[i].label}: ${cells[i].text}' : cells[i].text,
     ];
 
     return Padding(
@@ -1121,13 +1369,25 @@ class _ReportSurface extends StatelessWidget {
                 const SizedBox(width: 10),
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 150),
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: AlignmentDirectional.centerEnd,
-                    child: Text(trailing,
-                        maxLines: 1,
-                        style: IntesharType.mono(14,
-                            color: trailingColor ?? cs.onSurface, w: FontWeight.w800)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (trailingLabel.isNotEmpty)
+                        Text(trailingLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.end,
+                            style: IntesharType.overline(color: cs.onSurfaceVariant)),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: AlignmentDirectional.centerEnd,
+                        child: Text(trailing,
+                            maxLines: 1,
+                            style: IntesharType.mono(14,
+                                color: trailingColor ?? cs.onSurface, w: FontWeight.w800)),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -1199,6 +1459,8 @@ class _RosterReportState extends State<_RosterReport> {
     final showTier = _mixedTiers(widget.rows);
 
     return _ReportTable(
+      s: s,
+      partial: widget.partial,
       leading: Padding(
         padding: const EdgeInsets.only(bottom: 10),
         child: TextField(
@@ -1234,7 +1496,7 @@ class _RosterReportState extends State<_RosterReport> {
             _RCell(r.userPhone),
             _RCell(r.governorate.isEmpty ? '' : governorateLabel(r.governorate, loc)),
             _RCell([r.mainAgentName, r.subAgentName].where((x) => x.isNotEmpty).join(' / ')),
-            _RCell(Formatters.iqd(r.available.round())),
+            _RCell(Formatters.iqd(r.available.round()), value: r.available),
           ],
       ],
       emptyRows: Padding(
@@ -1267,6 +1529,8 @@ class _TransfersReport extends StatelessWidget {
     final arrow = Directionality.of(context) == TextDirection.rtl ? '←' : '→';
     final moved = rows.fold<num>(0, (a, r) => a + r.amount);
     return _ReportTable(
+      s: s,
+      partial: partial,
       leading: _TotalStrip(
         label: s.totalMoved,
         value: Formatters.iqd(moved.round()),
@@ -1289,8 +1553,9 @@ class _TransfersReport extends StatelessWidget {
             _RCell('${r.sourceName} $arrow ${r.destName}'),
             _RCell(r.destOwnerName),
             _RCell(r.destGovernorate.isEmpty ? '' : governorateLabel(r.destGovernorate, loc)),
-            _RCell(Formatters.iqd(r.balanceAfter.round())),
-            _RCell('+${Formatters.iqd(r.amount.round())}', color: IntesharColors.sage),
+            _RCell(Formatters.iqd(r.balanceAfter.round()), value: r.balanceAfter),
+            _RCell('+${Formatters.iqd(r.amount.round())}',
+                color: IntesharColors.sage, value: r.amount),
           ],
       ],
     );
@@ -1309,6 +1574,7 @@ class _SalesReport extends StatelessWidget {
     final loc = Localizations.localeOf(context).languageCode;
     final sold = rows.fold<int>(0, (a, r) => a + r.count);
     return _ReportTable(
+      s: s,
       leading: _TotalStrip(
         label: s.totalSoldCards,
         value: Formatters.money(sold),
@@ -1331,7 +1597,7 @@ class _SalesReport extends StatelessWidget {
             _RCell(r.category),
             _RCell(r.governorate.isEmpty ? '' : governorateLabel(r.governorate, loc)),
             _RCell([r.mainAgentName, r.subAgentName].where((x) => x.isNotEmpty).join(' / ')),
-            _RCell(Formatters.money(r.count)),
+            _RCell(Formatters.money(r.count), value: r.count),
           ],
       ],
     );
@@ -1356,6 +1622,7 @@ class _TotalSoldReport extends StatelessWidget {
       meta.putIfAbsent(key, () => r);
     }
     return _ReportTable(
+      s: s,
       leading: _TotalStrip(
         label: s.totalSoldCards,
         value: Formatters.money(totals.values.fold<int>(0, (a, v) => a + v)),
@@ -1376,7 +1643,7 @@ class _TotalSoldReport extends StatelessWidget {
             _RCell(meta[key]!.mainAgentName),
             _RCell(meta[key]!.subAgentName),
             _RCell(meta[key]!.governorate.isEmpty ? '' : governorateLabel(meta[key]!.governorate, loc)),
-            _RCell(Formatters.money(totals[key] ?? 0)),
+            _RCell(Formatters.money(totals[key] ?? 0), value: totals[key] ?? 0),
           ],
       ],
     );
@@ -1394,6 +1661,7 @@ class _UploadsReport extends StatelessWidget {
     if (rows.isEmpty) return _empty(context, s);
     final loc = Localizations.localeOf(context).languageCode;
     return _ReportTable(
+      s: s,
       leading: _TotalStrip(
         label: s.totalUploaded,
         value: Formatters.money(rows.fold<int>(0, (a, r) => a + r.count)),
@@ -1412,7 +1680,7 @@ class _UploadsReport extends StatelessWidget {
             _RCell([r.companyName, r.category].where((x) => x.isNotEmpty).join(' · ')),
             _RCell(r.agentName),
             _RCell(r.governorate.isEmpty ? '' : governorateLabel(r.governorate, loc)),
-            _RCell(Formatters.money(r.count), color: IntesharColors.sage),
+            _RCell(Formatters.money(r.count), color: IntesharColors.sage, value: r.count),
           ],
       ],
     );
@@ -1452,6 +1720,7 @@ class _PricesReport extends StatelessWidget {
         for (final e in groups.entries) ...[
           SectionLabel(e.key),
           _ReportSurface(
+            s: s,
             columns: [
               _RCol(s.category, flex: 4, primary: true),
               _RCol(s.governorate, flex: 3),
@@ -1465,9 +1734,9 @@ class _PricesReport extends StatelessWidget {
                   [
                     _RCell(row.name),
                     _RCell(g.$1.isEmpty ? s.untagged : governorateLabel(g.$1, loc)),
-                    _RCell(Formatters.money(g.$2)),
-                    _RCell(g.$3 == null ? '—' : Formatters.money(g.$3!)),
-                    _RCell(Formatters.money(g.$4)),
+                    _RCell(Formatters.money(g.$2), value: g.$2),
+                    _RCell(g.$3 == null ? '—' : Formatters.money(g.$3!), value: g.$3),
+                    _RCell(Formatters.money(g.$4), value: g.$4),
                   ],
             ],
           ),
@@ -1505,8 +1774,9 @@ class _StockReport extends StatelessWidget {
     int totalOf(SkuSummary k) => govCount(k, gov, (g) => g.total, k.total);
     int usedOf(SkuSummary k) => govCount(k, gov, (g) => g.printed, k.printed);
 
-    final shown = summary.where((sku) => availOf(sku) > 0).toList()
-      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    // UX-43: shared with the export, so the sheet can never hold stock the
+    // filtered grid excluded (or miss stock the grid shows).
+    final shown = visibleStock(summary, gov);
     if (shown.isEmpty) return _empty(context, s);
 
     return GridView.builder(
@@ -1591,6 +1861,7 @@ class _DetailedReport extends StatelessWidget {
     }
 
     return _ReportTable(
+      s: s,
       leading: _TotalStrip(
         label: s.grandTotal,
         value: Formatters.iqd(catalog.inventoryWorth.round()),
@@ -1610,9 +1881,9 @@ class _DetailedReport extends StatelessWidget {
             [
               _RCell(row.name),
               _RCell(g.$1.isEmpty ? s.untagged : governorateLabel(g.$1, loc)),
-              _RCell(Formatters.money(g.$2)),
-              _RCell(Formatters.money(g.$3)),
-              _RCell(Formatters.iqd(g.$4.round())),
+              _RCell(Formatters.money(g.$2), value: g.$2),
+              _RCell(Formatters.money(g.$3), value: g.$3),
+              _RCell(Formatters.iqd(g.$4.round()), value: g.$4),
             ],
       ],
     );

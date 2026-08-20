@@ -643,7 +643,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get batchAddPrinting => 'PRINTING';
+  String get batchAddUploading => 'UPLOADING';
 
   @override
   String get addVoucherDenomination => 'Denomination';
@@ -742,9 +742,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get defsFieldDescription => 'Description';
-
-  @override
-  String get defsFieldId => 'ID (auto-generated)';
 
   @override
   String get defsSave => 'Save';
@@ -847,6 +844,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String inventoryShowingCount(int shown, int total) {
     return 'Showing $shown of $total';
+  }
+
+  @override
+  String inventoryFilteredNote(int shown, int total) {
+    return 'Filtered · $shown of $total';
   }
 
   @override

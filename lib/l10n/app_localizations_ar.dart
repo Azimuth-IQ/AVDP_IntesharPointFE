@@ -644,7 +644,7 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get batchAddPrinting => 'جارٍ الطباعة';
+  String get batchAddUploading => 'جارٍ الرفع';
 
   @override
   String get addVoucherDenomination => 'الفئة';
@@ -741,9 +741,6 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get defsFieldDescription => 'الوصف';
-
-  @override
-  String get defsFieldId => 'المعرّف (يُنشأ تلقائياً)';
 
   @override
   String get defsSave => 'حفظ';
@@ -850,6 +847,11 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String inventoryShowingCount(int shown, int total) {
     return 'عرض $shown من $total';
+  }
+
+  @override
+  String inventoryFilteredNote(int shown, int total) {
+    return 'مُصفّى · $shown من $total';
   }
 
   @override

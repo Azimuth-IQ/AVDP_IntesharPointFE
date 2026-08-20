@@ -445,8 +445,8 @@
       "error": { "type": "String" }
     }
   },
-  "batchAddPrinting": "PRINTING",
-  "@batchAddPrinting": {},
+  "batchAddUploading": "UPLOADING",
+  "@batchAddUploading": {},
 
   "addVoucherDenomination": "Denomination",
   "@addVoucherDenomination": {},
@@ -515,8 +515,6 @@
   "@defsFieldPrice": {},
   "defsFieldDescription": "Description",
   "@defsFieldDescription": {},
-  "defsFieldId": "ID (auto-generated)",
-  "@defsFieldId": {},
   "defsSave": "Save",
   "@defsSave": {},
 
@@ -584,6 +582,11 @@
   "@inventoryLoadMore": {},
   "inventoryShowingCount": "Showing {shown} of {total}",
   "@inventoryShowingCount": {
+    "placeholders": { "shown": { "type": "int" }, "total": { "type": "int" } }
+  },
+  "inventoryFilteredNote": "Filtered · {shown} of {total}",
+  "@inventoryFilteredNote": {
+    "description": "Cue on the inventory tallies and value card saying the numbers count the filtered rows only.",
     "placeholders": { "shown": { "type": "int" }, "total": { "type": "int" } }
   },
   "inventoryNoCodes": "No codes to show.",

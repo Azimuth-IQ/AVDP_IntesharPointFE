@@ -274,7 +274,7 @@
       "error": { "type": "String" }
     }
   },
-  "batchAddPrinting": "جارٍ الطباعة",
+  "batchAddUploading": "جارٍ الرفع",
 
   "addVoucherDenomination": "الفئة",
   "addVoucherSerial": "الرقم التسلسلي",
@@ -316,7 +316,6 @@
   "defsFieldSku": "رمز المنتج * (مثال: AC5)",
   "defsFieldPrice": "السعر الافتراضي (IQD) *",
   "defsFieldDescription": "الوصف",
-  "defsFieldId": "المعرّف (يُنشأ تلقائياً)",
   "defsSave": "حفظ",
 
   "inventoryEyebrow": "العداد",
@@ -362,6 +361,10 @@
   "inventoryLoadMore": "تحميل المزيد",
   "inventoryShowingCount": "عرض {shown} من {total}",
   "@inventoryShowingCount": {
+    "placeholders": { "shown": { "type": "int" }, "total": { "type": "int" } }
+  },
+  "inventoryFilteredNote": "مُصفّى · {shown} من {total}",
+  "@inventoryFilteredNote": {
     "placeholders": { "shown": { "type": "int" }, "total": { "type": "int" } }
   },
   "inventoryNoCodes": "لا توجد رموز للعرض.",

@@ -1232,11 +1232,11 @@ abstract class AppLocalizations {
   /// **'Failed at row {index}: {error}'**
   String batchAddFailedAtRow(int index, String error);
 
-  /// No description provided for @batchAddPrinting.
+  /// No description provided for @batchAddUploading.
   ///
   /// In en, this message translates to:
-  /// **'PRINTING'**
-  String get batchAddPrinting;
+  /// **'UPLOADING'**
+  String get batchAddUploading;
 
   /// No description provided for @addVoucherDenomination.
   ///
@@ -1418,12 +1418,6 @@ abstract class AppLocalizations {
   /// **'Description'**
   String get defsFieldDescription;
 
-  /// No description provided for @defsFieldId.
-  ///
-  /// In en, this message translates to:
-  /// **'ID (auto-generated)'**
-  String get defsFieldId;
-
   /// No description provided for @defsSave.
   ///
   /// In en, this message translates to:
@@ -1591,6 +1585,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Showing {shown} of {total}'**
   String inventoryShowingCount(int shown, int total);
+
+  /// Cue on the inventory tallies and value card saying the numbers count the filtered rows only.
+  ///
+  /// In en, this message translates to:
+  /// **'Filtered · {shown} of {total}'**
+  String inventoryFilteredNote(int shown, int total);
 
   /// No description provided for @inventoryNoCodes.
   ///

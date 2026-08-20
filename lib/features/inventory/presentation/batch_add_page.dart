@@ -64,6 +64,20 @@ BatchRowAction batchRowDecide({
   return BatchRowAction.add;
 }
 
+/// One tab of this page: its label in both languages and the view it shows.
+typedef _TabSpec = ({String ar, String en, Widget view});
+
+/// The tabs, in order. ONE list feeds the controller length, the `TabBar` and
+/// the `TabBarView` — they used to be three hand-kept copies, and the length
+/// had drifted to 3 against 2 tabs, which trips the
+/// `controller.length == children.length` assert on every debug/profile build.
+const List<_TabSpec> _batchTabs = [
+  // B-088: the single-voucher tab is retired — bulk upload is the only
+  // supported way to add stock.
+  (ar: 'رفع ملف', en: 'Upload file', view: _UploadTab()),
+  (ar: 'الدفعات', en: 'Batches', view: _BatchesTab()),
+];
+
 class BatchAddPage extends ConsumerStatefulWidget {
   const BatchAddPage({super.key});
 
@@ -78,7 +92,7 @@ class _BatchAddPageState extends ConsumerState<BatchAddPage>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 3, vsync: this);
+    _tabs = TabController(length: _batchTabs.length, vsync: this);
   }
 
   @override
@@ -121,10 +135,7 @@ class _BatchAddPageState extends ConsumerState<BatchAddPage>
                 labelStyle: IntesharType.sans(13, w: FontWeight.w800),
                 unselectedLabelStyle: IntesharType.sans(13, w: FontWeight.w700),
                 tabs: [
-                  // B-088: the single-voucher tab is retired — bulk upload is the
-                  // only supported way to add stock.
-                  Tab(text: _tr(context, 'رفع ملف', 'Upload file')),
-                  Tab(text: _tr(context, 'الدفعات', 'Batches')),
+                  for (final t in _batchTabs) Tab(text: _tr(context, t.ar, t.en)),
                 ],
               ),
             ),
@@ -132,10 +143,7 @@ class _BatchAddPageState extends ConsumerState<BatchAddPage>
           Expanded(
             child: TabBarView(
               controller: _tabs,
-              children: const [
-                _UploadTab(),
-                _BatchesTab(),
-              ],
+              children: [for (final t in _batchTabs) t.view],
             ),
           ),
         ],
@@ -174,6 +182,10 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
 
   bool _importing = false;
   double _progress = 0;
+  // Rows actually written / rows in the file — the operator's question during a
+  // 20k-row upload is "how many are in?", not "what percent?".
+  int _uploadedRows = 0;
+  int _uploadTotalRows = 0;
   BatchImportResult? _result;
   String? _error;
   final TextEditingController _pasteCtrl = TextEditingController();
@@ -364,11 +376,12 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
         'These cards will be sellable in $name only.');
   }
 
-  bool get _canImport =>
-      _selectedDef != null &&
-      _target != null &&
-      _preview != null &&
-      _preview!.isNotEmpty;
+  /// The import button and the red "Required: …" line must never disagree —
+  /// the gate IS the missing-field list. Before this, `_canImport` re-stated
+  /// three of the four checks and dropped the sale scope, so the button stayed
+  /// pressable with no scope answered and the upload went out with
+  /// `governorate: null` — stock sellable in all 18 governorates (C-08).
+  bool get _canImport => _missing().isEmpty;
 
   List<ParsedVoucher> _parseXlsx(Uint8List bytes, ImportFormat format) {
     final book = Excel.decodeBytes(bytes);
@@ -484,9 +497,15 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
     if (_preview == null || _preview!.isEmpty || def == null || target == null) {
       return;
     }
+    // Second gate, deliberately duplicated: an unanswered sale scope must not be
+    // able to reach the wire as `governorate: null` (C-08), whatever state the
+    // button is in.
+    if (_format.regionLocked && _regionLockedScope == null) return;
     setState(() {
       _importing = true;
       _progress = 0;
+      _uploadedRows = 0;
+      _uploadTotalRows = _preview!.length;
       _result = null;
       _error = null;
     });
@@ -501,7 +520,11 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
         vouchers: _preview!,
         onProgress: (done, total) {
           if (mounted) {
-            setState(() => _progress = total == 0 ? 1 : done / total);
+            setState(() {
+              _progress = total == 0 ? 1 : done / total;
+              _uploadedRows = done;
+              _uploadTotalRows = total;
+            });
           }
         },
       );
@@ -623,6 +646,9 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
             // is still available; it just has to be chosen.
             if (isNew) ...[
               SectionLabel(_tr(context, 'نطاق البيع', 'Where these can be sold')),
+              // An unanswered scope must LOOK unanswered: `{_regionLockedScope ??
+              // true}` painted "One governorate" as already chosen while the
+              // value was still null, so nothing on the page looked missing.
               SegmentedButton<bool>(
                 segments: [
                   ButtonSegment(
@@ -632,9 +658,14 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                       value: false,
                       label: Text(_tr(context, 'كل المحافظات', 'All governorates'))),
                 ],
-                selected: {_regionLockedScope ?? true},
-                emptySelectionAllowed: _regionLockedScope == null,
+                selected: _regionLockedScope == null
+                    ? const <bool>{}
+                    : {_regionLockedScope!},
+                emptySelectionAllowed: true,
                 onSelectionChanged: (v) => setState(() {
+                  // An empty selection here would be the operator un-choosing;
+                  // keep the last answer rather than silently reopening the hole.
+                  if (v.isEmpty) return;
                   _regionLockedScope = v.first;
                   if (!v.first) _selectedGovernorate = null;
                 }),
@@ -643,19 +674,41 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                 const SizedBox(height: 12),
                 GovernorateDropdown(
                   value: _selectedGovernorate,
-                  noneLabel: l.batchAddNotGeoLocked,
+                  // Inside the "one governorate" branch the null option is an
+                  // unanswered question, not a second way to say "everywhere" —
+                  // that choice is the segment above, and leaving this on null
+                  // now blocks the import rather than shipping sell-anywhere stock.
+                  noneLabel: _tr(context, '— اختر المحافظة —', '— Choose a governorate —'),
                   labelText: l.batchAddGovernorate,
                   onChanged: (v) => setState(() => _selectedGovernorate = v),
                 ),
               ],
               const SizedBox(height: 8),
-              Text(
-                _scopeSummary(context),
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-              ),
+              Builder(builder: (context) {
+                // While the scope is still open the summary is not a note, it is
+                // the outstanding question — so it carries the error colour.
+                final unanswered = _regionLockedScope == null ||
+                    (_regionLockedScope == true && _selectedGovernorate == null);
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (unanswered) ...[
+                      Icon(Icons.error_outline, size: 15, color: cs.error),
+                      const SizedBox(width: 6),
+                    ],
+                    Expanded(
+                      child: Text(
+                        _scopeSummary(context),
+                        style: IntesharType.sans(
+                          12.5,
+                          color: unanswered ? cs.error : cs.onSurfaceVariant,
+                          w: unanswered ? FontWeight.w700 : FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }),
               const SizedBox(height: 22),
             ],
 
@@ -806,8 +859,9 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                 const SizedBox(height: 12),
                 _ProgressBlock(
                   progress: _progress,
-                  label: _tr(context, '${(_progress * 100).round()}%',
-                      '${(_progress * 100).round()}%'),
+                  // Rows, not a second copy of the percentage already on the right.
+                  label:
+                      '${Formatters.money(_uploadedRows)} / ${Formatters.money(_uploadTotalRows)}',
                 ),
               ],
               const SizedBox(height: 16),
@@ -920,7 +974,10 @@ class _ProgressBlock extends StatelessWidget {
           Row(
             children: [
               Text(
-                l.batchAddPrinting,
+                // UX-86: this bar has never printed anything — it is the
+                // voucher UPLOAD, and it said "جارٍ الطباعة" on the highest-stakes
+                // admin task.
+                l.batchAddUploading,
                 style: IntesharType.overline(color: cs.onPrimaryContainer),
               ),
               const Spacer(),

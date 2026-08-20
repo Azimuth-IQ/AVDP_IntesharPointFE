@@ -140,10 +140,17 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
     final filtered = _filtered;
     final lowStock = _lowStockThreshold();
 
-    final availableTotal = all.fold(0, (s, e) => s + e.available);
-    final printedTotal = all.fold(0, (s, e) => s + e.printed);
-    final damagedTotal = all.fold(0, (s, e) => s + e.damaged);
-    final value = all.fold<num>(0, (s, e) => s + e.availableValue);
+    // UX-44: every number on this screen now counts what is ON SCREEN. Totals
+    // taken from `all` while the list rendered `filtered` were the classic
+    // misread — the whole warehouse's value sitting above three search matches,
+    // with nothing saying so.
+    final isFiltered = _search.isNotEmpty || _statusFilter != null;
+    final filterNote =
+        isFiltered ? l.inventoryFilteredNote(filtered.length, all.length) : null;
+    final availableTotal = filtered.fold(0, (s, e) => s + e.available);
+    final printedTotal = filtered.fold(0, (s, e) => s + e.printed);
+    final damagedTotal = filtered.fold(0, (s, e) => s + e.damaged);
+    final value = filtered.fold<num>(0, (s, e) => s + e.availableValue);
 
     return MaxWidthBox(
       child: Column(
@@ -156,6 +163,7 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
               available: availableTotal,
               printed: printedTotal,
               damaged: damagedTotal,
+              filterNote: filterNote,
             ),
           ),
           if (_isHqRoot)
@@ -171,13 +179,13 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
                 },
               ),
             ),
-          if (all.isNotEmpty)
+          if (filtered.isNotEmpty)
             Padding(
               padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 4),
               child: _InventoryValueCard(
                 value: value,
                 availableUnits: availableTotal,
-                skuCount: all.length,
+                filterNote: filterNote,
               ),
             ),
           _FilterBar(
@@ -210,6 +218,7 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
                             entityId: _entityId!,
                             readOnly: widget.readOnly,
                             lowStock: lowStock,
+                            statusFilter: _statusFilter,
                             canWithdraw: _canWithdrawFrom(_entityId!),
                             onChanged: _load,
                           ),
@@ -281,11 +290,14 @@ class _InventoryOwnerPicker extends StatelessWidget {
 class _InventoryValueCard extends StatelessWidget {
   final num value;
   final int availableUnits;
-  final int skuCount;
+
+  /// Set while a search or status filter is narrowing the list — the value below
+  /// is then the value of the MATCHES, and has to say so.
+  final String? filterNote;
   const _InventoryValueCard({
     required this.value,
     required this.availableUnits,
-    required this.skuCount,
+    this.filterNote,
   });
 
   @override
@@ -311,9 +323,27 @@ class _InventoryValueCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  l.inventoryValueLabel,
-                  style: IntesharType.sans(12, color: IntesharColors.inkSoft, w: FontWeight.w600),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        l.inventoryValueLabel,
+                        style: IntesharType.sans(12,
+                            color: IntesharColors.inkSoft, w: FontWeight.w600),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (filterNote != null) ...[
+                      const SizedBox(width: 8),
+                      StampPill(
+                        label: filterNote!,
+                        color: context.tones.brandInk,
+                        icon: Icons.filter_alt_outlined,
+                        fontSize: 10,
+                      ),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -351,7 +381,15 @@ class _Tallies extends StatelessWidget {
   final int available;
   final int printed;
   final int damaged;
-  const _Tallies({required this.available, required this.printed, required this.damaged});
+
+  /// "Filtered · 3 of 41" — these tallies count the matches, not the warehouse.
+  final String? filterNote;
+  const _Tallies({
+    required this.available,
+    required this.printed,
+    required this.damaged,
+    this.filterNote,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -359,7 +397,15 @@ class _Tallies extends StatelessWidget {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
+        if (filterNote != null)
+          StampPill(
+            label: filterNote!,
+            color: context.tones.brandInk,
+            icon: Icons.filter_alt_outlined,
+            fontSize: 10,
+          ),
         _TallyChip(label: l.inventoryStatusAvailable, value: available, color: IntesharColors.sage),
         _TallyChip(label: l.inventoryStatusPrinted, value: printed, color: context.tones.brandInk),
         _TallyChip(label: l.inventoryStatusDamaged, value: damaged, color: Theme.of(context).colorScheme.error),
@@ -503,6 +549,11 @@ class _SkuGroupCard extends ConsumerStatefulWidget {
   /// HQ looking at ANOTHER account's warehouse — the only case where pulling
   /// stock back means anything.
   final bool canWithdraw;
+
+  /// The status the list is filtered to, or null for "all". When it is set the
+  /// card shows only that status's pill: filtering to Damaged used to leave big
+  /// green "available" pills on every row, which reads as the filter not working.
+  final ProductStatus? statusFilter;
   const _SkuGroupCard({
     super.key,
     required this.summary,
@@ -511,6 +562,7 @@ class _SkuGroupCard extends ConsumerStatefulWidget {
     required this.lowStock,
     required this.onChanged,
     this.canWithdraw = false,
+    this.statusFilter,
   });
 
   @override
@@ -680,6 +732,10 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
   String _tr(String ar, String en) =>
       Localizations.localeOf(context).languageCode == 'ar' ? ar : en;
 
+  /// Whether a status pill belongs on the header row under the current filter.
+  bool _showsPill(ProductStatus status) =>
+      widget.statusFilter == null || widget.statusFilter == status;
+
   /// Asks how many cards of this SKU to pull back, then reports what actually
   /// moved — which can be fewer than asked if some sold in the meantime.
   Future<void> _withdrawDialog() async {
@@ -817,15 +873,17 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  if (s.available > 0) ...[
+                  // Only the pills the filter is asking about (all three when
+                  // there is no filter).
+                  if (_showsPill(ProductStatus.AVAILABLE) && s.available > 0) ...[
                     StampPill(label: l.inventoryAvailableCount(s.available), color: IntesharColors.sage),
                     const SizedBox(width: 6),
                   ],
-                  if (s.printed > 0) ...[
+                  if (_showsPill(ProductStatus.PRINTED) && s.printed > 0) ...[
                     StampPill(label: l.inventoryPrintedCount(s.printed), color: context.tones.brandInk),
                     const SizedBox(width: 6),
                   ],
-                  if (s.damaged > 0) ...[
+                  if (_showsPill(ProductStatus.DAMAGED) && s.damaged > 0) ...[
                     StampPill(label: l.inventoryDamagedCount(s.damaged), color: cs.error),
                     const SizedBox(width: 6),
                   ],
@@ -913,15 +971,17 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
             ],
           );
         }),
-        if (_hasMore) ...[
-          const Hairline(),
-          _LoadMoreRow(
-            loading: _loadingMore,
-            shown: _products.length,
-            total: widget.summary.total,
-            onTap: _loadMore,
-          ),
-        ],
+        // UX-45: "Showing 50 of 10,000" used to render ONLY while the spinner was
+        // up — the one piece of orientation in a very long list flashed for
+        // 300ms and was replaced by "Load more". It is now always on screen,
+        // including once everything is loaded.
+        const Hairline(),
+        _LoadMoreRow(
+          loading: _loadingMore,
+          shown: _products.length,
+          total: widget.summary.total,
+          onTap: _hasMore ? _loadMore : null,
+        ),
       ],
     );
   }
@@ -994,32 +1054,49 @@ class _GovBreakdown extends StatelessWidget {
   }
 }
 
+/// The footer of an expanded SKU: where you are in the list, and — when there is
+/// more — the control that fetches the next page. [onTap] is null once
+/// everything is loaded, which leaves the position line on its own.
 class _LoadMoreRow extends StatelessWidget {
   final bool loading;
   final int shown;
   final int total;
-  final VoidCallback onTap;
-  const _LoadMoreRow({required this.loading, required this.shown, required this.total, required this.onTap});
+  final VoidCallback? onTap;
+  const _LoadMoreRow({required this.loading, required this.shown, required this.total, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final canLoadMore = onTap != null;
     return InkWell(
       onTap: loading ? null : onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (loading)
               const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-            else
+            else if (canLoadMore)
               Icon(Icons.expand_more, size: 18, color: context.tones.brandInk),
-            const SizedBox(width: 8),
-            Text(
-              loading ? l.inventoryShowingCount(shown, total) : l.inventoryLoadMore,
-              style: IntesharType.sans(13, color: context.tones.brandInk, w: FontWeight.w700),
+            if (loading || canLoadMore) const SizedBox(width: 8),
+            // The position is permanent; "Load more" is the affordance beside it.
+            Flexible(
+              child: Text(
+                l.inventoryShowingCount(shown, total),
+                style: IntesharType.sans(13, color: cs.onSurfaceVariant, w: FontWeight.w600),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
+            if (canLoadMore && !loading) ...[
+              const SizedBox(width: 8),
+              Text(
+                l.inventoryLoadMore,
+                style: IntesharType.sans(13, color: context.tones.brandInk, w: FontWeight.w700),
+              ),
+            ],
           ],
         ),
       ),

@@ -66,8 +66,11 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
     String? selectedCompanyId =
         (existing != null && existing.companyId.isNotEmpty) ? existing.companyId : null;
     String imageUrl = existing?.imageUrl ?? '';
-    final idCtrl = TextEditingController(
-        text: existing?.id ?? 'def-${DateTime.now().millisecondsSinceEpoch}');
+    // UX-75: the document id is generated here and never shown. It is a storage
+    // key with no format rule and no uniqueness check the operator could satisfy,
+    // and stock and prices hang off it — the operator-facing identity is the SKU,
+    // which the form asks for properly.
+    final id = existing?.id ?? 'def-${DateTime.now().millisecondsSinceEpoch}';
     final nameCtrl = TextEditingController(text: existing?.name ?? '');
     final skuCtrl = TextEditingController(text: existing?.sku ?? '');
     final priceCtrl = TextEditingController(text: existing?.defaultPrice ?? '');
@@ -78,7 +81,6 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
       isScrollControlled: true,
       builder: (ctx) => _DefinitionFormSheet(
         title: existing == null ? l.defsFormTitleNew : l.defsFormTitleEdit,
-        idCtrl: idCtrl,
         nameCtrl: nameCtrl,
         skuCtrl: skuCtrl,
         priceCtrl: priceCtrl,
@@ -92,7 +94,7 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
         onSave: () async {
           final repo = DefinitionRepository(api);
           final def = ProductDefinition(
-            id: idCtrl.text.trim(),
+            id: id,
             name: nameCtrl.text.trim(),
             sku: skuCtrl.text.trim().toUpperCase(),
             defaultPrice: priceCtrl.text.trim(),
@@ -501,7 +503,6 @@ class _DefinitionRowState extends State<_DefinitionRow> {
 
 class _DefinitionFormSheet extends StatefulWidget {
   final String title;
-  final TextEditingController idCtrl;
   final TextEditingController nameCtrl;
   final TextEditingController skuCtrl;
   final TextEditingController priceCtrl;
@@ -516,7 +517,6 @@ class _DefinitionFormSheet extends StatefulWidget {
 
   const _DefinitionFormSheet({
     required this.title,
-    required this.idCtrl,
     required this.nameCtrl,
     required this.skuCtrl,
     required this.priceCtrl,
@@ -687,13 +687,6 @@ class _DefinitionFormSheetState extends State<_DefinitionFormSheet> {
                   },
                 );
               }),
-            ],
-            if (widget.isNew) ...[
-              const SizedBox(height: 12),
-              TextField(
-                controller: widget.idCtrl,
-                decoration: InputDecoration(labelText: l.defsFieldId),
-              ),
             ],
             const SizedBox(height: 20),
             Row(

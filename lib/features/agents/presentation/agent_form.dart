@@ -64,6 +64,8 @@ class _AgentFormState extends ConsumerState<AgentForm> {
   String? _emailError;
   String? _latError;
   String? _lngError;
+  String? _lowStockError;
+  String? _bulkError;
 
   // Anchors for scrolling the first bad field into view.
   final _kParent = GlobalKey();
@@ -71,10 +73,20 @@ class _AgentFormState extends ConsumerState<AgentForm> {
   final _kGov = GlobalKey();
   final _kGeo = GlobalKey();
   final _kEmail = GlobalKey();
+  final _kLimits = GlobalKey();
 
   // Step 1 — entity details
   final _name = TextEditingController();
+  final _slogan = TextEditingController();
+  final _description = TextEditingController();
   final _logo = TextEditingController();
+
+  // UX-03: operational limits. These lived only in the hierarchy tree's edit
+  // sheet, so this form — the one reached from the Main/Sub Agent pages — could
+  // not see or write them. Blank means "unset": 0 round-trips as inherit/default.
+  final _lowStock = TextEditingController();
+  final _bulkLimit = TextEditingController();
+  bool _bulkLocked = true;
   final _ownerName = TextEditingController();
   List<String> _documentUrls = [];
   final _landmark = TextEditingController();
@@ -111,13 +123,29 @@ class _AgentFormState extends ConsumerState<AgentForm> {
   AgentTier get tier => widget.tier;
   bool get _isEdit => widget.existing != null;
 
+  /// How many users the entity already had when the form opened. An account
+  /// stored above its tier cap (legacy data, or created before the cap) must
+  /// still be editable — the ceiling only stops it growing further.
+  int _loadedUserCount = 0;
+  int get _userCeiling =>
+      tier.maxUsers > _loadedUserCount ? tier.maxUsers : _loadedUserCount;
+
   @override
   void initState() {
     super.initState();
     final e = widget.existing;
     if (e != null) {
       _name.text = e.meta.name;
+      _slogan.text = e.meta.slogan;
+      _description.text = e.meta.description;
       _logo.text = e.meta.logoUrl;
+      if (e.meta.lowStockThreshold > 0) {
+        _lowStock.text = e.meta.lowStockThreshold.toString();
+      }
+      if (e.meta.maxBulkPrint > 0) {
+        _bulkLimit.text = e.meta.maxBulkPrint.toString();
+      }
+      _bulkLocked = e.meta.bulkLimitLocked;
       _primary.text = e.meta.primaryColor;
       _secondary.text = e.meta.secondaryColor;
       _background.text = e.meta.backgroundUrl;
@@ -143,16 +171,13 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         _users.add(_UserDraft.fromUser(u));
       }
     }
-    // A Sub Agent has a single user.
-    if (tier == AgentTier.sub && _users.length > 1) {
-      for (var i = 1; i < _users.length; i++) {
-        _users[i].dispose();
-      }
-      final first = _users.first;
-      _users
-        ..clear()
-        ..add(first);
-    }
+    // Whatever is stored is kept. This used to silently drop everything past
+    // the first user on a Sub Agent, so opening the form to fix a slogan and
+    // pressing Save deleted a real login — and now that the hierarchy's Edit
+    // routes here too, that would have become the ordinary way to lose one.
+    // The tier cap still applies to ADDING (see [_addUser] and the submit
+    // check), which is where a limit belongs.
+    _loadedUserCount = _users.length;
     if (_users.isEmpty) {
       _users.add(_UserDraft.blank(AgentUserPreset.admin));
     }
@@ -178,7 +203,11 @@ class _AgentFormState extends ConsumerState<AgentForm> {
   void dispose() {
     for (final c in [
       _name,
+      _slogan,
+      _description,
       _logo,
+      _lowStock,
+      _bulkLimit,
       _ownerName,
       _landmark,
       _lat,
@@ -235,8 +264,20 @@ class _AgentFormState extends ConsumerState<AgentForm> {
     return {...preset.capabilities}..remove(Capability.MANAGE_PRICING);
   }
 
+  /// What this user will actually be saved with.
+  ///
+  /// A capability set the four presets cannot describe survives an edit intact —
+  /// see [_UserDraft.loadedCapabilities] — unless the operator deliberately picks
+  /// a preset for that card. The tier's no-pricing rule still applies either way.
+  Set<Capability> _capsForDraft(_UserDraft d) {
+    final loaded = d.loadedCapabilities;
+    if (loaded == null || d.presetChosen) return _capsFor(d.preset);
+    if (tier.allowPricing) return loaded;
+    return {...loaded}..remove(Capability.MANAGE_PRICING);
+  }
+
   void _addUser() {
-    if (_users.length >= tier.maxUsers) return;
+    if (_users.length >= _userCeiling) return;
     setState(() => _users.add(_UserDraft.blank(AgentUserPreset.monitoring)));
   }
 
@@ -290,6 +331,19 @@ class _AgentFormState extends ConsumerState<AgentForm> {
     final latErr = rangeError(_lat.text.trim(), -90, 90);
     final lngErr = rangeError(_lng.text.trim(), -180, 180);
 
+    // Operational limits (optional) — blank means unset. A non-numeric or
+    // negative value would silently persist as 0 and read as "inherit", which is
+    // the opposite of what the operator typed.
+    String? countError(String raw, {int min = 0}) {
+      if (raw.isEmpty) return null;
+      final v = int.tryParse(raw);
+      return (v == null || v < min) ? s.errNumberInvalid : null;
+    }
+
+    final lowStockErr = countError(_lowStock.text.trim());
+    // 0 cards per sale is not a limit, it is a shop that cannot sell.
+    final bulkErr = countError(_bulkLimit.text.trim(), min: 1);
+
     setState(() {
       _parentError = parentErr;
       _nameError = nameErr;
@@ -297,20 +351,11 @@ class _AgentFormState extends ConsumerState<AgentForm> {
       _emailError = emailErr;
       _latError = latErr;
       _lngError = lngErr;
+      _lowStockError = lowStockErr;
+      _bulkError = bulkErr;
     });
 
-    // In the order the fields appear on screen, so "first" means the topmost.
-    final firstBad = parentErr != null
-        ? _kParent
-        : nameErr != null
-            ? _kName
-            : govErr != null
-                ? _kGov
-                : (latErr != null || lngErr != null)
-                    ? _kGeo
-                    : emailErr != null
-                        ? _kEmail
-                        : null;
+    final firstBad = _firstBadDetailsKey();
     if (firstBad != null) {
       if (scroll) _scrollTo(firstBad);
       return false;
@@ -320,6 +365,8 @@ class _AgentFormState extends ConsumerState<AgentForm> {
 
   /// The anchor of the topmost step-1 field currently in error, or null when
   /// the step is clean. Read after [_validateStep1] has set the flags.
+  ///
+  /// In the order the fields appear on screen, so "first" means the topmost.
   GlobalKey? _firstBadDetailsKey() => _parentError != null
       ? _kParent
       : _nameError != null
@@ -330,7 +377,9 @@ class _AgentFormState extends ConsumerState<AgentForm> {
                   ? _kGeo
                   : _emailError != null
                       ? _kEmail
-                      : null;
+                      : (_lowStockError != null || _bulkError != null)
+                          ? _kLimits
+                          : null;
 
   Future<void> _submit() async {
     final s = AgentStrings.of(context, tier);
@@ -352,7 +401,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
       setState(() => _error = s.errUsersRequired);
       return;
     }
-    if (_users.length > tier.maxUsers) {
+    if (_users.length > _userCeiling) {
       setState(() => _error = s.errMaxUsers);
       return;
     }
@@ -390,7 +439,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
           phone: phone,
           password: typed,
           role: d.preset.role,
-          capabilities: _capsFor(d.preset),
+          capabilities: _capsForDraft(d),
         ),
       );
     }
@@ -419,12 +468,19 @@ class _AgentFormState extends ConsumerState<AgentForm> {
 
     final meta = (existing?.meta ?? const EntityMeta()).copyWith(
       name: _name.text.trim(),
+      slogan: _slogan.text.trim(),
+      description: _description.text.trim(),
       logoUrl: _logo.text.trim(),
       backgroundUrl: _background.text.trim(),
       primaryColor: _primary.text.trim(),
       secondaryColor: _secondary.text.trim(),
       governorates: _governorates.toList(),
       workingHours: _workingHours,
+      // Blank → 0, which the server reads as "unset": the default threshold and
+      // an inherited bulk limit. Same encoding the tree's edit sheet used.
+      lowStockThreshold: int.tryParse(_lowStock.text.trim()) ?? 0,
+      maxBulkPrint: int.tryParse(_bulkLimit.text.trim()) ?? 0,
+      bulkLimitLocked: _bulkLocked,
     );
     final profile = EntityProfile(
       ownerName: _ownerName.text.trim(),
@@ -560,6 +616,11 @@ class _AgentFormState extends ConsumerState<AgentForm> {
 
   Widget _buildDetails(AgentStrings s) {
     final cs = Theme.of(context).colorScheme;
+    // Only HQ may hand an agent the right to edit its own bulk limit; everyone
+    // else sees the value but not the delegation switch (server-enforced too).
+    final viewer = ref.read(authStateProvider).valueOrNull;
+    final viewerIsHq =
+        viewer is AuthAuthenticated && viewer.entity.type == EntityType.INTESHAR;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -613,6 +674,19 @@ class _AgentFormState extends ConsumerState<AgentForm> {
           onChanged: (_) {
             if (_nameError != null) setState(() => _nameError = null);
           },
+        ),
+        const SizedBox(height: 12),
+        // UX-03: slogan + description were only reachable from the hierarchy
+        // tree's own edit sheet. They are identity, so they sit with the name.
+        TextField(
+          controller: _slogan,
+          decoration: InputDecoration(labelText: s.fieldSlogan),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _description,
+          maxLines: 3,
+          decoration: InputDecoration(labelText: s.fieldDescription),
         ),
         const SizedBox(height: 12),
         ImageUploadField(
@@ -706,6 +780,62 @@ class _AgentFormState extends ConsumerState<AgentForm> {
           value: _workingHours,
           onChanged: (v) => setState(() => _workingHours = v),
         ),
+        const SizedBox(height: 22),
+
+        // ── Operational limits (UX-03) ───────────────────────────────────────
+        // Folded in from the hierarchy tree's edit sheet, which was the only
+        // place these could be set. Two forms edited the same agent with
+        // disjoint fields and neither mentioned the other, so whichever one an
+        // admin opened, half the settings were invisible and unguessable.
+        SectionLabel(s.sectionLimits, key: _kLimits),
+        const SizedBox(height: 4),
+        Text(s.limitsHint, style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _lowStock,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: InputDecoration(
+            labelText: s.fieldLowStock,
+            hintText: EntityMeta.defaultLowStockThreshold.toString(),
+            helperText: s.lowStockHint(EntityMeta.defaultLowStockThreshold),
+            helperMaxLines: 2,
+            errorText: _lowStockError,
+          ),
+          onChanged: (_) {
+            if (_lowStockError != null) setState(() => _lowStockError = null);
+          },
+        ),
+        const SizedBox(height: 12),
+        // B-086: the server resolves the EFFECTIVE limit as the minimum over the
+        // chain, so a value here can only ever tighten what an ancestor allows.
+        TextField(
+          controller: _bulkLimit,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: InputDecoration(
+            labelText: s.fieldBulkLimit,
+            hintText: '10',
+            helperText: s.bulkLimitHint,
+            helperMaxLines: 2,
+            errorText: _bulkError,
+          ),
+          onChanged: (_) {
+            if (_bulkError != null) setState(() => _bulkError = null);
+          },
+        ),
+        // Only HQ may delegate or revoke limit management (server-enforced too).
+        if (viewerIsHq)
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            value: !_bulkLocked,
+            onChanged: (v) => setState(() => _bulkLocked = !v),
+            title: Text(s.bulkUnlockLabel,
+                style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w600)),
+            subtitle: Text(s.bulkUnlockHint,
+                style: IntesharType.sans(11, color: cs.onSurfaceVariant)),
+          ),
         const SizedBox(height: 22),
         SectionLabel(s.sectionOwner),
         const SizedBox(height: 8),
@@ -861,7 +991,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
               draft: e.value,
               s: s,
               showPreset: showPreset,
-              effectiveCaps: _capsFor(e.value.preset),
+              effectiveCaps: _capsForDraft(e.value),
               onChanged: () => setState(() {}),
               onRemove: (_users.length > 1)
                   ? () => setState(() => _users.removeAt(e.key))
@@ -869,7 +999,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
             ),
           ),
         ),
-        if (_users.length < tier.maxUsers)
+        if (_users.length < _userCeiling)
           OutlinedButton.icon(
             onPressed: _addUser,
             icon: const Icon(Icons.person_add_alt, size: 18),
@@ -1010,8 +1140,11 @@ class _UserCard extends StatelessWidget {
               ),
               const Spacer(),
               if (onRemove != null)
+                // UX-119: no `visualDensity: compact`. It shrank the padded
+                // 48dp target to 40dp on a destructive control, and there is
+                // room to spare in this header row.
                 IconButton(
-                  visualDensity: VisualDensity.compact,
+                  tooltip: s.removeUser,
                   icon: Icon(Icons.delete_outline, size: 18, color: cs.error),
                   onPressed: onRemove,
                 ),
@@ -1079,6 +1212,9 @@ class _UserCard extends StatelessWidget {
               onChanged: (v) {
                 if (v != null) {
                   draft.preset = v;
+                  // An explicit choice overrides a hand-tuned capability set;
+                  // merely opening the form does not.
+                  draft.presetChosen = true;
                   onChanged();
                 }
               },
@@ -1110,6 +1246,19 @@ class _UserDraft {
   final TextEditingController password;
   AgentUserPreset preset;
 
+  /// The capability set this user was LOADED with, when it matched no preset —
+  /// null for a new user or one whose caps are exactly a preset.
+  ///
+  /// [presetForCapabilities] returns null for any set the four presets don't
+  /// describe (a user predating the AGENT_ADMIN split, or one HQ tuned by hand),
+  /// and the form then falls back to `admin`/`monitoring`. Rebuilding the user
+  /// from that fallback would quietly WIDEN such an admin to every capability,
+  /// or narrow an operator down to view-only — as a side effect of an edit that
+  /// was about the agent's slogan. So the original set is kept and re-sent
+  /// verbatim unless the operator actually picks a preset.
+  final Set<Capability>? loadedCapabilities;
+  bool presetChosen = false;
+
   /// Validation messages shown on this card's own fields, and the anchor used
   /// to scroll the card into view when it is the first one at fault.
   String? phoneError;
@@ -1120,21 +1269,28 @@ class _UserDraft {
     required this.id,
     required String phoneText,
     required this.preset,
+    this.loadedCapabilities,
   }) : phone = TextEditingController(text: phoneText),
        password = TextEditingController();
 
   factory _UserDraft.blank(AgentUserPreset preset) =>
       _UserDraft(id: '', phoneText: '', preset: preset);
 
-  factory _UserDraft.fromUser(EntityUser u) => _UserDraft(
-    id: u.id,
-    phoneText: u.phone,
-    preset:
-        presetForCapabilities(u.role, u.capabilities) ??
-        (u.role == UserRole.ADMIN
-            ? AgentUserPreset.admin
-            : AgentUserPreset.monitoring),
-  );
+  factory _UserDraft.fromUser(EntityUser u) {
+    final matched = presetForCapabilities(u.role, u.capabilities);
+    return _UserDraft(
+      id: u.id,
+      phoneText: u.phone,
+      preset:
+          matched ??
+          (u.role == UserRole.ADMIN
+              ? AgentUserPreset.admin
+              : AgentUserPreset.monitoring),
+      // Only when no preset describes them — otherwise the preset IS the set.
+      loadedCapabilities:
+          matched == null && u.capabilities.isNotEmpty ? u.capabilities : null,
+    );
+  }
 
   void dispose() {
     phone.dispose();

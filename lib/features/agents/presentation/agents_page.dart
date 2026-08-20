@@ -14,6 +14,7 @@ import 'package:inteshar/features/agents/presentation/agent_strings.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/presentation/delete_agent_sheet.dart';
+import 'package:inteshar/features/entities/presentation/visible_products_sheet.dart';
 import 'package:inteshar/features/system_activity/domain/feed_rows.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
@@ -154,6 +155,19 @@ class _AgentsPageState extends ConsumerState<AgentsPage> {
     if (changed && mounted) _reload();
   }
 
+  /// UX-103: which voucher SKUs this agent — and everything under it — may see
+  /// and sell. The control existed but had exactly ONE entry point in the app: a
+  /// menu item on a hierarchy-tree row. Deciding what a partner is allowed to
+  /// sell is agent administration, so it belongs on the agent directory too;
+  /// nothing about it suggested it lived inside the tree.
+  Future<void> _openVisibleProducts(EntitySummaryRow row) async {
+    await showVisibleProductsSheet(
+      context,
+      entityId: row.id,
+      entityName: row.label,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = AgentStrings.of(context, tier);
@@ -221,6 +235,7 @@ class _AgentsPageState extends ConsumerState<AgentsPage> {
             canManage: canManage,
             onEdit: () => _openForm(editId: _items[i].id),
             onDelete: () => _confirmDelete(_items[i]),
+            onVisibleProducts: () => _openVisibleProducts(_items[i]),
           );
         },
       ),
@@ -234,7 +249,15 @@ class _AgentCard extends StatelessWidget {
   final bool canManage;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
-  const _AgentCard({required this.row, required this.s, required this.canManage, required this.onEdit, required this.onDelete});
+  final VoidCallback onVisibleProducts;
+  const _AgentCard({
+    required this.row,
+    required this.s,
+    required this.canManage,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onVisibleProducts,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -265,9 +288,16 @@ class _AgentCard extends StatelessWidget {
               ),
               if (canManage)
                 PopupMenuButton<String>(
-                  onSelected: (v) => v == 'edit' ? onEdit() : onDelete(),
+                  onSelected: (v) => switch (v) {
+                    'edit' => onEdit(),
+                    'visible_products' => onVisibleProducts(),
+                    _ => onDelete(),
+                  },
                   itemBuilder: (_) => [
                     PopupMenuItem(value: 'edit', child: Text(s.edit)),
+                    PopupMenuItem(
+                        value: 'visible_products',
+                        child: Text(s.visibleProducts)),
                     PopupMenuItem(value: 'delete', child: Text(s.delete)),
                   ],
                 ),

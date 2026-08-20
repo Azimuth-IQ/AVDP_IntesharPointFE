@@ -226,60 +226,84 @@ class _SliderRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(IntesharRadii.md),
         border: Border.all(color: cs.outlineVariant),
       ),
-      child: Row(
-        children: [
-          Opacity(
-            opacity: slider.active ? 1 : 0.4,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(IntesharRadii.sm),
-              child: Image.network(
-                slider.imageUrl,
+      child: LayoutBuilder(builder: (context, constraints) {
+        final thumb = Opacity(
+          opacity: slider.active ? 1 : 0.4,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(IntesharRadii.sm),
+            child: Image.network(
+              slider.imageUrl,
+              width: 84,
+              height: 47, // ~16:9
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => Container(
                 width: 84,
-                height: 47, // ~16:9
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => Container(
-                  width: 84,
-                  height: 47,
-                  color: cs.surfaceContainerHighest,
-                  child: Icon(Icons.broken_image_outlined, size: 20, color: cs.onSurfaceVariant),
-                ),
+                height: 47,
+                color: cs.surfaceContainerHighest,
+                child: Icon(Icons.broken_image_outlined, size: 20, color: cs.onSurfaceVariant),
               ),
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(audienceSummary,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: IntesharType.sans(12.5, color: cs.onSurface, w: FontWeight.w700)),
-                const SizedBox(height: 2),
-                Text(slider.active ? _t(context, 'مُفعّلة', 'Active') : _t(context, 'مخفية', 'Hidden'),
-                    style: IntesharType.sans(11, color: cs.onSurfaceVariant)),
-              ],
-            ),
-          ),
+        );
+
+        final info = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(audienceSummary,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: IntesharType.sans(12.5, color: cs.onSurface, w: FontWeight.w700)),
+            const SizedBox(height: 2),
+            Text(slider.active ? _t(context, 'مُفعّلة', 'Active') : _t(context, 'مخفية', 'Hidden'),
+                style: IntesharType.sans(11, color: cs.onSurfaceVariant)),
+          ],
+        );
+
+        // UX-119: four adjacent icon buttons — one of them delete — used
+        // `visualDensity: compact`, which drops the padded target from 48dp to
+        // 40dp. At that size, on a row this dense, "move down" and "delete" are
+        // two taps apart and one of them cannot be undone. Full-size targets
+        // restored, plus tooltips so four bare glyphs are distinguishable.
+        final actions = [
           Switch(value: slider.active, onChanged: (_) => onToggle()),
           IconButton(
-              visualDensity: VisualDensity.compact,
+              tooltip: _t(context, 'تحريك لأعلى', 'Move up'),
               icon: const Icon(Icons.keyboard_arrow_up, size: 20),
               onPressed: onUp),
           IconButton(
-              visualDensity: VisualDensity.compact,
+              tooltip: _t(context, 'تحريك لأسفل', 'Move down'),
               icon: const Icon(Icons.keyboard_arrow_down, size: 20),
               onPressed: onDown),
           IconButton(
-              visualDensity: VisualDensity.compact,
+              tooltip: _t(context, 'تعديل', 'Edit'),
               icon: const Icon(Icons.edit_outlined, size: 18),
               onPressed: onEdit),
           IconButton(
-              visualDensity: VisualDensity.compact,
+              tooltip: _t(context, 'حذف', 'Delete'),
               icon: Icon(Icons.delete_outline, size: 18, color: cs.error),
               onPressed: onDelete),
-        ],
-      ),
+        ];
+
+        // The five controls need ~250dp at full size. Below that the row would
+        // squeeze the summary text to nothing, so the actions move to their own
+        // line rather than the targets shrinking back again.
+        if (constraints.maxWidth < 420) {
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [thumb, const SizedBox(width: 12), Expanded(child: info)]),
+              Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: Row(mainAxisSize: MainAxisSize.min, children: actions),
+              ),
+            ],
+          );
+        }
+        return Row(
+          children: [thumb, const SizedBox(width: 12), Expanded(child: info), ...actions],
+        );
+      }),
     );
   }
 }

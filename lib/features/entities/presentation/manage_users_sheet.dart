@@ -63,9 +63,19 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
     super.dispose();
   }
 
-  List<UserRole> get _allowedRoles => widget.entity.type == EntityType.STORE
-      ? UserRole.values
-      : [UserRole.ADMIN];
+  /// UX-96: **ADMIN only, on every tier.**
+  ///
+  /// A shop used to offer `USER` here as well, and it was the closest thing in
+  /// the app to a "create the shop's operator" button. But a POS operator is a
+  /// user with `isPos == true`, and only the quota-gated POS onboarding flow can
+  /// set that flag — so the account this produced could not sell, and the POS
+  /// admin screen went on reporting "This shop has no POS user". The one flow
+  /// that looked like POS onboarding was the one that wasn't.
+  List<UserRole> get _allowedRoles => const [UserRole.ADMIN];
+
+  /// Says where the operator account actually comes from, on the tier where
+  /// someone would look for it here.
+  bool get _isStore => widget.entity.type == EntityType.STORE;
 
   /// True when the new-user sub-form has been typed into but not committed.
   /// Creating a login is why people open this sheet, so a draft this far along
@@ -482,6 +492,34 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
                       if (v != null) setState(() => _selectedRole = v);
                     },
                   ),
+                  // UX-96: on a shop this is the form people reach for when they
+                  // want a till operator. It cannot make one — say so here,
+                  // rather than let them find out from the POS screen later.
+                  if (_isStore) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.info_outline,
+                            size: 15, color: cs.onSurfaceVariant),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _t(
+                              'هذا الحساب مدير للمتجر ولا يستطيع البيع. مستخدم نقطة البيع '
+                                  'يُنشأ من شاشة "نقاط البيع" فقط.',
+                              'This account administers the shop and cannot sell. '
+                                  'A till operator is created only from the POS points screen.',
+                            ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: cs.onSurfaceVariant),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                   if (_addError != null) ...[
                     const SizedBox(height: 10),
                     Text(_addError!,

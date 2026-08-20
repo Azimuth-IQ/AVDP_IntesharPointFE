@@ -38,6 +38,11 @@ class AgentStrings {
       : pick('$n sub-agents', '$n وكيل فرعي');
   String get edit => pick('Edit', 'تعديل');
   String get delete => pick('Delete', 'حذف');
+
+  /// UX-103: which voucher SKUs this agent (and its subtree) may see and sell.
+  /// It is a commercial control, and until now its only entry point in the whole
+  /// app was one item on a hierarchy-tree row menu — no nav, no page, no search.
+  String get visibleProducts => pick('Visible products', 'المنتجات المتاحة');
   // The delete-dialog strings that used to live here are gone with the dialog:
   // deleting an agent goes through the shared clear-out sheet, which carries its
   // own wording (and, unlike the dialog, an authenticator code).
@@ -64,6 +69,33 @@ class AgentStrings {
 
   String get sectionIdentity => pick('Identity', 'الهوية');
   String get fieldName => pick('Commercial name', 'الاسم التجاري');
+  String get fieldSlogan => pick('Slogan (optional)', 'الشعار النصي (اختياري)');
+  String get fieldDescription => pick('Description (optional)', 'الوصف (اختياري)');
+
+  // ── Operational limits (UX-03) ──
+  // These five used to live ONLY in the hierarchy tree's own edit sheet, which
+  // never mentioned this form and vice versa. An admin editing "the agent" from
+  // the Main/Sub Agent pages — the natural place — could not reach the low-stock
+  // threshold or the bulk limit, and had no way to learn they existed.
+  String get sectionLimits => pick('Operational limits', 'حدود التشغيل');
+  String get limitsHint => pick(
+      'Stock alerts and how much this agent may sell in one bulk request.',
+      'تنبيهات المخزون ومقدار ما يمكن لهذا الوكيل بيعه في عملية جملة واحدة.');
+  String get fieldLowStock => pick('Low-stock alert level', 'حد تنبيه نفاد المخزون');
+  String lowStockHint(int fallback) => pick(
+      'Alert when a product drops below this many cards. Blank uses $fallback.',
+      'ينبّه عندما ينخفض المنتج عن هذا العدد من الكروت. الفراغ يعني $fallback.');
+  String get fieldBulkLimit =>
+      pick('Bulk sale limit (cards per sale)', 'حد البيع بالجملة (بطاقات/عملية)');
+  String get bulkLimitHint => pick(
+      'Blank inherits from the parent. 1 disables bulk selling.',
+      'اتركه فارغًا للتوريث. 1 يعطّل البيع بالجملة.');
+  String get bulkUnlockLabel =>
+      pick('Let this agent edit the limit', 'السماح للوكيل بتعديل الحد');
+  String get bulkUnlockHint => pick(
+      'When off, only HQ sets the limit for this account and everything under it.',
+      'عند التعطيل، الإدارة وحدها تحدد الحد لهذا الحساب وكل ما تحته.');
+  String get errNumberInvalid => pick('Enter a valid whole number', 'أدخل رقمًا صحيحًا');
   // These label upload fields — a thumbnail with an Upload button, no text box
   // anywhere. "URL" told the operator to paste something they were never given.
   String get fieldLogo => pick('Logo (optional)', 'الشعار (اختياري)');

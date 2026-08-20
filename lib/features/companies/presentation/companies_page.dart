@@ -31,7 +31,10 @@ class _S {
   String get empty => p('No companies yet', 'لا توجد شركات بعد');
   String get emptyHint => p('Add a telecom provider (Asiacell, Zain…).', 'أضف شركة اتصال (آسياسيل، زين…).');
   String get name => p('Name', 'الاسم');
-  String get logo => p('Logo URL (optional)', 'رابط الشعار (اختياري)');
+  // UX-74: this labels an ImageUploadField — a thumbnail and an Add button.
+  // There is no text box and no URL to paste anywhere in the widget, so "Logo
+  // URL" sent the operator hunting for a link they were never given.
+  String get logo => p('Logo (optional)', 'الشعار (اختياري)');
   String get description => p('Description (optional)', 'الوصف (اختياري)');
   String get order => p('Display order', 'ترتيب العرض');
   String get active => p('Active', 'مفعّلة');

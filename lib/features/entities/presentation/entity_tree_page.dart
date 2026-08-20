@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
+import 'package:inteshar/core/auth/capabilities.dart';
 import 'package:inteshar/core/storage/session_storage.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/agents/domain/agent_tier.dart';
@@ -47,6 +48,27 @@ String? _inventoryRoutePrefix(WidgetRef ref) {
 bool _viewerIsHq(WidgetRef ref) {
   final viewer = ref.read(authStateProvider).valueOrNull;
   return viewer is AuthAuthenticated && viewer.entity.type == EntityType.INTESHAR;
+}
+
+/// Whether the viewer may MUTATE entities from this tree: HQ **and** holding
+/// [Capability.MANAGE_AGENTS].
+///
+/// Being HQ is necessary but not sufficient. The nav item that leads here is
+/// gated on `VIEW_REPORTS`, so an HQ supervisor holding only that capability
+/// reaches this page while the Main/Sub Agent admin pages (`MANAGE_AGENTS`) stay
+/// hidden from them. Gating the row menu on entity TYPE alone then handed that
+/// same supervisor edit, manage-users, visible-products, add-child and delete —
+/// the capability model bypassed by a type check, with the most destructive
+/// action in the app as the escape route.
+///
+/// The server enforces this independently; the point here is not to offer an
+/// action the backend will refuse, and above all not to offer destruction to
+/// someone the capability model deliberately excluded.
+bool _viewerCanManageEntities(WidgetRef ref) {
+  final viewer = ref.read(authStateProvider).valueOrNull;
+  return viewer is AuthAuthenticated &&
+      viewer.entity.type == EntityType.INTESHAR &&
+      viewer.can({Capability.MANAGE_AGENTS});
 }
 
 String _localizedEntityTypeLabel(EntityType t, AppLocalizations l) {
@@ -464,6 +486,12 @@ class _TreeNode extends ConsumerWidget {
     final cs = Theme.of(context).colorScheme;
     final roleColor = RoleBadge.colorFor(context, entity.type);
 
+    // Resolved once: every mutating menu item hangs off canManage, and the menu
+    // itself is dropped when neither gate lets anything through.
+    final canManage = _viewerCanManageEntities(ref);
+    final canDrillIn =
+        _inventoryRoutePrefix(ref) != null && entity.type.inventoryBacked;
+
     final startPad = 12.0 + depth * 24.0;
 
     return InkWell(
@@ -557,83 +585,92 @@ class _TreeNode extends ConsumerWidget {
                 style: IntesharType.mono(12, color: cs.onSurface),
               ),
             ),
-            // Actions menu
-            PopupMenuButton<String>(
-              tooltip: l.entityTreeActions,
-              icon: Icon(Icons.more_horiz, size: 18, color: cs.onSurfaceVariant),
-              onSelected: (action) =>
-                  _handleAction(context, ref, action),
-              itemBuilder: (_) => [
-                // Editing an entity + managing its users are HQ-only (BRD: only the
-                // platform admin creates/assigns accounts). Enforced server-side; mirrored
-                // here so non-HQ viewers get a read-only hierarchy and never hit a 403.
-                if (_viewerIsHq(ref))
-                  PopupMenuItem(
-                    value: 'edit',
-                    child: ListTile(
-                      leading: const Icon(Icons.edit_outlined),
-                      title: Text(l.entityTreeEdit),
-                      contentPadding: EdgeInsets.zero,
+            // Actions menu — omitted entirely when this viewer has nothing to do
+            // on this row, rather than left as a button that opens onto nothing.
+            if (canManage || canDrillIn)
+              PopupMenuButton<String>(
+                tooltip: l.entityTreeActions,
+                icon: Icon(Icons.more_horiz, size: 18, color: cs.onSurfaceVariant),
+                onSelected: (action) =>
+                    _handleAction(context, ref, action),
+                itemBuilder: (_) => [
+                  // Every MUTATING item below is gated on canManage: HQ (BRD: only
+                  // the platform admin creates/assigns accounts) AND the
+                  // MANAGE_AGENTS capability. Being HQ alone is not enough — see
+                  // _viewerCanManageEntities. Enforced server-side; mirrored here so
+                  // a viewer without the capability gets a read-only hierarchy and
+                  // never hits a 403.
+                  if (canManage)
+                    PopupMenuItem(
+                      value: 'edit',
+                      child: ListTile(
+                        leading: const Icon(Icons.edit_outlined),
+                        title: Text(l.entityTreeEdit),
+                        contentPadding: EdgeInsets.zero,
+                      ),
                     ),
-                  ),
-                if (_viewerIsHq(ref))
-                  PopupMenuItem(
-                    value: 'manage_users',
-                    child: ListTile(
-                      leading: const Icon(Icons.manage_accounts_outlined),
-                      title: Text(l.entityTreeManageUsers),
-                      contentPadding: EdgeInsets.zero,
+                  if (canManage)
+                    PopupMenuItem(
+                      value: 'manage_users',
+                      child: ListTile(
+                        leading: const Icon(Icons.manage_accounts_outlined),
+                        title: Text(l.entityTreeManageUsers),
+                        contentPadding: EdgeInsets.zero,
+                      ),
                     ),
-                  ),
-                // B-081: HQ picks which voucher definitions this account (and its
-                // whole subtree) can see & sell. Not for the root itself.
-                if (_viewerIsHq(ref) && entity.type != EntityType.INTESHAR)
-                  PopupMenuItem(
-                    value: 'visible_products',
-                    child: ListTile(
-                      leading: const Icon(Icons.inventory_2_outlined),
-                      title: Text(Localizations.localeOf(context).languageCode == 'ar'
-                          ? 'المنتجات المتاحة'
-                          : 'Visible products'),
-                      contentPadding: EdgeInsets.zero,
+                  // B-081: HQ picks which voucher definitions this account (and its
+                  // whole subtree) can see & sell. Not for the root itself.
+                  if (canManage && entity.type != EntityType.INTESHAR)
+                    PopupMenuItem(
+                      value: 'visible_products',
+                      child: ListTile(
+                        leading: const Icon(Icons.inventory_2_outlined),
+                        title: Text(Localizations.localeOf(context).languageCode == 'ar'
+                            ? 'المنتجات المتاحة'
+                            : 'Visible products'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
                     ),
-                  ),
-                // Only offer "View inventory" on nodes that actually hold stock
-                // (HQ→Main Agent). Sub Agents and Stores draw-on-print and hold no
-                // cards, so the drill-in would always be empty (B-068).
-                if (_inventoryRoutePrefix(ref) != null && entity.type.inventoryBacked)
-                  PopupMenuItem(
-                    value: 'view_inventory',
-                    child: ListTile(
-                      leading: const Icon(Icons.inventory_2_outlined),
-                      title: Text(l.navInventory),
-                      contentPadding: EdgeInsets.zero,
+                  // Only offer "View inventory" on nodes that actually hold stock
+                  // (HQ→Main Agent). Sub Agents and Stores draw-on-print and hold no
+                  // cards, so the drill-in would always be empty (B-068).
+                  if (canDrillIn)
+                    PopupMenuItem(
+                      value: 'view_inventory',
+                      child: ListTile(
+                        leading: const Icon(Icons.inventory_2_outlined),
+                        title: Text(l.navInventory),
+                        contentPadding: EdgeInsets.zero,
+                      ),
                     ),
-                  ),
-                // Creating accounts / assigning agents is HQ-only (BRD); enforced
-                // server-side, mirrored here so non-HQ viewers don't see dead actions.
-                if (_viewerIsHq(ref) && entity.type != EntityType.STORE)
-                  PopupMenuItem(
-                    value: 'add_child',
-                    child: ListTile(
-                      leading: const Icon(Icons.add),
-                      title: Text(l.entityTreeAddChild),
-                      contentPadding: EdgeInsets.zero,
+                  // Creating accounts / assigning agents is HQ-only (BRD); enforced
+                  // server-side, mirrored here so viewers don't see dead actions.
+                  if (canManage && entity.type != EntityType.STORE)
+                    PopupMenuItem(
+                      value: 'add_child',
+                      child: ListTile(
+                        leading: const Icon(Icons.add),
+                        title: Text(l.entityTreeAddChild),
+                        contentPadding: EdgeInsets.zero,
+                      ),
                     ),
-                  ),
-                if (_viewerIsHq(ref))
-                  PopupMenuItem(
-                    value: 'delete',
-                    child: ListTile(
-                      leading: const Icon(Icons.delete_outline,
-                          color: Colors.red),
-                      title: Text(l.entityTreeDelete,
-                          style: const TextStyle(color: Colors.red)),
-                      contentPadding: EdgeInsets.zero,
+                  if (canManage)
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: ListTile(
+                        leading: const Icon(Icons.delete_outline,
+                            color: Colors.red),
+                        title: Text(l.entityTreeDelete,
+                            style: const TextStyle(color: Colors.red)),
+                        contentPadding: EdgeInsets.zero,
+                      ),
                     ),
-                  ),
-              ],
-            ),
+                ],
+              )
+            else
+              // Keeps the row aligned with the table header, which reserves the
+              // same 40px for the actions column.
+              const SizedBox(width: 40),
           ],
         ),
       ),
@@ -680,6 +717,29 @@ class _TreeNode extends ConsumerWidget {
       return;
     }
     if (!context.mounted) return;
+
+    // UX-03: an agent has ONE editor. This sheet and [AgentForm] both edited the
+    // same account with disjoint field sets — the form owned governorates,
+    // working hours, KYC and the capability ceiling; this sheet owned slogan,
+    // description, low-stock and the bulk limits — and neither mentioned the
+    // other. Those five have moved into the form, so Main/Sub Agents open it
+    // here too and the whole account is editable from one place.
+    //
+    // HQ itself and shops have no agent form (a shop is onboarded through the
+    // POS quota flow), so they keep this sheet.
+    final tier = switch (full.type) {
+      EntityType.AGENT1 => AgentTier.main,
+      EntityType.AGENT2 => AgentTier.sub,
+      EntityType.INTESHAR || EntityType.STORE => null,
+    };
+    if (tier != null) {
+      final saved = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (_) => AgentForm(tier: tier, existing: full)),
+      );
+      if (saved == true) onRefresh();
+      return;
+    }
+
     final nameCtrl = TextEditingController(text: full.meta.name);
     final sloganCtrl = TextEditingController(text: full.meta.slogan);
     final descCtrl = TextEditingController(text: full.meta.description);

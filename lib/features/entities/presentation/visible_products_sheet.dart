@@ -40,8 +40,19 @@ class _VisibleProductsSheetState extends ConsumerState<_VisibleProductsSheet> {
   Set<String> _restricted = {}; // own (editable) hidden SKUs
   Set<String> _inherited = {}; // ancestor-hidden SKUs (locked)
   bool _loading = true;
-  bool _busy = false;
   Object? _error;
+
+  /// UX-83: busy state is scoped to what was actually tapped, not to the sheet.
+  ///
+  /// [_pendingSkus] holds the rows with a write in flight — only those rows lock,
+  /// and each shows its own spinner. [_bulkHiding] is the bulk action currently
+  /// running (true = "Hide all", false = "Show all", null = none); it names WHICH
+  /// button to spin, because a single page-wide flag put the spinner on "Hide
+  /// all" even when the operator had pressed "Show all".
+  final Set<String> _pendingSkus = {};
+  bool? _bulkHiding;
+
+  bool get _bulkRunning => _bulkHiding != null;
 
   DefinitionRestrictionRepository get _repo =>
       DefinitionRestrictionRepository(ref.read(apiClientProvider));
@@ -86,19 +97,27 @@ class _VisibleProductsSheetState extends ConsumerState<_VisibleProductsSheet> {
 
   Future<void> _setHidden(String sku, bool hidden) async {
     final prev = {..._restricted};
-    setState(() => hidden ? _restricted.add(sku) : _restricted.remove(sku));
+    setState(() {
+      hidden ? _restricted.add(sku) : _restricted.remove(sku);
+      _pendingSkus.add(sku);
+    });
     try {
       await _repo.setRestricted(sku: sku, entityId: widget.entityId, restricted: hidden);
     } catch (e) {
       if (!mounted) return;
       setState(() => _restricted = prev); // revert on failure
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+    } finally {
+      if (mounted) setState(() => _pendingSkus.remove(sku));
     }
   }
 
   /// Bulk: hide (or show) every toggleable definition, then reconcile with the server.
+  ///
+  /// This one genuinely touches every row, so locking the list is honest here —
+  /// unlike a single row's toggle, which now locks only itself.
   Future<void> _setAll(bool hidden) async {
-    setState(() => _busy = true);
+    setState(() => _bulkHiding = hidden);
     try {
       final targets = hidden
           ? _toggleable.where((d) => !_restricted.contains(d.sku)).map((d) => d.sku)
@@ -112,7 +131,7 @@ class _VisibleProductsSheetState extends ConsumerState<_VisibleProductsSheet> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _bulkHiding = null);
     }
   }
 
@@ -213,12 +232,16 @@ class _VisibleProductsSheetState extends ConsumerState<_VisibleProductsSheet> {
   Widget _row(ProductDefinition d, bool ar, ColorScheme cs) {
     final inherited = _inherited.contains(d.sku);
     final visible = !inherited && !_restricted.contains(d.sku);
+    final pending = _pendingSkus.contains(d.sku);
     return CheckboxListTile(
       dense: true,
       controlAffinity: ListTileControlAffinity.leading,
       value: inherited ? false : visible,
-      // Inherited (parent-hidden) rows are locked here — they're managed higher up.
-      onChanged: (inherited || _busy) ? null : (v) => _setHidden(d.sku, !(v ?? false)),
+      // Inherited (parent-hidden) rows are locked here — they're managed higher
+      // up. A row with its own write in flight locks too, but only itself.
+      onChanged: (inherited || pending || _bulkRunning)
+          ? null
+          : (v) => _setHidden(d.sku, !(v ?? false)),
       title: Text(d.name,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -228,28 +251,40 @@ class _VisibleProductsSheetState extends ConsumerState<_VisibleProductsSheet> {
           ? Text(ar ? 'مخفي من قِبل حساب أعلى' : 'Hidden by a parent account',
               style: IntesharType.sans(11, color: cs.onSurfaceVariant))
           : Text(d.sku, style: IntesharType.mono(10.5, color: cs.onSurfaceVariant)),
-      secondary: inherited ? Icon(Icons.lock_outline, size: 16, color: cs.onSurfaceVariant) : null,
+      // The spinner belongs on the row that was tapped — that is the whole point
+      // of scoping the busy state.
+      secondary: pending
+          ? const SizedBox(
+              width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+          : inherited
+              ? Icon(Icons.lock_outline, size: 16, color: cs.onSurfaceVariant)
+              : null,
     );
   }
 
   Widget _footer(bool ar) {
+    // Each button spins only for its OWN action; both disable while either runs,
+    // because they contradict each other.
+    Widget icon(bool hiding, IconData rest) => _bulkHiding == hiding
+        ? const SizedBox(
+            width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+        : Icon(rest, size: 16);
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
       child: Row(children: [
         Expanded(
           child: OutlinedButton.icon(
-            onPressed: _busy ? null : () => _setAll(false),
-            icon: const Icon(Icons.done_all, size: 16),
+            onPressed: _bulkRunning ? null : () => _setAll(false),
+            icon: icon(false, Icons.done_all),
             label: Text(ar ? 'إظهار الكل' : 'Show all'),
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: OutlinedButton.icon(
-            onPressed: _busy ? null : () => _setAll(true),
-            icon: _busy
-                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.block, size: 16),
+            onPressed: _bulkRunning ? null : () => _setAll(true),
+            icon: icon(true, Icons.block),
             label: Text(ar ? 'إخفاء الكل' : 'Hide all'),
           ),
         ),

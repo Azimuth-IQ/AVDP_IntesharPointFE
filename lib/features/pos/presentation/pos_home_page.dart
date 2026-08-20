@@ -12,6 +12,7 @@ import 'package:inteshar/core/printing/printer_service.dart';
 import 'package:inteshar/core/printing/escpos_builder.dart';
 import 'package:inteshar/core/printing/logo_loader.dart';
 import 'package:inteshar/core/printing/print_queue.dart';
+import 'package:inteshar/core/printing/printer_errors.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
@@ -60,6 +61,15 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
   List<String> _sliderUrls = const [];
   Object? _error;
   bool _loading = true;
+  // UX-48: a refresh that has a grid to keep on screen must not blank it. The
+  // very first load (nothing to show yet) still gets the full-screen spinner;
+  // every later load — and every sale ends with one — runs "in place": the last
+  // grid stays rendered under a thin progress line.
+  bool _refreshing = false;
+  /// An in-place refresh that failed. The grid stays (with the previous counts),
+  /// so the operator has to be told those counts may now be stale.
+  String? _refreshError;
+  final TextEditingController _searchCtrl = TextEditingController();
   String _search = '';
   int _tab = 0; // bottom nav: 0=Store, 1=الحسابات, 2=التقارير, 3=التواصل, 4=الحساب
 
@@ -88,6 +98,7 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -118,10 +129,23 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
     _load();
   }
 
+  /// Fetch the sellable pool + balance.
+  ///
+  /// UX-48: this is called after EVERY sale, hundreds of times a shift, with the
+  /// next customer already at the counter. Only the first load (when there is no
+  /// grid yet) may take the screen; once cards are on screen a reload keeps them
+  /// and shows a thin inline progress line instead. `/product/sellable` walks
+  /// every definition server-side, so this is not a quick blink.
   Future<void> _load() async {
+    final inPlace = _sellable != null;
     setState(() {
-      _loading = true;
-      _error = null;
+      if (inPlace) {
+        _refreshing = true;
+      } else {
+        _loading = true;
+        _error = null;
+      }
+      _refreshError = null;
     });
     try {
       final auth = ref.read(authStateProvider).valueOrNull;
@@ -150,9 +174,24 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _error = e);
+      if (!mounted) return;
+      setState(() {
+        // With a grid already on screen, a failed refresh must not throw the
+        // operator onto a full-screen error page — the previously loaded cards
+        // are still sellable. Flag the staleness instead.
+        if (inPlace) {
+          _refreshError = friendlyError(e, context);
+        } else {
+          _error = e;
+        }
+      });
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _refreshing = false;
+        });
+      }
     }
   }
 
@@ -293,12 +332,53 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
       case 4:
         return PosAccountPanel(onOpenPrinter: _openPrinterPicker, onSignOut: _signOut);
       default:
-        return _loading
-            ? const Center(child: CircularProgressIndicator())
-            : _error != null
-                ? ErrorState(error: _error!, onRetry: _load)
-                : _buildBody(l);
+        // Full-screen states only while there is genuinely nothing to show.
+        if (_sellable == null) {
+          if (_loading) return const Center(child: CircularProgressIndicator());
+          if (_error != null) return ErrorState(error: _error!, onRetry: _load);
+        }
+        return Column(
+          children: [
+            // UX-48: the in-place refresh hint. 2px, no layout jump when idle.
+            SizedBox(
+              height: 2,
+              child: _refreshing ? const LinearProgressIndicator(minHeight: 2) : null,
+            ),
+            if (_refreshError != null) _staleBanner(),
+            Expanded(child: _buildBody(l)),
+          ],
+        );
     }
+  }
+
+  /// Shown when an in-place refresh failed: the cards below are the previous
+  /// load's, so their counts may no longer match the pool.
+  Widget _staleBanner() {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+      color: IntesharColors.warn.withValues(alpha: 0.12),
+      child: Row(
+        children: [
+          const Icon(Icons.sync_problem_outlined, size: 16, color: IntesharColors.warn),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _ar
+                  ? 'تعذّر التحديث — الأعداد المعروضة قد تكون قديمة.'
+                  : "Couldn't refresh — the counts shown may be out of date.",
+              style: TextStyle(fontFamily: 'CodecPro', fontSize: 12, fontWeight: FontWeight.w700, color: cs.onSurface),
+            ),
+          ),
+          TextButton(
+            onPressed: _refreshing ? null : _load,
+            style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+            child: Text(_ar ? 'إعادة المحاولة' : 'Retry'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _openPrinterPicker() =>
@@ -366,11 +446,19 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
         .toList();
   }
 
+  /// UX-60: the query and the box that shows it are one thing — resetting one
+  /// without the other left the screen contradicting itself (results cleared,
+  /// the typed text still sitting in the field).
+  void _clearSearchField() {
+    _searchCtrl.clear();
+    _search = '';
+  }
+
   void _openCompany(String companyKey, List<SellableSku> rows) {
     final buckets = _buckets(rows);
     setState(() {
       _company = companyKey;
-      _search = '';
+      _clearSearchField();
       if (buckets.length > 1) {
         _govChosen = false; // route through the governorate step
         _gov = null;
@@ -384,14 +472,14 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
   void _openBucket(String bucket) => setState(() {
         _govChosen = true;
         _gov = bucket == _kRegionFree ? null : bucket;
-        _search = '';
+        _clearSearchField();
       });
 
   void _back() {
     final rows = _companyGroups()[_company] ?? const <SellableSku>[];
     final multiBucket = _buckets(rows).length > 1;
     setState(() {
-      _search = '';
+      _clearSearchField();
       if (_govChosen && multiBucket) {
         _govChosen = false; // cards → governorate
         _gov = null;
@@ -435,6 +523,18 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
         ScreenSize.mobile => 2,
       };
 
+  double _skuTileExtent() => switch (context.screenSize) {
+        ScreenSize.desktop => 240.0,
+        ScreenSize.tablet => 210.0,
+        ScreenSize.mobile => 172.0,
+      };
+
+  /// UX-52/UX-110: the tile now has to fit a two-line SKU name (so an Arabic name
+  /// never ellipsises away its denomination), a large price, the sellable count
+  /// and a 48dp Sell button. Both SKU grids (global search + cards step) share
+  /// this so they can't drift apart.
+  double _skuRowHeight() => context.screenSize == ScreenSize.mobile ? 250.0 : 264.0;
+
   // Home: HQ slider + a grid of telecom companies (printing companies).
   /// Unread-chat badge for the التواصل tab. Silent on error (the provider yields
   /// 0), because a failed count must never break the navigation it decorates.
@@ -454,12 +554,8 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
     final matches = searching ? _globalMatches(_search) : const <SellableSku>[];
 
     // SKU-card grid geometry for the global search results.
-    final skuExtent = switch (context.screenSize) {
-      ScreenSize.desktop => 240.0,
-      ScreenSize.tablet => 210.0,
-      ScreenSize.mobile => 172.0,
-    };
-    final skuRowHeight = context.screenSize == ScreenSize.mobile ? 236.0 : 250.0;
+    final skuExtent = _skuTileExtent();
+    final skuRowHeight = _skuRowHeight();
 
     return MaxWidthBox(
       child: RefreshIndicator(
@@ -473,13 +569,16 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
                 child: TextField(
+                  // UX-60: controller-backed, so clearing the query clears the box.
+                  controller: _searchCtrl,
                   decoration: InputDecoration(
                     hintText: l.posHomeSearchHint,
                     prefixIcon: const Icon(Icons.search, size: 18),
                     suffixIcon: searching
                         ? IconButton(
                             icon: const Icon(Icons.close, size: 18),
-                            onPressed: () => setState(() => _search = ''),
+                            tooltip: _ar ? 'مسح البحث' : 'Clear search',
+                            onPressed: () => setState(_clearSearchField),
                           )
                         : null,
                   ),
@@ -599,12 +698,8 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
     final subtitle = _govChosen && _gov != null
         ? _gov!
         : (_ar ? 'اختر نوع البطاقة' : 'Choose a card type');
-    final tileExtent = switch (context.screenSize) {
-      ScreenSize.desktop => 240.0,
-      ScreenSize.tablet => 210.0,
-      ScreenSize.mobile => 172.0,
-    };
-    final rowHeight = context.screenSize == ScreenSize.mobile ? 236.0 : 250.0;
+    final tileExtent = _skuTileExtent();
+    final rowHeight = _skuRowHeight();
 
     return MaxWidthBox(
       child: Column(
@@ -613,7 +708,20 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
             child: TextField(
-              decoration: InputDecoration(hintText: l.posHomeSearchHint, prefixIcon: const Icon(Icons.search, size: 18)),
+              // UX-60: same controller as the home step, and a clear button this
+              // field never had.
+              controller: _searchCtrl,
+              decoration: InputDecoration(
+                hintText: l.posHomeSearchHint,
+                prefixIcon: const Icon(Icons.search, size: 18),
+                suffixIcon: _search.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        tooltip: _ar ? 'مسح البحث' : 'Clear search',
+                        onPressed: () => setState(_clearSearchField),
+                      )
+                    : null,
+              ),
               onChanged: (v) => setState(() => _search = v),
             ),
           ),
@@ -667,10 +775,17 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      // After a draw the PIN/QR are shown once and must not be discarded by a swipe or
-      // scrim tap. PopScope(canPop:false) blocks the back gesture; disabling drag + scrim
-      // closes the remaining dismiss paths so a sold voucher can only be dismissed by Done/Print.
-      isDismissible: false,
+      // UX-64: BEFORE the draw nothing has happened yet — a mis-tapped card must
+      // be undoable with the gesture the operator already reached for, not by
+      // hunting for Cancel. The sheet's own PopScope(canPop: !_sold && !_revealing)
+      // is what locks it, at the exact moment the sale becomes irreversible, and a
+      // scrim tap routes through Navigator.maybePop, which that PopScope vetoes.
+      //
+      // enableDrag stays FALSE on purpose: Flutter's drag-to-close calls
+      // Navigator.pop() DIRECTLY from BottomSheet.onClosing (material/bottom_sheet.dart)
+      // and never consults PopScope — enabling it would let a swipe discard a
+      // sold, un-printed code.
+      isDismissible: true,
       enableDrag: false,
       builder: (ctx) => _VoucherSheet(
         sku: sku,
@@ -846,16 +961,45 @@ class _HomeSliderState extends State<_HomeSlider> {
   Timer? _timer;
   int _page = 0;
 
+  /// UX-151: set the moment the operator touches the carousel. Auto-advance is a
+  /// WCAG 2.2.2 moving-content hazard on a counter device — it used to yank the
+  /// page out from under a finger 5s after a deliberate swipe, because the timer
+  /// was only ever cancelled in dispose(). User intent wins permanently.
+  bool _userTookOver = false;
+
   @override
-  void initState() {
-    super.initState();
-    if (widget.urls.length > 1) {
-      _timer = Timer.periodic(const Duration(seconds: 5), (_) {
-        if (!mounted || !_controller.hasClients) return;
-        final next = (_page + 1) % widget.urls.length;
-        _controller.animateToPage(next, duration: const Duration(milliseconds: 450), curve: Curves.easeInOut);
-      });
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncTimer();
+  }
+
+  /// Runs the 5s timer only while it is both wanted and allowed.
+  void _syncTimer() {
+    final media = MediaQuery.maybeOf(context);
+    // Respect the platform's reduce-motion / screen-reader settings — nothing in
+    // this app was reading them.
+    final motionAllowed =
+        !(media?.disableAnimations ?? false) && !(media?.accessibleNavigation ?? false);
+    final wanted = widget.urls.length > 1 && !_userTookOver && motionAllowed;
+    if (!wanted) {
+      _timer?.cancel();
+      _timer = null;
+      return;
     }
+    if (_timer != null) return;
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted || !_controller.hasClients) return;
+      final next = (_page + 1) % widget.urls.length;
+      _controller.animateToPage(next, duration: const Duration(milliseconds: 450), curve: Curves.easeInOut);
+    });
+  }
+
+  /// The operator drove the carousel (swipe or dot) — stop advancing it for good.
+  void _stopAuto() {
+    if (_userTookOver) return;
+    _userTookOver = true;
+    _timer?.cancel();
+    _timer = null;
   }
 
   @override
@@ -886,47 +1030,87 @@ class _HomeSliderState extends State<_HomeSlider> {
   }
 
   Widget _frame(ColorScheme cs) {
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
     return ClipRRect(
       borderRadius: BorderRadius.circular(IntesharRadii.lg),
       child: Stack(
         children: [
-              PageView.builder(
-                controller: _controller,
-                itemCount: widget.urls.length,
-                onPageChanged: (i) => setState(() => _page = i),
-                itemBuilder: (context, i) => Image.network(
-                  widget.urls[i],
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  errorBuilder: (_, _, _) => Container(
-                    color: cs.surfaceContainerHighest,
-                    alignment: Alignment.center,
-                    child: Icon(Icons.image_not_supported_outlined, color: cs.onSurfaceVariant, size: 32),
+              // A drag start is the operator taking over; a programmatic
+              // animateToPage carries no drag details, so the timer's own moves
+              // never mistake themselves for a swipe.
+              NotificationListener<ScrollStartNotification>(
+                onNotification: (n) {
+                  if (n.dragDetails != null) _stopAuto();
+                  return false;
+                },
+                child: PageView.builder(
+                  controller: _controller,
+                  itemCount: widget.urls.length,
+                  onPageChanged: (i) => setState(() => _page = i),
+                  itemBuilder: (context, i) => Image.network(
+                    widget.urls[i],
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    errorBuilder: (_, _, _) => Container(
+                      color: cs.surfaceContainerHighest,
+                      alignment: Alignment.center,
+                      child: Icon(Icons.image_not_supported_outlined, color: cs.onSurfaceVariant, size: 32),
+                    ),
+                    loadingBuilder: (ctx, child, progress) =>
+                        progress == null ? child : Container(color: cs.surfaceContainerHighest),
                   ),
-                  loadingBuilder: (ctx, child, progress) =>
-                      progress == null ? child : Container(color: cs.surfaceContainerHighest),
                 ),
               ),
               if (widget.urls.length > 1)
                 Positioned(
-                  bottom: 10,
+                  bottom: 6,
                   left: 0,
                   right: 0,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(widget.urls.length, (i) {
-                      final active = i == _page;
-                      return AnimatedContainer(
-                        duration: const Duration(milliseconds: 250),
-                        margin: const EdgeInsets.symmetric(horizontal: 3),
-                        width: active ? 18 : 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: active ? context.tones.brand : Colors.white.withValues(alpha: 0.7),
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                      );
-                    }),
+                  // UX-151: the dots were 6px, non-interactive, and white@70% over
+                  // an arbitrary photo. They are now real controls with a 28dp hit
+                  // box, on their own scrim so they read on any image.
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: List.generate(widget.urls.length, (i) {
+                          final active = i == _page;
+                          return Semantics(
+                            button: true,
+                            selected: active,
+                            label: ar ? 'صورة ${i + 1} من ${widget.urls.length}' : 'Slide ${i + 1} of ${widget.urls.length}',
+                            child: InkResponse(
+                              onTap: () {
+                                _stopAuto();
+                                _controller.animateToPage(i,
+                                    duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+                              },
+                              radius: 16,
+                              child: SizedBox(
+                                width: 28,
+                                height: 28,
+                                child: Center(
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 250),
+                                    width: active ? 20 : 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      color: active ? Colors.white : Colors.white.withValues(alpha: 0.55),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
+                    ),
                   ),
                 ),
         ],
@@ -1048,14 +1232,24 @@ class _SkuCard extends StatelessWidget {
     final ar = Localizations.localeOf(context).languageCode == 'ar';
     final s = sellable;
     final hasImg = (s.imageUrl ?? '').trim().isNotEmpty;
+    // UX-53: the server only returns a row when the pool HAS stock (`avail > 0`),
+    // so `affordable == 0` can only mean one thing — the shop's withdrawal limit
+    // no longer covers a single card. Selling it would fail 402 three taps later,
+    // after the customer has been promised a card, so the tile has to say so up
+    // front and refuse the tap.
+    final unaffordable = s.affordable <= 0;
+    final artHeight = context.screenSize == ScreenSize.mobile ? 88.0 : 96.0;
 
     return PressableScale(
-      onTap: onTap,
+      onTap: unaffordable ? null : onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: cs.surfaceContainer,
+          // Washed-out surface rather than a blanket Opacity: the operator must
+          // still be able to READ which card they can't sell, and the reason
+          // line has to keep its contrast.
+          color: unaffordable ? cs.surfaceContainerHighest : cs.surfaceContainer,
           borderRadius: BorderRadius.circular(IntesharRadii.lg),
-          boxShadow: IntesharShadows.elev1,
+          boxShadow: unaffordable ? const [] : IntesharShadows.elev1,
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
@@ -1064,7 +1258,7 @@ class _SkuCard extends StatelessWidget {
             // Card-type artwork (fixed height so the tile can never overflow); a
             // gradient + SKU chip stands in when no image is configured.
             SizedBox(
-              height: 96,
+              height: artHeight,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -1078,11 +1272,10 @@ class _SkuCard extends StatelessWidget {
                     )
                   else
                     _artFallback(cs, s.sku),
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: StampPill(label: '× ${s.affordable}', color: IntesharColors.sage),
-                  ),
+                  if (unaffordable)
+                    const Positioned.fill(
+                      child: ColoredBox(color: Color(0x59FFFFFF)),
+                    ),
                 ],
               ),
             ),
@@ -1093,21 +1286,52 @@ class _SkuCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // UX-52: TWO lines. At one line a 153px tile ellipsised
+                    // "أسياسيل بطاقة شحن ٥٠٠٠ دينار" after its first two words —
+                    // cutting the denomination, the only thing the customer
+                    // actually asked for, on an irreversible money action.
                     Text(
                       s.name,
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontFamily: 'CodecPro', color: cs.onSurface, fontSize: 15, fontWeight: FontWeight.w800, letterSpacing: -0.2),
+                      style: TextStyle(
+                        fontFamily: 'CodecPro',
+                        color: cs.onSurface,
+                        fontSize: 13,
+                        height: 1.15,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
+                      ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      s.price > 0 ? Formatters.iqd(s.price) : (ar ? 'السعر غير محدَّد' : 'Price not set'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: IntesharType.mono(14, color: cs.onSurface, w: FontWeight.w800),
+                    // …and the price is now the loudest thing on the tile:
+                    // it is the number the operator matches against what the
+                    // customer said, and it shrinks rather than truncating.
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Text(
+                        s.price > 0 ? Formatters.iqd(s.price) : (ar ? 'السعر غير محدَّد' : 'Price not set'),
+                        maxLines: 1,
+                        style: IntesharType.mono(20, color: context.tones.brandInk, w: FontWeight.w900),
+                      ),
                     ),
+                    const SizedBox(height: 3),
+                    // UX-52: the old bare "× 12" pill floated over arbitrary
+                    // artwork at 11px with a 14%-alpha fill — an unlabelled
+                    // number nobody could read or interpret. It is now a
+                    // labelled line on the tile's own surface.
+                    _availabilityLine(context, ar: ar, unaffordable: unaffordable),
                     const Spacer(),
-                    BrandCTAButton(label: l.posHomeSell, leading: Icons.sell_outlined, onPressed: onTap, height: 36, fontSize: 12),
+                    BrandCTAButton(
+                      label: unaffordable ? (ar ? 'غير متاح' : 'Unavailable') : l.posHomeSell,
+                      leading: unaffordable ? null : Icons.sell_outlined,
+                      // UX-110: 36dp was the literal hit box of the most-tapped
+                      // control on the handheld, all shift, one-handed.
+                      onPressed: unaffordable ? null : onTap,
+                      height: 48,
+                      fontSize: 13,
+                    ),
                   ],
                 ),
               ),
@@ -1115,6 +1339,34 @@ class _SkuCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  /// How many of this card can actually be sold right now — or why none can.
+  Widget _availabilityLine(BuildContext context, {required bool ar, required bool unaffordable}) {
+    final cs = Theme.of(context).colorScheme;
+    final color = unaffordable ? IntesharColors.warn : IntesharColors.sage;
+    return Row(
+      children: [
+        Icon(unaffordable ? Icons.block : Icons.inventory_2_outlined, size: 12, color: color),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            unaffordable
+                ? (ar ? 'الرصيد لا يكفي' : 'Balance too low')
+                : (ar ? 'يمكن بيع ${sellable.affordable}' : 'Can sell ${sellable.affordable}'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: 'CodecPro',
+              fontSize: 11,
+              height: 1.1,
+              fontWeight: FontWeight.w800,
+              color: unaffordable ? color : cs.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1183,6 +1435,12 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
   /// Above this many cards the operator must re-enter the POS PIN (anti-theft on the
   /// highest-value action — user-approved 2026-07-26).
   static const int _pinRequiredFrom = 5;
+
+  bool get _ar => Localizations.localeOf(context).languageCode == 'ar';
+
+  /// True once this sheet holds a SOLD, irreversible code (single or bulk).
+  /// Nothing may dismiss the sheet from here except an explicit Done/Print.
+  bool get _sold => _sent != null || _bulk != null;
 
   @override
   void initState() {
@@ -1409,9 +1667,12 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
     final ar = Localizations.localeOf(context).languageCode == 'ar';
     try {
       await _printCard(card);
+      if (mounted) setState(() => _printError = null);
       messenger.showSnackBar(SnackBar(content: Text(ar ? 'تمت الطباعة' : 'Printed')));
     } catch (e) {
-      if (mounted) messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+      // UX-49: the real printer reason, and it stays on screen — these cards are
+      // already sold.
+      if (mounted) setState(() => _printError = printerErrorMessage(e, ar: ar));
     }
   }
 
@@ -1424,11 +1685,13 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
       _printError = null;
     });
     var failed = 0;
+    Object? lastError;
     for (final card in bulk.cards) {
       try {
         await _printCard(card);
-      } catch (_) {
+      } catch (e) {
         failed++;
+        lastError = e;
       }
       if (!mounted) return;
       setState(() => _printedCount++);
@@ -1437,11 +1700,12 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
     final ar = Localizations.localeOf(context).languageCode == 'ar';
     setState(() {
       _printing = false;
+      // UX-49: how many failed AND why — the count alone left the operator
+      // guessing at a printer they could have fixed in ten seconds.
       _printError = failed == 0
           ? null
-          : (ar
-              ? 'فشلت طباعة $failed بطاقة — أعد طباعتها من القائمة.'
-              : '$failed card(s) failed to print — reprint them from the list.');
+          : '${ar ? 'فشلت طباعة $failed بطاقة — أعد طباعتها من القائمة.' : '$failed card(s) failed to print — reprint them from the list.'} '
+              '${printerErrorMessage(lastError, ar: ar)}';
     });
   }
 
@@ -1534,7 +1798,14 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
       // The code is already sold; a failed print must NOT be a fleeting snackbar the
       // operator can miss and then tap "Done" believing it printed. Keep the sheet open
       // and surface a PERSISTENT banner (mirrors the sale-error banner) with a Reprint.
-      if (mounted) setState(() => _printError = friendlyError(e, context));
+      //
+      // UX-49: mapped by [printerErrorMessage], NOT friendlyError — a printer
+      // throws a plain Exception, which friendlyError cannot classify and so
+      // reports as a NETWORK problem. That sent operators to the WiFi settings
+      // while the printer was simply out of paper.
+      if (mounted) {
+        setState(() => _printError = printerErrorMessage(e, ar: _ar));
+      }
     } finally {
       if (mounted) setState(() => _printing = false);
     }
@@ -1572,6 +1843,23 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
     final cs = Theme.of(context).colorScheme;
     final l = AppLocalizations.of(context)!;
 
+    // The single dismissal gate for EVERY state of this sheet (UX-64).
+    //
+    // Before the draw: nothing has happened, so back and a scrim tap are allowed
+    // to cancel — the sheet is no different from any other cancellable sheet.
+    //
+    // From the moment the draw is IN FLIGHT (_revealing) and forever after the
+    // sale (_sold): the server may already have claimed and debited the card, so
+    // the code on this sheet is the only copy the shop will ever see. Nothing may
+    // discard it except an explicit Done/Print. This also covers the BULK sheet,
+    // which previously relied entirely on isDismissible: false.
+    return PopScope(
+      canPop: !_sold && !_revealing,
+      child: _sheetBody(l, cs),
+    );
+  }
+
+  Widget _sheetBody(AppLocalizations l, ColorScheme cs) {
     // A committed BULK sale renders its own list (PINs masked) instead of one receipt.
     final bulk = _bulk;
     if (bulk != null) return _bulkSheet(l, cs, bulk);
@@ -1584,143 +1872,135 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
     final def = p.productDefinition;
     final t = def.template;
 
-    return PopScope(
-      // After reveal the voucher is consumed and its PIN/QR are shown only once.
-      // Block the back gesture / scrim tap so an accidental dismissal can't drop
-      // the code before it's printed (Done/Print still pop explicitly). The
-      // optimistic removal + whenComplete reload keep the counter correct even if
-      // a drag-dismiss slips past this guard.
-      canPop: !revealed,
-      child: SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.only(bottom: 24 + MediaQuery.of(context).viewInsets.bottom, left: 24, right: 24, top: 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(color: cs.outline, borderRadius: BorderRadius.circular(2)),
-              ),
-              const SizedBox(height: 20),
-              // Receipt preview tile — wrapped so a Rovo/intent print can snapshot it to a PNG.
-              RepaintBoundary(
-                key: _receiptKey,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 360),
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(22, 24, 22, 22),
-                    decoration: BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(IntesharRadii.lg), boxShadow: IntesharShadows.elev2),
-                    child: Column(
-                      children: [
-                        // Branding logos actually printed on the receipt, gated by the template
-                        // toggles: the owning Main Agent's logo, then the SKU's company logo.
-                        if (t.showAgentLogo && (_agentLogoUrl ?? '').trim().isNotEmpty) ...[
-                          Image.network(_agentLogoUrl!, height: 44, fit: BoxFit.contain, errorBuilder: (_, _, _) => const SizedBox.shrink()),
-                          const SizedBox(height: 8),
-                        ],
-                        if (t.showCompanyLogo && (_companyLogoUrl ?? '').trim().isNotEmpty) ...[
-                          Image.network(_companyLogoUrl!, height: 36, fit: BoxFit.contain, errorBuilder: (_, _, _) => const SizedBox.shrink()),
-                          const SizedBox(height: 8),
-                        ],
-                        const PosBrandMark(size: 40),
-                        const SizedBox(height: 10),
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.only(bottom: 24 + MediaQuery.of(context).viewInsets.bottom, left: 24, right: 24, top: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(color: cs.outline, borderRadius: BorderRadius.circular(2)),
+            ),
+            const SizedBox(height: 20),
+            // Receipt preview tile — wrapped so a Rovo/intent print can snapshot it to a PNG.
+            RepaintBoundary(
+              key: _receiptKey,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 360),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(22, 24, 22, 22),
+                  decoration: BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(IntesharRadii.lg), boxShadow: IntesharShadows.elev2),
+                  child: Column(
+                    children: [
+                      // Branding logos actually printed on the receipt, gated by the template
+                      // toggles: the owning Main Agent's logo, then the SKU's company logo.
+                      if (t.showAgentLogo && (_agentLogoUrl ?? '').trim().isNotEmpty) ...[
+                        Image.network(_agentLogoUrl!, height: 44, fit: BoxFit.contain, errorBuilder: (_, _, _) => const SizedBox.shrink()),
+                        const SizedBox(height: 8),
+                      ],
+                      if (t.showCompanyLogo && (_companyLogoUrl ?? '').trim().isNotEmpty) ...[
+                        Image.network(_companyLogoUrl!, height: 36, fit: BoxFit.contain, errorBuilder: (_, _, _) => const SizedBox.shrink()),
+                        const SizedBox(height: 8),
+                      ],
+                      const PosBrandMark(size: 40),
+                      const SizedBox(height: 10),
+                      Text(
+                        t.headerText.trim().isNotEmpty
+                            ? t.headerText.trim().toUpperCase()
+                            : (posShopName(ref).isNotEmpty ? posShopName(ref).toUpperCase() : 'POS'),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontFamily: 'CodecPro', fontSize: 12, color: cs.onSurface, letterSpacing: 2.2, fontWeight: FontWeight.w900),
+                      ),
+                      // Telecom company name (resolved on reveal) then the category
+                      // name beneath it — each gated by its template flag.
+                      if (t.showCompanyName && (_companyName ?? '').trim().isNotEmpty) ...[
+                        const SizedBox(height: 8),
                         Text(
-                          t.headerText.trim().isNotEmpty
-                              ? t.headerText.trim().toUpperCase()
-                              : (posShopName(ref).isNotEmpty ? posShopName(ref).toUpperCase() : 'POS'),
+                          _companyName!.trim().toUpperCase(),
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontFamily: 'CodecPro', fontSize: 12, color: cs.onSurface, letterSpacing: 2.2, fontWeight: FontWeight.w900),
-                        ),
-                        // Telecom company name (resolved on reveal) then the category
-                        // name beneath it — each gated by its template flag.
-                        if (t.showCompanyName && (_companyName ?? '').trim().isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            _companyName!.trim().toUpperCase(),
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontFamily: 'CodecPro', fontSize: 15, color: cs.onSurface, fontWeight: FontWeight.w800, letterSpacing: 0.6),
-                          ),
-                        ],
-                        if (t.showCategoryName && (_categoryName ?? def.name).trim().isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            (_categoryName ?? def.name).trim(),
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontFamily: 'CodecPro', fontSize: 13, color: cs.onSurfaceVariant, fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                        if (t.showProductName) ...[
-                          const SizedBox(height: 16),
-                          Text(
-                            def.name,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontFamily: 'CodecPro', fontSize: 22, color: cs.onSurface, fontWeight: FontWeight.w900, letterSpacing: -0.4),
-                          ),
-                        ],
-                        if (t.showPrice) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            Formatters.iqd(def.defaultPrice),
-                            style: IntesharType.mono(17, color: context.tones.brandInk, w: FontWeight.w800),
-                          ),
-                        ],
-                        const SizedBox(height: 18),
-                        const _ReceiptDivider(),
-                        const SizedBox(height: 14),
-                        if (t.showSerial) ...[_ReceiptRow(label: l.posSerial, value: p.serialNumber, monoSize: 13), const SizedBox(height: 12)],
-                        if (t.showPin) _ReceiptRow(label: l.posPin, value: revealed ? p.pin : '•••• •••• ••••', monoSize: 20, monoSpacing: 5),
-                        if (t.qrEnabled) ...[
-                          const SizedBox(height: 16),
-                          if (revealed)
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(IntesharRadii.sm)),
-                              child: QrImageView(
-                                data: t.qrPayload(pin: p.pin, serial: p.serialNumber),
-                                version: QrVersions.auto,
-                                size: 128,
-                                backgroundColor: Colors.white,
-                                eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: IntesharColors.ink),
-                                dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: IntesharColors.ink),
-                              ),
-                            )
-                          else
-                            _LockedQr(label: l.posPinHidden),
-                          if (revealed) ...[
-                            const SizedBox(height: 8),
-                            Text(
-                              t.redeemInstructions.trim().isNotEmpty ? t.redeemInstructions.trim() : t.qrPayload(pin: p.pin, serial: p.serialNumber),
-                              textAlign: TextAlign.center,
-                              style: IntesharType.mono(12, color: cs.onSurface, w: FontWeight.w700),
-                            ),
-                          ],
-                        ],
-                        if (t.showExpiry && (p.expiryDate ?? '').isNotEmpty) ...[
-                          const SizedBox(height: 12),
-                          _ReceiptRow(label: Localizations.localeOf(context).languageCode == 'ar' ? 'تاريخ الانتهاء' : 'Expiry', value: p.expiryDate!, monoSize: 13),
-                        ],
-                        if (revealed && _receiptNo > 0) ...[
-                          const SizedBox(height: 12),
-                          _ReceiptRow(label: Localizations.localeOf(context).languageCode == 'ar' ? 'رقم العملية' : 'Receipt #', value: '$_receiptNo', monoSize: 13),
-                        ],
-                        const SizedBox(height: 14),
-                        const _ReceiptDivider(),
-                        const SizedBox(height: 14),
-                        Text(
-                          t.footerText.trim().isNotEmpty ? t.footerText.trim() : l.posHomeScratchNote,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontFamily: 'CodecPro', fontSize: 11.5, color: cs.onSurfaceVariant, fontWeight: FontWeight.w500),
+                          style: TextStyle(fontFamily: 'CodecPro', fontSize: 15, color: cs.onSurface, fontWeight: FontWeight.w800, letterSpacing: 0.6),
                         ),
                       ],
-                    ),
+                      if (t.showCategoryName && (_categoryName ?? def.name).trim().isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          (_categoryName ?? def.name).trim(),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontFamily: 'CodecPro', fontSize: 13, color: cs.onSurfaceVariant, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                      if (t.showProductName) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          def.name,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontFamily: 'CodecPro', fontSize: 22, color: cs.onSurface, fontWeight: FontWeight.w900, letterSpacing: -0.4),
+                        ),
+                      ],
+                      if (t.showPrice) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          Formatters.iqd(def.defaultPrice),
+                          style: IntesharType.mono(17, color: context.tones.brandInk, w: FontWeight.w800),
+                        ),
+                      ],
+                      const SizedBox(height: 18),
+                      const _ReceiptDivider(),
+                      const SizedBox(height: 14),
+                      if (t.showSerial) ...[_ReceiptRow(label: l.posSerial, value: p.serialNumber, monoSize: 13), const SizedBox(height: 12)],
+                      if (t.showPin) _ReceiptRow(label: l.posPin, value: revealed ? p.pin : '•••• •••• ••••', monoSize: 20, monoSpacing: 5),
+                      if (t.qrEnabled) ...[
+                        const SizedBox(height: 16),
+                        if (revealed)
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(IntesharRadii.sm)),
+                            child: QrImageView(
+                              data: t.qrPayload(pin: p.pin, serial: p.serialNumber),
+                              version: QrVersions.auto,
+                              size: 128,
+                              backgroundColor: Colors.white,
+                              eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: IntesharColors.ink),
+                              dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: IntesharColors.ink),
+                            ),
+                          )
+                        else
+                          _LockedQr(label: l.posPinHidden),
+                        if (revealed) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            t.redeemInstructions.trim().isNotEmpty ? t.redeemInstructions.trim() : t.qrPayload(pin: p.pin, serial: p.serialNumber),
+                            textAlign: TextAlign.center,
+                            style: IntesharType.mono(12, color: cs.onSurface, w: FontWeight.w700),
+                          ),
+                        ],
+                      ],
+                      if (t.showExpiry && (p.expiryDate ?? '').isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        _ReceiptRow(label: Localizations.localeOf(context).languageCode == 'ar' ? 'تاريخ الانتهاء' : 'Expiry', value: p.expiryDate!, monoSize: 13),
+                      ],
+                      if (revealed && _receiptNo > 0) ...[
+                        const SizedBox(height: 12),
+                        _ReceiptRow(label: Localizations.localeOf(context).languageCode == 'ar' ? 'رقم العملية' : 'Receipt #', value: '$_receiptNo', monoSize: 13),
+                      ],
+                      const SizedBox(height: 14),
+                      const _ReceiptDivider(),
+                      const SizedBox(height: 14),
+                      Text(
+                        t.footerText.trim().isNotEmpty ? t.footerText.trim() : l.posHomeScratchNote,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontFamily: 'CodecPro', fontSize: 11.5, color: cs.onSurfaceVariant, fontWeight: FontWeight.w500),
+                      ),
+                    ],
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
-              if (!revealed) _buildRevealActions(l, cs) else _buildPrintActions(l, cs),
-            ],
-          ),
+            ),
+            const SizedBox(height: 20),
+            if (!revealed) _buildRevealActions(l, cs) else _buildPrintActions(l, cs),
+          ],
         ),
       ),
     );
@@ -1840,6 +2120,34 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                 ),
               ),
             ),
+          // UX-49: a print failure in a BULK sale was computed into _printError and
+          // then rendered nowhere at all — the operator saw the progress label go
+          // back to "Print all" and had no idea any card had failed.
+          if (_printError != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: cs.errorContainer,
+                  borderRadius: BorderRadius.circular(IntesharRadii.md),
+                  border: Border.all(color: cs.error.withValues(alpha: 0.5)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.print_disabled_outlined, size: 18, color: cs.error),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _printError!,
+                        style: TextStyle(fontFamily: 'CodecPro', fontSize: 12.5, height: 1.35, fontWeight: FontWeight.w700, color: cs.onErrorContainer),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           Flexible(
             child: ListView.builder(
               shrinkWrap: true,
@@ -1931,6 +2239,16 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                       Localizations.localeOf(context).languageCode == 'ar' ? 'المتوفر في مخزن الوكيل: ${s.available}' : 'In main-agent pool: ${s.available}',
                       style: TextStyle(fontFamily: 'CodecPro', fontSize: 12, color: cs.onSurfaceVariant, fontWeight: FontWeight.w700),
                     ),
+                    // UX-52: the tile's count and this pool count are DIFFERENT
+                    // numbers (what your balance covers vs. what the agent holds),
+                    // which read as a contradiction. Say both when they differ.
+                    if (s.affordable < s.available) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        _ar ? 'رصيدك يكفي ${s.affordable} بطاقة' : 'Your balance covers ${s.affordable}',
+                        style: TextStyle(fontFamily: 'CodecPro', fontSize: 12, color: context.tones.brandInk, fontWeight: FontWeight.w800),
+                      ),
+                    ],
                     // B-086: sell several cards at once (a shop asking for e.g. 10).
                     // Only rendered when this account is actually allowed more than one.
                     if (_bulkAvailable) _quantityStepper(cs),
@@ -2098,15 +2416,36 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                     border: Border.all(color: cs.error.withValues(alpha: 0.5)),
                   ),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Icon(Icons.print_disabled_outlined, size: 18, color: cs.error),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Text(
-                          ar
-                              ? 'فشلت الطباعة — الرمز مُباع. أعد الطباعة أو انسخ/شارك الرمز أدناه.'
-                              : 'Print failed — the code is sold. Reprint, or copy/share the code below.',
-                          style: TextStyle(fontFamily: 'CodecPro', fontSize: 12.5, height: 1.35, fontWeight: FontWeight.w700, color: cs.onErrorContainer),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              ar
+                                  ? 'فشلت الطباعة — الرمز مُباع.'
+                                  : 'Print failed — the code is sold.',
+                              style: TextStyle(fontFamily: 'CodecPro', fontSize: 12.5, height: 1.35, fontWeight: FontWeight.w800, color: cs.onErrorContainer),
+                            ),
+                            const SizedBox(height: 3),
+                            // UX-49: the actual, actionable reason. It was being
+                            // computed into _printError and then thrown away here
+                            // in favour of a fixed sentence.
+                            Text(
+                              _printError!,
+                              style: TextStyle(fontFamily: 'CodecPro', fontSize: 12.5, height: 1.35, fontWeight: FontWeight.w600, color: cs.onErrorContainer),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              ar
+                                  ? 'أو انسخ/شارك الرمز أدناه.'
+                                  : 'Or copy/share the code below.',
+                              style: TextStyle(fontFamily: 'CodecPro', fontSize: 11.5, height: 1.3, fontWeight: FontWeight.w600, color: cs.onErrorContainer),
+                            ),
+                          ],
                         ),
                       ),
                     ],

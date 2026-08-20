@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:inteshar/app/theme.dart';
+import 'package:inteshar/shared/widgets/min_tap_target.dart';
 
 enum BrandCTAVariant { primary, inverse, outline }
 
@@ -23,8 +24,20 @@ class BrandCTAButton extends StatelessWidget {
   final bool loading;
   final BrandCTAVariant variant;
   final bool expand;
+
+  /// The pill's **painted** height. It is not the tap target — see [minTapSize].
   final double height;
   final double fontSize;
+
+  /// Floor for the interactive area, independent of [height].
+  ///
+  /// The pill is a raw `InkWell`, so before this the hit box was literally
+  /// whatever [height] a caller passed: the POS Sell button — the control that
+  /// draws a voucher and debits for real — was a 36dp target on a handheld.
+  /// 48×48 is the Material / WCAG 2.5.5 floor; the extra area is invisible.
+  /// Pass `Size.zero` only when the button sits inside a parent that already
+  /// guarantees the target.
+  final Size minTapSize;
 
   const BrandCTAButton({
     super.key,
@@ -38,6 +51,7 @@ class BrandCTAButton extends StatelessWidget {
     this.expand = true,
     this.height = 56,
     this.fontSize = 15,
+    this.minTapSize = const Size(48, 48),
   });
 
   bool get _enabled => onPressed != null && !loading;
@@ -73,7 +87,7 @@ class BrandCTAButton extends StatelessWidget {
       ),
     );
 
-    final wrapped = variant == BrandCTAVariant.primary
+    final painted = variant == BrandCTAVariant.primary
         ? DecoratedBox(
             decoration: BoxDecoration(
               borderRadius: radius,
@@ -83,6 +97,12 @@ class BrandCTAButton extends StatelessWidget {
             child: button,
           )
         : button;
+
+    // UX-follow-up: the pill keeps its requested `height` visually; the hit box
+    // is floored at `minTapSize`. Nothing moves when height >= 48.
+    final wrapped = minTapSize == Size.zero
+        ? painted
+        : MinTapTarget(minSize: minTapSize, child: painted);
 
     if (!expand) return wrapped;
     return SizedBox(width: double.infinity, child: wrapped);

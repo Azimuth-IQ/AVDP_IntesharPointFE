@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:inteshar/app/theme.dart';
 import 'package:latlong2/latlong.dart';
 
 /// Approximate geographic centre of Iraq (near Baghdad) — the default map focus
@@ -50,7 +51,13 @@ class _MapLocationPickerState extends State<_MapLocationPicker> {
             child: Text(
               ar ? 'تأكيد' : 'Confirm',
               style: TextStyle(
-                color: picked == null ? cs.onSurfaceVariant : cs.primary,
+                // UX-138: `cs.primary` is the brand FILL. Used as ink on the
+                // white app bar it is raw gold at ~2:1 — the enabled Confirm
+                // read as fainter than the disabled one. `brandOnSurface` is
+                // the measured ≥4.5:1 brand ink.
+                color: picked == null
+                    ? cs.onSurfaceVariant
+                    : context.tones.brandOnSurface,
                 fontWeight: FontWeight.w700,
               ),
             ),

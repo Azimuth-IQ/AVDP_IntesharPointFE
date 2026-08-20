@@ -1,20 +1,50 @@
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:intl/intl.dart';
 
 class Formatters {
-  static String iqd(dynamic amount, {bool arabicNumerals = false}) {
-    // Prices/amounts arrive from the API as doubles (e.g. 15000.0). int.tryParse('15000.0')
-    // returns null → don't do that (it silently rendered every double price as "0 IQD").
-    final n = amount is num
-        ? amount.round()
-        : (num.tryParse(amount.toString())?.round() ?? 0);
-    final formatted = NumberFormat('#,###').format(n);
-    return '$formatted IQD';
-  }
+  /// Language the currency UNIT is written in — `'ar'` → `د.ع`, anything else
+  /// → `IQD` (UX-57).
+  ///
+  /// [iqd] is a static with ~53 call sites and no `BuildContext`, so the app
+  /// pushes the locale here instead (`IntesharApp.build`). It is a plain
+  /// assignment of the value the app is already rebuilding with, so there is no
+  /// frame where the two disagree. Where a context IS in hand — and especially
+  /// on the printed receipt, which must follow the language it is printed in —
+  /// prefer [iqdOf].
+  static String languageCode = 'ar';
+
+  /// The Iraqi dinar as Arabic readers write it. Latin "IQD" is an accounting
+  /// code; this is the unit on every price tag, till receipt and banknote here.
+  static const String unitAr = 'د.ع';
+  static const String unitEn = 'IQD';
+
+  static String currencyUnit([String? lang]) =>
+      (lang ?? languageCode) == 'ar' ? unitAr : unitEn;
+
+  /// An amount with its currency unit, in the app's language.
+  ///
+  /// Was hardcoded Latin `"IQD"` on every price, the balance hero, every total
+  /// and the thermal receipt the customer walks out with — in an Arabic-first
+  /// product. The old `arabicNumerals` flag was declared, never read and had no
+  /// caller; it is gone rather than left as a lie (Iraqi POS receipts use
+  /// Western digits, and the thermal printer cannot raster Arabic-Indic ones
+  /// reliably anyway).
+  static String iqd(dynamic amount, {String? languageCode}) =>
+      '${money(amount)} ${currencyUnit(languageCode)}';
+
+  /// [iqd] resolved against the widget tree's locale instead of the global —
+  /// use it whenever a context is available.
+  static String iqdOf(BuildContext context, dynamic amount) =>
+      iqd(amount, languageCode: Localizations.localeOf(context).languageCode);
 
   /// Thousands-separated number WITHOUT a currency suffix — for money labels that supply
   /// their own currency word/context (e.g. an "IQD" suffixText, or "الرصيد: 15,000 د.ع").
-  /// Also correct for large plain counts. Handles doubles ("15000.0") like [iqd].
+  /// Also correct for large plain counts.
+  ///
+  /// Amounts arrive from the API as doubles (e.g. `15000.0`), and
+  /// `int.tryParse('15000.0')` returns null — that once rendered every
+  /// double-typed price as `0 IQD`. Round through `num`, never `int.parse`.
   static String money(dynamic amount) {
     final n = amount is num
         ? amount.round()

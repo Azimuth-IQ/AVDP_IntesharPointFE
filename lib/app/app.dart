@@ -6,6 +6,7 @@ import 'package:inteshar/app/theme_provider.dart';
 import 'package:inteshar/core/api/session_expiry_gate.dart';
 import 'package:inteshar/core/locale/locale_controller.dart';
 import 'package:inteshar/core/push/push_listener.dart';
+import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/update/presentation/update_gate.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 
@@ -17,6 +18,10 @@ class IntesharApp extends ConsumerWidget {
     final router = ref.watch(routerProvider);
     final locale = ref.watch(localeControllerProvider);
     final brandThemes = ref.watch(brandThemeProvider);
+    // UX-57: the money formatter is a context-free static with ~53 call sites,
+    // so the currency unit (د.ع vs IQD) follows the locale from here. Same value
+    // the app is about to rebuild with — the two can never disagree for a frame.
+    Formatters.languageCode = locale.languageCode;
     return MaterialApp.router(
       title: 'Inteshar',
       debugShowCheckedModeBanner: false,

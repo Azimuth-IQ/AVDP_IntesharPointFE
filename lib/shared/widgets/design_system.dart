@@ -323,6 +323,34 @@ class FigureBlock extends StatelessWidget {
   }
 }
 
+// ─── Brand rule ────────────────────────────────────────────────────────────
+
+/// The 38×3 brand underline that marks a page/section title (UX-131).
+///
+/// It lives in [PageHeader], but had been re-typed by hand at two more sites
+/// (`system_activity_page`, `notifications_inbox_page`) — the kind of duplicate
+/// that quietly stops tracking a white-label brand the day someone edits one
+/// copy. Use this anywhere the mark is needed outside a [PageHeader].
+class BrandRule extends StatelessWidget {
+  final double width;
+  final double height;
+  final Color? color;
+
+  const BrandRule({super.key, this.width = 38, this.height = 3, this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: color ?? context.tones.brand,
+        borderRadius: BorderRadius.circular(2),
+      ),
+    );
+  }
+}
+
 // ─── Page header ───────────────────────────────────────────────────────────
 
 /// Friendly page header: bold sans title + muted subtitle + optional yellow
@@ -404,14 +432,7 @@ class PageHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          Container(
-            width: 38,
-            height: 3,
-            decoration: BoxDecoration(
-              color: context.tones.brand,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
+          const BrandRule(),
           if (subtitle != null) ...[
             const SizedBox(height: 12),
             Text(

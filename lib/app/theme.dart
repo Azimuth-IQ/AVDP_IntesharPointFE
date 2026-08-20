@@ -176,7 +176,18 @@ class BrandTones extends ThemeExtension<BrandTones> {
   /// progress, slider) rather than as a fill.
   final Color brandOnSurface;
 
-  /// Soft brand wash for chips/containers//tag backgrounds.
+  /// Soft brand wash for chip / container / tag BACKGROUNDS — the canonical
+  /// one (UX-138).
+  ///
+  /// It is an *opaque* pre-blended tint, not `brand.withValues(alpha: …)`. The
+  /// app had fourteen hand-rolled washes spanning alpha 0.12–0.22 for this one
+  /// visual role, none of them this token; being translucent they also drifted
+  /// with whatever surface happened to sit behind them. This is the same colour
+  /// the theme hands to `ColorScheme.primaryContainer`, so a wash and a
+  /// primaryContainer can never disagree.
+  ///
+  /// For text/icons ON this wash use [brandInk]/[brandOnSurface] — never
+  /// `ColorScheme.primary`, which is the fill role and fails contrast as ink.
   final Color brandWash;
 
   /// Glossy CTA pill gradient (top highlight → body → bottom lip).
@@ -210,6 +221,7 @@ class BrandTones extends ThemeExtension<BrandTones> {
     required Color brandInk,
     required bool isDark,
     Color? brandOnSurface,
+    Color? brandWash,
   }) {
     return BrandTones(
       brand: brand,
@@ -220,7 +232,12 @@ class BrandTones extends ThemeExtension<BrandTones> {
             brand,
             isDark ? IntesharColors.inkPaper : IntesharColors.paper,
           ),
-      brandWash: isDark ? _darken(brand, 0.72) : _lighten(brand, 0.86),
+      // UX-138: the theme passes its own wash — the one it also gives to
+      // `primaryContainer`. The fallback below is only for a bare
+      // `BrandTones.from` (tests, the no-extension default), and used to be a
+      // DIFFERENT mix (0.86 vs the theme's 0.78), so the token and
+      // `primaryContainer` disagreed wherever both were read.
+      brandWash: brandWash ?? (isDark ? _darken(brand, 0.72) : _lighten(brand, 0.78)),
       // B-094: the CTA is now a FLAT brand fill. The old three-stop gradient +
       // inner highlight + warm glow was a skeuomorphic "candy button" and the
       // single most dated element in the app. A whisper of darkening at the
@@ -474,6 +491,7 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
         onBrand: onSaffron,
         brandInk: brandInk,
         brandOnSurface: brandOnSurface,
+        brandWash: brandWash,
         isDark: isDark,
       ),
     ],

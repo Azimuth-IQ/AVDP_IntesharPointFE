@@ -34,12 +34,28 @@ class ChatThreadScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatThreadScreen> createState() => _ChatThreadScreenState();
 }
 
+/// UX-92: a message that has left the composer but not yet the device. Chat is
+/// the escalation channel — it gets used precisely when something is already
+/// wrong and the link is at its worst — and it had no optimistic bubble and no
+/// per-message state: a failure surfaced as a 4-second toast and nothing else.
+enum _Delivery { sending, failed }
+
+class _Outgoing {
+  _Outgoing(this.text);
+  final String text;
+  _Delivery state = _Delivery.sending;
+  String? reason;
+}
+
 class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
   List<ChatMessage> _messages = const [];
+
+  /// Messages the user has sent that the server has not yet acknowledged. They
+  /// render as real bubbles, below the delivered ones, carrying their own state.
+  final List<_Outgoing> _outgoing = [];
   bool _loading = true;
-  bool _sending = false;
   Object? _error;
   Timer? _poll;
 
@@ -102,21 +118,36 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
 
   Future<void> _send() async {
     final text = _input.text.trim();
-    if (text.isEmpty || _sending) return;
-    setState(() => _sending = true);
+    if (text.isEmpty) return;
+    // The bubble appears immediately and the composer empties — the text is not
+    // lost on failure, it lives in the bubble and can be retried from there.
+    _input.clear();
+    final pending = _Outgoing(text);
+    setState(() => _outgoing.add(pending));
+    _scrollToEnd();
+    await _deliver(pending);
+  }
+
+  Future<void> _deliver(_Outgoing p) async {
+    if (!mounted) return;
+    setState(() {
+      p.state = _Delivery.sending;
+      p.reason = null;
+    });
     try {
-      final msg = await _repo.send(toId: widget.withId, text: text);
-      _input.clear();
+      final msg = await _repo.send(toId: widget.withId, text: p.text);
       if (!mounted) return;
-      setState(() => _messages = [..._messages, msg]);
+      setState(() {
+        _outgoing.remove(p);
+        _messages = [..._messages, msg];
+      });
       _scrollToEnd();
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
-      }
-    } finally {
-      if (mounted) setState(() => _sending = false);
+      if (!mounted) return;
+      setState(() {
+        p.state = _Delivery.failed;
+        p.reason = friendlyError(e, context);
+      });
     }
   }
 
@@ -172,7 +203,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     final cs = Theme.of(context).colorScheme;
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) return ErrorState(error: _error!, onRetry: _load);
-    if (_messages.isEmpty) {
+    if (_messages.isEmpty && _outgoing.isEmpty) {
       return Center(
         child: Text(ar ? 'لا توجد رسائل بعد.' : 'No messages yet.',
             style: IntesharType.sans(14, color: cs.onSurfaceVariant)),
@@ -181,8 +212,10 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     return ListView.builder(
       controller: _scroll,
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-      itemCount: _messages.length,
-      itemBuilder: (_, i) => _bubble(_messages[i], cs),
+      itemCount: _messages.length + _outgoing.length,
+      itemBuilder: (_, i) => i < _messages.length
+          ? _bubble(_messages[i], cs)
+          : _pendingBubble(_outgoing[i - _messages.length], cs, ar),
     );
   }
 
@@ -191,6 +224,8 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     final when = m.createdAt.length >= 16
         ? m.createdAt.substring(11, 16)
         : '';
+    final footColor =
+        (mine ? IntesharColors.ink : cs.onSurfaceVariant).withValues(alpha: 0.6);
     return Align(
       alignment: mine ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
       child: Container(
@@ -205,12 +240,93 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
           Text(m.text,
               style: IntesharType.sans(13.5,
                   color: mine ? IntesharColors.ink : cs.onSurface)),
-          if (when.isNotEmpty) ...[
+          if (when.isNotEmpty || mine) ...[
             const SizedBox(height: 2),
-            Text(when,
-                style: IntesharType.mono(9.5,
-                    color: (mine ? IntesharColors.ink : cs.onSurfaceVariant)
-                        .withValues(alpha: 0.6))),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              if (when.isNotEmpty)
+                Text(when, style: IntesharType.mono(9.5, color: footColor)),
+              // The delivered marker. Without it "sending" and "sent" looked
+              // exactly the same, which is the whole of UX-92.
+              if (mine) ...[
+                const SizedBox(width: 4),
+                Icon(Icons.done, size: 12, color: footColor),
+              ],
+            ]),
+          ],
+        ]),
+      ),
+    );
+  }
+
+  /// A message still in flight, or one that failed and can be retried in place.
+  Widget _pendingBubble(_Outgoing p, ColorScheme cs, bool ar) {
+    final failed = p.state == _Delivery.failed;
+    final fg = failed ? cs.onErrorContainer : IntesharColors.ink;
+    return Align(
+      alignment: AlignmentDirectional.centerEnd,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
+        decoration: BoxDecoration(
+          color: failed
+              ? cs.errorContainer
+              : context.tones.brand.withValues(alpha: 0.45),
+          borderRadius: BorderRadius.circular(14),
+          border: failed ? Border.all(color: cs.error) : null,
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(p.text, style: IntesharType.sans(13.5, color: fg)),
+          const SizedBox(height: 4),
+          if (!failed)
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              SizedBox(
+                width: 10,
+                height: 10,
+                child: CircularProgressIndicator(
+                    strokeWidth: 1.6, color: fg.withValues(alpha: 0.7)),
+              ),
+              const SizedBox(width: 6),
+              Text(ar ? 'جارٍ الإرسال…' : 'Sending…',
+                  style: IntesharType.sans(10.5, color: fg.withValues(alpha: 0.8))),
+            ])
+          else ...[
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.error_outline, size: 12, color: cs.error),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(
+                  p.reason?.isNotEmpty == true
+                      ? p.reason!
+                      : (ar ? 'لم تُرسل' : 'Not sent'),
+                  style: IntesharType.sans(10.5, color: cs.error, w: FontWeight.w600),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 2),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  foregroundColor: cs.error,
+                ),
+                onPressed: () => _deliver(p),
+                icon: const Icon(Icons.refresh, size: 15),
+                label: Text(ar ? 'إعادة المحاولة' : 'Retry',
+                    style: IntesharType.sans(11.5, w: FontWeight.w700)),
+              ),
+              TextButton(
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  foregroundColor: cs.onSurfaceVariant,
+                ),
+                onPressed: () => setState(() => _outgoing.remove(p)),
+                child: Text(ar ? 'تجاهل' : 'Discard',
+                    style: IntesharType.sans(11.5, w: FontWeight.w600)),
+              ),
+            ]),
           ],
         ]),
       ),
@@ -245,11 +361,12 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
             ),
           ),
           const SizedBox(width: 8),
+          // Always enabled: an in-flight message no longer blocks the composer,
+          // because it is now visible as its own bubble rather than as a
+          // disabled send button.
           IconButton.filled(
-            onPressed: _sending ? null : _send,
-            icon: _sending
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.send, size: 20),
+            onPressed: _send,
+            icon: const Icon(Icons.send, size: 20),
           ),
         ]),
       ),

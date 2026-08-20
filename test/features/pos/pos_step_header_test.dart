@@ -105,16 +105,17 @@ void main() {
     testWidgets('renders in FULL — money shrinks, it never ellipsises', (tester) async {
       await pumpHeader(tester, title: 'تأكيد البيع', available: bigBalance, withBack: true);
 
+      // Arabic UI, Arabic unit (د.ع) — the header is pumped in ar.
       // The whole number is present; a truncated "25,876,0…" would be a worse lie
       // than smaller numerals on a screen used to decide whether a sale can happen.
-      expect(find.text('25,876,000 IQD'), findsOneWidget);
+      expect(find.text('25,876,000 د.ع'), findsOneWidget);
       expect(
-        tester.widget<Text>(find.text('25,876,000 IQD')).overflow,
+        tester.widget<Text>(find.text('25,876,000 د.ع')).overflow,
         isNot(TextOverflow.ellipsis),
       );
       // It scales down instead.
       expect(
-        find.ancestor(of: find.text('25,876,000 IQD'), matching: find.byType(FittedBox)),
+        find.ancestor(of: find.text('25,876,000 د.ع'), matching: find.byType(FittedBox)),
         findsOneWidget,
       );
     });
@@ -123,7 +124,7 @@ void main() {
       await pumpHeader(tester, title: 'تأكيد البيع', available: 999999999999, withBack: true);
 
       expect(tester.takeException(), isNull);
-      expect(find.text('999,999,999,999 IQD'), findsOneWidget);
+      expect(find.text('999,999,999,999 د.ع'), findsOneWidget);
     });
 
     testWidgets('a null balance shows a dash and takes almost no width', (tester) async {

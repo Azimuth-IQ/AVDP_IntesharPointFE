@@ -15,6 +15,7 @@ import 'package:inteshar/features/inventory/data/product_repository.dart';
 import 'package:inteshar/features/inventory/domain/sku_summary.dart';
 import 'package:inteshar/features/pricing/data/pricing_repository.dart';
 import 'package:inteshar/features/pricing/domain/pricing_models.dart';
+import 'package:inteshar/features/reports/data/reports_repository.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
@@ -33,13 +34,34 @@ class _DashData {
   children; // direct children (for the balance transfer picker)
   final AgentBalance balance;
 
+  /// UX-25: each DIRECT child's current balance. The dashboard already fetched
+  /// the children and threw them away; "which of my shops has run out of
+  /// credit" was unanswerable anywhere in the app. Null = the roster feed is
+  /// unavailable to this caller (it is VIEW_REPORTS-gated), which must render
+  /// as "not shown", never as a confident zero.
+  final List<_ChildCredit>? childCredit;
+
+  /// Net credit this account has granted out in the current calendar month
+  /// (take-backs are negative ledger rows, so they net off).
+  final num grantedThisMonth;
+
   const _DashData({
     required this.stock,
     required this.recentTransfers,
     required this.childCount,
     required this.children,
     required this.balance,
+    required this.childCredit,
+    required this.grantedThisMonth,
   });
+}
+
+/// One direct child and what it currently has to spend.
+class _ChildCredit {
+  final String id;
+  final String name;
+  final num available;
+  const _ChildCredit({required this.id, required this.name, required this.available});
 }
 
 // ─── Page ────────────────────────────────────────────────────────────────────
@@ -60,6 +82,29 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   void initState() {
     super.initState();
     _load();
+  }
+
+  /// entityId → available balance, across the caller's subtree. Best-effort:
+  /// the roster feed is VIEW_REPORTS-gated and an agent may hold
+  /// CREATE_TRANSACTIONS without it, so a 403 returns null (= "don't show it")
+  /// rather than an empty map that would read as "everyone is at zero".
+  Future<Map<String, num>?> _rosterBalances(dynamic api, String rootId) async {
+    try {
+      final out = <String, num>{};
+      var page = 0;
+      while (true) {
+        final res = await ReportsRepository(api)
+            .balancesRoster(rootId: rootId, page: page, size: 200);
+        for (final r in res.items) {
+          out[r.entityId] = r.available;
+        }
+        if (!res.hasMore || page > 20) break;
+        page++;
+      }
+      return out;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> _load() async {
@@ -84,16 +129,35 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         ProductRepository(api).summaryByEntity(entity.id),
         PricingRepository(api).grants(),
         EntityRepository(api).children(entity.id, size: 200),
+        _rosterBalances(api, entity.id),
       ]);
       final stock = results[0] as List<SkuSummary>;
-      final transfers = (results[1] as List<GrantRow>).toList()
+      final grants = results[1] as List<GrantRow>;
+      final transfers = grants.toList()
         ..sort((a, b) => '${b.date} ${b.time}'.compareTo('${a.date} ${a.time}'));
       final children = (results[2] as Paged<EntitySummaryRow>).items;
+      final roster = results[3] as Map<String, num>?;
       // Balance is best-effort: a failure here must not blank the dashboard.
       AgentBalance balance = const AgentBalance();
       try {
         balance = await PricingRepository(api).balance();
       } catch (_) {}
+      // Direct children only — the roster covers the whole subtree, and "my
+      // shops" means the ones I can actually top up.
+      final credit = roster == null
+          ? null
+          : (children
+              .where((c) => roster.containsKey(c.id))
+              .map((c) => _ChildCredit(
+                  id: c.id, name: c.label, available: roster[c.id] ?? 0))
+              .toList()
+            ..sort((a, b) => a.available.compareTo(b.available)));
+      final now = DateTime.now();
+      final monthPrefix =
+          '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}';
+      final granted = grants
+          .where((g) => g.sourceId == entity.id && g.date.startsWith(monthPrefix))
+          .fold<num>(0, (a, g) => a + g.amount);
       setState(() {
         _data = _DashData(
           stock: stock,
@@ -101,6 +165,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           childCount: entity.childrenIds.length,
           children: children,
           balance: balance,
+          childCredit: credit,
+          grantedThisMonth: granted,
         );
         _loading = false;
       });
@@ -222,7 +288,11 @@ class _DashContent extends StatelessWidget {
               availableCount: availableCount,
               availableSkuCount: availableSkuCount,
               lowStockCount: lowSkus.length,
+              lowStockThreshold: lowStockThreshold,
               showInventory: entity.type.inventoryBacked,
+              childCredit: data.childCredit,
+              grantedThisMonth: data.grantedThisMonth,
+              showCredit: entity.type.transfersRoute != null,
             ),
           ),
 
@@ -233,6 +303,8 @@ class _DashContent extends StatelessWidget {
             entity: entity,
             transfers: data.recentTransfers,
             lowSkus: lowSkus,
+            lowStockThreshold: lowStockThreshold,
+            childCredit: data.childCredit,
             l: l,
           ),
         ),
@@ -343,19 +415,30 @@ class _KpiRow extends StatelessWidget {
   final int availableCount;
   final int availableSkuCount;
   final int lowStockCount;
+  final int lowStockThreshold;
   final bool showInventory;
+  final List<_ChildCredit>? childCredit;
+  final num grantedThisMonth;
+  final bool showCredit;
 
   const _KpiRow({
     required this.childCount,
     required this.availableCount,
     required this.availableSkuCount,
     required this.lowStockCount,
+    required this.lowStockThreshold,
     required this.showInventory,
+    required this.childCredit,
+    required this.grantedThisMonth,
+    required this.showCredit,
   });
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    final credit = childCredit;
+    final dry = credit == null ? 0 : credit.where((c) => c.available <= 0).length;
     final tiles = [
       _KpiTile(
         label: l.navChildren,
@@ -378,11 +461,35 @@ class _KpiRow extends StatelessWidget {
         _KpiTile(
           label: l.dashKpiLowStock,
           value: Formatters.money(lowStockCount),
+          // UX-47: "12 left" told you nothing without the line it fell below.
+          // The threshold is what makes the count mean anything.
           caption: lowStockCount == 0
-              ? l.dashKpiAllHealthy
-              : l.dashKpiNeedsAttention,
+              ? '${l.dashKpiAllHealthy} · ${ar ? 'الحد $lowStockThreshold' : 'threshold $lowStockThreshold'}'
+              : (ar
+                  ? 'أقل من $lowStockThreshold بطاقة'
+                  : 'below $lowStockThreshold cards'),
           icon: Icons.warning_amber_rounded,
           tint: IntesharColors.oxblood,
+        ),
+      // UX-25: the wallet tiers' equivalent of the stock KPIs. A Sub Agent held
+      // exactly one tile ("branches: 3") on the screen they open every morning.
+      // Hidden entirely when the roster feed is unavailable — a confident "0
+      // accounts out of credit" would be worse than no tile.
+      if (showCredit && credit != null && credit.isNotEmpty)
+        _KpiTile(
+          label: ar ? 'حسابات بلا رصيد' : 'Accounts out of credit',
+          value: Formatters.money(dry),
+          caption: ar ? 'من ${credit.length} حساب' : 'of ${credit.length} accounts',
+          icon: Icons.account_balance_wallet_outlined,
+          tint: dry == 0 ? IntesharColors.sage : IntesharColors.oxblood,
+        ),
+      if (showCredit)
+        _KpiTile(
+          label: ar ? 'رصيد مُحوَّل' : 'Credit sent',
+          value: Formatters.money(grantedThisMonth),
+          caption: ar ? 'هذا الشهر' : 'this month',
+          icon: Icons.north_east,
+          tint: const Color(0xFF2563EB),
         ),
     ];
 
@@ -524,24 +631,20 @@ class _KpiTile extends StatelessWidget {
 
 // ─── Body row (transactions + low stock) ─────────────────────────────────────
 
-/// Route prefix for the signed-in role, used to deep-link into sections.
-String _rolePrefix(EntityType type) => switch (type) {
-  EntityType.INTESHAR => '/hq',
-  EntityType.AGENT1 => '/agent1',
-  EntityType.AGENT2 => '/agent2',
-  EntityType.STORE => '/store',
-};
-
 class _BodyRow extends StatelessWidget {
   final Entity entity;
   final List<GrantRow> transfers;
   final Map<String, ({String name, int count})> lowSkus;
+  final int lowStockThreshold;
+  final List<_ChildCredit>? childCredit;
   final AppLocalizations l;
 
   const _BodyRow({
     required this.entity,
     required this.transfers,
     required this.lowSkus,
+    required this.lowStockThreshold,
+    required this.childCredit,
     required this.l,
   });
 
@@ -552,20 +655,34 @@ class _BodyRow extends StatelessWidget {
         final wide = c.maxWidth >= 900;
         // Only agents have the full transfers page (B-056); HQ/stores see the
         // card without a deep link.
-        final hasTransfersPage = entity.type == EntityType.AGENT1 ||
-            entity.type == EntityType.AGENT2;
+        final transfersRoute = entity.type.transfersRoute;
         final txnCard = _RecentTransfersCard(
           transfers: transfers,
           selfId: entity.id,
-          onViewAll: hasTransfersPage
-              ? () => ctx.go('${_rolePrefix(entity.type)}/transfers')
-              : null,
+          onViewAll: transfersRoute != null ? () => ctx.go(transfersRoute) : null,
           l: l,
         );
+
+        // UX-25: "which of my accounts has run out of credit" is the first
+        // question of an agent's morning and had no answer anywhere. Shown for
+        // both agent tiers — the Sub Agent dashboard was otherwise a balance
+        // card and one tile.
+        final credit = childCredit;
+        final creditCard = (transfersRoute != null && credit != null && credit.isNotEmpty)
+            ? _ChildCreditCard(
+                rows: credit,
+                onTopUp: () => ctx.go(transfersRoute),
+              )
+            : null;
+
         // Low-stock is an inventory concern — only for inventory-backed tiers.
         // Sub Agents & Stores draw-on-print and hold no cards (B-042).
-        if (!entity.type.inventoryBacked) return txnCard;
-        final lowCard = _LowStockCard(lowSkus: lowSkus, l: l);
+        final lowCard = entity.type.inventoryBacked
+            ? _LowStockCard(lowSkus: lowSkus, threshold: lowStockThreshold, l: l)
+            : null;
+
+        final side = <Widget>[?creditCard, ?lowCard];
+        if (side.isEmpty) return txnCard;
 
         if (wide) {
           return Row(
@@ -573,12 +690,125 @@ class _BodyRow extends StatelessWidget {
             children: [
               Expanded(child: txnCard),
               const SizedBox(width: 16),
-              SizedBox(width: 360, child: lowCard),
+              SizedBox(
+                width: 360,
+                child: Column(children: [
+                  for (var i = 0; i < side.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 16),
+                    side[i],
+                  ],
+                ]),
+              ),
             ],
           );
         }
-        return Column(children: [txnCard, const SizedBox(height: 16), lowCard]);
+        return Column(children: [
+          txnCard,
+          for (final w in side) ...[const SizedBox(height: 16), w],
+        ]);
       },
+    );
+  }
+}
+
+// ─── Child credit card (UX-25) ───────────────────────────────────────────────
+
+/// The accounts under this agent, poorest first — the ones that will stop
+/// selling next. Zero-balance rows are called out; the rest still show a number
+/// so "low" can be judged rather than guessed.
+class _ChildCreditCard extends StatelessWidget {
+  final List<_ChildCredit> rows;
+  final VoidCallback onTopUp;
+  const _ChildCreditCard({required this.rows, required this.onTopUp});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    final dry = rows.where((r) => r.available <= 0).toList();
+    // Poorest first; show the empty ones, then enough of the rest to give the
+    // number context — never the whole roster (that is the Reports page).
+    final shown = rows.take(dry.length > 5 ? dry.length.clamp(0, 8) : 5).toList();
+
+    return InkCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(20, 16, 12, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        ar ? 'رصيد الحسابات' : 'Account credit',
+                        style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        dry.isEmpty
+                            ? (ar ? 'كل الحسابات لديها رصيد' : 'every account has credit')
+                            : (ar
+                                ? '${dry.length} حساب بلا رصيد'
+                                : '${dry.length} out of credit'),
+                        style: IntesharType.sans(
+                          11.5,
+                          color: dry.isEmpty ? IntesharColors.sage : IntesharColors.oxblood,
+                          w: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _ViewAllLink(label: ar ? 'شحن' : 'Top up', onTap: onTopUp),
+              ],
+            ),
+          ),
+          const Hairline(),
+          for (var i = 0; i < shown.length; i++) ...[
+            if (i > 0) const Hairline(),
+            Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(20, 11, 20, 11),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      shown[i].name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w600),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    Formatters.iqd(shown[i].available.round()),
+                    style: IntesharType.mono(
+                      12.5,
+                      color: shown[i].available <= 0
+                          ? IntesharColors.oxblood
+                          : cs.onSurface,
+                      w: shown[i].available <= 0 ? FontWeight.w700 : FontWeight.w400,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (rows.length > shown.length)
+            Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(20, 8, 20, 12),
+              child: Text(
+                ar
+                    ? 'و${rows.length - shown.length} حساب آخر'
+                    : 'and ${rows.length - shown.length} more',
+                style: IntesharType.sans(11.5, color: cs.onSurfaceVariant),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -891,13 +1121,23 @@ class _BalanceCard extends StatelessWidget {
 
 class _LowStockCard extends StatelessWidget {
   final Map<String, ({String name, int count})> lowSkus;
+
+  /// UX-47: the line that decided these SKUs are "low". Without it "12 left"
+  /// cannot be told apart from "nearly out" — the reader has no idea whether
+  /// the bar was set at 20 or at 500.
+  final int threshold;
   final AppLocalizations l;
 
-  const _LowStockCard({required this.lowSkus, required this.l});
+  const _LowStockCard({
+    required this.lowSkus,
+    required this.threshold,
+    required this.l,
+  });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
 
     return InkCard(
       padding: EdgeInsets.zero,
@@ -906,13 +1146,25 @@ class _LowStockCard extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsetsDirectional.fromSTEB(20, 18, 20, 14),
-            child: Text(
-              l.dashLowStock,
-              style: IntesharType.sans(
-                14,
-                color: cs.onSurface,
-                w: FontWeight.w700,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l.dashLowStock,
+                  style: IntesharType.sans(
+                    14,
+                    color: cs.onSurface,
+                    w: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  ar
+                      ? 'أقل من $threshold بطاقة'
+                      : 'below $threshold cards',
+                  style: IntesharType.sans(11.5, color: cs.onSurfaceVariant),
+                ),
+              ],
             ),
           ),
           const Hairline(),

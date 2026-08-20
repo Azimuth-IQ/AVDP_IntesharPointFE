@@ -17,6 +17,17 @@ void main() {
     }
   });
 
+  test('take-back names its source, not a destination (UX-27)', () {
+    // The reclaim picker was labelled "To" / "إلى" while the balance moves FROM
+    // the account it names — a label pointing the opposite way to the money.
+    final en = transferStringsFor(false);
+    final ar = transferStringsFor(true);
+    expect(en.from, 'From');
+    expect(ar.from, 'من');
+    expect(en.from, isNot(en.to));
+    expect(ar.from, isNot(ar.to));
+  });
+
   test('the two languages actually differ', () {
     final en = transferStringsFor(false).confirmSend('1', 'x');
     final ar = transferStringsFor(true).confirmSend('1', 'x');

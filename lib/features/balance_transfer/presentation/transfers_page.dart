@@ -58,6 +58,15 @@ class _TS {
       'Only balance the account has not spent can come back.',
       'يمكن استرجاع الرصيد غير المصروف فقط.');
   String get to => p('To', 'إلى');
+
+  /// UX-27: the take-back picker was labelled "To" while the money moves FROM
+  /// the account it names — the one field on the page whose label pointed the
+  /// opposite way to the transaction.
+  String get from => p('From', 'من');
+  String get accountBalance => p('Account balance', 'رصيد الحساب');
+  String get afterTakeBack => p('After take-back', 'بعد الاسترجاع');
+  String get overChildBalance =>
+      p('More than this account currently has', 'أكثر مما يملكه هذا الحساب حالياً');
   String get amount => p('Amount (IQD)', 'المبلغ (د.ع)');
   String get send => p('Send', 'إرسال');
   String confirmSend(String amount, String to) =>
@@ -82,7 +91,16 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
   List<EntitySummaryRow> _children = const [];
   Map<String, num> _childBal = const {};
   bool _loading = true;
-  bool _busy = false;
+
+  /// UX-83: which ACTION is in flight, not "is the page busy". One page-wide
+  /// flag disabled both money buttons and put a spinner on neither, so the only
+  /// feedback for a transfer in progress was that everything went grey. Both
+  /// buttons still lock while money is moving — they are the same balance — but
+  /// the one that was tapped is the one that spins.
+  final Set<String> _busy = {};
+  static const _kSend = 'send';
+  static const _kTakeBack = 'takeBack';
+  bool get _anyBusy => _busy.isNotEmpty;
   Object? _error;
 
   String get _myId =>
@@ -194,21 +212,34 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
     EntitySummaryRow? from;
     var armed = false;
     final amountCtrl = TextEditingController();
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
 
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(builder: (ctx, setD) {
+        final cs = Theme.of(ctx).colorScheme;
         final amt = parseAmount(amountCtrl.text) ?? 0;
         final ready = from != null && amt > 0;
+        // UX-27: the ceiling was discovered by submitting and reading the
+        // server's refusal — while the child's balance was already loaded into
+        // _childBal and never consulted. Shown when known; the server stays the
+        // authority (it knows what is actually unspent), so an over-amount is
+        // flagged, not blocked.
+        final known = from != null && _childBal.containsKey(from!.id);
+        final childBal = known ? _childBal[from!.id]! : 0;
+        final after = childBal - amt;
         return AlertDialog(
           title: Text(s.takeBack),
           content: SizedBox(
             width: 420,
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               DropdownButtonFormField<EntitySummaryRow>(
                 initialValue: from,
                 isExpanded: true,
-                decoration: InputDecoration(labelText: s.to),
+                decoration: InputDecoration(labelText: s.from),
                 items: _children
                     .map((e) => DropdownMenuItem(value: e, child: Text(e.label)))
                     .toList(),
@@ -225,6 +256,37 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                 decoration: InputDecoration(labelText: s.amount),
                 onChanged: (_) => setD(() => armed = false),
               ),
+              if (known) ...[
+                const SizedBox(height: 12),
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  Text(s.accountBalance,
+                      style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+                  Text(Formatters.iqd(childBal.round()),
+                      style: IntesharType.mono(12.5, color: cs.onSurface)),
+                ]),
+                const SizedBox(height: 4),
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  Text(s.afterTakeBack,
+                      style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+                  Text(Formatters.iqd(after.round()),
+                      style: IntesharType.mono(12.5,
+                          w: FontWeight.w700,
+                          color: after < 0 ? cs.error : cs.onSurface)),
+                ]),
+                if (after < 0) ...[
+                  const SizedBox(height: 4),
+                  Text(s.overChildBalance,
+                      style: IntesharType.sans(11.5, color: cs.error, w: FontWeight.w600)),
+                ],
+              ] else if (from != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  ar
+                      ? 'رصيد هذا الحساب غير متاح لك — سيحدد الخادم الحد الأقصى.'
+                      : "This account's balance isn't visible to you — the server sets the ceiling.",
+                  style: IntesharType.sans(11.5, color: cs.onSurfaceVariant),
+                ),
+              ],
               const SizedBox(height: 8),
               Align(
                 alignment: AlignmentDirectional.centerStart,
@@ -265,7 +327,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
     if (ok != true || target == null || amount == null || amount <= 0) return;
     if (!mounted) return;
 
-    setState(() => _busy = true);
+    setState(() => _busy.add(_kTakeBack));
     final messenger = ScaffoldMessenger.of(context);
     try {
       await PricingRepository(ref.read(apiClientProvider))
@@ -280,7 +342,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
             content: Text(serverReason(e) ?? friendlyError(e, context))));
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _busy.remove(_kTakeBack));
     }
   }
 
@@ -497,7 +559,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
     // that is a third confirmation of the same intent, and users stop reading the
     // ones that always appear.
 
-    setState(() => _busy = true);
+    setState(() => _busy.add(_kSend));
     final messenger = ScaffoldMessenger.of(context);
     try {
       await PricingRepository(ref.read(apiClientProvider))
@@ -511,7 +573,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
             .showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _busy.remove(_kSend));
     }
   }
 
@@ -542,8 +604,10 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: _busy ? null : () => _newTransferDialog(s),
-              icon: const Icon(Icons.north_east, size: 18),
+              onPressed: _anyBusy ? null : () => _newTransferDialog(s),
+              icon: _busy.contains(_kSend)
+                  ? const _BtnSpinner()
+                  : const Icon(Icons.north_east, size: 18),
               label: Text(s.newTransfer),
             ),
           ),
@@ -555,8 +619,10 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: _busy ? null : () => _takeBackDialog(s),
-              icon: const Icon(Icons.south_west, size: 18),
+              onPressed: _anyBusy ? null : () => _takeBackDialog(s),
+              icon: _busy.contains(_kTakeBack)
+                  ? const _BtnSpinner()
+                  : const Icon(Icons.south_west, size: 18),
               label: Text(s.takeBack),
             ),
           ),
@@ -619,6 +685,19 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
       ),
     );
   }
+}
+
+/// An icon-sized spinner that sits in a button's icon slot, so the control that
+/// was tapped is the one showing progress (UX-83).
+class _BtnSpinner extends StatelessWidget {
+  const _BtnSpinner();
+
+  @override
+  Widget build(BuildContext context) => const SizedBox(
+        width: 18,
+        height: 18,
+        child: CircularProgressIndicator(strokeWidth: 2.2),
+      );
 }
 
 /// The page's balance hero (B-094).

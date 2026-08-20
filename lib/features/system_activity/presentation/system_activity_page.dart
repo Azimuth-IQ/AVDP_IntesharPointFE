@@ -31,6 +31,19 @@ import 'package:inteshar/shared/widgets/role_badge.dart';
 
 const double _hPad = 16;
 
+/// Tab indices. `/hq/home` is the HQ landing page, so tab 0 is the health
+/// summary — "is anything wrong?" — and the raw request log is a tab, not the
+/// front door (UX-16).
+const int _tHealth = 0;
+const int _tActivity = 1;
+const int _tTxn = 2;
+const int _tEntity = 3;
+const int _tUser = 4;
+
+/// Which KPI tile was tapped. Every tile focuses the feed that explains it
+/// (UX-16: the strip used to be six numbers with no click-through).
+enum _Kpi { entities, stores, users, transactions, failedTransactions, events, warnings, errors }
+
 /// Holds the mutable paging state for one server-backed feed. The [fetch]
 /// closure reads the page's current filter fields at call time, so changing a
 /// filter is just `_reload(feed)`.
@@ -67,13 +80,19 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
   late final _PagedFeed<EntitySummaryRow> _entityFeed;
   late final _PagedFeed<AdminUserRow> _usersFeed;
 
-  int _tab = 0;
+  int _tab = _tHealth;
 
   // Activity filters (server-side).
   String? _level;
   bool _failuresOnly = false;
   final _pathCtrl = TextEditingController();
   Timer? _pathDebounce;
+
+  // UX-08: an entity focus for the activity feed, set by tapping a user row, an
+  // entity sheet or the entity id in a log detail — the investigation→action hop
+  // the oversight screen was missing.
+  String? _logEntityId;
+  String _logEntityLabel = '';
 
   // Transactions filter (server-side).
   TransactionStatus? _txnStatus;
@@ -97,6 +116,7 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
           level: _level,
           success: _failuresOnly ? false : null,
           path: _pathCtrl.text.trim(),
+          entityId: _logEntityId,
           page: p,
         ));
     _txnFeed = _PagedFeed<TransactionFeedRow>(
@@ -109,8 +129,7 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
     _usersFeed = _PagedFeed<AdminUserRow>(
         (p) => _repo().users(phone: _userSearchCtrl.text.trim(), page: p));
 
-    _loadOverview();
-    _reload(_logsFeed); // first tab
+    _loadOverview(); // the health tab is the landing tab; feeds load on demand
   }
 
   @override
@@ -194,13 +213,94 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
     setState(() => _tab = i);
     // Lazy-load a feed the first time its tab is opened.
     switch (i) {
-      case 1:
+      case _tActivity:
+        if (!_logsFeed.started) _reload(_logsFeed);
+      case _tTxn:
         if (!_txnFeed.started) _reload(_txnFeed);
-      case 2:
+      case _tEntity:
         if (!_entityFeed.started) _reload(_entityFeed);
-      case 3:
+      case _tUser:
         if (!_usersFeed.started) _reload(_usersFeed);
     }
+  }
+
+  /// A KPI tile is a question; this is its answer. Every tile switches to the
+  /// feed that explains the number AND applies the filter the number describes,
+  /// so "Failed: 5" lands on those five rows rather than on all 18,432 (UX-16).
+  void _focusKpi(_Kpi k) {
+    switch (k) {
+      case _Kpi.entities:
+        _entityType = null;
+        _entitySearchCtrl.clear();
+        _go(_tEntity, _entityFeed);
+      case _Kpi.stores:
+        _entityType = EntityType.STORE;
+        _entitySearchCtrl.clear();
+        _go(_tEntity, _entityFeed);
+      case _Kpi.users:
+        _userSearchCtrl.clear();
+        _go(_tUser, _usersFeed);
+      case _Kpi.transactions:
+        _txnStatus = null;
+        _go(_tTxn, _txnFeed);
+      case _Kpi.failedTransactions:
+        _txnStatus = TransactionStatus.FAILED;
+        _go(_tTxn, _txnFeed);
+      case _Kpi.events:
+        _clearActivityFilters();
+        _go(_tActivity, _logsFeed);
+      case _Kpi.warnings:
+        _clearActivityFilters();
+        _level = 'WARN';
+        _go(_tActivity, _logsFeed);
+      case _Kpi.errors:
+        _clearActivityFilters();
+        _level = 'ERROR';
+        _go(_tActivity, _logsFeed);
+    }
+  }
+
+  /// Switch to [tab] and refetch [feed] with the filters just applied. Marks the
+  /// feed started first so `_onTab`'s lazy load doesn't fire the same request a
+  /// second time.
+  void _go<T>(int tab, _PagedFeed<T> feed) {
+    feed.started = true;
+    _onTab(tab);
+    _reload(feed);
+  }
+
+  void _clearActivityFilters() {
+    _level = null;
+    _failuresOnly = false;
+    _pathCtrl.clear();
+    _logEntityId = null;
+    _logEntityLabel = '';
+  }
+
+  /// UX-08: jump from a user / entity / log row to that account's own activity.
+  void _focusEntityActivity(String entityId, String label) {
+    if (entityId.isEmpty) return;
+    setState(() {
+      _clearActivityFilters();
+      _logEntityId = entityId;
+      _logEntityLabel = label.isNotEmpty ? label : entityId;
+      _tab = _tActivity;
+    });
+    _logsFeed.started = true;
+    _reload(_logsFeed);
+  }
+
+  /// UX-08: jump from a user row (or an unpriced-agent chip) to the entity it
+  /// names, with the entities feed searched down to it.
+  void _focusEntitySearch(String label) {
+    if (label.isEmpty) return;
+    setState(() {
+      _entityType = null;
+      _entitySearchCtrl.text = label;
+      _tab = _tEntity;
+    });
+    _entityFeed.started = true;
+    _reload(_entityFeed);
   }
 
   /// This screen is ADMIN-only and the backend serves expired/anonymous tokens
@@ -214,23 +314,127 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
   void _refreshVisible() {
     _loadOverview();
     switch (_tab) {
-      case 0:
+      case _tActivity:
         _reload(_logsFeed);
-      case 1:
+      case _tTxn:
         _reload(_txnFeed);
-      case 2:
+      case _tEntity:
         _reload(_entityFeed);
-      case 3:
+      case _tUser:
         _reload(_usersFeed);
     }
   }
 
   // ── Build ────────────────────────────────────────────────────────────────────
 
+  bool get _activityFiltered =>
+      _level != null ||
+      _failuresOnly ||
+      _pathCtrl.text.trim().isNotEmpty ||
+      _logEntityId != null;
+
+  /// UX-38: the four badges used to mean two different things — Activity counted
+  /// the rows you happened to have paged in, the rest were server totals — and
+  /// none of them noticed the active filter, so twelve visible STORE cards sat
+  /// under a badge reading 412.
+  ///
+  /// One rule now: show the SERVER total when the overview can answer the
+  /// current filter exactly, otherwise show what is loaded, marked `+` while
+  /// more pages exist. Every badge carries a tooltip saying which it is.
+  _TabSpec _badge<T>({
+    required IconData icon,
+    required String label,
+    required _PagedFeed<T> feed,
+    required bool filtered,
+    int? serverTotal,
+    required bool ar,
+  }) {
+    if (!filtered && serverTotal != null) {
+      return _TabSpec(icon, label, serverTotal, false,
+          hint: ar ? 'الإجمالي على الخادم' : 'total on the server');
+    }
+    if (serverTotal != null) {
+      return _TabSpec(icon, label, serverTotal, false,
+          hint: ar ? 'المطابق للفلتر الحالي' : 'matching the current filter');
+    }
+    return _TabSpec(icon, label, feed.items.length, feed.hasMore,
+        hint: ar
+            ? 'المحمَّل حتى الآن${feed.hasMore ? ' — هناك المزيد' : ''}'
+            : 'loaded so far${feed.hasMore ? ' — more exist' : ''}');
+  }
+
+  /// Everything currently wrong, worst first. Empty = the all-clear state.
+  List<_Exception> _exceptions(bool ar) {
+    final o = _overview;
+    final out = <_Exception>[];
+    if (o == null) return out;
+    final failed = o.failedTxnCount;
+    if (failed > 0) {
+      out.add(_Exception(
+        icon: Icons.error_outline,
+        color: IntesharColors.oxblood,
+        title: ar
+            ? '$failed معاملة فاشلة'
+            : '$failed failed transaction${failed == 1 ? '' : 's'}',
+        subtitle: ar ? 'الإجمالي — كل الفترات' : 'all time',
+        onTap: () => _focusKpi(_Kpi.failedTransactions),
+      ));
+    }
+    final errors = o.activityErrors ?? 0;
+    if (errors > 0) {
+      out.add(_Exception(
+        icon: Icons.report_gmailerrorred_outlined,
+        color: IntesharColors.oxblood,
+        title: ar ? '$errors خطأ في السجل' : '$errors error${errors == 1 ? '' : 's'} in the log',
+        subtitle: _windowLabel(o.activityWindowHours, ar),
+        onTap: () => _focusKpi(_Kpi.errors),
+      ));
+    }
+    if (_unpriced.isNotEmpty) {
+      out.add(_Exception(
+        icon: Icons.price_change_outlined,
+        color: IntesharColors.warn,
+        title: ar
+            ? '${_unpriced.length} وكيل رئيسي لديه بطاقات غير مسعّرة'
+            : '${_unpriced.length} main agent(s) with unpriced cards',
+        subtitle: ar
+            ? 'البطاقات غير المسعّرة لا تُباع بالسعر الصحيح'
+            : 'unpriced cards do not sell at the right price',
+        onTap: null, // the card below lists them, each agent tappable
+      ));
+    }
+    final warns = o.activityWarnings ?? 0;
+    if (warns > 0) {
+      out.add(_Exception(
+        icon: Icons.warning_amber_rounded,
+        color: IntesharColors.warn,
+        title: ar ? '$warns تحذير' : '$warns warning${warns == 1 ? '' : 's'}',
+        subtitle: _windowLabel(o.activityWindowHours, ar),
+        onTap: () => _focusKpi(_Kpi.warnings),
+      ));
+    }
+    return out;
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
     final o = _overview;
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    final exceptions = _exceptions(ar);
+
+    // A status filter the overview can answer exactly; an empty byStatus map
+    // (an older backend) falls back to the loaded count rather than lying "0".
+    final txnTotal = _txnStatus == null
+        ? o?.txnTotal
+        : (o == null || o.txnByStatus.isEmpty ? null : (o.txnByStatus[_txnStatus!.name] ?? 0));
+    final entitySearching = _entitySearchCtrl.text.trim().isNotEmpty;
+    final entityTotal = entitySearching
+        ? null
+        : _entityType == null
+            ? o?.entityTotal
+            : (o == null || o.entityByType.isEmpty ? null : (o.entityByType[_entityType!.name] ?? 0));
+    final userTotal = _userSearchCtrl.text.trim().isNotEmpty ? null : o?.userTotal;
 
     return MaxWidthBox(
       child: Column(
@@ -246,20 +450,55 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
               icon: const Icon(Icons.refresh, size: 20),
             ),
           ),
-          _StatStrip(overview: o, loading: _overviewLoading, l: l),
-          if (_unpriced.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _UnpricedAgentsCard(rows: _unpriced),
-          ],
+          _StatStrip(
+            overview: o,
+            loading: _overviewLoading,
+            l: l,
+            onFocus: _focusKpi,
+          ),
           const SizedBox(height: 12),
           _TabBar(
             current: _tab,
             onSelect: _onTab,
             items: [
-              _TabSpec(Icons.bolt_outlined, l.sysActActivity, _logsFeed.items.length, _logsFeed.hasMore),
-              _TabSpec(Icons.swap_horiz, l.navTransactions, o?.txnTotal ?? 0, false),
-              _TabSpec(Icons.account_tree_outlined, l.sysActEntities, o?.entityTotal ?? 0, false),
-              _TabSpec(Icons.people_alt_outlined, l.sysActUsers, o?.userTotal ?? 0, false),
+              _TabSpec(
+                exceptions.isEmpty ? Icons.check_circle_outline : Icons.health_and_safety_outlined,
+                ar ? 'الحالة' : 'Health',
+                exceptions.length,
+                false,
+                hint: ar ? 'أمور تحتاج إلى إجراء' : 'things needing action',
+              ),
+              _badge(
+                icon: Icons.bolt_outlined,
+                label: l.sysActActivity,
+                feed: _logsFeed,
+                filtered: _activityFiltered,
+                ar: ar,
+              ),
+              _badge(
+                icon: Icons.swap_horiz,
+                label: l.navTransactions,
+                feed: _txnFeed,
+                filtered: _txnStatus != null,
+                serverTotal: txnTotal,
+                ar: ar,
+              ),
+              _badge(
+                icon: Icons.account_tree_outlined,
+                label: l.sysActEntities,
+                feed: _entityFeed,
+                filtered: _entityType != null || entitySearching,
+                serverTotal: entityTotal,
+                ar: ar,
+              ),
+              _badge(
+                icon: Icons.people_alt_outlined,
+                label: l.sysActUsers,
+                feed: _usersFeed,
+                filtered: userTotal == null,
+                serverTotal: userTotal,
+                ar: ar,
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -267,6 +506,7 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
             child: IndexedStack(
               index: _tab,
               children: [
+                _buildHealthTab(l, ar, exceptions),
                 _buildActivityTab(l),
                 _buildTransactionsTab(l),
                 _buildEntitiesTab(l),
@@ -274,6 +514,46 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  // ── Health tab (the landing tab) ────────────────────────────────────────────
+
+  Widget _buildHealthTab(AppLocalizations l, bool ar, List<_Exception> exceptions) {
+    return RefreshIndicator(
+      onRefresh: _loadOverview,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(_hPad, 2, _hPad, 32),
+        children: [
+          if (_overviewLoading && _overview == null)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 48),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          // Never claim "all clear" on the strength of a load that failed — the
+          // KPI payload is the only thing that knows whether anything is wrong.
+          else if (_overview == null)
+            _NoticeState(
+              icon: Icons.cloud_off_outlined,
+              message: ar
+                  ? 'تعذّر تحميل حالة النظام.'
+                  : "Couldn't load the system health summary.",
+              actionLabel: l.inventoryRefresh,
+              onAction: _loadOverview,
+            )
+          else if (exceptions.isEmpty)
+            _AllClearCard(ar: ar, windowLabel: _windowLabel(_overview?.activityWindowHours, ar))
+          else
+            _ExceptionsCard(rows: exceptions, ar: ar),
+          if (_unpriced.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _UnpricedAgentsCard(rows: _unpriced, onTapAgent: _focusEntitySearch),
+          ],
+          const SizedBox(height: 12),
+          _HealthHint(ar: ar),
         ],
       ),
     );
@@ -370,6 +650,29 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
                   _reload(_logsFeed);
                 },
               ),
+              // UX-08: the account this feed is scoped to, and the way back out.
+              if (_logEntityId != null) ...[
+                const SizedBox(height: 10),
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: InputChip(
+                    avatar: const Icon(Icons.person_search_outlined, size: 16),
+                    label: Text(
+                      Localizations.localeOf(context).languageCode == 'ar'
+                          ? 'نشاط: $_logEntityLabel'
+                          : 'Activity of: $_logEntityLabel',
+                      style: IntesharType.sans(12.5),
+                    ),
+                    onDeleted: () {
+                      setState(() {
+                        _logEntityId = null;
+                        _logEntityLabel = '';
+                      });
+                      _reload(_logsFeed);
+                    },
+                  ),
+                ),
+              ],
               const SizedBox(height: 10),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
@@ -445,7 +748,16 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) => _LogDetailSheet(light: row, future: _repo().logDetail(row.id)),
+      builder: (sheetCtx) => _LogDetailSheet(
+        light: row,
+        future: _repo().logDetail(row.id),
+        // UX-08: a monospace entity id is a dead end. Tapping it scopes the feed
+        // to that account.
+        onEntity: (id) {
+          Navigator.pop(sheetCtx);
+          _focusEntityActivity(id, id);
+        },
+      ),
     );
   }
 
@@ -585,7 +897,16 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) => _EntityDetailSheet(row: row, usersFuture: usersFuture, l: l),
+      builder: (sheetCtx) => _EntityDetailSheet(
+        row: row,
+        usersFuture: usersFuture,
+        l: l,
+        // UX-08: a read-only sheet ends the investigation. This continues it.
+        onViewActivity: () {
+          Navigator.pop(sheetCtx);
+          _focusEntityActivity(row.id, row.label);
+        },
+      ),
     );
   }
 
@@ -618,45 +939,330 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
             l: l,
             emptyMessage: l.sysActNoUsers,
             onRefresh: () => _refreshWithOverview(_usersFeed),
-            itemBuilder: (row) => _UserRow(row: row, l: l),
+            itemBuilder: (row) =>
+                _UserRow(row: row, l: l, onTap: () => _showUserActions(row, l)),
           ),
         ),
       ],
     );
   }
+
+  /// UX-08: a user row used to be a dead end — a phone number and a role, with
+  /// the shop it belongs to spelled out but unreachable. Two hops out of it now.
+  void _showUserActions(AdminUserRow row, AppLocalizations l) {
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetCtx) => _SheetFrame(
+        title: row.phone,
+        titleTrailing: _roleChip(sheetCtx, row.roleEnum, l),
+        children: [
+          _kv(sheetCtx, l.sysActFieldUser, row.phone, mono: true),
+          _kv(sheetCtx, l.manageUsersRole, row.role),
+          _kv(sheetCtx, l.sysActFieldEntity, row.entityLabel),
+          if (row.entityType.isNotEmpty) _kv(sheetCtx, l.sysActEntities, row.entityType),
+          const SizedBox(height: 6),
+          if (row.entityId.isNotEmpty)
+            Wrap(spacing: 10, runSpacing: 10, children: [
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(sheetCtx);
+                  _focusEntityActivity(row.entityId, row.entityLabel);
+                },
+                icon: const Icon(Icons.bolt_outlined, size: 18),
+                label: Text(ar ? 'نشاط هذا الحساب' : "This account's activity"),
+              ),
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(sheetCtx);
+                  _focusEntitySearch(row.entityLabel);
+                },
+                icon: const Icon(Icons.account_tree_outlined, size: 18),
+                label: Text(ar ? 'فتح الحساب' : 'Open the account'),
+              ),
+            ]),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Health tab pieces (UX-16) ─────────────────────────────────────────────────
+
+String _windowLabel(int? hours, bool ar) {
+  if (hours == null || hours <= 0) return ar ? 'نافذة السجل' : 'log window';
+  return ar ? 'آخر $hours ساعة' : 'last ${hours}h';
+}
+
+class _Exception {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final VoidCallback? onTap;
+  const _Exception({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    this.onTap,
+  });
+}
+
+/// The state the landing page never had: nothing is wrong, and it says so.
+class _AllClearCard extends StatelessWidget {
+  final bool ar;
+  final String windowLabel;
+  const _AllClearCard({required this.ar, required this.windowLabel});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+      decoration: BoxDecoration(
+        color: IntesharColors.sage.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(IntesharRadii.md),
+        border: Border.all(color: IntesharColors.sage.withValues(alpha: 0.35)),
+      ),
+      child: Row(children: [
+        Container(
+          width: 42,
+          height: 42,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: IntesharColors.sage.withValues(alpha: 0.16),
+            borderRadius: BorderRadius.circular(21),
+          ),
+          child: const Icon(Icons.check_circle_outline_rounded, size: 22, color: IntesharColors.sage),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(ar ? 'كل شيء يعمل بشكل سليم' : 'Everything is running clean',
+                style: IntesharType.sans(14.5, color: cs.onSurface, w: FontWeight.w800)),
+            const SizedBox(height: 3),
+            Text(
+              ar
+                  ? 'لا توجد معاملات فاشلة ولا أخطاء في $windowLabel.'
+                  : 'No failed transactions and no errors in the $windowLabel.',
+              style: IntesharType.sans(12.5, color: cs.onSurfaceVariant),
+            ),
+          ]),
+        ),
+      ]),
+    );
+  }
+}
+
+/// The ranked exceptions, worst first — each one a way into the rows behind it.
+class _ExceptionsCard extends StatelessWidget {
+  final List<_Exception> rows;
+  final bool ar;
+  const _ExceptionsCard({required this.rows, required this.ar});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return InkCard(
+      padding: EdgeInsets.zero,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(18, 14, 18, 12),
+          child: Text(
+            ar ? 'يحتاج إلى إجراء' : 'Needs your attention',
+            style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w800),
+          ),
+        ),
+        const Hairline(),
+        for (var i = 0; i < rows.length; i++) ...[
+          if (i > 0) const Hairline(),
+          InkWell(
+            onTap: rows[i].onTap,
+            child: Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(18, 12, 14, 12),
+              child: Row(children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: rows[i].color.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(rows[i].icon, size: 18, color: rows[i].color),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(rows[i].title,
+                        style: IntesharType.sans(13.5, color: cs.onSurface, w: FontWeight.w700)),
+                    const SizedBox(height: 2),
+                    Text(rows[i].subtitle,
+                        style: IntesharType.sans(11.5, color: cs.onSurfaceVariant)),
+                  ]),
+                ),
+                if (rows[i].onTap != null)
+                  Icon(Icons.chevron_right, size: 18, color: cs.onSurfaceVariant),
+              ]),
+            ),
+          ),
+        ],
+      ]),
+    );
+  }
+}
+
+/// Says where the raw feed went — the log used to BE this screen, so an admin
+/// who knew it by sight needs one line telling them it is a tab now.
+class _HealthHint extends StatelessWidget {
+  final bool ar;
+  const _HealthHint({required this.ar});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Row(children: [
+      Icon(Icons.info_outline, size: 15, color: cs.onSurfaceVariant),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Text(
+          ar
+              ? 'الأرقام أعلاه قابلة للنقر: كل بطاقة تفتح القائمة التي تشرحها. السجل الكامل في تبويب "النشاط".'
+              : 'The numbers above are tappable — each opens the list behind it. The full request log is in the Activity tab.',
+          style: IntesharType.sans(11.5, color: cs.onSurfaceVariant),
+        ),
+      ),
+    ]);
+  }
 }
 
 // ─── Stat strip ────────────────────────────────────────────────────────────────
 
+/// UX-37: five of these tiles are all-time totals and the sixth was windowed,
+/// side by side with nothing saying so — "Errors 4" next to "Transactions
+/// 18,432" reads as the same period. Every tile now states its period, and the
+/// window's own numbers (events / warnings), which were parsed off the payload
+/// and rendered nowhere, are on screen. Values use the app-wide thousands
+/// grouping instead of a bare `toString()`.
 class _StatStrip extends StatelessWidget {
   final SystemOverview? overview;
   final bool loading;
   final AppLocalizations l;
-  const _StatStrip({required this.overview, required this.loading, required this.l});
+  final void Function(_Kpi) onFocus;
+  const _StatStrip({
+    required this.overview,
+    required this.loading,
+    required this.l,
+    required this.onFocus,
+  });
 
   @override
   Widget build(BuildContext context) {
     final o = overview;
-    String v(int? n) => n == null ? '—' : n.toString();
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    String v(int? n) => n == null ? '—' : Formatters.money(n);
+    final allTime = ar ? 'الإجمالي' : 'all time';
+    final window = _windowLabel(o?.activityWindowHours, ar);
 
     final tiles = <Widget>[
-      _StatTile(icon: Icons.account_tree_outlined, tint: context.tones.brand, value: v(o?.entityTotal), label: l.sysActEntities),
-      _StatTile(icon: Icons.people_alt_outlined, tint: const Color(0xFF2563EB), value: v(o?.userTotal), label: l.sysActUsers),
-      _StatTile(icon: Icons.swap_horiz, tint: IntesharColors.sage, value: v(o?.txnTotal), label: l.navTransactions),
-      _StatTile(icon: Icons.storefront_outlined, tint: context.tones.brandInk, value: v(o?.storeCount), label: l.sysActStores),
-      _StatTile(icon: Icons.error_outline, tint: IntesharColors.oxblood, value: v(o?.failedTxnCount), label: l.sysActFailed),
-      if (o != null && o.hasActivity)
-        _StatTile(icon: Icons.warning_amber_rounded, tint: IntesharColors.oxblood, value: v(o.activityErrors), label: l.sysActLevelError),
+      _StatTile(
+        icon: Icons.account_tree_outlined,
+        tint: context.tones.brand,
+        value: v(o?.entityTotal),
+        label: l.sysActEntities,
+        period: allTime,
+        onTap: () => onFocus(_Kpi.entities),
+      ),
+      _StatTile(
+        icon: Icons.people_alt_outlined,
+        tint: const Color(0xFF2563EB),
+        value: v(o?.userTotal),
+        label: l.sysActUsers,
+        period: allTime,
+        onTap: () => onFocus(_Kpi.users),
+      ),
+      _StatTile(
+        icon: Icons.swap_horiz,
+        tint: IntesharColors.sage,
+        value: v(o?.txnTotal),
+        label: l.navTransactions,
+        period: allTime,
+        onTap: () => onFocus(_Kpi.transactions),
+      ),
+      _StatTile(
+        icon: Icons.storefront_outlined,
+        tint: context.tones.brandInk,
+        value: v(o?.storeCount),
+        label: l.sysActStores,
+        period: allTime,
+        onTap: () => onFocus(_Kpi.stores),
+      ),
+      _StatTile(
+        icon: Icons.error_outline,
+        tint: IntesharColors.oxblood,
+        value: v(o?.failedTxnCount),
+        // "Failed" alone said nothing about WHAT failed.
+        label: ar ? 'معاملات فاشلة' : 'Failed transactions',
+        period: allTime,
+        onTap: () => onFocus(_Kpi.failedTransactions),
+      ),
+      if (o != null && o.hasActivity) ...[
+        _StatTile(
+          icon: Icons.bolt_outlined,
+          tint: const Color(0xFF2563EB),
+          value: v(o.activityEvents),
+          label: ar ? 'أحداث' : 'Events',
+          period: window,
+          onTap: () => onFocus(_Kpi.events),
+        ),
+        _StatTile(
+          icon: Icons.warning_amber_rounded,
+          tint: IntesharColors.warn,
+          value: v(o.activityWarnings),
+          label: l.sysActLevelWarn,
+          period: window,
+          onTap: () => onFocus(_Kpi.warnings),
+        ),
+        _StatTile(
+          icon: Icons.report_gmailerrorred_outlined,
+          tint: IntesharColors.oxblood,
+          value: v(o.activityErrors),
+          label: l.sysActLevelError,
+          period: window,
+          onTap: () => onFocus(_Kpi.errors),
+        ),
+      ],
     ];
 
-    return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(_hPad, 4, _hPad, 0),
-      child: Wrap(
-        spacing: 10,
-        runSpacing: 10,
-        children: [for (final t in tiles) SizedBox(width: 168, child: t)],
-      ),
-    );
+    return LayoutBuilder(builder: (ctx, c) {
+      // Three windowed tiles joined the five all-time ones, which on a phone
+      // would have been four stacked rows of KPI above the feed. Narrow widths
+      // scroll the strip sideways instead — the same pattern as the filter
+      // pills — so the list below keeps its room.
+      if (c.maxWidth < 560) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsetsDirectional.fromSTEB(_hPad, 4, _hPad, 0),
+          child: Row(children: [
+            for (var i = 0; i < tiles.length; i++) ...[
+              if (i > 0) const SizedBox(width: 10),
+              SizedBox(width: 176, child: tiles[i]),
+            ],
+          ]),
+        );
+      }
+      return Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(_hPad, 4, _hPad, 0),
+        child: Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [for (final t in tiles) SizedBox(width: 176, child: t)],
+        ),
+      );
+    });
   }
 }
 
@@ -665,13 +1271,26 @@ class _StatTile extends StatelessWidget {
   final Color tint;
   final String value;
   final String label;
-  const _StatTile({required this.icon, required this.tint, required this.value, required this.label});
+
+  /// The period the number covers — the thing whose absence made a windowed
+  /// count sit beside five all-time counts and read the same (UX-37).
+  final String period;
+  final VoidCallback? onTap;
+  const _StatTile({
+    required this.icon,
+    required this.tint,
+    required this.value,
+    required this.label,
+    required this.period,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return InkCard(
       padding: const EdgeInsetsDirectional.fromSTEB(14, 13, 14, 13),
+      onTap: onTap,
       child: Row(
         children: [
           Container(
@@ -696,6 +1315,11 @@ class _StatTile extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: IntesharType.sans(11, color: IntesharColors.inkSoft, w: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text(period,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: IntesharType.sans(10, color: cs.onSurfaceVariant, w: FontWeight.w500)),
               ],
             ),
           ),
@@ -712,7 +1336,11 @@ class _TabSpec {
   final String label;
   final int count;
   final bool approxCount;
-  const _TabSpec(this.icon, this.label, this.count, this.approxCount);
+
+  /// What the badge is counting — a server total, the filtered total, or just
+  /// the rows paged in so far (UX-38).
+  final String hint;
+  const _TabSpec(this.icon, this.label, this.count, this.approxCount, {this.hint = ''});
 }
 
 class _TabBar extends StatelessWidget {
@@ -764,16 +1392,22 @@ class _TabChip extends StatelessWidget {
               Text(spec.label,
                   style: IntesharType.sans(13, color: fg, w: active ? FontWeight.w800 : FontWeight.w600)),
               const SizedBox(width: 7),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(
-                  color: active
-                      ? cs.onSurface.withValues(alpha: 0.12)
-                      : cs.onSurfaceVariant.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
+              Tooltip(
+                message: spec.hint,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: active
+                        ? cs.onSurface.withValues(alpha: 0.12)
+                        : cs.onSurfaceVariant.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                      spec.approxCount
+                          ? '${Formatters.money(spec.count)}+'
+                          : Formatters.money(spec.count),
+                      style: IntesharType.mono(10, color: fg, w: FontWeight.w700)),
                 ),
-                child: Text(spec.approxCount ? '${spec.count}+' : '${spec.count}',
-                    style: IntesharType.mono(10, color: fg, w: FontWeight.w700)),
               ),
             ],
           ),
@@ -979,7 +1613,8 @@ class _LogRow extends StatelessWidget {
 class _LogDetailSheet extends StatelessWidget {
   final OperationLog light;
   final Future<OperationLog> future;
-  const _LogDetailSheet({required this.light, required this.future});
+  final ValueChanged<String>? onEntity;
+  const _LogDetailSheet({required this.light, required this.future, this.onEntity});
 
   @override
   Widget build(BuildContext context) {
@@ -1012,7 +1647,7 @@ class _LogDetailSheet extends StatelessWidget {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ..._logKv(ctx, l, log),
+                ..._logKv(ctx, l, log, onEntity: onEntity),
                 if (loading)
                   const Padding(
                     padding: EdgeInsets.only(top: 8),
@@ -1027,8 +1662,10 @@ class _LogDetailSheet extends StatelessWidget {
   }
 }
 
-List<Widget> _logKv(BuildContext context, AppLocalizations l, OperationLog log) {
+List<Widget> _logKv(BuildContext context, AppLocalizations l, OperationLog log,
+    {ValueChanged<String>? onEntity}) {
   final cs = Theme.of(context).colorScheme;
+  final ar = Localizations.localeOf(context).languageCode == 'ar';
   return [
     _kv(context, l.sysActFieldTime, _fmtFull(log.timestamp)),
     _kv(context, l.sysActFieldSource, log.source == 'client' ? l.sysActSourceClient : l.sysActSourceServer),
@@ -1041,6 +1678,19 @@ List<Widget> _logKv(BuildContext context, AppLocalizations l, OperationLog log) 
     if (log.userPhone.isNotEmpty) _kv(context, l.sysActFieldUser, log.userPhone, mono: true),
     if (log.userRole.isNotEmpty) _kv(context, l.manageUsersRole, log.userRole),
     if (log.entityId.isNotEmpty) _kv(context, l.sysActFieldEntity, log.entityId, mono: true),
+    // UX-08: the id above identifies an account nobody could reach from here.
+    if (log.entityId.isNotEmpty && onEntity != null)
+      Padding(
+        padding: const EdgeInsets.only(bottom: 9),
+        child: Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: OutlinedButton.icon(
+            onPressed: () => onEntity(log.entityId),
+            icon: const Icon(Icons.bolt_outlined, size: 16),
+            label: Text(ar ? 'نشاط هذا الحساب' : "This account's activity"),
+          ),
+        ),
+      ),
     if (log.surface.isNotEmpty) _kv(context, l.sysActFieldSurface, log.surface),
     if (log.clientPlatform.isNotEmpty) _kv(context, l.sysActFieldPlatform, log.clientPlatform),
     if (log.deviceModel.isNotEmpty || log.osVersion.isNotEmpty)
@@ -1275,15 +1925,33 @@ class _EntityDetailSheet extends StatelessWidget {
   final EntitySummaryRow row;
   final Future<Paged<AdminUserRow>> usersFuture;
   final AppLocalizations l;
-  const _EntityDetailSheet({required this.row, required this.usersFuture, required this.l});
+  final VoidCallback? onViewActivity;
+  const _EntityDetailSheet({
+    required this.row,
+    required this.usersFuture,
+    required this.l,
+    this.onViewActivity,
+  });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
     return _SheetFrame(
       title: row.label,
       titleTrailing: RoleBadge(type: row.type),
       children: [
+        if (onViewActivity != null) ...[
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: OutlinedButton.icon(
+              onPressed: onViewActivity,
+              icon: const Icon(Icons.bolt_outlined, size: 18),
+              label: Text(ar ? 'نشاط هذا الحساب' : "This account's activity"),
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
         _kv(context, l.entityTreeIdent, row.id, mono: true),
         if (row.parentName.isNotEmpty) _kv(context, l.entityTreeParentLabel, row.parentName),
         if (row.slogan.isNotEmpty) _kv(context, l.entityTreeFieldSlogan, row.slogan),
@@ -1343,7 +2011,8 @@ Widget _roleChip(BuildContext context, UserRole role, AppLocalizations l) => Sta
 class _UserRow extends StatelessWidget {
   final AdminUserRow row;
   final AppLocalizations l;
-  const _UserRow({required this.row, required this.l});
+  final VoidCallback? onTap;
+  const _UserRow({required this.row, required this.l, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -1351,6 +2020,7 @@ class _UserRow extends StatelessWidget {
     final type = row.entityTypeEnum;
     return InkCard(
       padding: const EdgeInsetsDirectional.fromSTEB(14, 12, 14, 12),
+      onTap: onTap,
       child: Row(
         children: [
           Container(
@@ -1386,6 +2056,10 @@ class _UserRow extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           _roleChip(context, row.roleEnum, l),
+          if (onTap != null) ...[
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_right, size: 18, color: cs.onSurfaceVariant),
+          ],
         ],
       ),
     );
@@ -1554,8 +2228,13 @@ class _CodeBlock extends StatelessWidget {
 /// B-060: an HQ oversight card listing Main Agents holding stock in unpriced
 /// categories ("اظهار تنبيه بأي وكيل لم يتم تسعير الكروت له"). Always current.
 class _UnpricedAgentsCard extends StatelessWidget {
-  const _UnpricedAgentsCard({required this.rows});
+  const _UnpricedAgentsCard({required this.rows, this.onTapAgent});
   final List<UnpricedAgent> rows;
+
+  /// UX-16: the one genuinely useful alert on the landing page rendered its
+  /// agents as inert `Chip`s. Tapping one now opens that agent in the entities
+  /// feed instead of leaving the reader to go find it by name.
+  final ValueChanged<String>? onTapAgent;
 
   @override
   Widget build(BuildContext context) {
@@ -1584,10 +2263,16 @@ class _UnpricedAgentsCard extends StatelessWidget {
         const SizedBox(height: 6),
         Wrap(spacing: 8, runSpacing: 6, children: [
           for (final r in rows)
-            Chip(
+            ActionChip(
               visualDensity: VisualDensity.compact,
+              avatar: onTapAgent == null
+                  ? null
+                  : Icon(Icons.open_in_new, size: 14, color: cs.onSurfaceVariant),
               label: Text('${r.name.isNotEmpty ? r.name : r.entityId} · ${r.unpricedCount}',
                   style: IntesharType.sans(12, color: cs.onSurface)),
+              onPressed: onTapAgent == null
+                  ? null
+                  : () => onTapAgent!(r.name.isNotEmpty ? r.name : r.entityId),
             ),
         ]),
       ]),

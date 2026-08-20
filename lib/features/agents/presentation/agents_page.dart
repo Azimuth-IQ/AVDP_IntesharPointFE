@@ -13,6 +13,7 @@ import 'package:inteshar/features/agents/presentation/agent_form.dart';
 import 'package:inteshar/features/agents/presentation/agent_strings.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
+import 'package:inteshar/features/entities/presentation/delete_agent_sheet.dart';
 import 'package:inteshar/features/system_activity/domain/feed_rows.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
@@ -20,7 +21,8 @@ import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
 /// HQ admin directory for one agent tier (Main Agents or Sub Agents). Paged,
-/// searchable; create/edit via the shared [AgentForm]; delete with confirm. The
+/// searchable; create/edit via the shared [AgentForm]; delete via the shared
+/// [showDeleteAgentSheet] clear-out sheet (same path as the hierarchy tree). The
 /// page is reached only on HQ routes; the backend independently enforces that
 /// create/update/delete are HQ-only.
 class AgentsPage extends ConsumerStatefulWidget {
@@ -130,35 +132,26 @@ class _AgentsPageState extends ConsumerState<AgentsPage> {
     if (ok == true) _reload();
   }
 
+  /// Deleting an agent is leaf-only AND needs an authenticator code, so this
+  /// opens the same clear-out sheet the hierarchy tree uses instead of a local
+  /// confirm dialog.
+  ///
+  /// The dialog this replaced called `delete(id)` with no code at all, which the
+  /// server refuses for every tier — the button could not delete anything for a
+  /// 2FA-enrolled admin, and it also gave an agent still holding sub-agents and
+  /// shops a bare "leaf-only" refusal with nothing to act on. The sheet lists
+  /// everything attached, deletes each item with its own confirmation code, and
+  /// unlocks the account once it is empty.
   Future<void> _confirmDelete(EntitySummaryRow row) async {
-    final s = AgentStrings.of(context, tier);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(s.deleteTitle),
-        content: Text(s.deleteBody(row.label)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.cancel)),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(s.delete),
-          ),
-        ],
-      ),
+    // True when ANYTHING went — the account itself, or any child cleared out on
+    // the way there — which is exactly when this list is stale.
+    final changed = await showDeleteAgentSheet(
+      context,
+      ref,
+      entityId: row.id,
+      entityName: row.label,
     );
-    if (ok != true) return;
-    try {
-      await _repo.delete(row.id);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.deleted)));
-      }
-      _reload();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
-      }
-    }
+    if (changed && mounted) _reload();
   }
 
   @override

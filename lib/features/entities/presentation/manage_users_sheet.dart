@@ -67,30 +67,39 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
       ? UserRole.values
       : [UserRole.ADMIN];
 
-  void _tryAddUser() {
+  /// True when the new-user sub-form has been typed into but not committed.
+  /// Creating a login is why people open this sheet, so a draft this far along
+  /// is an intention, not leftovers.
+  bool get _hasDraft =>
+      _phoneCtrl.text.trim().isNotEmpty || _passCtrl.text.trim().isNotEmpty;
+
+  /// Validates the sub-form and appends the user to [_users]. Returns false and
+  /// leaves [_addError] set when the draft cannot be accepted, so a caller can
+  /// stop rather than carry on past a half-typed login.
+  bool _tryAddUser() {
     final l = AppLocalizations.of(context)!;
     final phone = _phoneCtrl.text.trim();
     final pass = _passCtrl.text.trim();
 
     if (phone.isEmpty) {
       setState(() => _addError = l.manageUsersPhoneRequired);
-      return;
+      return false;
     }
     if (pass.isEmpty) {
       setState(() => _addError = l.manageUsersPasswordRequired);
-      return;
+      return false;
     }
     if (!RegExp(r'^07\d{9}$').hasMatch(phone)) {
       setState(() => _addError = l.invalidPhone);
-      return;
+      return false;
     }
     if (pass.length < 6) {
       setState(() => _addError = l.passwordTooShort);
-      return;
+      return false;
     }
     if (_users.any((u) => u.phone == phone)) {
       setState(() => _addError = l.manageUsersPhoneDuplicate);
-      return;
+      return false;
     }
 
     final id = 'u-$phone-${DateTime.now().millisecondsSinceEpoch}';
@@ -102,6 +111,7 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
     });
     _phoneCtrl.clear();
     _passCtrl.clear();
+    return true;
   }
 
   /// True when this user already exists on the server, so dropping them is a
@@ -135,6 +145,13 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
   }
 
   bool get _ar => Localizations.localeOf(context).languageCode == 'ar';
+  String _t(String ar, String en) => _ar ? ar : en;
+
+  void _snack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
 
   Future<void> _resetPassword(EntityUser u) async {
     final ctrl = TextEditingController();
@@ -237,6 +254,19 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
 
   Future<void> _save() async {
     final l = AppLocalizations.of(context)!;
+
+    // A phone and password typed into the sub-form and never "registered" used
+    // to be dropped on the floor: Save reported success and no login existed.
+    // Filling those fields IS the request, so save folds the draft in — or
+    // stops on its error rather than discarding it.
+    if (_hasDraft && !_tryAddUser()) {
+      _snack(_t(
+        'أكمل بيانات المستخدم الجديد أو امسحها قبل الحفظ.',
+        'Finish or clear the new user before saving.',
+      ));
+      return;
+    }
+
     final remaining = _effectiveUsers;
     // Counts what SURVIVES the save. Checking _users would happily let the
     // operator mark every user for removal and only find out server-side.
@@ -383,70 +413,104 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
               ),
 
             const SizedBox(height: 16),
-            Container(height: 1, color: cs.outline),
-            const SizedBox(height: 16),
 
-            Text(
-              l.manageUsersNewUser,
-              style: IntesharType.overline(color: cs.onPrimaryContainer),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _phoneCtrl,
-              keyboardType: TextInputType.phone,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(11),
-              ],
-              style: GoogleFonts.jetBrainsMono(
-                fontSize: 14,
-                color: cs.onSurface,
-                letterSpacing: 0.6,
+            // The sub-form is boxed so its own commit button reads as belonging
+            // to it and not to the sheet. Two bare buttons stacked in one column
+            // both looked like "the" commit, and the wrong one was pressed.
+            Container(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+              decoration: BoxDecoration(
+                color: cs.surfaceContainerHighest.withValues(alpha: 0.35),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: cs.outlineVariant),
               ),
-              decoration: InputDecoration(labelText: l.manageUsersPhone),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _passCtrl,
-              obscureText: _obscurePass,
-              style: GoogleFonts.jetBrainsMono(
-                fontSize: 14,
-                color: cs.onSurface,
-                letterSpacing: 0.8,
-              ),
-              decoration: InputDecoration(
-                labelText: l.manageUsersPassword,
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscurePass ? Icons.visibility : Icons.visibility_off,
-                    size: 18,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l.manageUsersNewUser,
+                    style: IntesharType.overline(color: cs.onPrimaryContainer),
                   ),
-                  onPressed: () => setState(() => _obscurePass = !_obscurePass),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<UserRole>(
-              initialValue: _selectedRole,
-              decoration: InputDecoration(labelText: l.manageUsersRole),
-              items: _allowedRoles
-                  .map((r) => DropdownMenuItem(value: r, child: Text(r.name)))
-                  .toList(),
-              onChanged: (v) {
-                if (v != null) setState(() => _selectedRole = v);
-              },
-            ),
-            if (_addError != null) ...[
-              const SizedBox(height: 10),
-              Text(_addError!, style: TextStyle(color: cs.error, fontSize: 12)),
-            ],
-            const SizedBox(height: 12),
-            Align(
-              alignment: AlignmentDirectional.centerEnd,
-              child: OutlinedButton.icon(
-                onPressed: _tryAddUser,
-                icon: const Icon(Icons.person_add_alt, size: 16),
-                label: Text(l.manageUsersRegisterButton),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _phoneCtrl,
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(11),
+                    ],
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 14,
+                      color: cs.onSurface,
+                      letterSpacing: 0.6,
+                    ),
+                    decoration: InputDecoration(labelText: l.manageUsersPhone),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _passCtrl,
+                    obscureText: _obscurePass,
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 14,
+                      color: cs.onSurface,
+                      letterSpacing: 0.8,
+                    ),
+                    decoration: InputDecoration(
+                      labelText: l.manageUsersPassword,
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePass
+                              ? Icons.visibility
+                              : Icons.visibility_off,
+                          size: 18,
+                        ),
+                        onPressed: () =>
+                            setState(() => _obscurePass = !_obscurePass),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<UserRole>(
+                    initialValue: _selectedRole,
+                    decoration: InputDecoration(labelText: l.manageUsersRole),
+                    items: _allowedRoles
+                        .map((r) =>
+                            DropdownMenuItem(value: r, child: Text(r.name)))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) setState(() => _selectedRole = v);
+                    },
+                  ),
+                  if (_addError != null) ...[
+                    const SizedBox(height: 10),
+                    Text(_addError!,
+                        style: TextStyle(color: cs.error, fontSize: 12)),
+                  ],
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: FilledButton.tonalIcon(
+                      onPressed: () => _tryAddUser(),
+                      icon: const Icon(Icons.person_add_alt, size: 16),
+                      label: Text(l.manageUsersRegisterButton),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  // Says out loud what the two buttons do differently, since a
+                  // draft left here is now folded into the save either way.
+                  Text(
+                    _t(
+                      'يُضاف المستخدم إلى القائمة أعلاه — والحفظ بالأسفل يكتب القائمة.',
+                      'Adds the user to the list above — the button below writes '
+                          'the list.',
+                    ),
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: cs.onSurfaceVariant),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 16),

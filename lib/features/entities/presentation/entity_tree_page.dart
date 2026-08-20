@@ -993,7 +993,11 @@ class _EntityFormSheetState extends State<_EntityFormSheet> {
             // ── New brand fields ─────────────────────────────────────────
             ImageUploadField(
               value: widget.logoCtrl.text.isEmpty ? null : widget.logoCtrl.text,
-              label: l.entityFieldLogoUrl,
+              // Not the ARB "Logo URL": this is an upload button and a
+              // thumbnail, so a URL label sends the operator hunting for a link.
+              label: Localizations.localeOf(context).languageCode == 'ar'
+                  ? 'الشعار'
+                  : 'Logo',
               kind: 'agent-branding',
               onChanged: (u) => setState(() => widget.logoCtrl.text = u),
             ),

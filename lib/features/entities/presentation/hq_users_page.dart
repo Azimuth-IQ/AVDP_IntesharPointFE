@@ -11,6 +11,7 @@ import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
+import 'package:inteshar/shared/widgets/password_field.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
 String _tr(BuildContext c, String ar, String en) =>
@@ -370,16 +371,28 @@ class _UserFormSheetState extends ConsumerState<_UserFormSheet> {
               enabled: !_isEdit,
               keyboardType: TextInputType.phone,
               decoration: InputDecoration(
-                  labelText: _tr(context, 'رقم الهاتف', 'Phone'),
-                  hintText: '07700000000'),
+                labelText: _tr(context, 'رقم الهاتف', 'Phone'),
+                hintText: '07700000000',
+                // A greyed-out field with no reason reads as a bug. It is also
+                // not merely "locked": the phone identifies the stored user, so
+                // editing it would strand the account's credentials.
+                helperText: _isEdit
+                    ? _tr(
+                        context,
+                        'رقم الهاتف هو اسم الدخول ولا يمكن تغييره.',
+                        'The phone is the login and cannot be changed.',
+                      )
+                    : null,
+                helperMaxLines: 2,
+              ),
             ),
             if (!_isEdit) ...[
               const SizedBox(height: 12),
-              TextField(
+              // Masked: this is typed in an office, frequently with the new
+              // supervisor (or anyone else) standing over the shoulder.
+              PasswordField(
                 controller: _password,
-                decoration: InputDecoration(
-                    labelText: _tr(context, 'كلمة المرور المبدئية',
-                        'Initial password')),
+                label: _tr(context, 'كلمة المرور المبدئية', 'Initial password'),
               ),
               const SizedBox(height: 4),
               Text(

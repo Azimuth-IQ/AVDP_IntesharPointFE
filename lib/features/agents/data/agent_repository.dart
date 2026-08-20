@@ -43,5 +43,8 @@ class AgentRepository {
   /// Update including users (existing users keep their hashed password).
   Future<Entity> update(Entity entity) => _entities.updateWithUsers(entity);
 
-  Future<void> delete(String id) => _entities.delete(id);
+  // No delete here on purpose. Deleting an agent needs an authenticator code and
+  // an empty subtree, so it goes through `showDeleteAgentSheet`, which collects
+  // both. A code-less `delete(id)` shortcut used to live here and the agents
+  // page called it — the server refused every call.
 }

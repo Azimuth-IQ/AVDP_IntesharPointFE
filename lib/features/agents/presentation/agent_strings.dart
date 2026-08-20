@@ -38,12 +38,10 @@ class AgentStrings {
       : pick('$n sub-agents', '$n وكيل فرعي');
   String get edit => pick('Edit', 'تعديل');
   String get delete => pick('Delete', 'حذف');
-  String get deleteTitle => _sub ? pick('Delete sub agent?', 'حذف الوكيل الفرعي؟') : pick('Delete main agent?', 'حذف الوكيل الرئيسي؟');
-  String deleteBody(String name) => pick(
-      'This removes "$name" and its account access. This cannot be undone.',
-      'سيؤدي هذا إلى إزالة "$name" وصلاحيات الدخول. لا يمكن التراجع.');
+  // The delete-dialog strings that used to live here are gone with the dialog:
+  // deleting an agent goes through the shared clear-out sheet, which carries its
+  // own wording (and, unlike the dialog, an authenticator code).
   String get cancel => pick('Cancel', 'إلغاء');
-  String get deleted => _sub ? pick('Sub agent deleted', 'تم حذف الوكيل الفرعي') : pick('Main agent deleted', 'تم حذف الوكيل الرئيسي');
 
   // ── Form ──
   String get createTitle => newAgent;
@@ -66,7 +64,9 @@ class AgentStrings {
 
   String get sectionIdentity => pick('Identity', 'الهوية');
   String get fieldName => pick('Commercial name', 'الاسم التجاري');
-  String get fieldLogo => pick('Logo URL (optional)', 'رابط الشعار (اختياري)');
+  // These label upload fields — a thumbnail with an Upload button, no text box
+  // anywhere. "URL" told the operator to paste something they were never given.
+  String get fieldLogo => pick('Logo (optional)', 'الشعار (اختياري)');
   // B-127: a sub agent covers ONE governorate; a main agent may span several.
   // The label has to say which, or the single-choice behaviour reads as a bug.
   String get sectionGovernorates => _sub
@@ -78,7 +78,14 @@ class AgentStrings {
       : pick('Select every governorate this agent operates in.', 'اختر كل محافظة يعمل بها هذا الوكيل.');
   String get sectionOwner => pick('Owner & contact', 'المالك والتواصل');
   String get fieldOwnerName => pick('Owner full name', 'اسم المالك الثلاثي');
-  String get fieldDocuments => pick('Document URLs (comma-separated)', 'روابط المستمسكات (مفصولة بفواصل)');
+  String get fieldDocuments => pick('Identity documents', 'صور المستمسكات');
+
+  /// Onboarding stalls here more than anywhere else, so it says what to attach
+  /// rather than leaving the operator to guess from an empty grid.
+  String get documentsHint => pick(
+      'Attach a photo of each document — national ID or passport, residence card, '
+          'and the business licence if there is one.',
+      'أرفق صورة لكل مستمسك — البطاقة الوطنية أو الجواز، بطاقة السكن، وإجازة الممارسة إن وُجدت.');
   String get fieldLandmark => pick('Nearest landmark', 'أقرب نقطة دالة');
   String get fieldLat => pick('Latitude', 'خط العرض');
   String get fieldLng => pick('Longitude', 'خط الطول');

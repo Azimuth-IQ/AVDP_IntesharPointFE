@@ -49,7 +49,28 @@ class AgentForm extends ConsumerStatefulWidget {
 class _AgentFormState extends ConsumerState<AgentForm> {
   int _step = 0;
   bool _saving = false;
+
+  /// Whole-form problems only — a rejected save, or a rule about the set of
+  /// users rather than one of them. Everything that belongs to a single field
+  /// is reported on that field, because this banner is pinned to the bottom of
+  /// the screen and the offending field can be several screens up.
   String? _error;
+
+  // Per-field errors. Cleared as soon as the operator edits the field, so a
+  // corrected field stops shouting before they reach the bottom of the form.
+  String? _parentError;
+  String? _nameError;
+  String? _govError;
+  String? _emailError;
+  String? _latError;
+  String? _lngError;
+
+  // Anchors for scrolling the first bad field into view.
+  final _kParent = GlobalKey();
+  final _kName = GlobalKey();
+  final _kGov = GlobalKey();
+  final _kGeo = GlobalKey();
+  final _kEmail = GlobalKey();
 
   // Step 1 — entity details
   final _name = TextEditingController();
@@ -219,54 +240,114 @@ class _AgentFormState extends ConsumerState<AgentForm> {
     setState(() => _users.add(_UserDraft.blank(AgentUserPreset.monitoring)));
   }
 
-  bool _validateStep1(AgentStrings s) {
-    if (tier.requiresParentPicker &&
-        (_parentId == null || _parentId!.isEmpty)) {
-      setState(() => _error = s.errParentRequired);
-      return false;
-    }
-    if (_name.text.trim().isEmpty) {
-      setState(() => _error = s.errNameRequired);
-      return false;
-    }
-    if (_governorates.isEmpty) {
-      setState(() => _error = s.errGovRequired);
-      return false;
-    }
+  String _t(String ar, String en) =>
+      Localizations.localeOf(context).languageCode == 'ar' ? ar : en;
+
+  /// Brings [key]'s field into view on the next frame — after a step switch the
+  /// widget does not exist yet, so this cannot run synchronously.
+  void _scrollTo(GlobalKey? key) {
+    if (key == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = key.currentContext;
+      if (ctx == null) return;
+      Scrollable.ensureVisible(
+        ctx,
+        alignment: 0.15,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  /// Checks every step-1 rule at once and reports each failure ON its field.
+  ///
+  /// It used to stop at the first failure and put the message in the bottom
+  /// banner, so a form this long asked the operator to find the field the
+  /// sentence was about. Now the whole step is checked in one pass, the first
+  /// offender is scrolled to, and fixing one problem does not hide the next.
+  bool _validateStep1(AgentStrings s, {bool scroll = true}) {
+    final parentErr =
+        tier.requiresParentPicker && (_parentId == null || _parentId!.isEmpty)
+            ? s.errParentRequired
+            : null;
+    final nameErr = _name.text.trim().isEmpty ? s.errNameRequired : null;
+    final govErr = _governorates.isEmpty ? s.errGovRequired : null;
+
     // Contact email (optional) — if present it must look like an email.
     final email = _contactEmail.text.trim();
-    if (email.isNotEmpty &&
-        !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
-      setState(() => _error = s.errEmailInvalid);
+    final emailErr = email.isNotEmpty &&
+            !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)
+        ? s.errEmailInvalid
+        : null;
+
+    // Geo (optional) — if present, must be numeric and in range.
+    String? rangeError(String raw, double min, double max) {
+      if (raw.isEmpty) return null;
+      final v = double.tryParse(raw);
+      return (v == null || v < min || v > max) ? s.errGeoInvalid : null;
+    }
+
+    final latErr = rangeError(_lat.text.trim(), -90, 90);
+    final lngErr = rangeError(_lng.text.trim(), -180, 180);
+
+    setState(() {
+      _parentError = parentErr;
+      _nameError = nameErr;
+      _govError = govErr;
+      _emailError = emailErr;
+      _latError = latErr;
+      _lngError = lngErr;
+    });
+
+    // In the order the fields appear on screen, so "first" means the topmost.
+    final firstBad = parentErr != null
+        ? _kParent
+        : nameErr != null
+            ? _kName
+            : govErr != null
+                ? _kGov
+                : (latErr != null || lngErr != null)
+                    ? _kGeo
+                    : emailErr != null
+                        ? _kEmail
+                        : null;
+    if (firstBad != null) {
+      if (scroll) _scrollTo(firstBad);
       return false;
     }
-    // Geo (optional) — if present, must be numeric and in range.
-    final lat = _lat.text.trim();
-    if (lat.isNotEmpty) {
-      final v = double.tryParse(lat);
-      if (v == null || v < -90 || v > 90) {
-        setState(() => _error = s.errGeoInvalid);
-        return false;
-      }
-    }
-    final lng = _lng.text.trim();
-    if (lng.isNotEmpty) {
-      final v = double.tryParse(lng);
-      if (v == null || v < -180 || v > 180) {
-        setState(() => _error = s.errGeoInvalid);
-        return false;
-      }
-    }
-    setState(() => _error = null);
     return true;
   }
 
+  /// The anchor of the topmost step-1 field currently in error, or null when
+  /// the step is clean. Read after [_validateStep1] has set the flags.
+  GlobalKey? _firstBadDetailsKey() => _parentError != null
+      ? _kParent
+      : _nameError != null
+          ? _kName
+          : _govError != null
+              ? _kGov
+              : (_latError != null || _lngError != null)
+                  ? _kGeo
+                  : _emailError != null
+                      ? _kEmail
+                      : null;
+
   Future<void> _submit() async {
     final s = AgentStrings.of(context, tier);
-    if (!_validateStep1(s)) {
-      setState(() => _step = 0);
+    if (!_validateStep1(s, scroll: false)) {
+      // Being thrown back a step is disorienting on its own; say why, then land
+      // the operator ON the field rather than at the top of a 14-field form.
+      setState(() {
+        _step = 0;
+        _error = _t(
+          'راجع الحقول المحددة في خطوة البيانات.',
+          'Check the highlighted fields on the Details step.',
+        );
+      });
+      _scrollTo(_firstBadDetailsKey());
       return;
     }
+    setState(() => _error = null);
     if (_users.isEmpty) {
       setState(() => _error = s.errUsersRequired);
       return;
@@ -276,21 +357,33 @@ class _AgentFormState extends ConsumerState<AgentForm> {
       return;
     }
 
+    // Check every user in one pass so the second bad card is not a surprise
+    // after fixing the first.
+    var userFieldsOk = true;
+    for (final d in _users) {
+      final phoneErr = d.phone.text.trim().isEmpty ? s.errUserPhone : null;
+      // An existing user (already has an id) may keep its current password by
+      // leaving this blank: EntityUser.toJson omits a blank password and the
+      // backend restores the stored hash on update. Only a NEW user must set one.
+      final passErr = (d.password.text.trim().isEmpty && d.id.isEmpty)
+          ? s.errUserPassword
+          : null;
+      d.phoneError = phoneErr;
+      d.passwordError = passErr;
+      if (phoneErr != null || passErr != null) userFieldsOk = false;
+    }
+    if (!userFieldsOk) {
+      setState(() {});
+      _scrollTo(_users
+          .firstWhere((d) => d.phoneError != null || d.passwordError != null)
+          .anchor);
+      return;
+    }
+
     final users = <EntityUser>[];
     for (final d in _users) {
       final phone = d.phone.text.trim();
-      if (phone.isEmpty) {
-        setState(() => _error = s.errUserPhone);
-        return;
-      }
       final typed = d.password.text.trim();
-      // An existing user (already has an id) may keep its current password by leaving this
-      // blank: EntityUser.toJson omits a blank password and the backend restores the stored
-      // hash on update. Only a NEW user must set one.
-      if (typed.isEmpty && d.id.isEmpty) {
-        setState(() => _error = s.errUserPassword);
-        return;
-      }
       users.add(
         EntityUser(
           id: d.id.isNotEmpty ? d.id : _genId('u'),
@@ -435,7 +528,12 @@ class _AgentFormState extends ConsumerState<AgentForm> {
                 if (_step == 0)
                   FilledButton.icon(
                     onPressed: () {
-                      if (_validateStep1(s)) setState(() => _step = 1);
+                      if (_validateStep1(s)) {
+                        setState(() {
+                          _step = 1;
+                          _error = null;
+                        });
+                      }
                     },
                     icon: const Icon(Icons.arrow_forward, size: 18),
                     label: Text(s.next),
@@ -482,9 +580,13 @@ class _AgentFormState extends ConsumerState<AgentForm> {
             Text(s.noMainAgents, style: IntesharType.sans(13, color: cs.error))
           else
             DropdownButtonFormField<String>(
+              key: _kParent,
               initialValue: _parentId,
               isExpanded: true,
-              decoration: InputDecoration(labelText: s.fieldParent),
+              decoration: InputDecoration(
+                labelText: s.fieldParent,
+                errorText: _parentError,
+              ),
               items: _parentOptions
                   .map(
                     (p) => DropdownMenuItem(value: p.id, child: Text(p.label)),
@@ -492,6 +594,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
                   .toList(),
               onChanged: (v) => setState(() {
                 _parentId = v;
+                _parentError = null;
                 _applyParentCoverage();
               }),
             ),
@@ -501,8 +604,15 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         SectionLabel(s.sectionIdentity),
         const SizedBox(height: 8),
         TextField(
+          key: _kName,
           controller: _name,
-          decoration: InputDecoration(labelText: s.fieldName),
+          decoration: InputDecoration(
+            labelText: s.fieldName,
+            errorText: _nameError,
+          ),
+          onChanged: (_) {
+            if (_nameError != null) setState(() => _nameError = null);
+          },
         ),
         const SizedBox(height: 12),
         ImageUploadField(
@@ -565,6 +675,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         ),
         const SizedBox(height: 10),
         GovernorateMultiSelect(
+          key: _kGov,
           selected: _governorates,
           allowedCodes: _allowedGovernorates,
           // B-127: a SUB agent covers exactly one governorate, so picking a second
@@ -575,8 +686,15 @@ class _AgentFormState extends ConsumerState<AgentForm> {
               next: v,
               singleChoice: tier == AgentTier.sub,
             );
+            if (_governorates.isNotEmpty) _govError = null;
           }),
         ),
+        // The picker is a chip grid with no InputDecoration to hang an
+        // errorText on, so the message sits directly under it instead.
+        if (_govError != null) ...[
+          const SizedBox(height: 6),
+          Text(_govError!, style: IntesharType.sans(12, color: cs.error)),
+        ],
         const SizedBox(height: 22),
         SectionLabel(
           Localizations.localeOf(context).languageCode == 'ar'
@@ -602,6 +720,11 @@ class _AgentFormState extends ConsumerState<AgentForm> {
           kind: 'kyc-doc',
           onChanged: (urls) => setState(() => _documentUrls = urls),
         ),
+        const SizedBox(height: 4),
+        Text(
+          s.documentsHint,
+          style: IntesharType.sans(12.5, color: cs.onSurfaceVariant),
+        ),
         const SizedBox(height: 12),
         TextField(
           controller: _landmark,
@@ -609,6 +732,8 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         ),
         const SizedBox(height: 12),
         Row(
+          key: _kGeo,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
               child: TextField(
@@ -617,7 +742,14 @@ class _AgentFormState extends ConsumerState<AgentForm> {
                   decimal: true,
                   signed: true,
                 ),
-                decoration: InputDecoration(labelText: s.fieldLat),
+                decoration: InputDecoration(
+                  labelText: s.fieldLat,
+                  errorText: _latError,
+                  errorMaxLines: 2,
+                ),
+                onChanged: (_) {
+                  if (_latError != null) setState(() => _latError = null);
+                },
               ),
             ),
             const SizedBox(width: 12),
@@ -628,7 +760,14 @@ class _AgentFormState extends ConsumerState<AgentForm> {
                   decimal: true,
                   signed: true,
                 ),
-                decoration: InputDecoration(labelText: s.fieldLng),
+                decoration: InputDecoration(
+                  labelText: s.fieldLng,
+                  errorText: _lngError,
+                  errorMaxLines: 2,
+                ),
+                onChanged: (_) {
+                  if (_lngError != null) setState(() => _lngError = null);
+                },
               ),
             ),
           ],
@@ -654,9 +793,16 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         ),
         const SizedBox(height: 12),
         TextField(
+          key: _kEmail,
           controller: _contactEmail,
           keyboardType: TextInputType.emailAddress,
-          decoration: InputDecoration(labelText: s.fieldEmail),
+          decoration: InputDecoration(
+            labelText: s.fieldEmail,
+            errorText: _emailError,
+          ),
+          onChanged: (_) {
+            if (_emailError != null) setState(() => _emailError = null);
+          },
         ),
         if (tier == AgentTier.main) ...[
           const SizedBox(height: 22),
@@ -708,6 +854,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         const SizedBox(height: 14),
         ..._users.asMap().entries.map(
           (e) => Padding(
+            key: e.value.anchor,
             padding: const EdgeInsets.only(bottom: 12),
             child: _UserCard(
               index: e.key,
@@ -881,7 +1028,15 @@ class _UserCard extends StatelessWidget {
             decoration: InputDecoration(
               labelText: s.fieldUserPhone,
               isDense: true,
+              errorText: draft.phoneError,
+              errorMaxLines: 2,
             ),
+            onChanged: (_) {
+              if (draft.phoneError != null) {
+                draft.phoneError = null;
+                onChanged();
+              }
+            },
           ),
           const SizedBox(height: 10),
           PasswordField(
@@ -890,7 +1045,20 @@ class _UserCard extends StatelessWidget {
             label: draft.id.isNotEmpty
                 ? s.fieldUserPasswordKeep
                 : s.fieldUserPassword,
+            onChanged: (_) {
+              if (draft.passwordError != null) {
+                draft.passwordError = null;
+                onChanged();
+              }
+            },
           ),
+          // PasswordField takes no errorText, so the message goes right under
+          // it rather than into the banner at the far bottom of the screen.
+          if (draft.passwordError != null) ...[
+            const SizedBox(height: 4),
+            Text(draft.passwordError!,
+                style: IntesharType.sans(12, color: cs.error)),
+          ],
           if (showPreset) ...[
             const SizedBox(height: 10),
             DropdownButtonFormField<AgentUserPreset>(
@@ -941,6 +1109,12 @@ class _UserDraft {
   final TextEditingController phone;
   final TextEditingController password;
   AgentUserPreset preset;
+
+  /// Validation messages shown on this card's own fields, and the anchor used
+  /// to scroll the card into view when it is the first one at fault.
+  String? phoneError;
+  String? passwordError;
+  final GlobalKey anchor = GlobalKey();
 
   _UserDraft({
     required this.id,

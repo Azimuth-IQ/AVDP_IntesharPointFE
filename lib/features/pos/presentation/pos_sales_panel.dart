@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +18,7 @@ import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/inventory/data/product_repository.dart';
 import 'package:inteshar/features/inventory/domain/print_operation.dart';
 import 'package:inteshar/features/pos/domain/pos_report_summary.dart';
+import 'package:inteshar/features/pos/presentation/print_queue_indicator.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:share_plus/share_plus.dart';
@@ -30,12 +33,32 @@ class PosSalesPanel extends ConsumerStatefulWidget {
   ConsumerState<PosSalesPanel> createState() => _PosSalesPanelState();
 }
 
+/// UX-50: the one-tap windows an operator actually asks for. "This month" is
+/// kept as the old 30-day default, but it is no longer where the screen starts —
+/// a total that silently describes a month reads as today's takings.
+enum _RangePreset { today, yesterday, week, month, custom }
+
 class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
   List<PrintOperation> _ops = const [];
   bool _loading = true;
+  bool _reloading = false; // a re-query with rows already on screen
   bool _busy = false;
   Object? _error;
   late DateTimeRange _range;
+  _RangePreset _preset = _RangePreset.today;
+
+  // UX-56: find ONE sale. The feed already matched a serial substring or an exact
+  // receipt number on `q`; the panel simply never sent it, so "receipt #412 didn't
+  // work" was answered by paging 50 rows at a time with a queue forming.
+  //
+  // A search deliberately IGNORES the date window: a customer comes back with a
+  // card days later, and a search that silently only looked at today would report
+  // a real sale as missing.
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _q = '';
+  Timer? _debounce;
+
+  bool get _searching => _q.isNotEmpty;
   // B-066: page through the window instead of a silent 100-row cap.
   static const int _size = 50;
   int _page = 0;
@@ -51,14 +74,51 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
   PosReportSummary _summary = PosReportSummary.empty;
   PosReportIdentity _identity = const PosReportIdentity();
   bool _summaryLoading = false;
+  // UX-58: the per-category breakdown, collapsed to the busiest few by default.
+  static const int _categoryPreview = 4;
+  bool _categoriesExpanded = false;
 
   @override
   void initState() {
     super.initState();
-    final now = DateTime.now();
-    _range = DateTimeRange(start: now.subtract(const Duration(days: 30)), end: now);
+    // UX-50: TODAY, not the last 30 days. The only total on this screen is read
+    // as "what this shop took", and starting on a month-wide window made that
+    // sentence false by default — while getting today cost a four-step picker.
+    _range = _rangeFor(_RangePreset.today);
     _load();
     _resolveIdentity();
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  static DateTimeRange _rangeFor(_RangePreset p) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return switch (p) {
+      _RangePreset.today => DateTimeRange(start: today, end: today),
+      _RangePreset.yesterday => DateTimeRange(
+          start: today.subtract(const Duration(days: 1)),
+          end: today.subtract(const Duration(days: 1))),
+      _RangePreset.week =>
+        DateTimeRange(start: today.subtract(const Duration(days: 6)), end: today),
+      // Kept as the previous default window so the old numbers are still one tap away.
+      _RangePreset.month =>
+        DateTimeRange(start: today.subtract(const Duration(days: 29)), end: today),
+      _RangePreset.custom => DateTimeRange(start: today, end: today),
+    };
+  }
+
+  Future<void> _applyPreset(_RangePreset p) async {
+    setState(() {
+      _preset = p;
+      _range = _rangeFor(p);
+    });
+    await _load();
   }
 
   /// The report header the spec mandates. The shop knows itself from the
@@ -107,13 +167,11 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
   /// marks the summary truncated rather than quietly under-reporting.
   Future<void> _loadSummary() async {
     setState(() => _summaryLoading = true);
-    final repo = ProductRepository(ref.read(apiClientProvider));
     final all = <PrintOperation>[];
     var truncated = false;
     try {
       for (var p = 0; p < _summaryPageCap; p++) {
-        final batch = await repo.printOperations(
-            from: _day(_range.start), to: _day(_range.end), page: p, size: _size);
+        final batch = await _fetch(p);
         all.addAll(batch);
         if (batch.length < _size) break;
         if (p == _summaryPageCap - 1) truncated = true;
@@ -133,34 +191,81 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
   String _day(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
-  Future<void> _load() async {
+  /// One page of the feed. A SEARCH drops the date window entirely (the whole
+  /// point is finding a sale whose date the operator does not know); a browse
+  /// keeps it.
+  Future<List<PrintOperation>> _fetch(int page) {
+    final repo = ProductRepository(ref.read(apiClientProvider));
+    return repo.printOperations(
+      q: _searching ? _q : null,
+      from: _searching ? null : _day(_range.start),
+      to: _searching ? null : _day(_range.end),
+      page: page,
+      size: _size,
+    );
+  }
+
+  /// [jumpToReceipt] is set only by an explicit search submit: when the operator
+  /// typed a receipt number and it resolves to exactly one sale, open its reprint
+  /// sheet straight away instead of making them find and tap the single row.
+  /// Never triggered by a rebuild or by typing.
+  Future<void> _load({bool jumpToReceipt = false}) async {
+    // A re-query with rows already on screen (a search keystroke, a preset tap)
+    // keeps them and shows a thin progress line — blanking the report to a
+    // full-screen spinner on every keystroke would be worse than the paging it
+    // replaces.
+    // `_searchCtrl.text` matters even with no rows: a search that found nothing
+    // must not take the screen away and with it the field being typed into.
+    final inPlace = _ops.isNotEmpty || _searchCtrl.text.isNotEmpty;
     setState(() {
-      _loading = true;
+      if (inPlace) {
+        _reloading = true;
+      } else {
+        _loading = true;
+      }
       _error = null;
       _page = 0;
     });
     try {
-      final ops = await ProductRepository(ref.read(apiClientProvider)).printOperations(
-          from: _day(_range.start), to: _day(_range.end), page: 0, size: _size);
+      final ops = await _fetch(0);
       if (!mounted) return;
       setState(() {
         _ops = ops;
         _hasMore = ops.length == _size; // a full page suggests there may be more
         _loading = false;
+        _reloading = false;
       });
       // Only worth a second walk when the first page was full; otherwise the
-      // page we already hold IS the whole window.
-      if (_hasMore) {
-        _loadSummary();
-      } else {
-        setState(() => _summary = PosReportSummary.from(ops));
+      // page we already hold IS the whole window. A SEARCH skips it entirely —
+      // its summary is hidden, and walking 40 pages of search hits to build a
+      // total nobody sees is exactly the cost this screen already pays too much of.
+      if (!_searching) {
+        if (_hasMore) {
+          _loadSummary();
+        } else {
+          setState(() => _summary = PosReportSummary.from(ops));
+        }
+      }
+      if (jumpToReceipt) {
+        final receiptNo = int.tryParse(_q);
+        if (receiptNo != null) {
+          final exact = ops.where((o) => o.receiptNo == receiptNo).toList();
+          if (exact.length == 1) await _reprint(exact.first);
+        }
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = e;
-          _loading = false;
-        });
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _reloading = false;
+        // With rows already on screen, a failed re-query must not throw the
+        // operator onto an error page — the rows they were reading are still
+        // valid. Say what failed instead.
+        if (!inPlace) _error = e;
+      });
+      if (inPlace) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
       }
     }
   }
@@ -171,8 +276,7 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
     setState(() => _loadingMore = true);
     try {
       final next = _page + 1;
-      final more = await ProductRepository(ref.read(apiClientProvider)).printOperations(
-          from: _day(_range.start), to: _day(_range.end), page: next, size: _size);
+      final more = await _fetch(next);
       if (!mounted) return;
       setState(() {
         _ops = [..._ops, ...more];
@@ -196,8 +300,41 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
       initialDateRange: _range,
     );
     if (picked == null) return;
-    setState(() => _range = picked);
+    setState(() {
+      _range = picked;
+      _preset = _RangePreset.custom;
+    });
     await _load();
+  }
+
+  /// Typing searches after a short pause (the feed is read-only, so this is a
+  /// plain query — nothing here touches a sale). Submitting also offers the
+  /// direct jump to a receipt number.
+  void _onSearchChanged(String v) {
+    _debounce?.cancel();
+    setState(() {}); // keeps the clear button in step with the text
+    _debounce = Timer(const Duration(milliseconds: 400), () {
+      if (!mounted) return;
+      final q = v.trim();
+      if (q == _q) return;
+      setState(() => _q = q);
+      _load();
+    });
+  }
+
+  void _submitSearch() {
+    _debounce?.cancel();
+    final q = _searchCtrl.text.trim();
+    setState(() => _q = q);
+    _load(jumpToReceipt: q.isNotEmpty);
+  }
+
+  void _clearSearch() {
+    _debounce?.cancel();
+    _searchCtrl.clear();
+    if (_q.isEmpty) return;
+    setState(() => _q = '');
+    _load();
   }
 
   /// Re-serves the SAME sale (recover — no new card, no new debit) and offers
@@ -229,42 +366,77 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
     final cs = Theme.of(context).colorScheme;
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) return ErrorState(error: _error!, onRetry: _load);
-    final shown = _notPrintedOnly ? _ops.where((o) => !o.printed).toList() : _ops;
+    // The "not printed" filter belongs to the window view; a search must return
+    // what it found, not a silently narrowed subset of it.
+    final shown =
+        (_notPrintedOnly && !_searching) ? _ops.where((o) => !o.printed).toList() : _ops;
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
         padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 28),
         children: [
-          Row(children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _pickRange,
-                icon: const Icon(Icons.date_range, size: 18),
-                label: Text('${_day(_range.start)} → ${_day(_range.end)}',
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
+          // UX-56: find one sale by serial or receipt number, across all dates.
+          _searchField(ar, cs),
+          const SizedBox(height: 10),
+          if (_searching)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                ar
+                    ? 'نتائج البحث في كل الفترات — ${_ops.length} عملية'
+                    : 'Search results across all dates — ${_ops.length} sale(s)',
+                style: IntesharType.sans(12, color: cs.onSurfaceVariant),
               ),
+            )
+          else ...[
+            // UX-50: one tap for the windows that are actually asked for.
+            _presetRow(ar, cs),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _pickRange,
+                  icon: const Icon(Icons.date_range, size: 18),
+                  label: Text('${_day(_range.start)} → ${_day(_range.end)}',
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // End-of-day recovery: show only the cards whose print was never confirmed.
+              FilterChip(
+                selected: _notPrintedOnly,
+                onSelected: (v) => setState(() => _notPrintedOnly = v),
+                avatar: Icon(Icons.print_disabled_outlined, size: 16,
+                    color: _notPrintedOnly ? cs.onSecondaryContainer : cs.onSurfaceVariant),
+                label: Text(ar ? 'غير المطبوعة' : 'Not printed'),
+              ),
+            ]),
+          ],
+          if (_reloading)
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: LinearProgressIndicator(minHeight: 2),
             ),
-            const SizedBox(width: 8),
-            // End-of-day recovery: show only the cards whose print was never confirmed.
-            FilterChip(
-              selected: _notPrintedOnly,
-              onSelected: (v) => setState(() => _notPrintedOnly = v),
-              avatar: Icon(Icons.print_disabled_outlined, size: 16,
-                  color: _notPrintedOnly ? cs.onSecondaryContainer : cs.onSurfaceVariant),
-              label: Text(ar ? 'غير المطبوعة' : 'Not printed'),
-            ),
-          ]),
           const SizedBox(height: 12),
-          _summaryCard(ar, cs),
-          const SizedBox(height: 12),
+          // A search result set is not a report of a window, so the window's
+          // summary (and its Print/Share) would describe the wrong thing.
+          if (!_searching) ...[
+            _summaryCard(ar, cs),
+            const SizedBox(height: 12),
+          ],
           if (shown.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 40),
               child: Center(
                 child: Text(
-                  _notPrintedOnly
-                      ? (ar ? 'لا توجد بطاقات غير مطبوعة.' : 'No unprinted cards.')
-                      : (ar ? 'لا توجد بطاقات في هذه الفترة.' : 'No cards in this window.'),
+                  _searching
+                      ? (ar
+                          ? 'لا توجد عملية مطابقة لـ "$_q".'
+                          : 'No sale matches "$_q".')
+                      : _notPrintedOnly
+                          ? (ar ? 'لا توجد بطاقات غير مطبوعة.' : 'No unprinted cards.')
+                          : (ar ? 'لا توجد بطاقات في هذه الفترة.' : 'No cards in this window.'),
+                  textAlign: TextAlign.center,
                   style: IntesharType.sans(14, color: cs.onSurfaceVariant),
                 ),
               ),
@@ -291,6 +463,54 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
       ),
     );
   }
+
+  /// UX-56: the search box. Matches a voucher serial (any part of it) or an
+  /// exact receipt number, server-side, over the shop's whole history.
+  Widget _searchField(bool ar, ColorScheme cs) => TextField(
+        controller: _searchCtrl,
+        textInputAction: TextInputAction.search,
+        onChanged: _onSearchChanged,
+        onSubmitted: (_) => _submitSearch(),
+        style: IntesharType.sans(14, color: cs.onSurface),
+        decoration: InputDecoration(
+          isDense: true,
+          hintText: ar
+              ? 'ابحث برقم العملية أو رقم البطاقة'
+              : 'Search by receipt # or serial',
+          prefixIcon: const Icon(Icons.search, size: 20),
+          suffixIcon: _searchCtrl.text.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  tooltip: ar ? 'مسح' : 'Clear',
+                  onPressed: _clearSearch,
+                ),
+        ),
+      );
+
+  /// UX-50: اليوم / أمس / ٧ أيام / الشهر, one tap each.
+  Widget _presetRow(bool ar, ColorScheme cs) => SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(children: [
+          for (final (p, label) in [
+            (_RangePreset.today, ar ? 'اليوم' : 'Today'),
+            (_RangePreset.yesterday, ar ? 'أمس' : 'Yesterday'),
+            (_RangePreset.week, ar ? '٧ أيام' : '7 days'),
+            (_RangePreset.month, ar ? 'الشهر' : 'Month'),
+          ])
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 8),
+              child: ChoiceChip(
+                selected: _preset == p,
+                onSelected: (_) => _applyPreset(p),
+                label: Text(label),
+                labelStyle: IntesharType.sans(12.5,
+                    color: _preset == p ? cs.onSecondaryContainer : cs.onSurfaceVariant,
+                    w: FontWeight.w700),
+              ),
+            ),
+        ]),
+      );
 
   /// سستم التقارير!A1 + A4: who the report belongs to, what the window totals,
   /// and the ability to put it on paper / share it — none of which the panel had.
@@ -345,6 +565,63 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
               style: IntesharType.sans(11, color: IntesharColors.oxblood, w: FontWeight.w600),
             ),
           ),
+        // UX-58: "how many Asiacell 5,000 did I sell?" — the breakdown was already
+        // computed here and already printed on the paper report, and was the one
+        // thing the screen didn't show. It costs no extra request.
+        if (s.byCategory.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Divider(height: 1, color: cs.outlineVariant),
+          const SizedBox(height: 8),
+          Text(ar ? 'حسب الفئة' : 'By category',
+              style: IntesharType.sans(11, color: cs.onSurfaceVariant, w: FontWeight.w700)),
+          const SizedBox(height: 4),
+          for (final line in (_categoriesExpanded
+              ? s.byCategory
+              : s.byCategory.take(_categoryPreview)))
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(children: [
+                Expanded(
+                  child: Text(line.category,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: IntesharType.sans(12.5, color: cs.onSurface, w: FontWeight.w600)),
+                ),
+                const SizedBox(width: 8),
+                Text('×${line.cards}',
+                    style: IntesharType.mono(12.5, color: cs.onSurfaceVariant, w: FontWeight.w700)),
+                const SizedBox(width: 10),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 120),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: Text(Formatters.iqd(line.total.round()),
+                        maxLines: 1,
+                        style: IntesharType.mono(12.5, color: cs.onSurface)),
+                  ),
+                ),
+              ]),
+            ),
+          if (s.byCategory.length > _categoryPreview)
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton(
+                onPressed: () => setState(() => _categoriesExpanded = !_categoriesExpanded),
+                style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 4)),
+                child: Text(
+                  _categoriesExpanded
+                      ? (ar ? 'عرض أقل' : 'Show less')
+                      : (ar
+                          ? 'عرض الكل (${s.byCategory.length})'
+                          : 'Show all (${s.byCategory.length})'),
+                  style: IntesharType.sans(12, color: cs.primary, w: FontWeight.w700),
+                ),
+              ),
+            ),
+        ],
         const SizedBox(height: 10),
         Row(children: [
           Expanded(
@@ -518,8 +795,11 @@ class _ReprintSheetState extends ConsumerState<_ReprintSheet> {
       final p = widget.recovered.product;
       final def = p.productDefinition;
       final t = def.template;
-      final agentLogo = t.showAgentLogo ? await loadReceiptLogo(widget.recovered.agentLogoUrl) : null;
-      final companyLogo = t.showCompanyLogo ? await loadReceiptLogo(widget.recovered.companyLogoUrl) : null;
+      // UX-59: time-boxed. A reprint is for a customer standing at the counter
+      // holding a card that already failed once — a logo download is not allowed
+      // to be the reason the paper is slow a second time.
+      final agentLogo = t.showAgentLogo ? await receiptLogoForPrinting(widget.recovered.agentLogoUrl) : null;
+      final companyLogo = t.showCompanyLogo ? await receiptLogoForPrinting(widget.recovered.companyLogoUrl) : null;
       // CR-06: the reprint used to build ESC/POS only, so on a vendor-intent
       // terminal it threw "no printer" instead of reprinting. One job now covers
       // every transport.
@@ -599,6 +879,8 @@ class _ReprintSheetState extends ConsumerState<_ReprintSheet> {
             textAlign: TextAlign.center,
             style: IntesharType.mono(22, color: cs.onSurface, letterSpacing: 2)),
         const SizedBox(height: 16),
+        // UX-91: a retry looks exactly like a hang unless it says so.
+        const PrintQueueLine(),
         FilledButton.icon(
           onPressed: _printing ? null : _print,
           icon: const Icon(Icons.print_outlined, size: 18),

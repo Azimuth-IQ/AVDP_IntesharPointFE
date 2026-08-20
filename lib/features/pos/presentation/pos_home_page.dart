@@ -23,6 +23,7 @@ import 'package:inteshar/features/pricing/data/pricing_repository.dart';
 import 'package:inteshar/features/pricing/domain/pricing_models.dart';
 import 'package:inteshar/features/pos/application/pos_pin_controller.dart';
 import 'package:inteshar/features/pos/domain/pin_verify_result.dart';
+import 'package:inteshar/features/pos/domain/sale_error.dart';
 import 'package:inteshar/core/api/error_mapper.dart' show friendlyError;
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/pos/data/pos_self_repository.dart';
@@ -33,6 +34,7 @@ import 'package:inteshar/features/pos/presentation/pos_account_panel.dart';
 import 'package:inteshar/features/pos/presentation/pos_brand.dart';
 import 'package:inteshar/features/pos/presentation/pos_sales_panel.dart';
 import 'package:inteshar/features/pos/presentation/pos_statement_panel.dart';
+import 'package:inteshar/features/pos/presentation/print_queue_indicator.dart';
 import 'package:inteshar/features/pos/presentation/printer_picker_page.dart';
 import 'package:inteshar/shared/widgets/map_location_picker.dart';
 import 'package:latlong2/latlong.dart';
@@ -931,7 +933,10 @@ class _BalanceTally extends StatelessWidget {
                 fit: BoxFit.scaleDown,
                 alignment: AlignmentDirectional.centerEnd,
                 child: Text(
-                  balance == null ? '—' : Formatters.iqd(balance!.available),
+                  // iqdOf, not iqd: the unit follows THIS widget's locale rather than the
+                  // app-wide default, so the counter reads د.ع on an Arabic till and
+                  // a test that pumps a locale gets that locale's unit.
+                  balance == null ? '—' : Formatters.iqdOf(context, balance!.available),
                   maxLines: 1,
                   style: TextStyle(fontFamily: 'CodecPro', fontSize: 19, color: cs.onSurface, fontWeight: FontWeight.w900, letterSpacing: -0.4, height: 1),
                 ),
@@ -1421,7 +1426,10 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
   String? _categoryName;
   bool _revealing = false;
   bool _printing = false;
-  String? _saleError; // last draw/sale failure — shown as a persistent in-sheet banner
+  /// Last draw/sale failure — shown as a persistent in-sheet banner. Classified
+  /// (UX-62) so "the server refused" and "we never heard back" don't read the
+  /// same: only the second one may have consumed a card.
+  PosSaleFailure? _saleError;
   String? _printError; // last print failure — a persistent banner so it can't be missed
 
   // ── B-086 bulk sale ─────────────────────────────────────────────────────────
@@ -1593,7 +1601,10 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
         if (t.showCompanyLogo) loadReceiptLogo(first.companyLogoUrl);
       }
     } catch (e) {
-      if (mounted) setState(() => _saleError = friendlyError(e, context));
+      if (mounted) {
+        setState(() => _saleError =
+            posSaleFailure(e, ar: _ar, friendly: friendlyError(e, context)));
+      }
     } finally {
       if (mounted) setState(() => _revealing = false);
     }
@@ -1628,8 +1639,12 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
     final t = def.template;
     // CR-06: one receipt, one queue, whatever the printer. The transport picks
     // bytes or text; the POS no longer branches on the terminal's brand.
-    final agentLogo = t.showAgentLogo ? await loadReceiptLogo(card.agentLogoUrl) : null;
-    final companyLogo = t.showCompanyLogo ? await loadReceiptLogo(card.companyLogoUrl) : null;
+    // UX-59: the CARD IS ALREADY SOLD by the time we get here — the logo is
+    // decorative and must never hold up the paper. Cached logos (the reveal warms
+    // them) come back instantly; an unfetched one gets a short budget and is then
+    // skipped, with the download left running for the next receipt.
+    final agentLogo = t.showAgentLogo ? await receiptLogoForPrinting(card.agentLogoUrl) : null;
+    final companyLogo = t.showCompanyLogo ? await receiptLogoForPrinting(card.companyLogoUrl) : null;
     final job = await buildVoucherPrintJob(
       template: t,
       headerFallback: auth?.entity.meta.name ?? 'POS',
@@ -1740,10 +1755,13 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
       }
     } catch (e) {
       if (!mounted) return;
-      // A 402 (no withdrawal limit) or 409 (pool empty) means NOTHING was sold — surface a
-      // PERSISTENT banner (not a fleeting snackbar) with the friendly reason; the operator can
-      // retry (same idempotency key, never a 2nd card) or back out. Do NOT close as consumed.
-      setState(() => _saleError = friendlyError(e, context));
+      // A 402 (no withdrawal limit) or 409 (pool empty) means NOTHING was sold; a
+      // timeout means we simply do not know. Both get a PERSISTENT banner (never a
+      // fleeting snackbar) — but with DIFFERENT words, because only the second one
+      // may have left a sold card stranded (UX-62). The operator can retry (same
+      // idempotency key, never a 2nd card) or back out. Do NOT close as consumed.
+      setState(() => _saleError =
+          posSaleFailure(e, ar: _ar, friendly: friendlyError(e, context)));
     } finally {
       if (mounted) setState(() => _revealing = false);
     }
@@ -1761,9 +1779,11 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
       final auth = ref.read(authStateProvider).valueOrNull as AuthAuthenticated?;
       final def = revealed.productDefinition;
       final t = def.template;
-      // Fetch + decode the logos (best-effort; printing proceeds without them on failure).
-      final agentLogo = t.showAgentLogo ? await loadReceiptLogo(_agentLogoUrl) : null;
-      final companyLogo = t.showCompanyLogo ? await loadReceiptLogo(_companyLogoUrl) : null;
+      // Logos are best-effort AND time-boxed (UX-59): the code on this sheet is
+      // already sold, so a slow logo host may not stand between the customer and
+      // their receipt. Normally these are already cached — the reveal warms them.
+      final agentLogo = t.showAgentLogo ? await receiptLogoForPrinting(_agentLogoUrl) : null;
+      final companyLogo = t.showCompanyLogo ? await receiptLogoForPrinting(_companyLogoUrl) : null;
       // CR-06: build the receipt ONCE. Every raw transport (Sunmi AIDL, Bluetooth
       // Classic SPP, USB, TCP, BLE) prints these exact bytes, so the paper is the
       // same on every terminal. Only the vendor-intent fallback uses the text
@@ -2160,6 +2180,13 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
               ),
             ),
           ),
+          // UX-91: on a batch the queue depth is the whole story — "Printing 3/10"
+          // says which card, this says whether the printer is keeping up or the
+          // current one is on its second attempt.
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: PrintQueueLine(),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
             child: Row(children: [
@@ -2313,25 +2340,61 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
               );
             },
           ),
-          // Persistent failure banner: the last sale attempt (402 no-limit / 409 pool-empty /
-          // network) failed and nothing was sold — the operator can Retry (same idempotency
-          // key) or Cancel. Stays until the next attempt succeeds.
+          // Persistent failure banner: the last sale attempt failed. Stays until the
+          // next attempt succeeds.
+          //
+          // UX-62: a refusal the server sent (402 no-limit, 409 pool-empty) and a
+          // request that never came back are DIFFERENT events. The first is safe —
+          // no card, no debit. The second may have claimed a card whose code never
+          // reached this screen, so the banner has to say that retrying re-serves
+          // the same sale rather than charging twice, and where to find the sale
+          // (التقارير) if the operator backs out instead.
           if (_saleError != null) ...[
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
-                color: cs.errorContainer,
+                color: _saleError!.outcomeUnknown
+                    ? IntesharColors.warn.withValues(alpha: 0.12)
+                    : cs.errorContainer,
                 borderRadius: BorderRadius.circular(IntesharRadii.md),
-                border: Border.all(color: cs.error.withValues(alpha: 0.5)),
+                border: Border.all(
+                    color: _saleError!.outcomeUnknown
+                        ? IntesharColors.warn.withValues(alpha: 0.55)
+                        : cs.error.withValues(alpha: 0.5)),
               ),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.error_outline, size: 18, color: cs.error),
+                  Icon(
+                    _saleError!.outcomeUnknown ? Icons.help_outline : Icons.error_outline,
+                    size: 18,
+                    color: _saleError!.outcomeUnknown ? IntesharColors.warn : cs.error,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text(
-                      _saleError!,
-                      style: TextStyle(fontFamily: 'CodecPro', fontSize: 12.5, height: 1.35, fontWeight: FontWeight.w700, color: cs.onErrorContainer),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _saleError!.headline,
+                          style: TextStyle(
+                              fontFamily: 'CodecPro',
+                              fontSize: 12.5,
+                              height: 1.35,
+                              fontWeight: FontWeight.w800,
+                              color: _saleError!.outcomeUnknown ? cs.onSurface : cs.onErrorContainer),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _saleError!.detail,
+                          style: TextStyle(
+                              fontFamily: 'CodecPro',
+                              fontSize: 11.5,
+                              height: 1.35,
+                              fontWeight: FontWeight.w600,
+                              color: _saleError!.outcomeUnknown ? cs.onSurface : cs.onErrorContainer),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -2515,6 +2578,9 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                   onPressed: () => Navigator.push<void>(ctx, MaterialPageRoute(builder: (_) => const PrinterPickerPage())),
                 ),
               const SizedBox(height: 8),
+              // UX-91: "Printing…" for four seconds is either a printer chewing
+              // through paper or attempt 2 of 3 after a silently failed write.
+              const PrintQueueLine(),
               Row(
                 children: [
                   Expanded(

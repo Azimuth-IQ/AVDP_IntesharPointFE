@@ -75,6 +75,11 @@ class _PosPinSetupPageState extends ConsumerState<PosPinSetupPage> {
         currentPin: widget.requireCurrent ? _currentCtrl.text.trim() : null,
       );
       if (!mounted) return;
+      // UX-54: the lock screen's keypad auto-submits on the last digit, and the
+      // server never tells it how many digits that is. Record the LENGTH (never
+      // the PIN) here so a PIN changed in-app doesn't leave the pad firing at
+      // the old length.
+      rememberPinLength(pin.length);
       // Unlock the session and go to POS home
       ref.read(posUnlockedProvider.notifier).state = true;
       context.go('/pos/home');

@@ -17,18 +17,46 @@ class PosStatementPanel extends ConsumerStatefulWidget {
   ConsumerState<PosStatementPanel> createState() => _PosStatementPanelState();
 }
 
+/// UX-50: the windows an operator actually asks a statement for. The old 30-day
+/// default is still here as "الشهر", but it is no longer where the screen opens.
+enum _StatementPreset { today, yesterday, week, month, custom }
+
 class _PosStatementPanelState extends ConsumerState<PosStatementPanel> {
   List<StatementRow> _rows = const [];
   bool _loading = true;
   Object? _error;
   late DateTimeRange _range;
+  _StatementPreset _preset = _StatementPreset.today;
 
   @override
   void initState() {
     super.initState();
-    final now = DateTime.now();
-    _range = DateTimeRange(start: now.subtract(const Duration(days: 30)), end: now);
+    _range = _rangeFor(_StatementPreset.today);
     _load();
+  }
+
+  static DateTimeRange _rangeFor(_StatementPreset p) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return switch (p) {
+      _StatementPreset.today => DateTimeRange(start: today, end: today),
+      _StatementPreset.yesterday => DateTimeRange(
+          start: today.subtract(const Duration(days: 1)),
+          end: today.subtract(const Duration(days: 1))),
+      _StatementPreset.week =>
+        DateTimeRange(start: today.subtract(const Duration(days: 6)), end: today),
+      _StatementPreset.month =>
+        DateTimeRange(start: today.subtract(const Duration(days: 29)), end: today),
+      _StatementPreset.custom => DateTimeRange(start: today, end: today),
+    };
+  }
+
+  Future<void> _applyPreset(_StatementPreset p) async {
+    setState(() {
+      _preset = p;
+      _range = _rangeFor(p);
+    });
+    await _load();
   }
 
   String _day(DateTime d) =>
@@ -65,9 +93,35 @@ class _PosStatementPanelState extends ConsumerState<PosStatementPanel> {
       initialDateRange: _range,
     );
     if (picked == null) return;
-    setState(() => _range = picked);
+    setState(() {
+      _range = picked;
+      _preset = _StatementPreset.custom;
+    });
     await _load();
   }
+
+  Widget _presetRow(bool ar, ColorScheme cs) => SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(children: [
+          for (final (p, label) in [
+            (_StatementPreset.today, ar ? 'اليوم' : 'Today'),
+            (_StatementPreset.yesterday, ar ? 'أمس' : 'Yesterday'),
+            (_StatementPreset.week, ar ? '٧ أيام' : '7 days'),
+            (_StatementPreset.month, ar ? 'الشهر' : 'Month'),
+          ])
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 8),
+              child: ChoiceChip(
+                selected: _preset == p,
+                onSelected: (_) => _applyPreset(p),
+                label: Text(label),
+                labelStyle: IntesharType.sans(12.5,
+                    color: _preset == p ? cs.onSecondaryContainer : cs.onSurfaceVariant,
+                    w: FontWeight.w700),
+              ),
+            ),
+        ]),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -80,6 +134,8 @@ class _PosStatementPanelState extends ConsumerState<PosStatementPanel> {
       child: ListView(
         padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 28),
         children: [
+          _presetRow(ar, cs),
+          const SizedBox(height: 8),
           OutlinedButton.icon(
             onPressed: _pickRange,
             icon: const Icon(Icons.date_range, size: 18),

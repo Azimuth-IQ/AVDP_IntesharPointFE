@@ -111,6 +111,9 @@ class _SliderCropDialogState extends State<_SliderCropDialog> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isAr = Localizations.localeOf(context).languageCode == 'ar';
+    // ~230dp is the rest of the dialog (title, hint, gaps, actions, insets).
+    final cropHeight =
+        (MediaQuery.sizeOf(context).height - 230).clamp(120.0, 300.0);
 
     return Dialog(
       child: ConstrainedBox(
@@ -137,16 +140,24 @@ class _SliderCropDialogState extends State<_SliderCropDialog> {
                 style: IntesharType.sans(12, color: cs.onSurfaceVariant),
               ),
               const SizedBox(height: 14),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(IntesharRadii.sm),
-                child: SizedBox(
-                  height: 300,
-                  child: Crop(
-                    image: widget.original,
-                    controller: _controller,
-                    aspectRatio: 16 / 9,
-                    baseColor: cs.surfaceContainerHighest,
-                    onCropped: _onCropped,
+              // UX-118: a hard height: 300 in a non-scrollable column pushed the
+              // actions past the bottom of a landscape viewport — and the dialog
+              // is barrierDismissible: false, so the user was trapped mid-upload
+              // with no visible Cancel. The crop box is the only thing here that
+              // can yield, so it does: clamped against the viewport, and
+              // Flexible so it shrinks again for anything the clamp misses.
+              Flexible(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(IntesharRadii.sm),
+                  child: SizedBox(
+                    height: cropHeight,
+                    child: Crop(
+                      image: widget.original,
+                      controller: _controller,
+                      aspectRatio: 16 / 9,
+                      baseColor: cs.surfaceContainerHighest,
+                      onCropped: _onCropped,
+                    ),
                   ),
                 ),
               ),

@@ -1008,32 +1008,45 @@ class _TabletLayout extends StatelessWidget {
                 child: ConstrainedBox(
                   constraints: BoxConstraints(minHeight: constraints.maxHeight),
                   child: IntrinsicHeight(
-                    child: NavigationRail(
-                      selectedIndex: activeIndex,
-                      onDestinationSelected: onSelect,
-                      labelType: NavigationRailLabelType.all,
-                      backgroundColor: Colors.transparent,
-                      indicatorColor: cs.primary.withValues(alpha: 0.22),
-                      indicatorShape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(IntesharRadii.md),
+                    // UX-116: a Row lays out a non-flex child with unbounded
+                    // width, so a long RTL label ("الوكلاء الرئيسيون") made the
+                    // rail as wide as the label and ate the body. Bounded here,
+                    // the labels wrap to two centred lines instead.
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 116),
+                      child: NavigationRail(
+                        selectedIndex: activeIndex,
+                        onDestinationSelected: onSelect,
+                        labelType: NavigationRailLabelType.all,
+                        minWidth: 88,
+                        backgroundColor: Colors.transparent,
+                        indicatorColor: cs.primary.withValues(alpha: 0.22),
+                        indicatorShape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(IntesharRadii.md),
+                        ),
+                        destinations: items
+                            .map(
+                              (e) => NavigationRailDestination(
+                                icon: _wrapBadge(
+                                  Icon(e.icon),
+                                  e.route,
+                                  unreadCount,
+                                ),
+                                selectedIcon: _wrapBadge(
+                                  Icon(e.selectedIcon),
+                                  e.route,
+                                  unreadCount,
+                                ),
+                                label: Text(
+                                  e.label,
+                                  maxLines: 2,
+                                  textAlign: TextAlign.center,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            )
+                            .toList(),
                       ),
-                      destinations: items
-                          .map(
-                            (e) => NavigationRailDestination(
-                              icon: _wrapBadge(
-                                Icon(e.icon),
-                                e.route,
-                                unreadCount,
-                              ),
-                              selectedIcon: _wrapBadge(
-                                Icon(e.selectedIcon),
-                                e.route,
-                                unreadCount,
-                              ),
-                              label: Text(e.label),
-                            ),
-                          )
-                          .toList(),
                     ),
                   ),
                 ),

@@ -54,6 +54,10 @@ class BrandCTAButton extends StatelessWidget {
       variant: variant,
       fontSize: fontSize,
       height: height,
+      // A button with no handler must LOOK unavailable. `loading` keeps the
+      // brand fill — the spinner already says "working", and a CTA that greys
+      // out mid-submit reads as a failure.
+      enabled: onPressed != null,
     );
 
     final button = Material(
@@ -93,6 +97,7 @@ class _Inner extends StatelessWidget {
   final BrandCTAVariant variant;
   final double fontSize;
   final double height;
+  final bool enabled;
 
   const _Inner({
     required this.label,
@@ -100,9 +105,55 @@ class _Inner extends StatelessWidget {
     required this.variant,
     required this.fontSize,
     required this.height,
+    required this.enabled,
     this.leading,
     this.trailing,
   });
+
+  /// Icon/spinner + label, painted in [fg].
+  ///
+  /// UX-109: the label is `Flexible` + ellipsis because the whole pill is
+  /// clipped by a `ClipRRect` — an over-long label (the bulk-sale button reads
+  /// "بيع N بطاقة · amount") was silently truncated in release with no debug
+  /// stripes to catch it, on the one control that draws and debits for real.
+  Widget _row(Color fg) => Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (loading) ...[
+            SizedBox(
+              width: fontSize + 2,
+              height: fontSize + 2,
+              child: CircularProgressIndicator(strokeWidth: 2, color: fg),
+            ),
+            const SizedBox(width: 10),
+          ] else if (leading != null) ...[
+            Icon(leading, size: fontSize + 4, color: fg),
+            const SizedBox(width: 10),
+          ],
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'CodecPro',
+                fontSize: fontSize,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.3,
+                color: fg,
+                height: 1,
+              ),
+            ),
+          ),
+          if (trailing != null) ...[
+            const SizedBox(width: 10),
+            Icon(trailing, size: fontSize + 4, color: fg),
+          ],
+        ],
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -111,6 +162,30 @@ class _Inner extends StatelessWidget {
     // agent's CTA (Sell, Sell & reveal, Unlock…) carries THEIR colour, not gold.
     final tones = context.tones;
     final cs = Theme.of(context).colorScheme;
+
+    // UX-146: a disabled CTA used to lose only its shadow — full brand fill,
+    // full-contrast label, so the operator kept tapping a dead Sell button and
+    // read it as "the app is broken". Dim the fill AND the label.
+    if (!enabled) {
+      final fg = cs.onSurface.withValues(alpha: 0.38);
+      return ClipRRect(
+        borderRadius: radius,
+        child: Container(
+          height: height,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          decoration: BoxDecoration(
+            color: cs.onSurface.withValues(alpha: 0.10),
+            borderRadius: radius,
+            border: Border.all(
+              color: cs.onSurface.withValues(alpha: 0.12),
+              width: 1,
+            ),
+          ),
+          child: _row(fg),
+        ),
+      );
+    }
 
     BoxDecoration deco;
     Color fg;
@@ -143,45 +218,12 @@ class _Inner extends StatelessWidget {
         break;
     }
 
-    final row = Row(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        if (loading) ...[
-          SizedBox(
-            width: fontSize + 2,
-            height: fontSize + 2,
-            child: CircularProgressIndicator(strokeWidth: 2, color: fg),
-          ),
-          const SizedBox(width: 10),
-        ] else if (leading != null) ...[
-          Icon(leading, size: fontSize + 4, color: fg),
-          const SizedBox(width: 10),
-        ],
-        Text(
-          label,
-          style: TextStyle(
-            fontFamily: 'CodecPro',
-            fontSize: fontSize,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.3,
-            color: fg,
-            height: 1,
-          ),
-        ),
-        if (trailing != null) ...[
-          const SizedBox(width: 10),
-          Icon(trailing, size: fontSize + 4, color: fg),
-        ],
-      ],
-    );
-
     Widget body = Container(
       height: height,
       alignment: Alignment.center,
       padding: const EdgeInsets.symmetric(horizontal: 24),
       decoration: deco,
-      child: row,
+      child: _row(fg),
     );
 
     // B-094: the inner "chrome" highlight is gone — a flat brand fill reads

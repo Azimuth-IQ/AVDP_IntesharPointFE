@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:inteshar/shared/widgets/responsive.dart';
 
 /// "Inteshar Sunburst" — the brand-led design language.
 ///
@@ -94,6 +95,53 @@ class IntesharGradients {
   static const Color ctaInnerHighlight = Color(0xFFF7DFA0);
 }
 
+// ─── Contrast maths (UX-143) ─────────────────────────────────────────────────
+//
+// Pure, side-effect-free helpers. Everything that picks a foreground for a
+// white-label brand goes through these instead of guessing from luminance.
+
+/// WCAG 2.1 contrast ratio between two opaque colours — 1.0 (identical) to
+/// 21.0 (black on white). Alpha is ignored; blend first if you need it.
+double contrastRatio(Color a, Color b) {
+  final la = a.computeLuminance();
+  final lb = b.computeLuminance();
+  final lighter = la > lb ? la : lb;
+  final darker = la > lb ? lb : la;
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+/// The more legible of [light] / [dark] ON [background], by actual ratio.
+///
+/// Replaces `ThemeData.estimateBrightnessForColor`, which is a luminance
+/// THRESHOLD (it flips at ~0.34), not a comparison — so a mid-tone brand such
+/// as a `#F97316` orange is called "dark" and gets white at 2.8:1 where near
+/// black would have given 6.3:1.
+Color legibleOn(
+  Color background, {
+  Color light = Colors.white,
+  Color dark = IntesharColors.ink,
+}) =>
+    contrastRatio(light, background) >= contrastRatio(dark, background)
+        ? light
+        : dark;
+
+/// [color] blended toward black (on a light [background]) or white (on a dark
+/// one) until it clears [minRatio] against that background.
+///
+/// Blending toward black/white keeps the hue, so a brand-toned or semantic
+/// colour stays recognisable — it only loses lightness. Returns [color]
+/// untouched when it already passes.
+Color contrastAdjusted(Color color, Color background, {double minRatio = 4.5}) {
+  if (contrastRatio(color, background) >= minRatio) return color;
+  final toward = background.computeLuminance() > 0.5 ? Colors.black : Colors.white;
+  for (var step = 1; step <= 50; step++) {
+    final blended = Color.alphaBlend(toward.withValues(alpha: step / 50), color);
+    if (contrastRatio(blended, background) >= minRatio) return blended;
+  }
+  // Only reachable for a mid-grey background, where nothing clears the bar.
+  return toward;
+}
+
 // ─── White-label brand tones (B-085) ─────────────────────────────────────────
 
 Color _lighten(Color c, double amount) =>
@@ -121,6 +169,13 @@ class BrandTones extends ThemeExtension<BrandTones> {
   /// so it never fails contrast on paper (B-078).
   final Color brandInk;
 
+  /// Brand-toned foreground with a HARD guarantee of ≥4.5:1 against the
+  /// surface (UX-143). [brandInk] is the historical token and stays as-is for
+  /// the stock gold; this one is measured, so it is what the theme uses
+  /// wherever the brand acts as ink (nav label/icon, focus ring, switch,
+  /// progress, slider) rather than as a fill.
+  final Color brandOnSurface;
+
   /// Soft brand wash for chips/containers//tag backgrounds.
   final Color brandWash;
 
@@ -137,6 +192,7 @@ class BrandTones extends ThemeExtension<BrandTones> {
     required this.brand,
     required this.onBrand,
     required this.brandInk,
+    required this.brandOnSurface,
     required this.brandWash,
     required this.ctaGradient,
     required this.ctaHighlight,
@@ -144,16 +200,26 @@ class BrandTones extends ThemeExtension<BrandTones> {
   });
 
   /// Derives the full set from a resolved [brand] colour.
+  ///
+  /// [brandOnSurface] defaults to the brand contrast-corrected against the
+  /// mode's page surface, so a caller that doesn't know the resolved surface
+  /// still gets a legible token.
   factory BrandTones.from({
     required Color brand,
     required Color onBrand,
     required Color brandInk,
     required bool isDark,
+    Color? brandOnSurface,
   }) {
     return BrandTones(
       brand: brand,
       onBrand: onBrand,
       brandInk: brandInk,
+      brandOnSurface: brandOnSurface ??
+          contrastAdjusted(
+            brand,
+            isDark ? IntesharColors.inkPaper : IntesharColors.paper,
+          ),
       brandWash: isDark ? _darken(brand, 0.72) : _lighten(brand, 0.86),
       // B-094: the CTA is now a FLAT brand fill. The old three-stop gradient +
       // inner highlight + warm glow was a skeuomorphic "candy button" and the
@@ -176,6 +242,7 @@ class BrandTones extends ThemeExtension<BrandTones> {
     Color? brand,
     Color? onBrand,
     Color? brandInk,
+    Color? brandOnSurface,
     Color? brandWash,
     List<Color>? ctaGradient,
     Color? ctaHighlight,
@@ -185,6 +252,7 @@ class BrandTones extends ThemeExtension<BrandTones> {
         brand: brand ?? this.brand,
         onBrand: onBrand ?? this.onBrand,
         brandInk: brandInk ?? this.brandInk,
+        brandOnSurface: brandOnSurface ?? this.brandOnSurface,
         brandWash: brandWash ?? this.brandWash,
         ctaGradient: ctaGradient ?? this.ctaGradient,
         ctaHighlight: ctaHighlight ?? this.ctaHighlight,
@@ -198,6 +266,7 @@ class BrandTones extends ThemeExtension<BrandTones> {
       brand: Color.lerp(brand, other.brand, t)!,
       onBrand: Color.lerp(onBrand, other.onBrand, t)!,
       brandInk: Color.lerp(brandInk, other.brandInk, t)!,
+      brandOnSurface: Color.lerp(brandOnSurface, other.brandOnSurface, t)!,
       brandWash: Color.lerp(brandWash, other.brandWash, t)!,
       ctaGradient: [
         for (var i = 0; i < ctaGradient.length; i++)
@@ -291,22 +360,24 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
   // override the default Sunburst gold/sage are used unchanged.
   final saffron     = brandPrimary   ?? (isDark ? IntesharColors.saffronOnDark : IntesharColors.saffron);
   final sage        = brandSecondary ?? (isDark ? IntesharColors.sageOnDark    : IntesharColors.sage);
-  // on-accent colours track the brand luminance so labels stay legible on any hue.
-  final onSaffron   = brandPrimary == null
-      ? IntesharColors.ink
-      : (ThemeData.estimateBrightnessForColor(brandPrimary) == Brightness.dark ? Colors.white : IntesharColors.ink);
+  // on-accent colours pick whichever of white/ink actually MEASURES better on
+  // the brand (UX-143). `estimateBrightnessForColor` is a luminance threshold,
+  // not a contrast comparison, so it handed a mid-tone brand the losing option.
+  final onSaffron   = brandPrimary == null ? IntesharColors.ink : legibleOn(brandPrimary);
   final onSage      = brandSecondary == null
       ? (isDark ? IntesharColors.ink : Colors.white)
-      : (ThemeData.estimateBrightnessForColor(brandSecondary) == Brightness.dark ? Colors.white : IntesharColors.ink);
+      : legibleOn(brandSecondary);
   final oxblood     = isDark ? IntesharColors.oxbloodOnDark : IntesharColors.oxblood;
+  // Brand-toned foreground with a measured ≥4.5:1 against the page surface —
+  // used wherever the brand acts as INK rather than as a fill (nav label/icon,
+  // focus ring, switch, progress, slider). Raw `saffron` on white is 2.05:1.
+  final brandOnSurface = contrastAdjusted(saffron, paper);
   // Brand-toned colour for TEXT/labels ON a surface — raw `saffron` (bright gold,
   // or a pale white-label primary) fails contrast on paper (B-078). Use the deep
-  // amber by default, and darken a pale white-label brand so labels stay legible.
+  // amber by default; a white-label brand goes through the measured correction.
   final brandInk = brandPrimary == null
       ? (isDark ? IntesharColors.saffronOnDark : IntesharColors.saffronDeep)
-      : (ThemeData.estimateBrightnessForColor(brandPrimary) == Brightness.light
-          ? Color.alphaBlend(Colors.black.withValues(alpha: 0.45), brandPrimary)
-          : brandPrimary);
+      : brandOnSurface;
 
   // Soft brand wash used for chips/tags/containers — derived so it tracks a
   // white-label brand instead of staying the stock gold `dust` (B-085).
@@ -402,6 +473,7 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
         brand: saffron,
         onBrand: onSaffron,
         brandInk: brandInk,
+        brandOnSurface: brandOnSurface,
         isDark: isDark,
       ),
     ],
@@ -454,7 +526,9 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(IntesharRadii.sm),
-        borderSide: BorderSide(color: saffron, width: 1.6),
+        // The focus ring is the only "which field am I in" cue — it has to be
+        // visible against the white fill, which raw brand gold is not.
+        borderSide: BorderSide(color: brandOnSurface, width: 1.6),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(IntesharRadii.sm),
@@ -479,8 +553,9 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
       style: ElevatedButton.styleFrom(
         elevation: 0,
         backgroundColor: saffron,
-        // Bright marigold demands ink in both modes — white fails WCAG on yellow.
-        foregroundColor: IntesharColors.ink,
+        // Ink for the stock marigold (white fails WCAG on yellow), but measured
+        // per brand — a hardcoded ink was unreadable on a dark white-label fill.
+        foregroundColor: onSaffron,
         textStyle: codec(size: 14, w: FontWeight.w800, tracking: 0.4),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(IntesharRadii.sm)),
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
@@ -527,6 +602,10 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
       surfaceTintColor: Colors.transparent,
       modalBackgroundColor: card,
       elevation: 0,
+      // UX-120: without this every sheet is viewport-wide, so a one-line input
+      // stretches to ~1390dp on a desktop browser. Below 560 it's a no-op, so
+      // phones and the POS handheld are unaffected.
+      constraints: const BoxConstraints(maxWidth: Breakpoints.formMax),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(IntesharRadii.lg)),
       ),
@@ -542,6 +621,11 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
       titleTextStyle: codec(size: 22, w: FontWeight.w700, c: onPaper, tracking: -0.3),
       contentTextStyle: codec(size: 14, w: FontWeight.w400, c: onPaper, height: 1.45),
     ),
+    // UX-145: the selected item used to be the LEAST readable thing on the bar —
+    // raw gold on white is 2.05:1 against 6.25:1 for the unselected grey. It now
+    // uses the measured brand ink, and carries a weight step as well as a colour
+    // step so selection isn't signalled by hue alone (the tint pill is ~1.2:1
+    // and can never carry it on its own without wrecking the light style).
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: card,
       surfaceTintColor: Colors.transparent,
@@ -549,15 +633,15 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
       indicatorShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(IntesharRadii.sm)),
       iconTheme: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
-        return IconThemeData(color: selected ? saffron : onPaperSoft, size: 22);
+        return IconThemeData(color: selected ? brandOnSurface : onPaperSoft, size: 22);
       }),
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
         return codec(
           size: 11,
-          w: FontWeight.w700,
+          w: selected ? FontWeight.w800 : FontWeight.w600,
           tracking: 0.5,
-          c: selected ? saffron : onPaperSoft,
+          c: selected ? brandOnSurface : onPaperSoft,
         );
       }),
       height: 64,
@@ -566,25 +650,26 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
       backgroundColor: card,
       indicatorColor: saffron.withValues(alpha: 0.16),
       indicatorShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(IntesharRadii.sm)),
-      selectedIconTheme: IconThemeData(color: saffron, size: 22),
+      selectedIconTheme: IconThemeData(color: brandOnSurface, size: 22),
       unselectedIconTheme: IconThemeData(color: onPaperSoft, size: 22),
-      selectedLabelTextStyle: codec(size: 11, w: FontWeight.w700, c: saffron, tracking: 0.4),
+      selectedLabelTextStyle: codec(size: 11, w: FontWeight.w800, c: brandOnSurface, tracking: 0.4),
       unselectedLabelTextStyle: codec(size: 11, w: FontWeight.w500, c: onPaperSoft, tracking: 0.4),
     ),
     sliderTheme: SliderThemeData(
-      activeTrackColor: saffron,
+      activeTrackColor: brandOnSurface,
       inactiveTrackColor: outline,
       thumbColor: onPaper,
       overlayColor: saffron.withValues(alpha: 0.12),
       trackHeight: 3,
     ),
     progressIndicatorTheme: ProgressIndicatorThemeData(
-      color: saffron,
+      color: brandOnSurface,
       linearTrackColor: outline,
       circularTrackColor: outline,
     ),
     switchTheme: SwitchThemeData(
-      thumbColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? saffron : onPaperSoft),
+      // The thumb is the state read-out; it must clear the surface, not just the track.
+      thumbColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? brandOnSurface : onPaperSoft),
       trackColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? saffron.withValues(alpha: 0.32) : outline),
     ),
     iconTheme: IconThemeData(color: onPaperSoft, size: 22),

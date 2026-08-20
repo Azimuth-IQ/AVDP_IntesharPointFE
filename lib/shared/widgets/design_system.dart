@@ -185,6 +185,11 @@ class InkCard extends StatelessWidget {
 /// Friendly rounded status chip. Filled with the color at low alpha, label
 /// at full alpha. Replaces the rubber-stamp uppercase pattern.
 class StampPill extends StatelessWidget {
+  /// Smallest legible size for bold Arabic on a tinted pill — a status read at
+  /// arm's length on a POS handheld in daylight. Callers asking for less get
+  /// this (UX-142).
+  static const double minFontSize = 12;
+
   final String label;
   final Color color;
   final IconData? icon;
@@ -196,11 +201,23 @@ class StampPill extends StatelessWidget {
     required this.color,
     this.icon,
     this.filled = true,
-    this.fontSize = 11,
+    this.fontSize = 12,
   });
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final size = fontSize < minFontSize ? minFontSize : fontSize;
+    // UX-142: the label used to BE the tint colour on that same colour at 14%,
+    // i.e. ~2–3:1 — the most repeated status signal in the product, and the
+    // first thing to vanish in daylight. Darken the tone against the tint the
+    // pill actually paints; blending toward black keeps the semantic hue, so
+    // "available" is still green, just readable.
+    final background = filled
+        ? Color.alphaBlend(color.withValues(alpha: 0.14), cs.surface)
+        : cs.surface;
+    final foreground = contrastAdjusted(color, background);
+
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: icon != null ? 8 : 10,
@@ -211,21 +228,21 @@ class StampPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
         border: filled
             ? null
-            : Border.all(color: color.withValues(alpha: 0.5), width: 1),
+            : Border.all(color: foreground.withValues(alpha: 0.5), width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: fontSize + 2, color: color),
+            Icon(icon, size: size + 2, color: foreground),
             const SizedBox(width: 4),
           ],
           Text(
             label,
             style: TextStyle(
               fontFamily: 'CodecPro',
-              color: color,
-              fontSize: fontSize,
+              color: foreground,
+              fontSize: size,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.2,
               height: 1.1,
@@ -350,21 +367,41 @@ class PageHeader extends StatelessWidget {
             ),
             const SizedBox(height: 6),
           ],
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: IntesharType.display(
-                    32,
-                    color: cs.onSurface,
-                    w: FontWeight.w900,
+          // UX-115: `trailing` is a non-flex Row child, so it was handed
+          // UNBOUNDED width — a Wrap never wrapped, a button pair claimed its
+          // full ~260dp, and the 32px title was left wrapping inside ~88dp.
+          // Cap the trailing so it folds, and let the title scale down instead
+          // of stacking (same idiom as the POS masthead).
+          LayoutBuilder(
+            builder: (context, constraints) => Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      style: IntesharType.display(
+                        32,
+                        color: cs.onSurface,
+                        w: FontWeight.w900,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-              if (trailing != null) ...[const SizedBox(width: 12), trailing!],
-            ],
+                if (trailing != null) ...[
+                  const SizedBox(width: 12),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: constraints.maxWidth * 0.55,
+                    ),
+                    child: trailing!,
+                  ),
+                ],
+              ],
+            ),
           ),
           const SizedBox(height: 6),
           Container(

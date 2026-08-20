@@ -225,20 +225,25 @@ class _Thumb extends StatelessWidget {
             ),
           ),
         ),
+        // UX-119: this badge used to sit at (-6, -6), i.e. a quarter of it
+        // hung outside the Stack — visible, but hit-testing rejects anything
+        // beyond the parent's bounds, so the effective target was ~14×14.
+        // Inside the bounds the whole 30dp circle is tappable.
         PositionedDirectional(
-          top: -6,
-          end: -6,
+          top: 2,
+          end: 2,
           child: Material(
             color: cs.errorContainer,
             shape: const CircleBorder(),
             child: InkWell(
               customBorder: const CircleBorder(),
               onTap: onRemove,
-              child: Padding(
-                padding: const EdgeInsets.all(3),
+              child: SizedBox(
+                width: 30,
+                height: 30,
                 child: Icon(
                   Icons.close,
-                  size: 14,
+                  size: 16,
                   color: cs.onErrorContainer,
                 ),
               ),

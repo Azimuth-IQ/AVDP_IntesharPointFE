@@ -30,8 +30,9 @@ class LanguageSwitcherRow extends ConsumerWidget {
         SegmentedButton<String>(
           showSelectedIcon: false,
           style: ButtonStyle(
-            visualDensity: VisualDensity.compact,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            // UX-119: `compact` + `shrinkWrap` together stripped the padded tap
+            // target down to ~28dp — on the POS About sheet, on a handheld, for
+            // a thumb. The small label style keeps the row visually tight.
             textStyle: WidgetStatePropertyAll(
               Theme.of(context).textTheme.labelSmall,
             ),

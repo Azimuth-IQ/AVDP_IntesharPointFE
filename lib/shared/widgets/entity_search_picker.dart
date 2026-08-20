@@ -341,7 +341,18 @@ class _EntitySearchDialogState extends State<_EntitySearchDialog> {
             onChanged: _onSearch,
           ),
           const SizedBox(height: 8),
-          SizedBox(height: 300, child: _list(s, cs)),
+          // UX-111: this was a hard SizedBox(height: 300) in a non-scrollable
+          // AlertDialog column, and `autofocus` opens the keyboard on entry —
+          // the content then overflowed its box and painted over the Cancel
+          // button, leaving no way out. Flexible lets the list give way instead
+          // (AlertDialog bounds its content, and Dialog already subtracts the
+          // IME inset), while the cap keeps a tall screen from filling up.
+          Flexible(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 300),
+              child: _list(s, cs),
+            ),
+          ),
         ]),
       ),
       actions: [

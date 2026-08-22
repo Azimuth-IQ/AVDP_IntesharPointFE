@@ -1060,6 +1060,14 @@ class _BalanceCard extends StatelessWidget {
         canTransfer && children.isNotEmpty && transfersRoute != null;
     final cs = Theme.of(context).colorScheme;
     final tones = context.tones;
+    // UX-20: `available` is `base − grantsOut`, and the card rendered only the
+    // result — while the pricing screen shows `قيمة المخزون` (stock × price) on a
+    // completely different basis. Neither stated what it was, so two money
+    // numbers sat in the app with no stated relationship. `AgentBalance` already
+    // carries `base` and `grantsOut` and the client already parses them, so the
+    // card now shows the three lines the owner thinks in:
+    //   credited to me → given to my accounts → left with me.
+    final showBreakdown = balance.base != 0 || balance.grantsOut != 0;
     // B-094: a WHITE card with a brand accent rule, not a solid gold slab. The
     // number is the hero — big ink numerals on paper read as money, and gold is
     // reserved for the thin accent + the label, so it stays meaningful.
@@ -1071,50 +1079,138 @@ class _BalanceCard extends StatelessWidget {
         border: Border.all(color: cs.outlineVariant),
         boxShadow: IntesharShadows.elev1,
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // The one flash of brand colour on the card.
-          Container(
-            width: 3,
-            height: 40,
-            decoration: BoxDecoration(
-              color: tones.brand,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: IntesharType.overline(color: cs.onSurfaceVariant)),
-                const SizedBox(height: 4),
-                Text(
-                  Formatters.iqd(balance.available.round()),
-                  style: TextStyle(
-                    fontFamily: 'CodecPro',
-                    fontSize: 32,
-                    fontWeight: FontWeight.w900,
-                    color: cs.onSurface,
-                    letterSpacing: -0.8,
-                    height: 1,
-                  ),
+          Row(
+            children: [
+              // The one flash of brand colour on the card.
+              Container(
+                width: 3,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: tones.brand,
+                  borderRadius: BorderRadius.circular(2),
                 ),
-              ],
-            ),
-          ),
-          if (showTransfer)
-            FilledButton.icon(
-              style: FilledButton.styleFrom(
-                backgroundColor: cs.onSurface,
-                foregroundColor: cs.surface,
               ),
-              onPressed: () => context.go(transfersRoute),
-              icon: const Icon(Icons.north_east, size: 16),
-              label: Text(ar ? 'تحويل رصيد' : 'Transfer'),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label,
+                        style:
+                            IntesharType.overline(color: cs.onSurfaceVariant)),
+                    const SizedBox(height: 4),
+                    Text(
+                      Formatters.iqd(balance.available.round()),
+                      style: TextStyle(
+                        fontFamily: 'CodecPro',
+                        fontSize: 32,
+                        fontWeight: FontWeight.w900,
+                        color: cs.onSurface,
+                        letterSpacing: -0.8,
+                        height: 1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (showTransfer)
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: cs.onSurface,
+                    foregroundColor: cs.surface,
+                  ),
+                  onPressed: () => context.go(transfersRoute),
+                  icon: const Icon(Icons.north_east, size: 16),
+                  label: Text(ar ? 'تحويل رصيد' : 'Transfer'),
+                ),
+            ],
+          ),
+          if (showBreakdown) ...[
+            const SizedBox(height: 14),
+            const Hairline(),
+            const SizedBox(height: 10),
+            _BalanceLine(
+              label: ar ? 'مُضاف لي' : 'Credited to me',
+              amount: balance.base,
             ),
+            const SizedBox(height: 5),
+            _BalanceLine(
+              label: ar ? 'مُحوَّل إلى حساباتي' : 'Given to my accounts',
+              amount: balance.grantsOut,
+              negative: true,
+            ),
+            const SizedBox(height: 5),
+            _BalanceLine(
+              label: ar ? 'المتبقي لديّ' : 'Left with me',
+              amount: balance.available,
+              strong: true,
+            ),
+            const SizedBox(height: 8),
+            // What "credited" is measured in — the other half of UX-20. An
+            // inventory-backed tier's credit is the value of the stock HQ
+            // uploaded to it; a wallet tier's is credit its parent granted.
+            Text(
+              balance.inventoryBacked
+                  ? (ar
+                      ? 'المُضاف = قيمة الكروت المرفوعة لك'
+                      : 'Credited = the value of the cards uploaded to you')
+                  : (ar
+                      ? 'المُضاف = الرصيد الممنوح لك'
+                      : 'Credited = the balance granted to you'),
+              style: IntesharType.sans(11.5, color: cs.onSurfaceVariant),
+            ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+/// One line of the balance breakdown (UX-20): a label and its figure, in the
+/// order the account owner reasons about them.
+class _BalanceLine extends StatelessWidget {
+  final String label;
+  final num amount;
+  final bool negative;
+  final bool strong;
+  const _BalanceLine({
+    required this.label,
+    required this.amount,
+    this.negative = false,
+    this.strong = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: IntesharType.sans(
+              12.5,
+              color: strong ? cs.onSurface : cs.onSurfaceVariant,
+              w: strong ? FontWeight.w700 : FontWeight.w400,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          '${negative && amount != 0 ? '−' : ''}${Formatters.iqd(amount.round())}',
+          style: IntesharType.mono(
+            12.5,
+            color: strong ? cs.onSurface : cs.onSurfaceVariant,
+            w: strong ? FontWeight.w700 : FontWeight.w400,
+          ),
+        ),
+      ],
     );
   }
 }

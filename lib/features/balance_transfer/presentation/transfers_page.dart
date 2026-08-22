@@ -4,6 +4,7 @@ import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:inteshar/core/utils/formatters.dart';
+import 'package:inteshar/features/balance_transfer/presentation/money_dialog.dart';
 import 'package:inteshar/features/balance_transfer/presentation/recipient_tile.dart';
 import 'package:inteshar/features/reports/data/reports_repository.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
@@ -83,6 +84,21 @@ class _TS {
       'الرصيد غير كافٍ (المتاح $available)');
   String toName(String n) => p('To $n', 'إلى $n');
   String fromName(String n) => p('From $n', 'من $n');
+
+  /// UX-47: the ledger controls. The Reports → Transfers tab has a date filter,
+  /// search, paging and a total; this page rendered the SAME ledger as one
+  /// unbounded card list with none of them.
+  String get allDates => p('All dates', 'كل التواريخ');
+  String get searchHistory =>
+      p('Search an account…', 'ابحث عن حساب…');
+  String get totalSent => p('Sent', 'المُرسل');
+  String get totalReceived => p('Received', 'المُستلم');
+  String get noMatchingTransfers =>
+      p('No transfers match these filters.', 'لا توجد تحويلات مطابقة لهذه المرشحات.');
+  String showingOf(int shown, int total) =>
+      p('Showing $shown of $total', 'عرض $shown من $total');
+  String get showMore => p('Show more', 'عرض المزيد');
+  String get clearFilters => p('Clear', 'مسح');
 }
 
 class _TransfersPageState extends ConsumerState<TransfersPage> {
@@ -102,6 +118,38 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
   static const _kTakeBack = 'takeBack';
   bool get _anyBusy => _busy.isNotEmpty;
   Object? _error;
+
+  /// UX-47 — the transfer-history controls. The whole ledger is already in
+  /// memory (`GET /api/balance/grants` returns it unpaged), so the date window,
+  /// the search and the page size are applied here rather than round-tripped.
+  DateTime? _histFrom;
+  DateTime? _histTo;
+  String _histQuery = '';
+  static const _histPageSize = 20;
+  int _histShown = _histPageSize;
+
+  bool get _histFiltered =>
+      _histFrom != null || _histTo != null || _histQuery.trim().isNotEmpty;
+
+  static String _ymd(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  /// The ledger after the date window and the search. `GrantRow.date` is an ISO
+  /// `yyyy-MM-dd`, so a string compare IS the date compare.
+  List<GrantRow> get _visibleGrants {
+    final q = _histQuery.trim().toLowerCase();
+    final from = _histFrom == null ? null : _ymd(_histFrom!);
+    final to = _histTo == null ? null : _ymd(_histTo!);
+    return _grants.where((g) {
+      if (from != null && g.date.compareTo(from) < 0) return false;
+      if (to != null && g.date.compareTo(to) > 0) return false;
+      if (q.isEmpty) return true;
+      return g.destName.toLowerCase().contains(q) ||
+          g.sourceName.toLowerCase().contains(q) ||
+          g.destId.toLowerCase().contains(q) ||
+          g.sourceId.toLowerCase().contains(q);
+    }).toList();
+  }
 
   String get _myId =>
       (ref.read(authStateProvider).valueOrNull as AuthAuthenticated?)
@@ -214,12 +262,15 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
     final amountCtrl = TextEditingController();
     final ar = Localizations.localeOf(context).languageCode == 'ar';
 
-    final ok = await showDialog<bool>(
+    // UX-26: presented full-screen on a phone, scrollable everywhere else —
+    // the amount field and the before→after readout must survive the keyboard.
+    final ok = await showMoneyDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setD) {
+      title: s.takeBack,
+      width: 420,
+      body: (ctx, setD) {
         final cs = Theme.of(ctx).colorScheme;
         final amt = parseAmount(amountCtrl.text) ?? 0;
-        final ready = from != null && amt > 0;
         // UX-27: the ceiling was discovered by submitting and reading the
         // server's refusal — while the child's balance was already loaded into
         // _childBal and never consulted. Shown when known; the server stays the
@@ -228,11 +279,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
         final known = from != null && _childBal.containsKey(from!.id);
         final childBal = known ? _childBal[from!.id]! : 0;
         final after = childBal - amt;
-        return AlertDialog(
-          title: Text(s.takeBack),
-          content: SizedBox(
-            width: 420,
-            child: Column(
+        return Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -293,33 +340,37 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                 child: Text(s.takeBackHint,
                     style: Theme.of(ctx).textTheme.bodySmall),
               ),
-            ]),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: Text(s.cancel)),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                  backgroundColor: Theme.of(ctx).colorScheme.error),
-              onPressed: !ready
-                  ? null
-                  : () {
-                      // Arm then commit, the same shape as sending.
-                      if (!armed) {
-                        setD(() => armed = true);
-                        return;
-                      }
-                      Navigator.pop(ctx, true);
-                    },
-              child: Text(armed && ready
-                  ? s.confirmTakeBack(
-                      Formatters.iqd(amt.round()), from!.label)
-                  : s.takeBack),
+            ]);
+      },
+      actions: (ctx, setD) {
+        final amt = parseAmount(amountCtrl.text) ?? 0;
+        final ready = from != null && amt > 0;
+        return [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(s.cancel)),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(ctx).colorScheme.error),
+            onPressed: !ready
+                ? null
+                : () {
+                    // Arm then commit, the same shape as sending.
+                    if (!armed) {
+                      setD(() => armed = true);
+                      return;
+                    }
+                    Navigator.pop(ctx, true);
+                  },
+            child: Text(
+              armed && ready
+                  ? s.confirmTakeBack(Formatters.iqd(amt.round()), from!.label)
+                  : s.takeBack,
+              textAlign: TextAlign.center,
             ),
-          ],
-        );
-      }),
+          ),
+        ];
+      },
     );
 
     final amount = parseAmount(amountCtrl.text);
@@ -366,9 +417,14 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
     final amountCtrl = TextEditingController();
     String? fieldError;
 
-    final ok = await showDialog<bool>(
+    // UX-26: this form is ~550-600dp tall. On a phone with the keyboard open it
+    // had ~320dp and silently lost its bottom — the amount field and the
+    // before→after readout. Full-screen on mobile, scrollable elsewhere.
+    final ok = await showMoneyDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setD) {
+      title: s.newTransfer,
+      width: 460,
+      body: (ctx, setD) {
         final cs = Theme.of(ctx).colorScheme;
         final q = query.trim().toLowerCase();
         final byKind = kind == _DestKind.pos
@@ -388,15 +444,10 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
         final avail = _balance?.available ?? 0;
         final amt = parseAmount(amountCtrl.text) ?? 0;
         final after = avail - amt;
-        final ready = dest != null && amt > 0 && after >= 0;
 
         void disarm() => armed = false;
 
-        return AlertDialog(
-          title: Text(s.newTransfer),
-          content: SizedBox(
-            width: 460,
-            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               // Recipient type — the agent's OWN POS points are a first-class
               // choice here, not something hidden behind another dialog.
               SegmentedButton<_DestKind>(
@@ -513,39 +564,45 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                           w: FontWeight.w700, color: IntesharColors.sage)),
                 ]),
               ],
-            ]),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.cancel)),
-            FilledButton(
-              onPressed: !ready
-                  ? null
-                  : () {
-                      final n = parseAmount(amountCtrl.text);
-                      if (n == null || n <= 0) {
-                        setD(() => fieldError = s.invalidAmount);
-                        return;
-                      }
-                      if (n > avail) {
-                        setD(() =>
-                            fieldError = s.insufficient(Formatters.iqd(avail.round())));
-                        return;
-                      }
-                      // Arm first, commit second — the confirmation, without a
-                      // third dialog.
-                      if (!armed) {
-                        setD(() => armed = true);
-                        return;
-                      }
-                      Navigator.pop(ctx, true);
-                    },
-              child: Text(armed && ready
+            ]);
+      },
+      actions: (ctx, setD) {
+        final avail = _balance?.available ?? 0;
+        final amt = parseAmount(amountCtrl.text) ?? 0;
+        final ready = dest != null && amt > 0 && (avail - amt) >= 0;
+        return [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.cancel)),
+          FilledButton(
+            onPressed: !ready
+                ? null
+                : () {
+                    final n = parseAmount(amountCtrl.text);
+                    if (n == null || n <= 0) {
+                      setD(() => fieldError = s.invalidAmount);
+                      return;
+                    }
+                    if (n > avail) {
+                      setD(() =>
+                          fieldError = s.insufficient(Formatters.iqd(avail.round())));
+                      return;
+                    }
+                    // Arm first, commit second — the confirmation, without a
+                    // third dialog.
+                    if (!armed) {
+                      setD(() => armed = true);
+                      return;
+                    }
+                    Navigator.pop(ctx, true);
+                  },
+            child: Text(
+              armed && ready
                   ? s.confirmSend(Formatters.iqd(amt.round()), dest!.label)
-                  : s.send),
+                  : s.send,
+              textAlign: TextAlign.center,
             ),
-          ],
-        );
-      }),
+          ),
+        ];
+      },
     );
 
     final amount = parseAmount(amountCtrl.text);
@@ -638,10 +695,130 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                           IntesharType.sans(14, color: cs.onSurfaceVariant))),
             )
           else
-            for (final g in _grants) _grantCard(s, g, cs),
+            ..._history(s, cs),
         ],
       ),
     );
+  }
+
+  /// UX-47 — the same four controls the Reports → Transfers tab has: a date
+  /// window, a search, running totals for what is on screen, and paging. This
+  /// page used to render the entire ledger as one unbounded card list, so two
+  /// views of ONE ledger behaved completely differently.
+  List<Widget> _history(_TS s, ColorScheme cs) {
+    final rows = _visibleGrants;
+    final sent = rows
+        .where((g) => g.sourceId == _myId)
+        .fold<num>(0, (a, g) => a + g.amount);
+    final received = rows
+        .where((g) => g.destId == _myId)
+        .fold<num>(0, (a, g) => a + g.amount);
+    final shown = rows.take(_histShown).toList();
+    final rangeLabel = (_histFrom != null && _histTo != null)
+        ? '${_ymd(_histFrom!)} → ${_ymd(_histTo!)}'
+        : s.allDates;
+
+    return [
+      Row(children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: () => _pickHistoryRange(),
+            icon: const Icon(Icons.date_range_outlined, size: 16),
+            label: Text(rangeLabel,
+                maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
+        ),
+        if (_histFiltered) ...[
+          const SizedBox(width: 8),
+          TextButton(
+            onPressed: () => setState(() {
+              _histFrom = null;
+              _histTo = null;
+              _histQuery = '';
+              _histShown = _histPageSize;
+            }),
+            child: Text(s.clearFilters),
+          ),
+        ],
+      ]),
+      const SizedBox(height: 8),
+      TextField(
+        decoration: InputDecoration(
+          isDense: true,
+          prefixIcon: const Icon(Icons.search, size: 18),
+          hintText: s.searchHistory,
+        ),
+        onChanged: (v) => setState(() {
+          _histQuery = v;
+          _histShown = _histPageSize;
+        }),
+      ),
+      const SizedBox(height: 10),
+      // Totals for exactly what the filters selected — the figure the agent is
+      // actually looking for when they open the history at all.
+      Row(children: [
+        Expanded(
+          child: _HistoryTotal(
+            label: s.totalSent,
+            amount: sent,
+            tint: cs.error,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _HistoryTotal(
+            label: s.totalReceived,
+            amount: received,
+            tint: IntesharColors.sage,
+          ),
+        ),
+      ]),
+      const SizedBox(height: 10),
+      if (rows.isEmpty)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 28),
+          child: Center(
+              child: Text(s.noMatchingTransfers,
+                  textAlign: TextAlign.center,
+                  style: IntesharType.sans(14, color: cs.onSurfaceVariant))),
+        )
+      else ...[
+        for (final g in shown) _grantCard(s, g, cs),
+        Padding(
+          padding: const EdgeInsets.only(top: 4, bottom: 4),
+          child: Row(children: [
+            Expanded(
+              child: Text(s.showingOf(shown.length, rows.length),
+                  style: IntesharType.sans(11.5, color: cs.onSurfaceVariant)),
+            ),
+            if (shown.length < rows.length)
+              TextButton(
+                onPressed: () =>
+                    setState(() => _histShown += _histPageSize),
+                child: Text(s.showMore),
+              ),
+          ]),
+        ),
+      ],
+    ];
+  }
+
+  Future<void> _pickHistoryRange() async {
+    final now = DateTime.now();
+    final range = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(now.year - 3),
+      lastDate: DateTime(now.year + 1),
+      initialDateRange: (_histFrom != null && _histTo != null)
+          ? DateTimeRange(start: _histFrom!, end: _histTo!)
+          : null,
+    );
+    if (range == null || !mounted) return;
+    setState(() {
+      _histFrom = range.start;
+      _histTo = range.end;
+      _histShown = _histPageSize;
+    });
   }
 
   Widget _grantCard(_TS s, GrantRow g, ColorScheme cs) {
@@ -683,6 +860,40 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
               style: IntesharType.mono(13.5, color: tint)),
         ]),
       ),
+    );
+  }
+}
+
+/// One half of the transfer-history total strip (UX-47). Reads over the FILTERED
+/// ledger, so the number always answers "in this window, for this search".
+class _HistoryTotal extends StatelessWidget {
+  final String label;
+  final num amount;
+  final Color tint;
+  const _HistoryTotal({
+    required this.label,
+    required this.amount,
+    required this.tint,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(IntesharRadii.md),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: IntesharType.overline(color: cs.onSurfaceVariant)),
+        const SizedBox(height: 3),
+        Text(Formatters.iqd(amount.round()),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: IntesharType.mono(14, w: FontWeight.w700, color: tint)),
+      ]),
     );
   }
 }

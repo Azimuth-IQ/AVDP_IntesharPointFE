@@ -101,9 +101,18 @@ class SectionLabel extends StatelessWidget {
 
 // ─── InkCard (now a soft shadow tile) ──────────────────────────────────────
 
-/// White surface tile with a soft drop shadow. Optionally paints a yellow
-/// accent ridge along the start edge (`ruleColor`) — this preserves the
-/// existing API but reads as a brand mark, not an editorial print rule.
+/// **The** card in this app. White surface tile with a soft drop shadow.
+/// Optionally paints a yellow accent ridge along the start edge (`ruleColor`) —
+/// this preserves the existing API but reads as a brand mark, not an editorial
+/// print rule.
+///
+/// UX-126: there used to be a second, hand-rolled recipe — `cs.surface` (which
+/// *is* the page background) plus a hairline — at five sites, including the
+/// balance hero on the landing screen for three of the four roles, inches away
+/// from real `InkCard`s. Two definitions of "a card" on one viewport is the most
+/// legible form of drift there is. The white fill wins (it is the ~60-site
+/// majority and the one `cardTheme` paints); [bordered] carries the hairline for
+/// the callers that wanted the extra definition.
 class InkCard extends StatelessWidget {
   final Widget child;
   final Color? ruleColor;
@@ -114,6 +123,10 @@ class InkCard extends StatelessWidget {
   final Color? background;
   final bool dense;
   final bool elevated;
+
+  /// Adds the 1px `outlineVariant` hairline around the tile (UX-126). The fill
+  /// stays `surfaceContainer` — a card is never the page colour.
+  final bool bordered;
 
   const InkCard({
     super.key,
@@ -126,6 +139,7 @@ class InkCard extends StatelessWidget {
     this.background,
     this.dense = false,
     this.elevated = true,
+    this.bordered = false,
   });
 
   @override
@@ -159,6 +173,7 @@ class InkCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: bg,
         borderRadius: radius,
+        border: bordered ? Border.all(color: cs.outlineVariant) : null,
         boxShadow: elevated ? IntesharShadows.elev1 : const [],
       ),
       child: content,

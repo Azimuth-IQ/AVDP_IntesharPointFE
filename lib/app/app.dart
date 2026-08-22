@@ -9,6 +9,7 @@ import 'package:inteshar/core/push/push_listener.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/update/presentation/update_gate.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
+import 'package:inteshar/shared/widgets/offline_banner.dart';
 
 class IntesharApp extends ConsumerWidget {
   const IntesharApp({super.key});
@@ -34,9 +35,15 @@ class IntesharApp extends ConsumerWidget {
       routerConfig: router,
       // App-wide update gate: a mandatory update replaces the whole UI; an
       // optional one surfaces a dismissible sheet. No-op off Android.
+      //
+      // UX-79: the offline strip is a gate here, NOT a banner inside AppShell —
+      // `/pos/home` (the till) is routed outside the shell, and that is exactly
+      // the screen a dead link costs money on.
       builder: (context, child) => PushListener(
         child: UpdateGate(
-          child: SessionExpiryGate(child: child ?? const SizedBox.shrink()),
+          child: ConnectivityGate(
+            child: SessionExpiryGate(child: child ?? const SizedBox.shrink()),
+          ),
         ),
       ),
       locale: locale,

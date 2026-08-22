@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/core/api/api_exception.dart';
+import 'package:inteshar/core/api/connectivity.dart';
 import 'package:inteshar/core/api/session_invalidation.dart';
 import 'package:inteshar/core/logging/client_log_reporter.dart';
 import 'package:inteshar/core/logging/device_context.dart';
@@ -74,12 +75,31 @@ class _AuthInterceptor extends Interceptor {
     handler.next(options);
   }
 
+  // UX-79: the connectivity signal is DERIVED here rather than read from a
+  // platform plugin — a response of any status proves the server is reachable,
+  // which is the only fact the offline strip claims. Runs once per logical
+  // request: a retried GET resolves through this interceptor exactly once.
+  @override
+  void onResponse(Response<dynamic> response, ResponseInterceptorHandler handler) {
+    _ref.read(connectivityProvider.notifier).recordReachedServer();
+    handler.next(response);
+  }
+
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
     // End the session on a 401 (expired / SESSION_SUPERSEDED) OR the working-hours
     // 403 (the account window closed mid-session): clear and tick the invalidation
     // signal so AuthController rebuilds and the router bounces to /login. A plain
     // 403 (forbidden action) does NOT end the session.
+    // UX-79 — see onResponse. This is the "no response at all" half of the
+    // signal, and it runs once per logical request: _RetryInterceptor only calls
+    // handler.next once its attempts are exhausted, and rejects (skipping this)
+    // for the intermediate ones.
+    if (err.response != null) {
+      _ref.read(connectivityProvider.notifier).recordReachedServer();
+    } else {
+      _ref.read(connectivityProvider.notifier).recordTransportFailure(err.type);
+    }
     final code = err.response?.statusCode;
     final data = err.response?.data;
     final sessionEnded = code == 401 ||

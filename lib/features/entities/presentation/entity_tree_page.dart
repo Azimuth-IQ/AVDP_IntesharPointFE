@@ -1,4 +1,6 @@
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -18,6 +20,7 @@ import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/entities/presentation/delete_agent_sheet.dart';
 import 'package:inteshar/features/entities/presentation/manage_users_sheet.dart';
 import 'package:inteshar/features/entities/presentation/visible_products_sheet.dart';
+import 'package:inteshar/features/reports/data/reports_repository.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
@@ -84,6 +87,11 @@ String _localizedEntityTypeLabel(EntityType t, AppLocalizations l) {
   }
 }
 
+/// Per-level indent (UX-114). A phone steps half as far: four levels at 24dp is
+/// 96dp of a 360dp screen consumed before the name even starts, and the tree is
+/// four levels deep by design.
+double _indentStep(bool wide) => wide ? 24.0 : 12.0;
+
 /// Avatar-badge initial matching the CURRENT role names (B-080): HQ, Main Agent,
 /// Sub Agent, POS/Store — was the stale G/D (Governorate/Distributor).
 String _typeInitial(EntityType t) {
@@ -123,12 +131,50 @@ class _EntityTreePageState extends ConsumerState<EntityTreePage> {
   final Map<String, int> _page = {};
   final Set<String> _loadingNodes = {};
 
+  // ─── UX-19: the figures beside a name ──────────────────────────────────────
+  //
+  // The only two data columns were children-count and vouchers-count, and under
+  // draw-on-print BOTH are structurally zero below a Main Agent: no AGENT2 and
+  // no STORE ever owns a `Product`, and a shop has no children. So a Sub Agent's
+  // network page was a list of names beside two columns of zeros — on the one
+  // screen they open to ask "how is my network doing".
+  //
+  // Balance and recent sales are the figures that actually move, and both
+  // already exist server-side. They are fetched ONCE per tree load (not per row)
+  // and are OMITTED — header and cells together — whenever the server won't hand
+  // them over, because a confident zero is worse than a missing column.
+  static const int _soldWindowDays = 30;
+  static const int _rosterPageSize = 200;
+  static const int _rosterMaxPages = 5;
+
+  Map<String, num> _balances = {};
+  Map<String, int> _sold = {};
+  bool _balancesReady = false;
+  bool _soldReady = false;
+
+  // ─── UX-15: find a shop without expanding three levels by hand ─────────────
+  final _searchCtrl = TextEditingController();
+  Timer? _searchDebounce;
+  String _query = '';
+  List<EntitySummaryRow> _results = const [];
+  bool _searching = false;
+  bool _resultsMore = false;
+  int _resultsPage = 0;
+  Object? _searchError;
+
   EntityRepository get _repo => EntityRepository(ref.read(apiClientProvider));
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   /// Reloads the tree.
@@ -173,6 +219,7 @@ class _EntityTreePageState extends ConsumerState<EntityTreePage> {
         _root = root;
         _expanded.add(root.id); // root expanded by default
       });
+      unawaited(_loadMetrics(root.id));
       await _loadChildren(root.id);
 
       // Re-open what was open. Quietly: a branch whose parent was just deleted
@@ -234,6 +281,173 @@ class _EntityTreePageState extends ConsumerState<EntityTreePage> {
     }
   }
 
+  // ─── Metrics (UX-19) ───────────────────────────────────────────────────────
+
+  /// Fetches the two figures the tree shows, for the whole subtree at once.
+  ///
+  /// Both feeds are section-gated server-side (HQ can hide reporting for an
+  /// agent and everything under it), so each is allowed to fail on its own and
+  /// simply takes its column with it. Nothing here ever falls back to `0`.
+  Future<void> _loadMetrics(String rootId) async {
+    if (!mounted) return;
+    setState(() {
+      _balances = const {};
+      _sold = const {};
+      _balancesReady = false;
+      _soldReady = false;
+    });
+
+    // Asking without the capability would only earn a 403 per feed; skip it and
+    // show a tree with no figure columns at all.
+    final viewer = ref.read(authStateProvider).valueOrNull;
+    if (viewer is! AuthAuthenticated ||
+        !viewer.can({Capability.VIEW_REPORTS})) {
+      return;
+    }
+    final reports = ReportsRepository(ref.read(apiClientProvider));
+
+    // Balance: one roster for the subtree, keyed by entity id — exact at every
+    // tier (inventory-backed for HQ/Main Agent, wallet points below). Capped, so
+    // a very large tree leaves the tail without a figure rather than stalling.
+    try {
+      final acc = <String, num>{};
+      for (var p = 0; p < _rosterMaxPages; p++) {
+        final res = await reports.balancesRoster(
+            rootId: rootId, page: p, size: _rosterPageSize);
+        for (final r in res.items) {
+          if (r.entityId.isNotEmpty) acc[r.entityId] = r.available;
+        }
+        if (!res.hasMore) break;
+      }
+      if (mounted) {
+        setState(() {
+          _balances = acc;
+          _balancesReady = true;
+        });
+      }
+    } catch (_) {
+      // Column omitted. Deliberately silent: the tree itself still works.
+    }
+
+    // Sales: aggregated per shop over the window. Only shops ever sell, so this
+    // map is keyed by store id and rolled up for agents in [_soldFor].
+    try {
+      final now = DateTime.now();
+      final rows = await reports.sales(
+        rootId: rootId,
+        from: Formatters.date(
+            now.subtract(const Duration(days: _soldWindowDays - 1))),
+        to: Formatters.date(now),
+      );
+      final acc = <String, int>{};
+      for (final r in rows) {
+        if (r.storeId.isEmpty) continue;
+        acc[r.storeId] = (acc[r.storeId] ?? 0) + r.count;
+      }
+      if (mounted) {
+        setState(() {
+          _sold = acc;
+          _soldReady = true;
+        });
+      }
+    } catch (_) {
+      // Column omitted.
+    }
+  }
+
+  /// Cards sold in the window for [row]: its own for a shop, otherwise the sum
+  /// over its descendants — and only when every branch below it has actually
+  /// been loaded.
+  ///
+  /// A partial sum understates a network while reading as a real total, so an
+  /// unloaded (or truncated) branch yields null and the cell stays blank.
+  int? _soldFor(EntitySummaryRow row, [Set<String>? seen]) {
+    if (!_soldReady) return null;
+    if (row.type == EntityType.STORE) return _sold[row.id] ?? 0;
+    final path = seen ?? <String>{};
+    if (!path.add(row.id)) return null; // cycle guard, same as the render pass
+    final kids = _children[row.id];
+    if (kids == null) return row.childrenCount == 0 ? 0 : null;
+    if (_hasMore[row.id] == true) return null;
+    var total = 0;
+    for (final k in kids) {
+      final n = _soldFor(k, path);
+      if (n == null) return null;
+      total += n;
+    }
+    return total;
+  }
+
+  _NetworkFigures get _figures => _NetworkFigures(
+        balances: _balances,
+        balancesReady: _balancesReady,
+        soldReady: _soldReady,
+        soldWindowDays: _soldWindowDays,
+        soldFor: _soldFor,
+      );
+
+  // ─── Search (UX-15) ────────────────────────────────────────────────────────
+
+  void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    final q = value.trim();
+    setState(() {
+      if (q.isEmpty) {
+        _query = '';
+        _results = const [];
+        _searchError = null;
+        _searching = false;
+      }
+    });
+    if (q.isEmpty) return;
+    _searchDebounce = Timer(const Duration(milliseconds: 350), _runSearch);
+  }
+
+  /// Server-side search over the caller's own subtree (the backend scopes it),
+  /// so reaching one shop among hundreds no longer means expanding HQ → Main
+  /// Agent → Sub Agent by hand. Results carry the same row actions as the tree.
+  Future<void> _runSearch({bool more = false}) async {
+    final q = _searchCtrl.text.trim();
+    if (q.isEmpty) return;
+    setState(() {
+      _query = q;
+      _searching = true;
+      if (!more) _searchError = null;
+    });
+    try {
+      final next = more ? _resultsPage + 1 : 0;
+      final res = await _repo.search(q: q, page: next);
+      if (!mounted) return;
+      setState(() {
+        _results = more ? [..._results, ...res.items] : res.items;
+        _resultsPage = next;
+        _resultsMore = res.hasMore;
+        _searching = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _searching = false;
+          if (!more) {
+            _results = const [];
+            _searchError = e;
+          }
+        });
+      }
+    }
+  }
+
+  /// What to re-fetch after a row action: the result list while searching, the
+  /// tree otherwise. Either way the operator keeps the view they acted in.
+  Future<void> _afterMutation() async {
+    if (_query.isNotEmpty) {
+      unawaited(_loadMetrics(_root?.id ?? ''));
+      await _runSearch();
+    } else {
+      await _load(keepOpen: true);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
@@ -254,9 +468,12 @@ class _EntityTreePageState extends ConsumerState<EntityTreePage> {
       );
     }
 
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    final figures = _figures;
+
     return MaxWidthBox(
       child: RefreshIndicator(
-        onRefresh: () => _load(keepOpen: true),
+        onRefresh: _afterMutation,
         child: CustomScrollView(
           slivers: [
             SliverToBoxAdapter(
@@ -268,33 +485,53 @@ class _EntityTreePageState extends ConsumerState<EntityTreePage> {
             ),
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
-                child: InkCard(
-                  padding: EdgeInsets.zero,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Column header row
-                      Padding(
-                        padding: const EdgeInsetsDirectional.fromSTEB(12, 10, 12, 10),
-                        child: _TableHeader(l: l),
-                      ),
-                      const Hairline(),
-                      // Recursive tree rows (children fetched on expand)
-                      _TreeSubtree(
-                        node: root,
-                        depth: 0,
-                        expanded: _expanded,
-                        childrenOf: _children,
-                        hasMore: _hasMore,
-                        loadingNodes: _loadingNodes,
-                        onToggle: _toggle,
-                        onLoadMore: (id) => _loadChildren(id, more: true),
-                        onRefresh: () => _load(keepOpen: true),
-                        visitedIds: {root.id},
-                      ),
-                    ],
+                padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 12),
+                child: TextField(
+                  controller: _searchCtrl,
+                  onChanged: _onSearchChanged,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) => _runSearch(),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    prefixIcon: const Icon(Icons.search, size: 20),
+                    hintText: ar
+                        ? 'ابحث بالاسم أو المعرّف في شبكتك'
+                        : 'Search your network by name or id',
+                    suffixIcon: _searchCtrl.text.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: ar ? 'مسح' : 'Clear',
+                            icon: const Icon(Icons.close, size: 18),
+                            onPressed: () {
+                              _searchCtrl.clear();
+                              _onSearchChanged('');
+                            },
+                          ),
                   ),
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                child: LayoutBuilder(
+                  builder: (context, c) {
+                    // UX-114: below this, the fixed chrome (indent + expander +
+                    // avatar + figure columns + menu) leaves the NAME about two
+                    // characters wide at depth 3 — and agents open this on a
+                    // phone in the field. Narrow rows drop the figures onto a
+                    // second line instead, the pattern the reports surface uses.
+                    final wide = c.maxWidth >= _wideBreakpoint;
+                    return InkCard(
+                      padding: EdgeInsets.zero,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: _query.isEmpty
+                            ? _treeSlivers(l, figures, wide: wide, root: root)
+                            : _searchSlivers(l, figures, wide: wide, ar: ar),
+                      ),
+                    );
+                  },
                 ),
               ),
             ),
@@ -303,33 +540,224 @@ class _EntityTreePageState extends ConsumerState<EntityTreePage> {
       ),
     );
   }
+
+  /// Width under which the row folds its figures onto a second line (UX-114).
+  static const double _wideBreakpoint = 600;
+
+  List<Widget> _treeSlivers(
+    AppLocalizations l,
+    _NetworkFigures figures, {
+    required bool wide,
+    required EntitySummaryRow root,
+  }) =>
+      [
+        if (wide) ...[
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(12, 10, 12, 10),
+            child: _TableHeader(l: l, figures: figures),
+          ),
+          const Hairline(),
+        ],
+        _TreeSubtree(
+          node: root,
+          depth: 0,
+          expanded: _expanded,
+          childrenOf: _children,
+          hasMore: _hasMore,
+          loadingNodes: _loadingNodes,
+          onToggle: _toggle,
+          onLoadMore: (id) => _loadChildren(id, more: true),
+          onRefresh: _afterMutation,
+          visitedIds: {root.id},
+          figures: figures,
+          wide: wide,
+        ),
+      ];
+
+  List<Widget> _searchSlivers(
+    AppLocalizations l,
+    _NetworkFigures figures, {
+    required bool wide,
+    required bool ar,
+  }) {
+    if (_searching && _results.isEmpty) {
+      return const [
+        Padding(
+          padding: EdgeInsets.symmetric(vertical: 28),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      ];
+    }
+    if (_searchError != null) {
+      return [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+          child: ErrorState(error: _searchError!, onRetry: _runSearch),
+        ),
+      ];
+    }
+    if (_results.isEmpty) {
+      return [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+          child: Center(
+            child: Text(
+              ar
+                  ? 'لا توجد حسابات مطابقة لـ "$_query"'
+                  : 'No accounts match "$_query"',
+              textAlign: TextAlign.center,
+              style: IntesharType.sans(13, color: IntesharColors.lichen),
+            ),
+          ),
+        ),
+      ];
+    }
+    return [
+      if (wide) ...[
+        Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(12, 10, 12, 10),
+          child: _TableHeader(l: l, figures: figures),
+        ),
+        const Hairline(),
+      ],
+      for (var i = 0; i < _results.length; i++) ...[
+        if (i > 0) const Hairline(),
+        // Depth 0 and never expandable: a flat hit list is the point — the row
+        // still carries the tree's full action menu, which is what made the
+        // tree worth reaching in the first place.
+        _TreeNode(
+          entity: _results[i],
+          depth: 0,
+          isLeaf: true,
+          isExpanded: false,
+          onToggle: () {},
+          onRefresh: _afterMutation,
+          figures: figures,
+          wide: wide,
+          breadcrumb: _results[i].parentName,
+        ),
+      ],
+      if (_resultsMore) ...[
+        const Hairline(),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: _searching
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 10),
+                    child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2)),
+                  )
+                : TextButton.icon(
+                    onPressed: () => _runSearch(more: true),
+                    icon: const Icon(Icons.expand_more, size: 16),
+                    label: Text(ar ? 'تحميل المزيد' : 'Load more'),
+                  ),
+          ),
+        ),
+      ],
+    ];
+  }
+}
+
+// ─── Figures shown beside a name (UX-19) ─────────────────────────────────────
+
+/// The per-row figures and, just as importantly, whether they exist at all.
+///
+/// Each column is dropped — header and cells together — when its feed was
+/// refused or failed. A blank cell means "not known here"; there is deliberately
+/// no path that renders a zero the server never confirmed.
+class _NetworkFigures {
+  final Map<String, num> balances;
+  final bool balancesReady;
+  final bool soldReady;
+  final int soldWindowDays;
+  final int? Function(EntitySummaryRow row, [Set<String>? seen]) soldFor;
+
+  const _NetworkFigures({
+    required this.balances,
+    required this.balancesReady,
+    required this.soldReady,
+    required this.soldWindowDays,
+    required this.soldFor,
+  });
+
+  bool get showBalance => balancesReady;
+  bool get showSold => soldReady;
+
+  /// Cards on hand. Only HQ and Main Agents ever own a `Product` under
+  /// draw-on-print, so below that tier the count is structurally zero and the
+  /// cell is left blank rather than reporting an empty warehouse.
+  static bool stockApplies(EntityType t) =>
+      t == EntityType.INTESHAR || t == EntityType.AGENT1;
+
+  String balanceText(EntitySummaryRow row) {
+    final v = balances[row.id];
+    return v == null ? '' : Formatters.money(v);
+  }
+
+  String stockText(EntitySummaryRow row) =>
+      stockApplies(row.type) ? Formatters.money(row.productsCount) : '';
+
+  String soldText(EntitySummaryRow row) {
+    final n = soldFor(row, null);
+    return n == null ? '' : Formatters.money(n);
+  }
+
+  String balanceLabel(bool ar) => ar ? 'الرصيد' : 'Balance';
+  String stockLabel(bool ar) => ar ? 'الكروت' : 'Cards';
+  String soldLabel(bool ar) =>
+      ar ? 'مبيعات $soldWindowDays يوم' : 'Sold ${soldWindowDays}d';
+
+  /// The (label, value) pairs to show for [row], skipping anything blank —
+  /// what the narrow layout puts on its second line.
+  List<(String, String)> metaFor(EntitySummaryRow row, bool ar) => [
+        if (showBalance && balanceText(row).isNotEmpty)
+          (balanceLabel(ar), balanceText(row)),
+        if (stockText(row).isNotEmpty) (stockLabel(ar), stockText(row)),
+        if (showSold && soldText(row).isNotEmpty)
+          (soldLabel(ar), soldText(row)),
+      ];
 }
 
 // ─── Table header ─────────────────────────────────────────────────────────────
 
+/// Column widths shared by the header and every wide row, so the two cannot
+/// drift apart.
+const double _colBalance = 82;
+const double _colStock = 62;
+const double _colSold = 74;
+
 class _TableHeader extends StatelessWidget {
   final AppLocalizations l;
-  const _TableHeader({required this.l});
+  final _NetworkFigures figures;
+  const _TableHeader({required this.l, required this.figures});
 
   @override
   Widget build(BuildContext context) {
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
     final style = IntesharType.sans(11,
         color: IntesharColors.lichen, w: FontWeight.w700);
+    Widget col(double w, String label) => SizedBox(
+          width: w,
+          child: Text(label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: style),
+        );
     return Row(
       children: [
-        // Indent + expander space (24 px) + avatar (30 px) + gap (10 px)
-        const SizedBox(width: 64),
+        // Expander (20) + gap (8) + avatar (30) + gap (10)
+        const SizedBox(width: 68),
         Expanded(child: Text(l.entityTreeColEntity, style: style)),
-        SizedBox(
-          width: 64,
-          child: Text(l.entityTreeColChildren,
-              textAlign: TextAlign.center, style: style),
-        ),
-        SizedBox(
-          width: 64,
-          child: Text(l.entityTreeColVouchers,
-              textAlign: TextAlign.center, style: style),
-        ),
+        // A column exists only while its feed does — see [_NetworkFigures].
+        if (figures.showBalance) col(_colBalance, figures.balanceLabel(ar)),
+        col(_colStock, figures.stockLabel(ar)),
+        if (figures.showSold) col(_colSold, figures.soldLabel(ar)),
         // Actions button placeholder width
         const SizedBox(width: 40),
       ],
@@ -355,6 +783,8 @@ class _TreeSubtree extends ConsumerWidget {
   final VoidCallback onRefresh;
   // Cycle guard: ids already rendered on the current root-to-leaf path.
   final Set<String> visitedIds;
+  final _NetworkFigures figures;
+  final bool wide;
 
   const _TreeSubtree({
     required this.node,
@@ -367,6 +797,8 @@ class _TreeSubtree extends ConsumerWidget {
     required this.onLoadMore,
     required this.onRefresh,
     required this.visitedIds,
+    required this.figures,
+    required this.wide,
   });
 
   @override
@@ -387,9 +819,10 @@ class _TreeSubtree extends ConsumerWidget {
       depth: depth,
       isLeaf: isLeaf,
       isExpanded: isExpanded,
-      childCount: loaded?.length ?? node.childrenCount,
       onToggle: () => onToggle(node.id),
       onRefresh: onRefresh,
+      figures: figures,
+      wide: wide,
     ));
 
     // Children (only when expanded and not a leaf)
@@ -398,7 +831,7 @@ class _TreeSubtree extends ConsumerWidget {
         // First fetch for this node still in flight.
         rows.add(const Hairline());
         rows.add(Padding(
-          padding: EdgeInsetsDirectional.only(start: 44.0 + depth * 24.0, top: 10, bottom: 10),
+          padding: EdgeInsetsDirectional.only(start: 44.0 + depth * _indentStep(wide), top: 10, bottom: 10),
           child: const Align(
             alignment: AlignmentDirectional.centerStart,
             child: SizedBox(
@@ -421,12 +854,14 @@ class _TreeSubtree extends ConsumerWidget {
             onLoadMore: onLoadMore,
             onRefresh: onRefresh,
             visitedIds: {...visitedIds, child.id},
+            figures: figures,
+            wide: wide,
           ));
         }
         if (hasMore[node.id] == true) {
           rows.add(const Hairline());
           rows.add(Padding(
-            padding: EdgeInsetsDirectional.only(start: 44.0 + depth * 24.0),
+            padding: EdgeInsetsDirectional.only(start: 44.0 + depth * _indentStep(wide)),
             child: Align(
               alignment: AlignmentDirectional.centerStart,
               child: isLoading
@@ -466,18 +901,25 @@ class _TreeNode extends ConsumerWidget {
   final int depth;
   final bool isLeaf;
   final bool isExpanded;
-  final int childCount;
   final VoidCallback onToggle;
   final VoidCallback onRefresh;
+  final _NetworkFigures figures;
+  final bool wide;
+
+  /// Parent name, shown on search hits so a bare shop name still says where in
+  /// the network it sits (the tree conveys that by position; a hit list can't).
+  final String breadcrumb;
 
   const _TreeNode({
     required this.entity,
     required this.depth,
     required this.isLeaf,
     required this.isExpanded,
-    required this.childCount,
     required this.onToggle,
     required this.onRefresh,
+    required this.figures,
+    required this.wide,
+    this.breadcrumb = '',
   });
 
   @override
@@ -492,7 +934,9 @@ class _TreeNode extends ConsumerWidget {
     final canDrillIn =
         _inventoryRoutePrefix(ref) != null && entity.type.inventoryBacked;
 
-    final startPad = 12.0 + depth * 24.0;
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    final startPad = 12.0 + depth * _indentStep(wide);
+    final meta = figures.metaFor(entity, ar);
 
     return InkWell(
       onTap: isLeaf ? null : onToggle,
@@ -544,7 +988,7 @@ class _TreeNode extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: 10),
-            // Name + type label
+            // Name + type label (+ the figures, folded in below on a phone)
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -553,38 +997,43 @@ class _TreeNode extends ConsumerWidget {
                     entity.label,
                     style: IntesharType.sans(13,
                         color: cs.onSurface, w: FontWeight.w700),
-                    maxLines: 1,
+                    maxLines: wide ? 1 : 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 1),
                   Text(
-                    _localizedEntityTypeLabel(entity.type, l),
+                    breadcrumb.isEmpty
+                        ? _localizedEntityTypeLabel(entity.type, l)
+                        : '${_localizedEntityTypeLabel(entity.type, l)} · $breadcrumb',
                     style: IntesharType.sans(11,
                         color: IntesharColors.lichen),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  // UX-114: on a narrow screen the figure columns move here,
+                  // each carrying its own label — an unlabelled number under a
+                  // header the phone never renders would be unreadable.
+                  if (!wide && meta.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      [for (final (label, value) in meta) '$label: $value']
+                          .join(' · '),
+                      style: IntesharType.mono(11, color: cs.onSurfaceVariant),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ],
               ),
             ),
-            // Children count
-            SizedBox(
-              width: 64,
-              child: Text(
-                Formatters.money(childCount),
-                textAlign: TextAlign.center,
-                style: IntesharType.mono(12, color: cs.onSurface),
-              ),
-            ),
-            // Vouchers count (server-computed on the summary row)
-            SizedBox(
-              width: 64,
-              child: Text(
-                Formatters.money(entity.productsCount),
-                textAlign: TextAlign.center,
-                style: IntesharType.mono(12, color: cs.onSurface),
-              ),
-            ),
+            // Figures — each column present only while its feed is (UX-19).
+            if (wide) ...[
+              if (figures.showBalance)
+                _figureCell(cs, _colBalance, figures.balanceText(entity)),
+              _figureCell(cs, _colStock, figures.stockText(entity)),
+              if (figures.showSold)
+                _figureCell(cs, _colSold, figures.soldText(entity)),
+            ],
             // Actions menu — omitted entirely when this viewer has nothing to do
             // on this row, rather than left as a button that opens onto nothing.
             if (canManage || canDrillIn)
@@ -676,6 +1125,24 @@ class _TreeNode extends ConsumerWidget {
       ),
     );
   }
+
+  /// One wide-layout figure. An empty [text] renders as an em-dash: the figure
+  /// does not apply to this tier (or is not known), which is a different thing
+  /// from a zero and must not read like one.
+  Widget _figureCell(ColorScheme cs, double width, String text) => SizedBox(
+        width: width,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.center,
+          child: Text(
+            text.isEmpty ? '—' : text,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            style: IntesharType.mono(12,
+                color: text.isEmpty ? cs.onSurfaceVariant : cs.onSurface),
+          ),
+        ),
+      );
 
   Future<void> _handleAction(
       BuildContext context, WidgetRef ref, String action) async {

@@ -39,6 +39,32 @@ class AgentStrings {
   String get edit => pick('Edit', 'تعديل');
   String get delete => pick('Delete', 'حذف');
 
+  // ── Readiness (UX-02) ──
+  // Creating an agent used to pop straight back to this list with nothing to say
+  // that the new account has no cards, no POS points and no prices — four
+  // unlinked screens and no completion state anywhere, so the remaining steps
+  // were learned from a support ticket weeks later.
+  String get setupTitle => pick('Setup', 'التهيئة');
+  String get setupCards => pick('Cards', 'الكروت');
+  String get setupCardsNone => pick('No cards yet', 'لا توجد كروت');
+  String setupCardsSome(int n) => pick('$n cards', '$n كرت');
+  String get setupSlots => pick('POS points', 'نقاط البيع');
+  String get setupSlotsNone => pick('No POS points', 'لا توجد نقاط بيع');
+  /// `available` is what is still FREE to open a shop with; `total` is what the
+  /// agent was ever given. Points already passed down to sub-agents are in
+  /// neither — saying "used" would have folded them in and overstated capacity.
+  String setupSlotsSome(int available, int total) =>
+      pick('$available free of $total', '$available متاحة من $total');
+  String get setupPrices => pick('Prices', 'الأسعار');
+  String setupPricesMissing(int n) => pick('$n unpriced', '$n بدون سعر');
+  // NOT "everything is priced": the server only reports agents HOLDING stock in
+  // an unpriced category, so absence from that list means exactly this much.
+  String get setupPricesOk =>
+      pick('No unpriced stock', 'لا يوجد مخزون بدون سعر');
+  String get setupProducts => visibleProducts;
+  String get setupProductsAction => pick('Choose', 'اختيار');
+  String get setupUnknown => pick('Not checked', 'غير معروف');
+
   /// UX-103: which voucher SKUs this agent (and its subtree) may see and sell.
   /// It is a commercial control, and until now its only entry point in the whole
   /// app was one item on a hierarchy-tree row menu — no nav, no page, no search.

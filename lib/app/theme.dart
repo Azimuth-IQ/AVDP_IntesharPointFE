@@ -33,6 +33,10 @@ class IntesharColors {
   /// SEMANTIC warning amber (pending/warn states). Deliberately NOT brand-tinted —
   /// a status colour must stay readable as "caution" under any white-label brand.
   static const warn       = Color(0xFF9C7515);
+  /// SEMANTIC "in flight" blue — pending / processing / queued / sending. Same
+  /// rule as [warn]: never brand-tinted, because "still moving" must not read as
+  /// "done" or "failed" under a white-label palette.
+  static const azure      = Color(0xFF2563EB);
   static const dust       = Color(0xFFFFEAB8); // soft gold wash (tags, primaryContainer)
 
   // Dark surface stack
@@ -308,6 +312,147 @@ extension BrandToneContext on BuildContext {
       );
 }
 
+// ─── Status semantics (UX-128) ───────────────────────────────────────────────
+
+/// The app's SIX status meanings, each with exactly one colour.
+///
+/// The same state was being drawn in opposite colours on adjacent screens —
+/// "Used"/`PRINTED` is brand gold in `inventory_page` and `cs.error` **red** in
+/// `batch_add_page`, one tap apart on the same field. And `cs.error` was doing
+/// duty for things that are not errors at all (an outgoing transfer, a completed
+/// sale, unread mail, "ready to delete", a constructive Resume button). On a
+/// sales floor red means something went wrong; spending it on a normal sale
+/// trains the operator to ignore it on the one screen where it matters.
+///
+/// Every tone is **contrast-corrected against the page surface** for the current
+/// mode, so it is legible as ink or as an icon, and safe to hand to
+/// [StampPill] (which re-corrects against the tint it paints — the correction is
+/// idempotent). Reach for these instead of `IntesharColors.sage` /
+/// `IntesharColors.warn` / `cs.error`, none of which track dark mode.
+///
+/// | tone       | means                                              | examples |
+/// |------------|----------------------------------------------------|----------|
+/// | [success]  | finished well, in stock, delivered, available      | `AVAILABLE`, COMPLETED transfer, grant applied |
+/// | [warn]     | needs attention, nothing is broken yet             | low stock, unpriced agent, expiring soon |
+/// | [danger]   | **a real failure or a destructive act**             | FAILED transaction, delete, printer error |
+/// | [neutral]  | inert, archived, not applicable, read              | archived POS, read mail, "—" cells |
+/// | [inFlight] | still moving — pending, processing, queued          | `PENDING`, sending, uploading |
+/// | [brand]    | ours and deliberate, not a fault                   | `PRINTED`/"Used", a completed sale, an outgoing transfer |
+///
+/// The last row is the important one: a voucher that has been sold is the happy
+/// path, so it is [brand] (and re-tints for a white-label agent), never [danger].
+///
+/// [success], [warn], [inFlight] and [danger] are deliberately **not**
+/// brand-derived — see the note on [IntesharColors.warn]. Only [brand] follows
+/// the white-label primary.
+@immutable
+class StatusTones extends ThemeExtension<StatusTones> {
+  final Color success;
+  final Color warn;
+  final Color danger;
+  final Color neutral;
+  final Color inFlight;
+  final Color brand;
+
+  const StatusTones({
+    required this.success,
+    required this.warn,
+    required this.danger,
+    required this.neutral,
+    required this.inFlight,
+    required this.brand,
+  });
+
+  /// Derives the set for [surface], correcting each semantic hue to ≥4.5:1
+  /// against it. [brand] is passed in already-measured (the theme's
+  /// `brandOnSurface`) so a white-label primary carries through.
+  factory StatusTones.forSurface({
+    required Color surface,
+    required bool isDark,
+    required Color brand,
+    required Color neutral,
+  }) =>
+      StatusTones(
+        // NOT the theme's `secondary`: see the UX-124 note on `_build`. A
+        // white-label secondary must not be able to repaint "available" red.
+        success: contrastAdjusted(
+          isDark ? IntesharColors.sageOnDark : IntesharColors.sage,
+          surface,
+        ),
+        warn: contrastAdjusted(IntesharColors.warn, surface),
+        danger: contrastAdjusted(
+          isDark ? IntesharColors.oxbloodOnDark : IntesharColors.oxblood,
+          surface,
+        ),
+        neutral: neutral,
+        inFlight: contrastAdjusted(IntesharColors.azure, surface),
+        brand: brand,
+      );
+
+  @override
+  StatusTones copyWith({
+    Color? success,
+    Color? warn,
+    Color? danger,
+    Color? neutral,
+    Color? inFlight,
+    Color? brand,
+  }) =>
+      StatusTones(
+        success: success ?? this.success,
+        warn: warn ?? this.warn,
+        danger: danger ?? this.danger,
+        neutral: neutral ?? this.neutral,
+        inFlight: inFlight ?? this.inFlight,
+        brand: brand ?? this.brand,
+      );
+
+  @override
+  StatusTones lerp(covariant StatusTones? other, double t) {
+    if (other == null) return this;
+    return StatusTones(
+      success: Color.lerp(success, other.success, t)!,
+      warn: Color.lerp(warn, other.warn, t)!,
+      danger: Color.lerp(danger, other.danger, t)!,
+      neutral: Color.lerp(neutral, other.neutral, t)!,
+      inFlight: Color.lerp(inFlight, other.inFlight, t)!,
+      brand: Color.lerp(brand, other.brand, t)!,
+    );
+  }
+}
+
+/// Ergonomic access to the session's [StatusTones]. Falls back to the light
+/// default when no extension is registered (bare test pumps).
+extension StatusToneContext on BuildContext {
+  StatusTones get status =>
+      Theme.of(this).extension<StatusTones>() ??
+      StatusTones.forSurface(
+        surface: IntesharColors.paper,
+        isDark: false,
+        brand: IntesharColors.saffronDeep,
+        neutral: IntesharColors.inkSoft,
+      );
+}
+
+/// Platform monospace families to fall back to when the JetBrains Mono webfont
+/// has not been fetched yet — or never will be (UX-125).
+///
+/// `google_fonts` fetches at RUNTIME and nothing is bundled, so on a POS
+/// handheld with a poor link every serial, PIN, price and balance renders in the
+/// PROPORTIONAL default until the fetch lands — permanently if it never does.
+/// That breaks column alignment and any `letterSpacing` tuned for fixed advance
+/// widths. Falling back to a real platform monospace degrades gracefully instead.
+///
+/// The first entry is the resolved google_fonts family name, so a loaded
+/// JetBrains Mono still wins.
+const List<String> kMonoFallback = <String>[
+  'JetBrains Mono', // google_fonts, once the fetch has landed
+  'RobotoMono', // Android
+  'monospace', // Android / Linux / web generic
+  'Menlo', // macOS / iOS
+  'Courier New', // Windows / web
+];
+
 /// Static typography helpers — every named style draws from Codec Pro, with
 /// weight and tracking doing the work that two competing families used to.
 /// `mono` stays on JetBrainsMono because Codec Pro is proportional and breaks
@@ -350,8 +495,13 @@ class IntesharType {
       );
 
   /// True monospace — reserved for serials, PINs, MAC addresses, hex dumps.
+  ///
+  /// UX-125: `google_fonts` overwrites `fontFamilyFallback` with just its own
+  /// family, so the fallback chain is re-applied here. Without it an unfetched
+  /// webfont drops these to the proportional default — see [kMonoFallback].
   static TextStyle mono(double size, {Color? color, FontWeight w = FontWeight.w500, double? letterSpacing}) =>
-      GoogleFonts.jetBrainsMono(fontSize: size, fontWeight: w, color: color, letterSpacing: letterSpacing ?? 0);
+      GoogleFonts.jetBrainsMono(fontSize: size, fontWeight: w, color: color, letterSpacing: letterSpacing ?? 0)
+          .copyWith(fontFamilyFallback: kMonoFallback);
 
   /// Tracking-wide editorial overline. Reads like "DEPARTMENT — SECTION".
   static TextStyle overline({Color? color, double size = 11}) => TextStyle(
@@ -364,6 +514,24 @@ class IntesharType {
       );
 }
 
+/// Builds a mode's theme, optionally seeded by a white-label brand.
+///
+/// **UX-124 — [brandSecondary] is a dead control, on purpose.** It feeds
+/// `ColorScheme.secondary`, which has **zero readers** in the app; meanwhile
+/// every green in the product is the raw `IntesharColors.sage` constant. The
+/// tempting fix — route the semantic greens through `cs.secondary` — is the
+/// wrong one, and the file already says why one line above
+/// [IntesharColors.warn]: a status colour must stay readable as its meaning
+/// under any white-label brand. Wiring an agent-chosen hex into "available /
+/// success" lets a red or grey secondary make in-stock vouchers read as failed.
+/// So the greens now go through [StatusTones.success] (brand-INdependent,
+/// mode-aware) and `secondary` keeps its inert Material default.
+///
+/// That makes `secondaryColor` an editable field that legitimately changes
+/// nothing, which is the shipped bug. The honest end state is to REMOVE the
+/// control; those edits are outside this file — see the follow-up list for
+/// `agent_form.dart`, `entity_tree_page.dart`, `entity.dart`, `branding.dart`
+/// and `theme_provider.dart`.
 ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
   final isDark = b == Brightness.dark;
 
@@ -493,6 +661,14 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
         brandOnSurface: brandOnSurface,
         brandWash: brandWash,
         isDark: isDark,
+      ),
+      // UX-128: one colour per status meaning, resolved against THIS mode's
+      // surface. Read via `context.status`.
+      StatusTones.forSurface(
+        surface: paper,
+        isDark: isDark,
+        brand: brandOnSurface,
+        neutral: onPaperSoft,
       ),
     ],
     scaffoldBackgroundColor: paper,

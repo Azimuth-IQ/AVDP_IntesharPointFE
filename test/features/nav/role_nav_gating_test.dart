@@ -62,6 +62,8 @@ Future<void> _pumpShell(WidgetTester tester, EntityType type, String prefix) asy
   await tester.pumpAndSettle();
 }
 
+// Nav labels: 'Children' became 'Hierarchy' under UX-97 — the label and the
+// page title disagreed, and the page is the org chart, not just your branches.
 void main() {
   testWidgets('AGENT1 bar: 4 primaries + More; Prices lives in the More sheet', (tester) async {
     await _pumpShell(tester, EntityType.AGENT1, 'agent1');
@@ -71,11 +73,11 @@ void main() {
         reason: 'AGENT1 has >5 destinations → 4 primary + More');
 
     // B-056: Transfers takes the retired Transactions slot as the 2nd primary.
-    for (final label in ['Dashboard', 'Transfers', 'Inventory', 'Children', 'More']) {
+    for (final label in ['Dashboard', 'Transfers', 'Inventory', 'Hierarchy', 'More']) {
       expect(find.text(label), findsWidgets, reason: '$label should be on the bar');
     }
     // HQ-only sections never appear for an agent.
-    for (final hidden in ['Companies', 'Catalog', 'Templates']) {
+    for (final hidden in ['Companies', 'Catalog', 'Voucher Templates']) {
       expect(find.text(hidden), findsNothing, reason: '$hidden is HQ-only');
     }
 
@@ -97,7 +99,7 @@ void main() {
 
     // B-042: a Sub-Agent holds no stock (it draws from its parent's pool at
     // print time), so — unlike AGENT1 — it has NO Inventory destination.
-    for (final label in ['Dashboard', 'Transfers', 'Children', 'Reports', 'More']) {
+    for (final label in ['Dashboard', 'Transfers', 'Hierarchy', 'Reports', 'More']) {
       expect(find.text(label), findsWidgets, reason: '$label should be on the bar');
     }
     expect(find.text('Inventory'), findsNothing, reason: 'AGENT2 has no inventory (B-042)');

@@ -368,11 +368,23 @@ class BrandRule extends StatelessWidget {
 
 // ─── Page header ───────────────────────────────────────────────────────────
 
-/// Friendly page header: bold sans title + muted subtitle + optional yellow
-/// underline accent. Replaces the editorial eyebrow+rule+italic-subtitle pattern.
+/// Friendly page header: muted section overline + bold sans title + muted
+/// subtitle + brand underline accent.
+///
+/// UX-98: [showEyebrow] used to default to `false` with **no call site setting
+/// it**, while [eyebrow] stayed a *required* parameter — so all ~24 routed
+/// screens computed and translated a bilingual section label that was then
+/// thrown away. On a phone, once the "More" sheet closes there is no breadcrumb
+/// widget anywhere in the app, so nothing told the operator which section they
+/// were standing in. It is on by default now; a caller with a genuinely
+/// section-less page can still pass `showEyebrow: false`.
 class PageHeader extends StatelessWidget {
-  /// Kept for API compatibility — repurposed as the muted overline label
-  /// shown above the title.
+  /// Muted overline above the title, naming the SECTION this page belongs to
+  /// (ideally matching the desktop sidebar's group header — "Oversight",
+  /// "Inventory & Stock", "Network", "Catalog", "Administration", "Operations",
+  /// "Points of Sale"). Rendered upper-case; Arabic is unaffected by casing.
+  ///
+  /// Redundant values are dropped rather than stacked — see [_eyebrowIsRedundant].
   final String eyebrow;
   final String title;
   final String? subtitle;
@@ -386,29 +398,50 @@ class PageHeader extends StatelessWidget {
     this.subtitle,
     this.trailing,
     this.padding = const EdgeInsets.fromLTRB(16, 18, 16, 12),
-    this.showEyebrow = false,
+    this.showEyebrow = true,
   });
+
+  /// True when painting [eyebrow] above [title] would only repeat it.
+  ///
+  /// Several screens pass the same string for both (System Activity, Catalog,
+  /// Hierarchy) or an eyebrow the title already opens with ("Templates" over
+  /// "Voucher Templates"). Stacking those reads as a rendering bug, not as
+  /// section context, so they are suppressed. Case- and whitespace-insensitive;
+  /// `toLowerCase` is a no-op for Arabic, where the equality check still holds.
+  static bool _eyebrowIsRedundant(String eyebrow, String title) {
+    final e = eyebrow.trim().toLowerCase();
+    final t = title.trim().toLowerCase();
+    if (e.isEmpty) return true;
+    return t == e || t.startsWith(e);
+  }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final withEyebrow = showEyebrow && !_eyebrowIsRedundant(eyebrow, title);
     return Padding(
       padding: padding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (showEyebrow) ...[
+          if (withEyebrow) ...[
             Text(
-              eyebrow,
+              // Call sites are split between 'OVERSIGHT' and 'Stock'. Normalise
+              // here so the section label is one thing across the app, and so it
+              // matches the sidebar's `_GroupHeader` treatment.
+              eyebrow.toUpperCase(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontFamily: 'CodecPro',
                 color: cs.onSurfaceVariant,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.4,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.2,
+                height: 1,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
           ],
           // UX-115: `trailing` is a non-flex Row child, so it was handed
           // UNBOUNDED width — a Wrap never wrapped, a button pair claimed its
@@ -471,8 +504,8 @@ class IntesharLockup extends StatelessWidget {
   final String tagline;
   final bool compact;
 
-  /// When `true`, render the lockup on a yellow surface (ink-on-yellow).
-  /// When `false`, render on a paper surface (ink-on-paper).
+  /// When `true`, render the lockup on the BRAND surface (`cs.primary`, what
+  /// [BrandBand] paints). When `false`, render on a paper surface.
   final bool onBrandSurface;
 
   /// Hide the tagline line — useful in tight slots like a phone app bar.
@@ -489,9 +522,15 @@ class IntesharLockup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final fg = onBrandSurface ? IntesharColors.ink : cs.onSurface;
+    // UX-123: this used to hardcode near-black `IntesharColors.ink` on a surface
+    // the theme paints with `cs.primary` — so a dark white-label brand (navy,
+    // maroon: plausible telecom colours) rendered the wordmark black-on-dark.
+    // `onPrimary` is measured by contrast for exactly this. The sibling version
+    // string in the very same BrandBand (app_scaffold `_AboutDrawer`) already
+    // did it this way, as does `brand_masthead.dart`.
+    final fg = onBrandSurface ? cs.onPrimary : cs.onSurface;
     final fgSoft = onBrandSurface
-        ? IntesharColors.ink.withValues(alpha: 0.65)
+        ? cs.onPrimary.withValues(alpha: 0.65)
         : cs.onSurfaceVariant;
     // FittedBox(scaleDown) shrinks the whole lockup — including the fixed-size
     // star — to fit tight slots (e.g. a phone app-bar title) instead of

@@ -6,6 +6,12 @@ import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:inteshar/core/upload/upload_repository.dart';
 
+/// Preview slot for [ImageUploadField] — deliberately WIDE and letterboxed
+/// (UX-117). Roughly the 4:1 budget `BrandMasthead` gives a white-label logo, so
+/// an over-wide wordmark visibly shrinks here exactly as it will in the nav.
+const double _kPreviewW = 112;
+const double _kPreviewH = 56;
+
 /// A form field that shows a network image preview alongside an Upload button.
 ///
 /// Tapping **Upload** (or **Change** when an image is already set) opens the
@@ -323,25 +329,28 @@ class _ImageUploadFieldState extends ConsumerState<ImageUploadField> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             if (hasImage) ...[
-              ClipRRect(
-                borderRadius: BorderRadius.circular(IntesharRadii.sm),
+              // UX-117: the preview used to be 56×56 `BoxFit.cover` — a centre
+              // crop. An admin uploading a 10:1 wordmark saw a tidy square and
+              // had no way to tell what shape they were actually shipping into
+              // the masthead, which renders `contain`. Preview `contain` in a
+              // wide letterboxed slot so the true aspect ratio is visible here,
+              // the same way the destination draws it.
+              Container(
+                width: _kPreviewW,
+                height: _kPreviewH,
+                decoration: BoxDecoration(
+                  color: cs.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(IntesharRadii.sm),
+                  border: Border.all(color: cs.outline),
+                ),
+                clipBehavior: Clip.antiAlias,
                 child: Image.network(
                   widget.value!,
-                  width: 56,
-                  height: 56,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: cs.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(IntesharRadii.sm),
-                    ),
-                    child: Icon(
-                      Icons.broken_image_outlined,
-                      size: 22,
-                      color: cs.onSurfaceVariant,
-                    ),
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) => Icon(
+                    Icons.broken_image_outlined,
+                    size: 22,
+                    color: cs.onSurfaceVariant,
                   ),
                 ),
               ),

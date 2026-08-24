@@ -184,10 +184,31 @@ class AppShell extends ConsumerWidget {
   final Widget child;
   const AppShell({super.key, required this.child});
 
+  // UX-97/UX-99: a nav label IS the breadcrumb — there is no breadcrumb widget
+  // anywhere in the app, so once the More sheet closes the destination name in
+  // the bar is the only thing telling the operator where they are. Six labels
+  // disagreed with the title of the page they opened. Where the page title is
+  // the better name, the nav follows it, using the same bilingual-literal idiom
+  // already used below for Reports/Transfers/POS.
   List<_NavItem> _navFor(AppLocalizations l, EntityType type) {
     final reportsLabel = l.localeName.startsWith('ar') ? 'التقارير' : 'Reports';
     final transfersLabel = l.localeName.startsWith('ar') ? 'التحويل' : 'Transfers';
-    final chatLabel = l.localeName.startsWith('ar') ? 'التواصل' : 'Messages';
+    // UX-97/UX-99: was 'Messages', which (a) is not what the page calls itself
+    // ("Conversations" / المحادثات) and (b) is ALSO the eyebrow of the
+    // notifications INBOX — one word naming two unrelated destinations.
+    final chatLabel = l.localeName.startsWith('ar') ? 'المحادثات' : 'Conversations';
+    // UX-99: HQ's /notifications is a send-only broadcast COMPOSER; every other
+    // tier's is a receive-only inbox. Shipping one label for both meant "the
+    // place I read my messages" and "the place I write to everyone" were the
+    // same word. The icon here is already a megaphone.
+    final broadcastLabel = l.localeName.startsWith('ar') ? 'البث' : 'Broadcast';
+    // UX-97: matches `batch_add_page`'s own title (batchAddTitle), not "Batch Add".
+    final batchAddLabel = l.localeName.startsWith('ar') ? 'إضافة قسائم' : 'Add vouchers';
+    // UX-97: matches `voucher_templates_page`'s title (vtTitle).
+    final templatesLabel = l.localeName.startsWith('ar') ? 'قوالب القسائم' : 'Voucher Templates';
+    // UX-97: matches `hq_users_page`'s title — the page covers supervisors too,
+    // which a bare "Users" hides.
+    final hqUsersLabel = l.localeName.startsWith('ar') ? 'المستخدمون / المشرفون' : 'Users & supervisors';
     final posLabel = l.localeName.startsWith('ar') ? 'نقاط البيع' : 'POS points';
     // A store hosts no POS points — it IS one. Singular, so the destination
     // does not promise a list of shops it can never have (see StorePosView).
@@ -261,7 +282,7 @@ class AppShell extends ConsumerWidget {
           _NavItem(
             Icons.upload_file_outlined,
             Icons.upload_file,
-            l.navBatchAdd,
+            batchAddLabel,
             '/hq/batch',
             required: Capability.MANAGE_CATALOG,
             group: 'inventory_stock',
@@ -301,7 +322,7 @@ class AppShell extends ConsumerWidget {
           _NavItem(
             Icons.receipt_long_outlined,
             Icons.receipt_long,
-            l.navTemplates,
+            templatesLabel,
             '/hq/templates',
             required: Capability.MANAGE_CATALOG,
             group: 'catalog',
@@ -309,7 +330,7 @@ class AppShell extends ConsumerWidget {
           _NavItem(
             Icons.manage_accounts_outlined,
             Icons.manage_accounts,
-            l.navUsers,
+            hqUsersLabel,
             '/hq/users',
             required: Capability.AGENT_ADMIN,
             group: 'administration',
@@ -333,7 +354,7 @@ class AppShell extends ConsumerWidget {
           _NavItem(
             Icons.campaign_outlined,
             Icons.campaign,
-            l.navNotifications,
+            broadcastLabel,
             '/hq/notifications',
             required: Capability.AGENT_ADMIN,
             group: 'administration',
@@ -394,7 +415,10 @@ class AppShell extends ConsumerWidget {
           _NavItem(
             Icons.account_tree_outlined,
             Icons.account_tree,
-            l.navChildren,
+            // UX-97: was `navChildren` ("Children" / الفروع) while the page it
+            // opens — the same EntityTreePage HQ reaches — titles itself
+            // `navHierarchy`. One destination, three tiers, one name now.
+            l.navHierarchy,
             '/agent1/entities',
             group: 'network',
           ),
@@ -469,7 +493,8 @@ class AppShell extends ConsumerWidget {
           _NavItem(
             Icons.account_tree_outlined,
             Icons.account_tree,
-            l.navChildren,
+            // UX-97: see the AGENT1 note — same page, same name.
+            l.navHierarchy,
             '/agent2/entities',
             group: 'network',
           ),

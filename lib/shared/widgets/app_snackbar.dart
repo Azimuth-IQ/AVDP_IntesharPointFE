@@ -69,7 +69,11 @@ ScaffoldFeatureController<SnackBar, SnackBarClosedReason>? showOk(
     background: cs.onSurface,
     foreground: cs.surface,
     icon: Icons.check_circle_outline,
-    iconColor: IntesharColors.sage,
+    // UX-124/128: was the raw `IntesharColors.sage` constant, which does not
+    // track dark mode — in dark the toast background flips to a light ink and
+    // the green check dropped to ~3:1 on it. The semantic tone plus the
+    // background-aware correction in [_show] handles both modes.
+    iconColor: context.status.success,
     duration: duration,
     closeIcon: false,
     actionLabel: actionLabel,
@@ -135,7 +139,16 @@ ScaffoldFeatureController<SnackBar, SnackBarClosedReason>? _show(
       content: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: iconColor ?? foreground),
+          // A semantic tone is resolved against the PAGE surface, but a toast is
+          // painted on ink — so re-correct it against the background it will
+          // actually sit on before using it.
+          Icon(
+            icon,
+            size: 20,
+            color: iconColor == null
+                ? foreground
+                : contrastAdjusted(iconColor, background),
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(

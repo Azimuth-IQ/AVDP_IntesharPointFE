@@ -68,7 +68,7 @@ void main() {
     for (final label in ['System Activity', 'Hierarchy', 'Inventory', 'Reports', 'More']) {
       expect(find.text(label), findsWidgets, reason: '$label should be on the bar');
     }
-    for (final hidden in ['Catalog', 'Templates', 'Batch Add', 'Print Ops']) {
+    for (final hidden in ['Catalog', 'Voucher Templates', 'Add vouchers', 'Print Ops']) {
       expect(find.text(hidden), findsNothing, reason: '$hidden belongs in the More sheet');
     }
   });
@@ -80,8 +80,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Catalog'), findsOneWidget);
-    expect(find.text('Templates'), findsOneWidget);
-    expect(find.text('Batch Add'), findsOneWidget);
+    expect(find.text('Voucher Templates'), findsOneWidget);
+    expect(find.text('Add vouchers'), findsOneWidget);
     expect(find.text('Print Ops'), findsOneWidget, reason: 'demoted, not deleted');
 
     // B-112 (retracted finding): the overflow is NOT a flat list — it carries the

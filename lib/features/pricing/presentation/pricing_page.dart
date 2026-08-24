@@ -34,11 +34,35 @@ class _S {
   String get subtitle =>
       p('Set your selling price per category', 'حدّد سعر بيعك لكل فئة');
   String get balanceLabel => p('Inventory worth', 'قيمة المخزون');
+  // UX-20: two large IQD figures live one tap apart — this one and the
+  // dashboard's الرصيد (base − grantsOut). They never agree, so each has to
+  // state what it is made of instead of leaving the operator to guess.
+  String get worthBasis =>
+      p('available × official price', 'المتوفر × السعر الرسمي');
   String unpriced(int n) => p('$n unpriced', '$n بدون سعر');
   String get official => p('Official', 'الرسمي');
+  // UX-21: "الرسمي" alone never said which side of the trade it is. For an agent
+  // pricing its own account the platform default IS what it pays — its cost.
+  String get officialCost => p('Official (your cost)', 'الرسمي (كلفتك)');
   String get yourPrice => p('Your price', 'سعرك');
+  // UX-23: with a sub-agent selected, "سعرك" is a lie on every field and, worse,
+  // on the exported sheet's column header — two agents, two sheets, one column
+  // name is exactly how the wrong prices get uploaded to the wrong agent.
+  String priceOf(String agent) => p('$agent’s price', 'سعر $agent');
+  // UX-21: the one number the business runs on, computed instead of subtracted
+  // 40 times by hand. "Margin" only when it IS the caller's margin.
+  String get margin => p('Your margin', 'هامشك');
+  String get vsOfficial => p('vs official', 'الفرق عن الرسمي');
+  String get belowCost => p('below cost', 'دون الكلفة');
+  // Pricing someone else's account, the official price is not THEIR cost (their
+  // cost is my price), so the warning stays factual about what it compared.
+  String get belowOfficial => p('below official', 'دون السعر الرسمي');
   String get available => p('Available', 'المتوفر');
   String get lineValue => p('Value', 'القيمة');
+  // UX-22: the value readout is deliberately independent of the price typed
+  // (B-082 — stock is valued at the platform price). Say so, or lowering a price
+  // and watching it not move reads as "it didn't save".
+  String get atOfficialPrice => p('at official price', 'بالسعر الرسمي');
   String get save => p('Save prices', 'حفظ الأسعار');
   String get saved => p('Prices saved', 'تم حفظ الأسعار');
   String get uncategorized => p('Uncategorized', 'بدون شركة');
@@ -78,11 +102,17 @@ class _S {
   // B-121/B-126: whose prices are being edited.
   String get pricingFor => p('Pricing for', 'التسعير لـ');
   String get myOwnPrices => p('My own prices', 'أسعار حسابي');
-  String get pricingForMeHint =>
-      p('These are your own selling prices.', 'هذه أسعار البيع الخاصة بحسابك.');
+  // UX-21: name the direction. This screen sets what the caller's CHILDREN pay
+  // it; the official price is what the caller itself pays.
+  String get pricingForMeHint => p(
+      'Your selling prices — what your agents and shops pay you.',
+      'أسعار بيعك — ما يدفعه وكلاؤك ومتاجرك لك.');
+  // UX-23: this is the price the sub-agent SELLS at — what its own shops pay it —
+  // not what it pays me. The old wording left that open, and the whole screen
+  // hinges on it (`buildDebitChain` prices a shop at its parent's rate).
   String get pricingForAgentHint => p(
-      'Editing this sub-agent’s prices. Export and upload follow this choice.',
-      'تعديل أسعار هذا الوكيل الفرعي. التصدير والرفع يتبعان هذا الاختيار.');
+      'This sub-agent’s selling price — what its shops pay it. Export and upload follow this choice.',
+      'سعر بيع هذا الوكيل الفرعي — ما تدفعه متاجره له. التصدير والرفع يتبعان هذا الاختيار.');
   String get cancel => p('Cancel', 'إلغاء');
   String get apply => p('Apply', 'تطبيق');
   // UX-69: a bare number in a box labelled "بغداد" reads as a price, a stock
@@ -91,6 +121,22 @@ class _S {
   String get currency => p('IQD', 'د.ع');
   String get edited => p('Edited', 'معدّل');
   String saveN(int n) => p('Save prices ($n)', 'حفظ الأسعار ($n)');
+  // UX-68: switching the pricing target reloads the catalog, which disposes every
+  // controller — a screenful of typed prices used to vanish with no prompt.
+  String get unsavedTitle => p('Unsaved prices', 'أسعار غير محفوظة');
+  String unsavedBody(int n) => p(
+      '$n price(s) you typed have not been saved. Leaving now discards them.',
+      'لديك $n سعر لم يتم حفظه. المغادرة الآن ستتجاهلها.');
+  String get keepEditing => p('Keep editing', 'متابعة التعديل');
+  String get discard => p('Discard', 'تجاهل');
+}
+
+/// One decimal below 10%, whole numbers above — and never a trailing `.0`, so a
+/// 25% margin reads "25%" rather than "25.0%" (UX-21).
+String _pct(num v) {
+  if (v >= 10) return v.round().toString();
+  final one = v.toStringAsFixed(1);
+  return one.endsWith('.0') ? one.substring(0, one.length - 2) : one;
 }
 
 /// A SKU is "regional" when its stock is broken down by governorate (a real
@@ -134,6 +180,17 @@ class _PricingPageState extends ConsumerState<PricingPage> {
         unpricedOnly: _unpricedOnly,
       );
   bool _authorized = true;
+
+  /// UX-68: set for the single frame in which an answered discard prompt lets the
+  /// route pop; otherwise [PopScope] would veto its own retry forever.
+  bool _allowPop = false;
+
+  /// Rebuilds the target dropdown from scratch after a REJECTED change, so it
+  /// snaps back to the account still being edited — `DropdownButtonFormField`
+  /// takes `initialValue` only on first build, so its internal state would
+  /// otherwise keep showing the account we refused to switch to (UX-68).
+  int _pickerEpoch = 0;
+
   final Map<String, TextEditingController> _ctrls = {};
 
   /// UX-69: the value each field was LOADED with, so an edited row can be marked
@@ -146,6 +203,36 @@ class _PricingPageState extends ConsumerState<PricingPage> {
 
   bool _fieldDirty(String key) =>
       parseAmount(_ctrls[key]?.text) != parseAmount(_original[key]);
+
+  /// UX-68: anything typed and not yet written by the bottom Save. Both exits
+  /// that throw it away — switching the pricing target (which reloads and
+  /// disposes every controller) and leaving the route — go through
+  /// [_confirmDiscard] first.
+  ///
+  /// Mirrors the guard already in `voucher_templates_page.dart` (`_dirty` + a
+  /// discard/keep dialog) rather than inventing a second idiom for it.
+  Future<bool> _confirmDiscard(_S s) async {
+    final n = _dirtyCount.value;
+    if (n == 0) return true;
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(s.unsavedTitle),
+        content: Text(s.unsavedBody(n)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(s.keepEditing),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(s.discard),
+          ),
+        ],
+      ),
+    );
+    return discard == true;
+  }
 
   void _recountDirty() {
     final n = _ctrls.keys.where(_fieldDirty).length;
@@ -180,10 +267,25 @@ class _PricingPageState extends ConsumerState<PricingPage> {
     super.dispose();
   }
 
-  /// B-121: the sub-agents this account may price for. Best-effort — the picker
-  /// simply does not appear when there are none (a sub-agent pricing itself, or
-  /// an agent with no children), which is the correct behaviour rather than an
-  /// empty dropdown.
+  /// B-121: the accounts this one may price for. Best-effort — the picker simply
+  /// does not appear when there are none (a sub-agent pricing itself, or an agent
+  /// with no children), which is the correct behaviour rather than an empty
+  /// dropdown.
+  ///
+  /// UX-30 asked for STORE children to be added here so a Main Agent could price
+  /// for a directly-attached shop. Deliberately NOT done — a price row written
+  /// against a STORE is never read by anything:
+  ///
+  ///   * `InventoryController.buildDebitChain` (BE:1117) starts the price cascade
+  ///     at the CALLER'S PARENT — "a store sells at the sub-agent's price".
+  ///   * `/product/sellable` (BE:570) uses `priceTier = target.getParent()` for
+  ///     every wallet-backed target (AGENT2/STORE).
+  ///   * `TransactionProcessor.computeOrderCost` prices at `sourceId`, the seller.
+  ///
+  /// The pricing axis is the SELLER, so `AgentPrice(entityId = someStore)` would
+  /// only ever govern that store's own children — and a STORE is a leaf. Widening
+  /// the picker would hand the operator a field that saves successfully, reloads
+  /// with their number in it, and changes nothing anyone is ever charged.
   Future<void> _loadSubAgents() async {
     try {
       final rows = await EntityRepository(ref.read(apiClientProvider))
@@ -195,6 +297,20 @@ class _PricingPageState extends ConsumerState<PricingPage> {
     } catch (_) {
       // No picker; the screen still prices the caller's own account.
     }
+  }
+
+  /// UX-23: what the editable column actually is. Pricing my own account it is
+  /// "my price"; with a target selected it names that account, so the field, the
+  /// margin caption and the exported sheet's header all agree on whose price
+  /// this is.
+  /// [maxChars] is deliberately tight: this lands in a 152px field's floating
+  /// label, which clips rather than wrapping. The exported sheet's header takes
+  /// the full name — it has the room.
+  String _priceLabel(_S s, {int maxChars = 12}) {
+    if (_targetId == null || _targetName.trim().isEmpty) return s.yourPrice;
+    final n = _targetName.trim();
+    return s.priceOf(
+        n.length > maxChars ? '${n.substring(0, maxChars - 1)}…' : n);
   }
 
   Future<void> _load() async {
@@ -340,10 +456,22 @@ class _PricingPageState extends ConsumerState<PricingPage> {
     final stem = _targetId == null
         ? priceSheetFileName(filter)
         : '${priceSheetFileName(filter)}-${_slugName(_targetName)}';
+    // UX-23: the price column is named for the account it belongs to. The file
+    // name already carried the agent (B-123) but the column inside still said
+    // "سعرك", so two sheets open side by side in Excel were indistinguishable —
+    // the last step before the wrong prices are uploaded to the wrong agent.
+    // The upload parses by column INDEX (cells 0/2/4), so renaming the header is
+    // safe for the round trip.
     await exportRowsToXlsx(
       fileName: stem,
       sheetName: 'Prices',
-      headers: [s.colSku, s.colName, s.colGov, s.colOfficial, s.colYour],
+      headers: [
+        s.colSku,
+        s.colName,
+        s.colGov,
+        s.colOfficial,
+        _targetId == null ? s.colYour : s.priceOf(_targetName.trim()),
+      ],
       rows: rows,
     );
   }
@@ -486,6 +614,8 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                         ctx,
                         repository: EntityRepository(ref.read(apiClientProvider)),
                         title: s.alsoAgents,
+                        // Sellers only — see [_loadSubAgents] for why a STORE is
+                        // not a meaningful pricing target (UX-30).
                         types: const [EntityType.AGENT1, EntityType.AGENT2],
                       );
                       if (picked != null) setD(() => extraAgents[picked.id] = picked.label);
@@ -557,6 +687,31 @@ class _PricingPageState extends ConsumerState<PricingPage> {
   @override
   Widget build(BuildContext context) {
     final s = _S.of(context);
+    // UX-68: leaving the route throws away every typed price exactly like
+    // switching the target did. Same prompt on both exits.
+    return ValueListenableBuilder<int>(
+      valueListenable: _dirtyCount,
+      builder: (context, dirty, child) => PopScope<Object?>(
+        canPop: _allowPop || dirty == 0,
+        onPopInvokedWithResult: (didPop, _) async {
+          if (didPop) return;
+          // Resolved before the await so the prompt's async gap can't leave us
+          // reaching into a defunct element for it.
+          final nav = Navigator.of(context);
+          if (!await _confirmDiscard(s) || !mounted) return;
+          // The guard has been answered — let this one pop through rather than
+          // zeroing the dirty count, which the Save button also reads.
+          setState(() => _allowPop = true);
+          await nav.maybePop();
+          if (mounted) setState(() => _allowPop = false);
+        },
+        child: child!,
+      ),
+      child: _scaffold(s),
+    );
+  }
+
+  Widget _scaffold(_S s) {
     return MaxWidthBox(
       child: Column(
         children: [
@@ -598,6 +753,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: DropdownButtonFormField<String?>(
+        key: ValueKey('pricing-target-${_targetId ?? ''}-$_pickerEpoch'),
         initialValue: _targetId,
         isExpanded: true,
         decoration: InputDecoration(
@@ -616,8 +772,16 @@ class _PricingPageState extends ConsumerState<PricingPage> {
               child: Text(labelFor(a), overflow: TextOverflow.ellipsis),
             ),
         ],
-        onChanged: (v) {
+        onChanged: (v) async {
           if (v == _targetId) return;
+          // UX-68: _load() disposes and clears every controller, so an unguarded
+          // switch silently threw away a screenful of typed prices.
+          if (!await _confirmDiscard(s)) {
+            // Put the dropdown back on the account still being edited.
+            if (mounted) setState(() => _pickerEpoch++);
+            return;
+          }
+          if (!mounted) return;
           setState(() {
             _targetId = v;
             _targetName = v == null
@@ -798,7 +962,16 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                         (row) => Padding(
                           padding: const EdgeInsets.symmetric(vertical: 4),
                           child: _PriceRow(
-                              row: row, ctrls: _ctrls, original: _original, s: s),
+                            row: row,
+                            ctrls: _ctrls,
+                            original: _original,
+                            s: s,
+                            // UX-23: whose price this column is.
+                            priceLabel: _priceLabel(s),
+                            // UX-21: "margin" is only the caller's margin when the
+                            // caller is the one being priced.
+                            forSelf: _targetId == null,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -863,29 +1036,51 @@ class _BalanceHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                s.balanceLabel,
-                style: IntesharType.overline(
-                  color: IntesharColors.ink.withValues(alpha: 0.7),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  s.balanceLabel,
+                  style: IntesharType.overline(
+                    color: IntesharColors.ink.withValues(alpha: 0.7),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                Formatters.iqd(worth.round()),
-                style: const TextStyle(
-                  fontFamily: 'CodecPro',
-                  fontSize: 26,
-                  fontWeight: FontWeight.w900,
-                  color: IntesharColors.ink,
-                  height: 1,
+                const SizedBox(height: 2),
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text(
+                      Formatters.iqd(worth.round()),
+                      style: const TextStyle(
+                        fontFamily: 'CodecPro',
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900,
+                        color: IntesharColors.ink,
+                        height: 1,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ],
+                // UX-20: this and the dashboard's الرصيد (credited − granted out)
+                // are two large IQD figures one tap apart that never agree,
+                // because they are not the same quantity. Neither stated its
+                // basis; this one now does.
+                const SizedBox(height: 4),
+                Text(
+                  s.worthBasis,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: IntesharType.sans(11,
+                      color: IntesharColors.ink.withValues(alpha: 0.75),
+                      w: FontWeight.w600),
+                ),
+              ],
+            ),
           ),
-          const Spacer(),
+          const SizedBox(width: 8),
           if (unpriced > 0)
             // Tap to filter the list to just the unpriced categories (toggle).
             InkWell(
@@ -914,11 +1109,21 @@ class _PriceRow extends StatelessWidget {
   /// UX-69: the loaded values, so the card can flag itself as edited.
   final Map<String, String> original;
   final _S s;
+
+  /// UX-23: what the editable column is called — "سعرك" only when these really
+  /// are the caller's own prices, otherwise the target account's name.
+  final String priceLabel;
+
+  /// UX-21: true when the caller is pricing its own account, so the computed
+  /// difference from the official price IS its margin.
+  final bool forSelf;
   const _PriceRow({
     required this.row,
     required this.ctrls,
     required this.original,
     required this.s,
+    required this.priceLabel,
+    required this.forSelf,
   });
 
   /// The field keys this card actually RENDERS (a regional row shows only its
@@ -977,9 +1182,17 @@ class _PriceRow extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
               ],
-              Text(
-                '${s.official}: ${Formatters.iqd(row.officialPrice.round())}',
-                style: IntesharType.mono(11.5, color: cs.onSurfaceVariant),
+              // UX-21: the two numbers on this card are a BUY and a SELL price
+              // and nothing said which. The platform default is what this agent
+              // pays, so name it that when the agent is pricing itself.
+              Flexible(
+                child: Text(
+                  '${forSelf ? s.officialCost : s.official}: '
+                  '${Formatters.iqd(row.officialPrice.round())}',
+                  maxLines: 2,
+                  textAlign: TextAlign.end,
+                  style: IntesharType.mono(11.5, color: cs.onSurfaceVariant),
+                ),
               ),
             ],
           ),
@@ -991,6 +1204,12 @@ class _PriceRow extends StatelessWidget {
               original: original['${row.sku}::'] ?? '',
               available: row.available,
               lineValue: row.lineValue,
+              // The backend sets the same official price on the row and on every
+              // one of its governorate lines (PricingHelper writes one `off` for
+              // all of them), so one value is correct for every field here.
+              officialPrice: row.officialPrice,
+              priceLabel: priceLabel,
+              forSelf: forSelf,
               s: s,
             )
           else ...[
@@ -1014,6 +1233,9 @@ class _PriceRow extends StatelessWidget {
                   original: original['${row.sku}::${g.governorate}'] ?? '',
                   available: g.available,
                   lineValue: g.lineValue,
+                  officialPrice: g.officialPrice,
+                  priceLabel: priceLabel,
+                  forSelf: forSelf,
                   s: s,
                 ),
               );
@@ -1035,7 +1257,21 @@ class _PriceField extends StatelessWidget {
   /// The value loaded from the server — anything else means unsaved.
   final String original;
   final int available;
+
+  /// `available × officialPrice`. UX-22: deliberately NOT a function of the price
+  /// typed (B-082 — stock is valued at the platform price), which is exactly why
+  /// it may not sit inside the input's row pretending to be its result.
   final num lineValue;
+
+  /// The platform default for this SKU — the agent's cost, and the baseline the
+  /// margin is measured against (UX-21).
+  final num officialPrice;
+
+  /// UX-23: the editable column's name — "سعرك", or the target account's.
+  final String priceLabel;
+
+  /// UX-21: whether the computed difference is the caller's own margin.
+  final bool forSelf;
   final _S s;
   const _PriceField({
     this.region,
@@ -1043,21 +1279,95 @@ class _PriceField extends StatelessWidget {
     required this.original,
     required this.available,
     required this.lineValue,
+    required this.officialPrice,
+    required this.priceLabel,
+    required this.forSelf,
     required this.s,
   });
 
   @override
   Widget build(BuildContext context) {
     final c = ctrl;
-    if (c == null) return _content(context, false);
+    if (c == null) return _content(context, false, null);
     return ValueListenableBuilder<TextEditingValue>(
       valueListenable: c,
-      builder: (context, v, _) =>
-          _content(context, parseAmount(v.text) != parseAmount(original)),
+      builder: (context, v, _) => _content(
+        context,
+        parseAmount(v.text) != parseAmount(original),
+        parseAmount(v.text),
+      ),
     );
   }
 
-  Widget _content(BuildContext context, bool dirty) {
+  /// UX-21: the one number the business runs on, computed instead of subtracted
+  /// by hand once per category. Absolute + percent of cost, tinted (and worded,
+  /// and iconed — never colour alone) when the agent would be selling at a loss.
+  Widget _marginBlock(BuildContext context, num? typed) {
+    final cs = Theme.of(context).colorScheme;
+    // The currency rides on the caption, so the number itself stays short enough
+    // to sit beside a 152px field on a POS handheld without ellipsizing.
+    final label = Text(
+      '${forSelf ? s.margin : s.vsOfficial} · ${s.currency}',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: IntesharType.overline(color: cs.onSurfaceVariant),
+    );
+    if (typed == null) {
+      // Empty field — no price, so no margin to state. Say nothing rather than
+      // showing a margin of "−cost".
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          label,
+          Text('—', style: IntesharType.mono(12.5, color: cs.onSurfaceVariant)),
+        ],
+      );
+    }
+    final m = typed - officialPrice;
+    final negative = m < 0;
+    final sign = m > 0 ? '+' : (negative ? '−' : '');
+    // Percent of cost. Only meaningful against a non-zero official price — an
+    // unpriced SKU would otherwise divide by zero and read "∞%".
+    final pct = officialPrice > 0 ? ((m / officialPrice) * 100).abs() : null;
+    final pctText = pct == null ? '' : ' (${_pct(pct)}%)';
+    final color = negative ? cs.error : cs.onSurface;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        label,
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            if (negative) ...[
+              Icon(Icons.trending_down, size: 14, color: cs.error),
+              const SizedBox(width: 3),
+            ],
+            Flexible(
+              child: Text(
+                '$sign${Formatters.money(m.abs())}$pctText',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: IntesharType.mono(12.5, color: color, w: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+        // Not colour alone.
+        if (negative)
+          Text(
+            forSelf ? s.belowCost : s.belowOfficial,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: IntesharType.sans(11, color: cs.error, w: FontWeight.w700),
+          ),
+      ],
+    );
+  }
+
+  Widget _content(BuildContext context, bool dirty, num? typed) {
     final cs = Theme.of(context).colorScheme;
     final brandInk = context.tones.brandInk;
     return Column(
@@ -1094,8 +1404,9 @@ class _PriceField extends StatelessWidget {
                 inputFormatters: const [ThousandsInputFormatter()],
                 style: IntesharType.mono(14, color: cs.onSurface),
                 decoration: InputDecoration(
-                  // Always says WHAT the number is, and in which currency.
-                  labelText: s.yourPrice,
+                  // Always says WHAT the number is, whose it is (UX-23), and in
+                  // which currency.
+                  labelText: priceLabel,
                   isDense: true,
                   suffixText: s.currency,
                   suffixStyle: IntesharType.sans(11.5, color: cs.onSurfaceVariant),
@@ -1103,25 +1414,27 @@ class _PriceField extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    '${s.available}: ${Formatters.money(available)}',
-                    style: IntesharType.sans(12, color: cs.onSurfaceVariant),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${s.lineValue}: ${Formatters.iqd(lineValue.round())}',
-                    style: IntesharType.mono(
-                      12.5,
-                      color: cs.onSurface,
-                      w: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
+            // UX-21: the margin sits where the value used to — beside the field,
+            // because unlike the value it IS a function of what is typed.
+            Expanded(child: _marginBlock(context, typed)),
+          ],
+        ),
+        // UX-22: stock and its value are facts about the inventory, not results
+        // of this input, so they live on their own line below it and say what
+        // they are priced at. In the input's row at equal weight, a value that
+        // did not move when the price dropped read as "it didn't save".
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 12,
+          runSpacing: 2,
+          children: [
+            Text(
+              '${s.available}: ${Formatters.money(available)}',
+              style: IntesharType.sans(12, color: cs.onSurfaceVariant),
+            ),
+            Text(
+              '${s.lineValue}: ${Formatters.iqd(lineValue.round())} · ${s.atOfficialPrice}',
+              style: IntesharType.sans(12, color: cs.onSurfaceVariant),
             ),
           ],
         ),

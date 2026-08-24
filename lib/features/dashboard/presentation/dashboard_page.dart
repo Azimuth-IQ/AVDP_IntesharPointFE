@@ -107,9 +107,16 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     }
   }
 
-  Future<void> _load() async {
+  /// UX-84: [silent] refreshes the tiles in place instead of blanking them.
+  ///
+  /// `_loading` swaps the whole dashboard for a centred spinner, so a
+  /// pull-to-refresh destroyed every KPI tile and card and drew a second
+  /// spinner under the refresh arc — scroll position lost, and the tiles that
+  /// were meant to change flashed away instead of changing. Only the first load
+  /// blanks; the refresh arc is already the progress indicator for the rest.
+  Future<void> _load({bool silent = false}) async {
     setState(() {
-      _loading = true;
+      if (!silent) _loading = true;
       _error = null;
     });
     try {
@@ -191,8 +198,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
     return MaxWidthBox(
       child: RefreshIndicator(
-        onRefresh: _load,
-        child: _loading
+        // UX-84: the arc IS the progress indicator — don't also tear the page down.
+        onRefresh: () => _load(silent: true),
+        child: (_loading || _data == null)
             ? const Center(child: CircularProgressIndicator())
             : _error != null
             ? ListView(
@@ -201,7 +209,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             : _DashContent(
                 entity: entity,
                 data: _data!,
-                onRefresh: _load,
+                onRefresh: () => _load(silent: true),
                 canTransfer: canTransfer,
               ),
       ),

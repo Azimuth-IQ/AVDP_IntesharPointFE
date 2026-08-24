@@ -85,9 +85,15 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
     super.dispose();
   }
 
-  Future<void> _reload() async {
+  /// UX-84: [silent] refreshes the rows in place.
+  ///
+  /// `_loading = true` makes `_body` return a full-screen spinner, so
+  /// pull-to-refresh deleted the KPI strip, the filters and the roster — and a
+  /// debounced search tore down the very TextField being typed into, closing
+  /// the keyboard mid-word. Only the first load blanks.
+  Future<void> _reload({bool silent = false}) async {
     setState(() {
-      _loading = true;
+      if (!silent) _loading = true;
       _error = null;
     });
     try {
@@ -130,21 +136,21 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 350), () {
       _query = v.trim();
-      _reload();
+      _reload(silent: true);
     });
   }
 
   void _setTier(String t) {
     if (t == _tier) return;
     setState(() => _tier = t);
-    _reload();
+    _reload(silent: true);
   }
 
   Future<void> _openAgent(PosNetworkRow r) async {
     await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => PosAdminPage(targetEntityId: r.entityId, targetName: r.name),
     ));
-    _reload(); // reflect any grant/onboard/revoke done in the drill
+    _reload(silent: true); // reflect any grant/onboard/revoke done in the drill
   }
 
   /// HQ grants POS points directly to any AGENT — main or sub (B-043), skipping
@@ -199,7 +205,7 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
       await _repo.grantSlots(destId: picked.id, count: n);
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text(s.done)));
-      _reload();
+      _reload(silent: true);
     } catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
@@ -225,7 +231,7 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
     if (_error != null) return ErrorState(error: _error!, onRetry: _reload);
     final cs = Theme.of(context).colorScheme;
     return RefreshIndicator(
-      onRefresh: _reload,
+      onRefresh: () => _reload(silent: true),
       child: ListView(
         padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 28),
         children: [

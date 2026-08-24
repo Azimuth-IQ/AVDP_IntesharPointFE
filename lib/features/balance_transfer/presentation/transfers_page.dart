@@ -185,9 +185,17 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
     }
   }
 
-  Future<void> _load() async {
+  /// UX-84: [silent] refreshes in place instead of blanking the page.
+  ///
+  /// `_loading = true` makes `_body` return a full-screen spinner, so
+  /// pull-to-refresh deleted the balance card, the two money buttons and the
+  /// whole ledger — losing scroll position and any history filter the agent had
+  /// just set. After a transfer it also hid the one thing worth watching: the
+  /// balance moving and the new row landing at the top. Only the first load and
+  /// an explicit retry blank.
+  Future<void> _load({bool silent = false}) async {
     setState(() {
-      _loading = true;
+      if (!silent) _loading = true;
       _error = null;
     });
     try {
@@ -385,7 +393,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
           .reclaim(destId: target.id, amount: amount);
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text(s.takenBack)));
-      await _load();
+      await _load(silent: true);
     } catch (e) {
       if (mounted) {
         // The server knows the real ceiling; its wording is the useful one.
@@ -623,7 +631,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
           .grant(destId: target.id, amount: amount);
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text(s.sent)));
-      await _load();
+      await _load(silent: true);
     } catch (e) {
       if (mounted) {
         messenger
@@ -651,7 +659,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
     if (_error != null) return ErrorState(error: _error!, onRetry: _load);
     final cs = Theme.of(context).colorScheme;
     return RefreshIndicator(
-      onRefresh: _load,
+      onRefresh: () => _load(silent: true),
       child: ListView(
         padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 28),
         children: [

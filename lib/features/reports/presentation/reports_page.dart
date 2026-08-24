@@ -59,7 +59,15 @@ class _RS {
   String get total => p('Total', 'الكلي');
   String get used => p('Used', 'مُستخدَم');
   String get value => p('Value', 'القيمة');
-  String get grandTotal => p('Grand total (transferable balance)', 'المجموع الكلي (الرصيد القابل للتحويل)');
+  // UX-36: this is `PricingCatalog.inventoryWorth` — the SAME server figure, on
+  // the SAME basis, that the pricing screen labels قيمة المخزون. Calling it
+  // "المجموع الكلي (الرصيد القابل للتحويل)" here made one number look like two
+  // different things, and implied a relationship to the virtual balance it does
+  // not have. Named after what it is, with its basis stated beneath.
+  String get grandTotal => p('Stock value', 'قيمة المخزون');
+  String get grandTotalBasis => p(
+      'Available cards × their effective price — not the transferable balance.',
+      'الكروت المتوفرة × سعرها الفعلي — وليس الرصيد القابل للتحويل.');
   String get untagged => p('No region', 'بدون محافظة');
   String get uncategorized => p('Uncategorized', 'بدون شركة');
   String get empty => p('Nothing to report yet.', 'لا توجد بيانات للتقرير بعد.');
@@ -85,6 +93,13 @@ class _RS {
   String get export => p('Export', 'تصدير');
   String get exported => p('Report exported', 'تم تصدير التقرير');
   String get nothingToExport => p('Nothing to export', 'لا توجد بيانات للتصدير');
+  // UX-81: an export walks EVERY page of a paged feed — up to 200 sequential
+  // requests — and used to change nothing on screen while it did.
+  String get exporting => p('Exporting…', 'جارٍ التصدير…');
+  String exportingRows(int n) =>
+      p('Exporting… $n rows', 'جارٍ التصدير… $n صف');
+  String get exportCancelled =>
+      p('Export cancelled — no file saved', 'أُلغي التصدير — لم يُحفظ أي ملف');
   String get date => p('Date', 'التاريخ');
   String get time => p('Time', 'الوقت');
   String get from => p('From', 'من');
@@ -115,6 +130,15 @@ class _RS {
   // otherwise a Main Agent and a Sub Agent are indistinguishable.
   String get tier => p('Type', 'النوع');
   String get hq => p('Headquarters', 'الإدارة');
+  // UX-35: `ordersSpent` / `grantsOut` / `storeCount` were parsed, exported and
+  // never shown — so the roster gave one number per account and no answer to
+  // "made of what". Same three words the dashboard balance card uses (UX-20),
+  // so the two screens describe the same money the same way.
+  String get credited => p('Credited', 'المُضاف');
+  String get givenOut => p('Given out', 'المُحوَّل');
+  String get rosterComposition => p(
+      'Balance = credited − given to its own accounts − spent.',
+      'الرصيد = المُضاف − المُحوَّل إلى حساباته − المصروف.');
   // UX-43: the pricing screen states its export scope on screen; the reports now
   // do the same, so a filtered view and its sheet can't quietly differ.
   String exportFollows(String scope) =>
@@ -350,12 +374,16 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
   /// while looking complete is worse than no sheet — so this walks every page, and
   /// the hard cap exists only so a runaway cannot hang the app. [onCapped] fires if
   /// the cap is ever reached, and the caller warns instead of pretending.
-  Future<List<dynamic>> _fetchAllPages(String src, {required void Function() onCapped}) async {
+  /// [onProgress] reports the running row count so the Export button can say how
+  /// far it has got (UX-81) — 200 silent round-trips is what made users re-tap.
+  Future<List<dynamic>> _fetchAllPages(String src,
+      {required void Function() onCapped, void Function(int)? onProgress}) async {
     const maxPages = 200; // 20k rows at _pageSize
     final out = <dynamic>[];
     for (var p = 0; p < maxPages; p++) {
       final res = await _fetchPage(src, p);
       out.addAll(_filterPage(src, res.items));
+      onProgress?.call(out.length);
       if (!res.hasMore) return out;
     }
     onCapped();
@@ -416,27 +444,52 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     }
   }
 
+  /// UX-81: the report key whose export is in flight, or null.
+  ///
+  /// `_export` sets no busy state at all, and for a paged feed it fires up to 200
+  /// sequential requests. The button stayed enabled and its label never changed,
+  /// so an operator with nothing to look at re-tapped and launched a SECOND full
+  /// walk of the same feed alongside the first.
+  String? _exporting;
+
+  /// Rows pulled so far by the in-flight export — the button counts up, which is
+  /// the only honest way to show progress over an unknown number of pages.
+  int _exportedRows = 0;
+
   Future<void> _export(String key, _RS s) async {
+    if (_exporting != null) return; // re-entrancy guard, not just a disabled button
     final loc = Localizations.localeOf(context).languageCode;
     final messenger = ScaffoldMessenger.of(context);
     final src = _sourceKey(key);
     final isPaged = src == 'posBalances' || src == 'agentBalances' || src == 'transfers';
     dynamic data;
     var capped = false;
+    setState(() {
+      _exporting = key;
+      _exportedRows = 0;
+    });
     try {
       // B-097: a paged report must export EVERY page. Exporting only what happens to
       // be on screen produces a sheet that looks complete and silently isn't — which
       // on an audit trail is worse than not exporting at all.
       data = isPaged
-          ? await _fetchAllPages(src, onCapped: () => capped = true)
+          ? await _fetchAllPages(src,
+              onCapped: () => capped = true,
+              onProgress: (n) {
+                if (mounted) setState(() => _exportedRows = n);
+              })
           : await _futureFor(key); // resolves instantly from the cache once loaded
     } catch (e) {
-      if (mounted) messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+      if (mounted) {
+        setState(() => _exporting = null);
+        messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+      }
       return;
     }
     final built = _exportRows(key, data, s, loc);
     if (!mounted) return;
     if (built == null || built.rows.isEmpty) {
+      setState(() => _exporting = null);
       messenger.showSnackBar(SnackBar(content: Text(s.nothingToExport)));
       return;
     }
@@ -473,13 +526,20 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
             ?_exportTotal(key, data, s),
             if (capped) (s.export, s.exportTruncated),
           ]);
-      if (mounted && path != null) {
-        // Never let a capped export pass as a complete one.
-        messenger.showSnackBar(
-            SnackBar(content: Text(capped ? s.exportTruncated : s.exported)));
+      if (mounted) {
+        // UX-81: a null path is the save dialog being CANCELLED (or nothing
+        // written). Saying nothing at all left that indistinguishable from a
+        // failed export — and from a hung one.
+        messenger.showSnackBar(SnackBar(
+            content: Text(path == null
+                ? s.exportCancelled
+                // Never let a capped export pass as a complete one.
+                : (capped ? s.exportTruncated : s.exported))));
       }
     } catch (e) {
       if (mounted) messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+    } finally {
+      if (mounted) setState(() => _exporting = null);
     }
   }
 
@@ -579,16 +639,20 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         final rows = <List<XlsxCell>>[
           for (final r in list)
             [r.name, _tierLabel(r.tier, s), r.ownerName, r.userPhone, gov(r.governorate),
-              r.mainAgentName, r.subAgentName, r.available, r.ordersSpent, r.storeCount],
+              r.mainAgentName, r.subAgentName, r.available, r.ordersSpent, r.storeCount,
+              r.grantsOut],
         ];
         // Spent and POS points stay in the SHEET even though the table has no
         // room for them. A screen is for attention and an export is for
         // arithmetic: an extra column costs a reader nothing, while removing one
         // silently breaks whatever formula downstream already points at it — and
         // "spent" beside "balance" is the pair reconciliation is actually done on.
+        // UX-35: `givenOut` is APPENDED, not slotted in beside the other money —
+        // an existing column's position is load-bearing for whatever formula
+        // downstream already points at this sheet.
         return _Export(
             [_labelFor(key, s), s.tier, s.owner, s.phone, s.governorate, s.mainAgent,
-              s.subAgent, s.balance, s.spent, s.posPoints],
+              s.subAgent, s.balance, s.spent, s.posPoints, s.givenOut],
             rows, key);
       case 'transfers':
         final list = (data as List<TransferRow>?) ?? const [];
@@ -757,10 +821,22 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
           else
             const Spacer(),
           const SizedBox(width: 8),
+          // UX-81: while an export is walking the feed the button spins, counts
+          // the rows it has pulled, and refuses further taps — a second tap used
+          // to start a whole parallel pull of the same 200 pages.
           OutlinedButton.icon(
-            icon: const Icon(Icons.download_outlined, size: 16),
-            label: Text(s.export),
-            onPressed: _booting ? null : () => _export(key, s),
+            icon: _exporting != null
+                ? const SizedBox(
+                    width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.download_outlined, size: 16),
+            label: Text(
+              _exporting == null
+                  ? s.export
+                  : (_exportedRows > 0 ? s.exportingRows(_exportedRows) : s.exporting),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            onPressed: (_booting || _exporting != null) ? null : () => _export(key, s),
           ),
         ]),
         // UX-43: say what the sheet will contain, the way the pricing screen does.
@@ -1457,25 +1533,38 @@ class _RosterReportState extends State<_RosterReport> {
     // Only worth a column when the list actually mixes tiers (the agent-balances
     // tab); a roster of nothing but shops would just repeat "Store" 200 times.
     final showTier = _mixedTiers(widget.rows);
+    // UX-35: the two figures that make the balance mean something. Shown only
+    // where they can be non-zero — a POS roster's `grantsOut` and `storeCount`
+    // are structurally 0 (a shop grants nothing and hosts nothing), and three
+    // columns of zeros would bury the ones that matter.
+    final showGiven = widget.rows.any((r) => r.grantsOut != 0);
+    final showStores = widget.rows.any((r) => r.storeCount > 0);
 
     return _ReportTable(
       s: s,
       partial: widget.partial,
       leading: Padding(
         padding: const EdgeInsets.only(bottom: 10),
-        child: TextField(
-          onChanged: (v) => setState(() => _q = v.trim()),
-          decoration: InputDecoration(
-            isDense: true,
-            prefixIcon: const Icon(Icons.search, size: 18),
-            hintText: s.searchRoster,
-            // UX-33: "12/100+" — the trailing + says the denominator is the rows
-            // loaded so far, not the size of the roster.
-            suffixText: _q.isEmpty
-                ? null
-                : '${rows.length}/${widget.rows.length}${widget.partial ? '+' : ''}',
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          TextField(
+            onChanged: (v) => setState(() => _q = v.trim()),
+            decoration: InputDecoration(
+              isDense: true,
+              prefixIcon: const Icon(Icons.search, size: 18),
+              hintText: s.searchRoster,
+              // UX-33: "12/100+" — the trailing + says the denominator is the rows
+              // loaded so far, not the size of the roster.
+              suffixText: _q.isEmpty
+                  ? null
+                  : '${rows.length}/${widget.rows.length}${widget.partial ? '+' : ''}',
+            ),
           ),
-        ),
+          const SizedBox(height: 6),
+          // UX-35: name the arithmetic once, above the table, rather than leaving
+          // three money columns with no stated relationship to each other.
+          Text(s.rosterComposition,
+              style: IntesharType.sans(11.5, color: cs.onSurfaceVariant, w: FontWeight.w600)),
+        ]),
       ),
       columns: [
         _RCol(widget.identityLabel.isEmpty ? s.tabPosBalances : widget.identityLabel,
@@ -1485,6 +1574,12 @@ class _RosterReportState extends State<_RosterReport> {
         _RCol(s.phone, flex: 3),
         _RCol(s.governorate, flex: 2),
         _RCol(s.mainAgent, flex: 3),
+        if (showStores) _RCol(s.posPoints, flex: 2, numeric: true),
+        if (showGiven) _RCol(s.givenOut, flex: 3, numeric: true),
+        // UX-24: "المصروف" reached the XLSX and was dropped from the table — so
+        // "which of my shops is stuck?" (funded but not selling) could be asked
+        // in Excel and nowhere on screen.
+        _RCol(s.spent, flex: 3, numeric: true),
         _RCol(s.balance, flex: 3, numeric: true, trailing: true),
       ],
       rows: [
@@ -1496,7 +1591,13 @@ class _RosterReportState extends State<_RosterReport> {
             _RCell(r.userPhone),
             _RCell(r.governorate.isEmpty ? '' : governorateLabel(r.governorate, loc)),
             _RCell([r.mainAgentName, r.subAgentName].where((x) => x.isNotEmpty).join(' / ')),
-            _RCell(Formatters.iqd(r.available.round()), value: r.available),
+            if (showStores) _RCell(Formatters.money(r.storeCount), value: r.storeCount),
+            if (showGiven) _RCell(Formatters.iqd(r.grantsOut.round()), value: r.grantsOut),
+            _RCell(Formatters.iqd(r.ordersSpent.round()), value: r.ordersSpent),
+            // UX-24: an account at zero cannot buy a card — flag it rather than
+            // leaving it as one more number in a column of numbers.
+            _RCell(Formatters.iqd(r.available.round()),
+                value: r.available, color: r.available <= 0 ? cs.error : null),
           ],
       ],
       emptyRows: Padding(
@@ -1862,12 +1963,24 @@ class _DetailedReport extends StatelessWidget {
 
     return _ReportTable(
       s: s,
-      leading: _TotalStrip(
-        label: s.grandTotal,
-        value: Formatters.iqd(catalog.inventoryWorth.round()),
-        subLabel: s.category,
-        subValue: Formatters.money(catalog.rows.length),
-      ),
+      leading: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _TotalStrip(
+          label: s.grandTotal,
+          value: Formatters.iqd(catalog.inventoryWorth.round()),
+          subLabel: s.category,
+          subValue: Formatters.money(catalog.rows.length),
+        ),
+        // UX-36: state the basis. Two screens showed money under names that
+        // sounded identical on different bases, and a third gave this one a name
+        // that pointed at the balance instead of at the stock.
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Text(s.grandTotalBasis,
+              style: IntesharType.sans(11.5,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  w: FontWeight.w600)),
+        ),
+      ]),
       columns: [
         _RCol(s.category, flex: 4, primary: true),
         _RCol(s.governorate, flex: 3),

@@ -18,7 +18,9 @@ import 'package:inteshar/features/pos_admin/data/pos_admin_repository.dart';
 import 'package:inteshar/features/pos_admin/presentation/pos_archive.dart';
 import 'package:inteshar/features/pos_admin/domain/pos_slot_balance.dart';
 import 'package:inteshar/features/pos_admin/presentation/pos_network_view.dart';
+import 'package:inteshar/features/pos_admin/presentation/pos_shop_sheet.dart';
 import 'package:inteshar/features/pos_admin/presentation/store_pos_view.dart';
+import 'package:inteshar/features/reports/data/reports_repository.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/password_field.dart';
@@ -116,6 +118,13 @@ class _S {
   // B-132: a duplicate phone gets a modal, not a snackbar.
   String get alreadyExistsTitle =>
       p('This customer already exists', 'هذا الزبون موجود بالفعل');
+  // UX-07: `locationConfirmedAt == null` blocks every sale (pos_home_page), was
+  // already on the object this list fetches, and was shown nowhere.
+  String get locationPending => p('Location not confirmed', 'الموقع غير مؤكَّد');
+  // UX-24: money on the shop card — the roster is VIEW_REPORTS-gated, so this is
+  // omitted rather than shown as a confident zero when the feed refuses.
+  String get balance => p('Balance', 'الرصيد');
+  String get outOfCredit => p('out of credit', 'بلا رصيد');
   String get alreadyExistsBody => p(
       'A POS user is already registered with this phone number. Use a different number, or find the existing point in the list.',
       'يوجد مستخدم نقطة بيع مسجل بهذا الرقم. استخدم رقماً آخر، أو ابحث عن النقطة الموجودة في القائمة.');
@@ -134,6 +143,14 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
   bool _hasMore = false;
   bool _loadingMore = false;
   PosSlotBalance? _quota;
+
+  /// UX-24: shopId → available balance, for the money line on each POS card.
+  ///
+  /// Null means the roster feed refused (it is `VIEW_REPORTS`-gated and plenty of
+  /// managers hold `MANAGE_POS` without it) — the line is then HIDDEN. Rendering
+  /// a zero for a shop we simply could not read is the failure mode that sends
+  /// somebody to top up an account that was already funded.
+  Map<String, num>? _balances;
   // B-043: Main/Sub agents may only USE POS points, never grant them on. Only HQ distributes
   // points (to any account), via the network view — so this page carries no recipient picker.
   // The one grant here is HQ drilling into a specific agent (see _grantToTargetDialog).
@@ -193,7 +210,9 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     _searchDebounce = Timer(const Duration(milliseconds: 350), () {
       if (!mounted) return;
       setState(() => _query = v);
-      _load();
+      // Silent: a blanking reload would tear down the very TextField being
+      // typed into, closing the keyboard on every debounce tick (UX-84).
+      _load(silent: true);
     });
   }
 
@@ -203,9 +222,16 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     super.dispose();
   }
 
-  Future<void> _load() async {
+  /// UX-84: [silent] keeps the rows on screen while they refresh.
+  ///
+  /// `_loading = true` makes `_body` return a full-screen spinner, so a
+  /// pull-to-refresh DELETED the list and drew a spinner under the refresh arc —
+  /// scroll position lost, and after archiving a shop the one signal that
+  /// mattered ("the row is gone") happened behind that flash. Only the first
+  /// load (and a search, which genuinely replaces the list) blanks now.
+  Future<void> _load({bool silent = false}) async {
     setState(() {
-      _loading = true;
+      if (!silent) _loading = true;
       _error = null;
     });
     try {
@@ -215,16 +241,44 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
       // B-023 P2: paged — a Main Agent with hundreds of shops used to get them
       // all in one response and stall on a list it renders a card at a time.
       final first = await _repo.listPaged(entityId: id, q: _query, size: _pageSize);
+      // UX-24: best-effort, and deliberately AFTER the list — a 403 here must
+      // cost the money column, never the shops.
+      final balances = await _storeBalances(id);
       if (!mounted) return;
       setState(() {
         _stores = first.items;
         _hasMore = first.hasMore;
         _page = 0;
         _quota = quota;
+        _balances = balances;
         _loading = false;
       });
     } catch (e) {
       if (mounted) setState(() { _error = e; _loading = false; });
+    }
+  }
+
+  /// Every STORE under [rootId] and what it has to spend, or null when the feed
+  /// is not available to this caller (UX-24). One paged roster call, not one
+  /// balance call per card.
+  Future<Map<String, num>?> _storeBalances(String rootId) async {
+    if (rootId.isEmpty) return null;
+    try {
+      final api = ref.read(apiClientProvider);
+      final out = <String, num>{};
+      var page = 0;
+      while (true) {
+        final res = await ReportsRepository(api)
+            .balancesRoster(rootId: rootId, type: 'STORE', page: page, size: 200);
+        for (final r in res.items) {
+          out[r.entityId] = r.available;
+        }
+        if (!res.hasMore || page > 20) break;
+        page++;
+      }
+      return out;
+    } catch (_) {
+      return null; // hide the column; never invent a zero
     }
   }
 
@@ -255,7 +309,9 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     try {
       await action();
       if (mounted) messenger.showSnackBar(SnackBar(content: Text(okMsg)));
-      await _load();
+      // UX-84: silent, so archiving/deactivating a shop shows the row CHANGE
+      // rather than hiding it behind a full-screen spinner flash.
+      await _load(silent: true);
     } catch (e) {
       if (mounted) messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
     } finally {
@@ -307,7 +363,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     final q = _quota;
     final loc = Localizations.localeOf(context).languageCode;
     return RefreshIndicator(
-      onRefresh: _load,
+      onRefresh: () => _load(silent: true),
       child: ListView(
         padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 28),
         children: [
@@ -334,7 +390,8 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
             // Restoring a shop moves it back into the Active segment and spends
             // one of the host's POS points, so both the list and the quota
             // behind this view are stale until we reload.
-            PosArchiveView(entityId: _effectiveId, onChanged: _load),
+            PosArchiveView(
+                entityId: _effectiveId, onChanged: () => _load(silent: true)),
           ] else ...[
           Row(children: [
             Expanded(
@@ -382,7 +439,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
                       onPressed: () {
                         _searchDebounce?.cancel();
                         setState(() => _query = '');
-                        _load();
+                        _load(silent: true);
                       },
                     ),
             ),
@@ -467,8 +524,20 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     final owner = store.profile?.ownerName ?? '';
     final gov = store.meta.governorates.isNotEmpty ? store.meta.governorates.first : '';
     final active = store.active;
+    // UX-07: a hard gate on selling (`pos_home_page` refuses every sale until it
+    // is set) that was already on the object this list fetches and was rendered
+    // nowhere — so the single most common "the shop can't sell" cause was
+    // invisible to the only people who get the phone call.
+    final locationPending = store.profile?.locationConfirmedAt == null;
+    // UX-24: the roster is VIEW_REPORTS-gated. Null = we could not read it, and
+    // a missing line is honest where a confident "0 د.ع" would be a lie that
+    // sends a manager to top up a shop that is already funded.
+    final balance = _balances?[store.id];
     return InkCard(
       padding: const EdgeInsets.all(14),
+      // UX-07: the whole card opens the shop's diagnostics. The row buttons keep
+      // their own taps — they sit in a Wrap below and swallow theirs first.
+      onTap: () => showPosShopSheet(context, ref, store: store),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(child: Text(name, style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w700))),
@@ -482,10 +551,37 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
             icon: active ? Icons.check_circle_outline : Icons.block,
           ),
         ]),
+        if (locationPending) ...[
+          const SizedBox(height: 6),
+          StampPill(
+            label: s.locationPending,
+            color: cs.error,
+            icon: Icons.location_off_outlined,
+          ),
+        ],
         const SizedBox(height: 4),
         Text(phone, style: IntesharType.mono(12, color: cs.onSurfaceVariant)),
         if (owner.isNotEmpty) Text(owner, style: IntesharType.sans(12.5, color: cs.onSurface)),
         if (gov.isNotEmpty) Text(governorateLabel(gov, loc), style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
+        // UX-24: three surfaces listed an agent's shops and none showed money, so
+        // "which of my shops is out of credit?" could not be asked anywhere.
+        if (balance != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 3),
+            child: Row(children: [
+              Text('${s.balance}: ',
+                  style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
+              Text(Formatters.iqd(balance.round()),
+                  style: IntesharType.mono(12.5,
+                      color: balance <= 0 ? cs.error : cs.onSurface,
+                      w: FontWeight.w700)),
+              if (balance <= 0) ...[
+                const SizedBox(width: 6),
+                Text(s.outOfCredit,
+                    style: IntesharType.sans(11.5, color: cs.error, w: FontWeight.w700)),
+              ],
+            ]),
+          ),
         // B-130: greying four buttons with no explanation is what made this read
         // as broken. Say the shop has no POS operator, which is the actual state.
         if (phone.isEmpty)
@@ -589,7 +685,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     final messenger = ScaffoldMessenger.of(context);
     try {
       final pin = await _repo.resetPin(phone);
-      await _load();
+      await _load(silent: true);
       if (!mounted) return;
       await showDialog<void>(
         context: context,
@@ -777,7 +873,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
           posLongitude: hint?.longitude,
         );
         if (mounted) messenger.showSnackBar(SnackBar(content: Text(s.done)));
-        await _load();
+        await _load(silent: true);
       } catch (e) {
         if (!mounted) return;
         if (isDuplicatePhone(e)) {

@@ -5,6 +5,7 @@ import 'package:inteshar/features/pos_admin/domain/archived_pos.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/pos_admin/domain/pos_network.dart';
 import 'package:inteshar/features/pos_admin/domain/pos_slot_balance.dart';
+import 'package:inteshar/features/pos_admin/domain/pos_stats.dart';
 
 /// POS-user quota + POS-user lifecycle (onboard / revoke / reset PIN / reset TOTP).
 /// The backend enforces MANAGE_POS + self-or-descendant + quota; this is a thin client.
@@ -84,6 +85,15 @@ class PosAdminRepository {
       final list = d as List<dynamic>;
       return list.map((e) => Entity.fromJson(e as Map<String, dynamic>)).toList();
     });
+  }
+
+  /// UX-07: the operational snapshot for ONE shop — active flag, last activity +
+  /// device/app, lifetime sales, own stock and virtual balance. Gated
+  /// HQ-or-self-or-descendant on the server (not `VIEW_REPORTS`), so it is
+  /// available to every manager who can already see the shop.
+  Future<PosStats> stats(String entityId) async {
+    final r = await _api.get(Endpoints.entityPosStats, params: {'id': entityId});
+    return _api.unwrap(r, (d) => PosStats.fromJson((d as Map).cast<String, dynamic>()));
   }
 
   /// Enable/disable a POS shop (its operator can no longer log in when disabled).

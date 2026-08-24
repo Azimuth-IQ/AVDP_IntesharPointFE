@@ -14,9 +14,11 @@ import 'package:inteshar/features/agents/data/agent_repository.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/system_activity/domain/feed_rows.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
+import 'package:inteshar/shared/widgets/app_snackbar.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
+import 'package:inteshar/shared/widgets/loading_state.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
 class InventoryPage extends ConsumerStatefulWidget {
@@ -130,7 +132,11 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
     final l = AppLocalizations.of(context)!;
 
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return LoadingState(
+        message: Localizations.localeOf(context).languageCode == 'ar'
+            ? 'جارٍ تحميل المخزون…'
+            : 'Loading inventory…',
+      );
     }
     if (_error != null) {
       return ErrorState(error: _error!, onRetry: _load);
@@ -578,6 +584,9 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
   bool _hasMore = false;
   bool _loadingFirst = false;
   bool _loadingMore = false;
+
+  /// A stock withdrawal is in flight — see [_withdrawDialog] (UX-87).
+  bool _withdrawing = false;
   Object? _rowError;
 
   ProductRepository get _repo => ProductRepository(ref.read(apiClientProvider));
@@ -621,7 +630,7 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
         _hasMore = next.length == _pageSize;
       });
     } catch (e) {
-      if (mounted) _snack(AppLocalizations.of(context)!.inventoryLoadCodesFailed);
+      if (mounted) showError(context, e);
     } finally {
       if (mounted) setState(() => _loadingMore = false);
     }
@@ -646,9 +655,7 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
       await _reloadLoaded();
       widget.onChanged(); // refresh the summary (counts, tallies, value)
     } catch (e) {
-      if (mounted) {
-        _snack(friendlyError(e, context));
-      }
+      if (mounted) showError(context, e);
     }
   }
 
@@ -718,15 +725,11 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
     try {
       await _repo.setPin(product.id, entered);
       if (!mounted) return;
-      _snack(isAr ? 'تم تحديث رمز القسيمة' : 'Voucher code updated');
+      showOk(context, isAr ? 'تم تحديث رمز القسيمة' : 'Voucher code updated');
       await _reloadLoaded();
     } catch (e) {
-      if (mounted) _snack(friendlyError(e, context));
+      if (mounted) showError(context, e);
     }
-  }
-
-  void _snack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   String _tr(String ar, String en) =>
@@ -797,6 +800,11 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
       ),
     );
     if (entered == null || !mounted) return;
+    // UX-87: the confirm closes instantly and the withdraw can take up to ~15s
+    // on a bad link. Without this flag the icon stayed live and armed, and
+    // "withdraw 100" tapped twice moved 200 cards. The button below reads
+    // `_withdrawing` and shows a spinner instead.
+    setState(() => _withdrawing = true);
     try {
       final res = await _repo.withdrawStock(
         fromEntityId: widget.entityId,
@@ -805,13 +813,17 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
       );
       if (!mounted) return;
       // Say what actually happened: "asked for 100, got 60" is the useful line.
-      _snack(res.isShort
-          ? _tr('تم سحب ${res.reclaimed} من ${res.requested} — المتبقي ${res.remaining}',
-              'Withdrew ${res.reclaimed} of ${res.requested} — ${res.remaining} left')
-          : _tr('تم سحب ${res.reclaimed} كرت', 'Withdrew ${res.reclaimed} cards'));
+      showOk(
+          context,
+          res.isShort
+              ? _tr('تم سحب ${res.reclaimed} من ${res.requested} — المتبقي ${res.remaining}',
+                  'Withdrew ${res.reclaimed} of ${res.requested} — ${res.remaining} left')
+              : _tr('تم سحب ${res.reclaimed} كرت', 'Withdrew ${res.reclaimed} cards'));
       widget.onChanged();
     } catch (e) {
-      if (mounted) _snack(serverReason(e) ?? friendlyError(e, context));
+      if (mounted) showError(context, serverReason(e) ?? e);
+    } finally {
+      if (mounted) setState(() => _withdrawing = false);
     }
   }
 
@@ -894,8 +906,13 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
                   if (widget.canWithdraw && s.available > 0) ...[
                     IconButton(
                       tooltip: _tr('سحب من المخزن', 'Withdraw from warehouse'),
-                      icon: const Icon(Icons.undo_outlined, size: 18),
-                      onPressed: _withdrawDialog,
+                      icon: _withdrawing
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.undo_outlined, size: 18),
+                      onPressed: _withdrawing ? null : _withdrawDialog,
                     ),
                     const SizedBox(width: 4),
                   ],
@@ -922,9 +939,14 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
 
   Widget _expandedBody(AppLocalizations l, ColorScheme cs) {
     if (_loadingFirst) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 24),
-        child: Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4))),
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Center(
+          child: LoadingState(
+            compact: true,
+            message: _tr('جارٍ تحميل الأكواد…', 'Loading codes…'),
+          ),
+        ),
       );
     }
     if (_rowError != null) {

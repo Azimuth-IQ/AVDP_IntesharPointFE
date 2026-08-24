@@ -23,15 +23,34 @@ import 'package:inteshar/features/inventory/domain/product_definition.dart';
 import 'package:inteshar/features/inventory/domain/voucher_batch.dart';
 import 'package:inteshar/features/inventory/domain/voucher_import.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
+import 'package:inteshar/shared/widgets/app_snackbar.dart';
+import 'package:inteshar/shared/widgets/confirm_dialog.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
+import 'package:inteshar/shared/widgets/loading_state.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
 /// Inline bilingual label (the import tab adds several controls; rather than churn
 /// the .arb files we resolve ar/en at build time, the same pattern the login page uses).
 String _tr(BuildContext c, String ar, String en) =>
     Localizations.localeOf(c).languageCode == 'ar' ? ar : en;
+
+/// The batch(es) a just-finished import created, published so the Batches tab can
+/// refresh and jump straight to them (UX-05 — the tab used not to even reload, so
+/// the highest-frequency HQ task ended with three numbers and no way to see the
+/// thing it had just made).
+class _BatchFocus {
+  final List<String> batchIds;
+
+  /// Strictly increasing (microseconds) so a repeat upload re-triggers the
+  /// Batches tab even when the ids match — and so the tab can tell an event it
+  /// has already applied from a new one after the state was cleared.
+  final int tick;
+  const _BatchFocus(this.batchIds, this.tick);
+}
+
+final _batchFocusProvider = StateProvider<_BatchFocus?>((_) => null);
 
 // ── Batch-import row decision (pure, testable) ─────────────────────────────
 
@@ -105,6 +124,10 @@ class _BatchAddPageState extends ConsumerState<BatchAddPage>
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
+    // "Open this batch" on the import result lands on the Batches tab.
+    ref.listen<_BatchFocus?>(_batchFocusProvider, (_, next) {
+      if (next != null && next.batchIds.isNotEmpty) _tabs.animateTo(1);
+    });
     return MaxWidthBox(
       child: Column(
         children: [
@@ -180,6 +203,10 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
   String? _fileName;
   List<ParsedVoucher>? _preview;
 
+  /// Lines the parser could not read. Never uploaded, and previously invisible —
+  /// the result banner reported them only as part of a bare "invalid" count.
+  List<RejectedRow> _rejected = const [];
+
   bool _importing = false;
   double _progress = 0;
   // Rows actually written / rows in the file — the operator's question during a
@@ -188,6 +215,18 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
   int _uploadTotalRows = 0;
   BatchImportResult? _result;
   String? _error;
+
+  // ── What the last import attempted, kept so the result is reconcilable ──────
+  // The preview is cleared on success (the file is spent), but the reconciliation
+  // download and the "sent to" line have to outlive it.
+  List<ParsedVoucher> _attempted = const [];
+  List<RejectedRow> _attemptedRejected = const [];
+  String? _resultTargetLabel;
+
+  /// Set when a chunked upload died part-way: the rows before this index ARE on
+  /// the server (UX-85). Null on a clean run.
+  PartialImportException? _partial;
+
   final TextEditingController _pasteCtrl = TextEditingController();
 
   @override
@@ -258,6 +297,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
         _pickedExt = null;
         _fileName = null;
         _preview = null;
+        _rejected = const [];
         _error = ext == 'xls'
             ? _tr(
                 context,
@@ -280,6 +320,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
       _pickedExt = ext ?? 'txt';
       _fileName = file.name;
       _result = null;
+      _partial = null;
       _error = null;
     });
     _reparse();
@@ -291,14 +332,13 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
     final bytes = _pickedBytes;
     if (bytes == null) return;
     try {
-      final List<ParsedVoucher> rows;
-      if (_pickedExt == 'xlsx') {
-        rows = _parseXlsx(bytes, _format);
-      } else {
-        rows = parseVoucherFile(utf8.decode(bytes, allowMalformed: true), _format);
-      }
+      final parsed = _pickedExt == 'xlsx'
+          ? _parseXlsx(bytes, _format)
+          : parseVoucherFileDetailed(
+              utf8.decode(bytes, allowMalformed: true), _format);
       setState(() {
-        _preview = rows;
+        _preview = parsed.rows;
+        _rejected = parsed.rejected;
         _error = null;
       });
     } catch (e) {
@@ -313,6 +353,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
     if (text.trim().isEmpty) {
       setState(() {
         _preview = null;
+        _rejected = const [];
         _pickedBytes = null;
         _pickedExt = null;
         _fileName = null;
@@ -322,14 +363,16 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
     }
     final detected = detectFormat(text);
     try {
-      final rows = parseVoucherFile(text, detected ?? _format);
+      final parsed = parseVoucherFileDetailed(text, detected ?? _format);
       setState(() {
         if (detected != null) _format = detected;
         _pickedBytes = Uint8List.fromList(utf8.encode(text));
         _pickedExt = 'txt';
         _fileName = _tr(context, 'نص ملصوق', 'pasted text');
-        _preview = rows;
+        _preview = parsed.rows;
+        _rejected = parsed.rejected;
         _result = null;
+        _partial = null;
         _error = null;
       });
     } catch (e) {
@@ -383,12 +426,13 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
   /// `governorate: null` — stock sellable in all 18 governorates (C-08).
   bool get _canImport => _missing().isEmpty;
 
-  List<ParsedVoucher> _parseXlsx(Uint8List bytes, ImportFormat format) {
+  ParsedImport _parseXlsx(Uint8List bytes, ImportFormat format) {
     final book = Excel.decodeBytes(bytes);
     final sheets = book.tables.values.where((t) => t.maxRows > 0).toList();
-    if (sheets.isEmpty) return [];
+    if (sheets.isEmpty) return const ParsedImport();
     final rows = sheets.first.rows;
     final out = <ParsedVoucher>[];
+    final rejected = <RejectedRow>[];
     for (var r = 0; r < rows.length; r++) {
       final row = rows[r];
       String cell(int i) =>
@@ -396,7 +440,17 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
       final serial = cell(0);
       if (r == 0 && serial.toLowerCase().contains('serial')) continue; // header
       final pin = cell(1);
-      if (serial.isEmpty || pin.isEmpty) continue;
+      if (serial.isEmpty && pin.isEmpty) continue; // a spacer row, not a loss
+      if (serial.isEmpty || pin.isEmpty) {
+        // Named, not silently dropped: a spreadsheet row with a serial and no
+        // PIN is a supplier mistake the operator has to go and fix.
+        rejected.add(RejectedRow(
+          line: r + 1,
+          text: serial.isEmpty ? pin : serial,
+          reason: serial.isEmpty ? 'serial' : 'pin',
+        ));
+        continue;
+      }
       final expiry = normalizeExpiry(cell(2));
       final label = format == ImportFormat.other
           ? (cell(3).isEmpty ? null : cell(3))
@@ -404,7 +458,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
       out.add(ParsedVoucher(
           serial: serial, pin: pin, expiry: expiry, label: label));
     }
-    return out;
+    return ParsedImport(rows: out, rejected: rejected);
   }
 
   Future<void> _downloadTemplate() async {
@@ -472,8 +526,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
     }
     if (path != null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(l.batchAddTemplateSaved)));
+      showOk(context, l.batchAddTemplateSaved);
     }
   }
 
@@ -485,13 +538,19 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
       _pickedBytes = null;
       _fileName = null;
       _preview = null;
+      _rejected = const [];
       _result = null;
+      _partial = null;
+      _attempted = const [];
+      _attemptedRejected = const [];
       _error = null;
       _progress = 0;
     });
   }
 
-  Future<void> _import() async {
+  /// Uploads the parsed rows, starting at [from] — a partial failure retry sends
+  /// only the tail that never reached the server.
+  Future<void> _import({int from = 0}) async {
     final def = _selectedDef;
     final target = _target;
     if (_preview == null || _preview!.isEmpty || def == null || target == null) {
@@ -501,23 +560,31 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
     // able to reach the wire as `governorate: null` (C-08), whatever state the
     // button is in.
     if (_format.regionLocked && _regionLockedScope == null) return;
+    final rows = _preview!;
+    final rejected = _rejected;
+    final targetLabel = target.label;
+    // Carry the earlier chunks' counts through a retry so the banner keeps
+    // reporting the WHOLE upload, not just the tail.
+    final carried = from > 0 ? _result : null;
     setState(() {
       _importing = true;
-      _progress = 0;
-      _uploadedRows = 0;
-      _uploadTotalRows = _preview!.length;
+      _progress = from == 0 ? 0 : from / rows.length;
+      _uploadedRows = from;
+      _uploadTotalRows = rows.length;
       _result = null;
+      _partial = null;
       _error = null;
     });
     try {
       final repo = ProductRepository(ref.read(apiClientProvider));
       final gov = _format.regionLocked ? _selectedGovernorate : null;
-      final res = await repo.batchImport(
+      var res = await repo.batchImport(
         definitionId: def.id,
         ownerId: target.id,
         governorate: gov,
         type: _format.wire,
-        vouchers: _preview!,
+        vouchers: rows,
+        from: from,
         onProgress: (done, total) {
           if (mounted) {
             setState(() {
@@ -528,28 +595,288 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
           }
         },
       );
+      if (carried != null) res = carried.merge(res);
+      if (!mounted) return;
+      setState(() {
+        _importing = false;
+        _result = res;
+        _resultTargetLabel = targetLabel;
+        _attempted = rows;
+        _attemptedRejected = rejected;
+        _preview = null;
+        _rejected = const [];
+        _pickedBytes = null;
+        _fileName = null;
+      });
+      // UX-05: the Batches tab used not to refresh at all, so the batch just
+      // created was invisible until the operator navigated away and back.
+      if (res.batchIds.isNotEmpty) {
+        ref.read(_batchFocusProvider.notifier).state =
+            _BatchFocus(res.batchIds, DateTime.now().microsecondsSinceEpoch);
+      }
+    } on PartialImportException catch (e) {
+      // UX-85: everything before `sentRows` IS on the server, owned and
+      // sellable. Reporting a bare error made the operator re-upload and then
+      // distrust the "duplicates" count the retry produced.
+      if (!mounted) return;
+      setState(() {
+        _importing = false;
+        _result =
+            carried == null ? e.partial : carried.merge(e.partial);
+        _resultTargetLabel = targetLabel;
+        _attempted = rows;
+        _attemptedRejected = rejected;
+        _partial = e;
+        // The preview stays: the remaining rows are the retry.
+        _uploadedRows = e.sentRows;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _importing = false;
+        if (carried == null) {
+          _error = friendlyError(e, context);
+          return;
+        }
+        // A retry whose FIRST chunk failed: nothing new landed, but the earlier
+        // attempt's vouchers are still on the server. Reverting to a bare error
+        // here would re-tell exactly the lie UX-85 is about.
+        _result = carried;
+        _resultTargetLabel = targetLabel;
+        _attempted = rows;
+        _attemptedRejected = rejected;
+        _partial = PartialImportException(
+          partial: carried,
+          cause: e,
+          sentRows: from,
+          totalRows: rows.length,
+        );
+        _uploadedRows = from;
+      });
+    }
+  }
+
+  /// UX-05: a per-serial reconciliation of the import, so a 20k-row file can be
+  /// diffed against the supplier's list instead of eyeballed from three numbers
+  /// and the first 20 duplicate serials.
+  Future<void> _downloadReconciliation() async {
+    final res = _result;
+    if (res == null) return;
+    final saveTitle = _tr(context, 'حفظ الملف', 'Save file');
+    final csv = buildReconciliationCsv(
+      attempted: _attempted,
+      duplicateSerials: res.skippedSerials.toSet(),
+      rejected: _attemptedRejected,
+      sentRows: _partial?.sentRows,
+      label: (k) => switch (k) {
+        'imported' => _tr(context, 'تم الاستيراد', 'imported'),
+        'duplicate' => _tr(context, 'مكرر — موجود مسبقاً', 'duplicate — already on file'),
+        'notsent' => _tr(context, 'لم يُرسل — أعد المحاولة', 'not sent — retry'),
+        'columns' => _tr(context, 'أعمدة ناقصة', 'not enough columns'),
+        'serial' => _tr(context, 'رقم تسلسلي فارغ', 'blank serial'),
+        'pin' => _tr(context, 'رمز فارغ', 'blank PIN'),
+        _ => k,
+      },
+    );
+    // A BOM so Excel opens the Arabic reason column as UTF-8 rather than mojibake.
+    final bytes = Uint8List.fromList([0xEF, 0xBB, 0xBF, ...utf8.encode(csv)]);
+    final fileName = 'import_reconciliation.csv';
+    try {
+      if (kIsWeb) {
+        downloadBytes(fileName, bytes);
+      } else if (Platform.isAndroid || Platform.isIOS) {
+        await FilePicker.platform.saveFile(
+          dialogTitle: saveTitle,
+          fileName: fileName,
+          bytes: bytes,
+          type: FileType.custom,
+          allowedExtensions: const ['csv'],
+        );
+      } else {
+        final path = await FilePicker.platform
+            .saveFile(dialogTitle: saveTitle, fileName: fileName);
+        if (path != null) {
+          final finalPath =
+              path.toLowerCase().endsWith('.csv') ? path : '$path.csv';
+          await File(finalPath).writeAsBytes(bytes);
+        }
+      }
       if (mounted) {
-        setState(() {
-          _importing = false;
-          _result = res;
-          _preview = null;
-          _pickedBytes = null;
-          _fileName = null;
-        });
+        showOk(context, _tr(context, 'تم تحميل الملف', 'File downloaded'));
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _importing = false;
-          _error = friendlyError(e, context);
-        });
-      }
+      if (mounted) showError(context, e);
     }
+  }
+
+  /// What the upload actually did.
+  ///
+  /// C-18 ("المطلوب إظهار اسم الوكيل الذي رُفعت إليه البضاعة"): the headline names
+  /// the receiving agent, so the target is confirmable AFTER committing and not
+  /// only from the dropdown before it.
+  ///
+  /// UX-85: when the upload stopped part-way this stays a result, not an error —
+  /// the rows already sent are live stock. It says what landed, what did not, and
+  /// that retrying is safe because the server dedups on serial.
+  Widget _resultBanner(ColorScheme cs) {
+    final res = _result!;
+    final partial = _partial;
+    final to = _resultTargetLabel;
+    final ids = res.batchIds;
+    return InkCard(
+      ruleColor: partial != null ? cs.error : context.tones.brandInk,
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(
+              partial != null ? Icons.warning_amber_rounded : Icons.check_circle_outline,
+              size: 18,
+              color: partial != null ? cs.error : IntesharColors.sage,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                to == null
+                    ? _tr(context, 'تم استيراد ${Formatters.money(res.imported)} قسيمة',
+                        '${Formatters.money(res.imported)} vouchers imported')
+                    : _tr(
+                        context,
+                        'تم استيراد ${Formatters.money(res.imported)} قسيمة إلى $to',
+                        '${Formatters.money(res.imported)} imported to $to',
+                      ),
+                style: IntesharType.sans(14.5,
+                    color: cs.onSurface, w: FontWeight.w800),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 6),
+          Text(
+            _tr(
+              context,
+              'مكرر: ${res.skipped} • غير صالح: ${res.invalid}',
+              'Duplicate: ${res.skipped} • invalid: ${res.invalid}',
+            ),
+            style: IntesharType.sans(13, color: cs.onSurfaceVariant, w: FontWeight.w600),
+          ),
+          // ── Partial upload (UX-85) ───────────────────────────────────
+          if (partial != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              _tr(
+                context,
+                'توقف الرفع بعد ${Formatters.money(partial.sentRows)} من '
+                    '${Formatters.money(partial.totalRows)} صف. القسائم أعلاه '
+                    'موجودة فعلاً على الخادم وقابلة للبيع — لم تُفقد.',
+                'The upload stopped after ${Formatters.money(partial.sentRows)} of '
+                    '${Formatters.money(partial.totalRows)} rows. The vouchers above '
+                    'ARE already on the server and sellable — nothing was lost.',
+              ),
+              style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              friendlyError(partial.cause, context),
+              style: IntesharType.sans(12.5, color: cs.error, w: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _tr(
+                context,
+                'إعادة الرفع آمنة: الخادم يتجاهل أي رقم تسلسلي موجود مسبقاً، '
+                    'فلن تتكرر أي قسيمة.',
+                'Retrying is safe: the server ignores any serial it already has, '
+                    'so no voucher can be duplicated.',
+              ),
+              style: IntesharType.sans(12.5, color: cs.onSurfaceVariant),
+            ),
+          ],
+          // ── Actions ──────────────────────────────────────────────────
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              if (partial != null && partial.remainingRows > 0)
+                FilledButton.icon(
+                  onPressed: _importing
+                      ? null
+                      : () => _import(from: partial.sentRows),
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: Text(_tr(
+                    context,
+                    'إكمال المتبقي (${Formatters.money(partial.remainingRows)})',
+                    'Upload the remaining ${Formatters.money(partial.remainingRows)}',
+                  )),
+                ),
+              if (ids.isNotEmpty)
+                OutlinedButton.icon(
+                  onPressed: () => ref.read(_batchFocusProvider.notifier).state =
+                      _BatchFocus(ids, DateTime.now().microsecondsSinceEpoch),
+                  icon: const Icon(Icons.inventory_2_outlined, size: 18),
+                  label: Text(ids.length == 1
+                      ? _tr(context, 'فتح الدفعة', 'Open this batch')
+                      : _tr(context, 'فتح الدفعات (${ids.length})',
+                          'Open the ${ids.length} batches')),
+                ),
+              OutlinedButton.icon(
+                onPressed: _downloadReconciliation,
+                icon: const Icon(Icons.table_view_outlined, size: 18),
+                label: Text(_tr(context, 'تقرير المطابقة', 'Reconciliation CSV')),
+              ),
+              // B-089: start the next upload without leaving the page.
+              if (partial == null)
+                FilledButton.icon(
+                  onPressed: _resetForAnother,
+                  icon: const Icon(Icons.upload_file_outlined, size: 18),
+                  label: Text(_tr(context, 'رفع ملف آخر', 'Upload another file')),
+                ),
+            ],
+          ),
+          // Which serials were skipped as duplicates (first 20) — the full list is
+          // in the reconciliation CSV above.
+          if (res.skippedSerials.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              _tr(
+                context,
+                'أرقام مكررة: ${res.skippedSerials.take(20).join('، ')}${res.skippedSerials.length > 20 ? ' …' : ''}',
+                'Duplicate serials: ${res.skippedSerials.take(20).join(', ')}${res.skippedSerials.length > 20 ? ' …' : ''}',
+              ),
+              style: IntesharType.mono(11.5,
+                  color: cs.onSurfaceVariant, w: FontWeight.w600),
+            ),
+          ],
+          // Rows the parser threw away BEFORE the upload. The server never saw
+          // them, so its `invalid` count cannot mention them.
+          if (_attemptedRejected.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              _tr(
+                context,
+                'صفوف غير مقروءة لم تُرسل: ${_attemptedRejected.length} '
+                    '(الأسطر ${_attemptedRejected.take(10).map((r) => r.line).join('، ')}'
+                    '${_attemptedRejected.length > 10 ? ' …' : ''})',
+                'Unreadable rows never sent: ${_attemptedRejected.length} '
+                    '(lines ${_attemptedRejected.take(10).map((r) => r.line).join(', ')}'
+                    '${_attemptedRejected.length > 10 ? ' …' : ''})',
+              ),
+              style: IntesharType.sans(12, color: cs.error, w: FontWeight.w600),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) {
+      return LoadingState(
+          message: _tr(context, 'جارٍ تحميل الفئات والوكلاء…',
+              'Loading categories and agents…'));
+    }
     if (_loadError != null) {
       return ErrorState(error: _loadError!, onRetry: _load);
     }
@@ -768,48 +1095,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
             // ── Result banner ────────────────────────────────────────────
             if (_result != null) ...[
               const SizedBox(height: 14),
-              InkCard(
-                ruleColor: context.tones.brandInk,
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _tr(
-                        context,
-                        'تم الاستيراد: ${_result!.imported} • مكرر: ${_result!.skipped} • غير صالح: ${_result!.invalid}',
-                        'Imported: ${_result!.imported} • duplicate: ${_result!.skipped} • invalid: ${_result!.invalid}',
-                      ),
-                      style: IntesharType.sans(13.5,
-                          color: cs.onSurface, w: FontWeight.w700),
-                    ),
-                    // B-089: start the next upload without leaving the page.
-                    const SizedBox(height: 10),
-                    Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      child: FilledButton.icon(
-                        onPressed: _resetForAnother,
-                        icon: const Icon(Icons.upload_file_outlined, size: 18),
-                        label: Text(_tr(context, 'رفع ملف آخر', 'Upload another file')),
-                      ),
-                    ),
-                    // Which serials were skipped as duplicates (first 20) — so the operator can
-                    // reconcile instead of guessing which rows didn't import.
-                    if (_result!.skippedSerials.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        _tr(
-                          context,
-                          'أرقام مكررة: ${_result!.skippedSerials.take(20).join('، ')}${_result!.skippedSerials.length > 20 ? ' …' : ''}',
-                          'Duplicate serials: ${_result!.skippedSerials.take(20).join(', ')}${_result!.skippedSerials.length > 20 ? ' …' : ''}',
-                        ),
-                        style: IntesharType.mono(11.5,
-                            color: cs.onSurfaceVariant, w: FontWeight.w600),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
+              _resultBanner(cs),
             ],
 
             // ── No valid rows (content provided but parsed to nothing) ───
@@ -834,6 +1120,24 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                 trailing: Text(l.batchAddRowCount(_preview!.length),
                     style: IntesharType.overline(color: cs.onSurfaceVariant)),
               ),
+              // Rows the parser could not read are named BEFORE the upload —
+              // afterwards the server can only report them as a bare "invalid"
+              // count, because a row it rejects has no serial to name.
+              if (_rejected.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  _tr(
+                    context,
+                    '${_rejected.length} صفاً غير مقروء سيُتجاهل '
+                        '(الأسطر ${_rejected.take(10).map((r) => r.line).join('، ')}'
+                        '${_rejected.length > 10 ? ' …' : ''})',
+                    '${_rejected.length} unreadable rows will be skipped '
+                        '(lines ${_rejected.take(10).map((r) => r.line).join(', ')}'
+                        '${_rejected.length > 10 ? ' …' : ''})',
+                  ),
+                  style: IntesharType.sans(12, color: cs.error, w: FontWeight.w600),
+                ),
+              ],
               // B-090: the primary action sits ABOVE the preview — it used to be the
               // very last thing on a long page, so the operator had to scroll past
               // everything to start the import they had already decided on.
@@ -959,7 +1263,13 @@ class _PreviewTable extends StatelessWidget {
 class _ProgressBlock extends StatelessWidget {
   final double progress;
   final String label;
-  const _ProgressBlock({required this.progress, required this.label});
+
+  /// Overline. Defaults to the voucher-upload wording; the bulk batch actions
+  /// pass their own, because "جارٍ الرفع" over a pause/withdraw is the same
+  /// class of lie UX-86 fixed here.
+  final String? title;
+  const _ProgressBlock(
+      {required this.progress, required this.label, this.title});
 
   @override
   Widget build(BuildContext context) {
@@ -977,7 +1287,7 @@ class _ProgressBlock extends StatelessWidget {
                 // UX-86: this bar has never printed anything — it is the
                 // voucher UPLOAD, and it said "جارٍ الطباعة" on the highest-stakes
                 // admin task.
-                l.batchAddUploading,
+                title ?? l.batchAddUploading,
                 style: IntesharType.overline(color: cs.onPrimaryContainer),
               ),
               const Spacer(),
@@ -1012,6 +1322,10 @@ class _BatchesTab extends ConsumerStatefulWidget {
   ConsumerState<_BatchesTab> createState() => _BatchesTabState();
 }
 
+/// How the batch list is ordered. Newest-first is the import log; the others exist
+/// because a supplier recall is a hunt, not a scroll.
+enum _BatchSort { newest, oldest, availableDesc, name }
+
 class _BatchesTabState extends ConsumerState<_BatchesTab> {
   List<VoucherBatch>? _batches;
   bool _loading = true;
@@ -1019,10 +1333,45 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
   // Batch IDs currently awaiting a server response (pause/delete/export).
   final Set<String> _busy = {};
 
+  // ── UX-06: an unbounded flat list of near-identical cards ──────────────────
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _query = '';
+
+  /// null = every status, true = paused only, false = active only.
+  bool? _pausedFilter;
+
+  /// ownerId, or null for every agent. C-18 makes this a usable axis: before the
+  /// owner was rendered, "which agent" was not a thing you could see, let alone
+  /// filter by.
+  String? _ownerFilter;
+  _BatchSort _sort = _BatchSort.newest;
+
+  /// Batches a just-finished import created — pinned alone until dismissed.
+  Set<String> _focusIds = const {};
+
+  /// The last `_BatchFocus.tick` this tab acted on, so one import pins once.
+  int _appliedFocusTick = 0;
+
+  // ── Multi-select: Pause/Withdraw are the recall levers, and a recall is
+  // never one batch.
+  bool _selecting = false;
+  final Set<String> _selected = {};
+
+  /// Non-null while a bulk action runs — the whole list is inert until it ends.
+  String? _bulkLabel;
+  int _bulkDone = 0;
+  int _bulkTotal = 0;
+
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -1033,11 +1382,70 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
     try {
       final repo = ProductRepository(ref.read(apiClientProvider));
       final batches = await repo.listBatches();
-      if (mounted) setState(() { _batches = batches; _loading = false; });
+      if (mounted) {
+        setState(() {
+          _batches = batches;
+          _loading = false;
+          // Drop selections for rows that no longer exist.
+          _selected.removeWhere((id) => !batches.any((b) => b.id == id));
+        });
+      }
     } catch (e) {
       if (mounted) setState(() { _error = e; _loading = false; });
     }
   }
+
+  /// The rows actually shown: focus pin → search → status → owner → sort.
+  List<VoucherBatch> _visible(List<VoucherBatch> all) {
+    var out = all;
+    if (_focusIds.isNotEmpty) {
+      out = out.where((b) => _focusIds.contains(b.id)).toList();
+    }
+    final q = _query.trim().toLowerCase();
+    if (q.isNotEmpty) {
+      out = out.where((b) {
+        return b.productName.toLowerCase().contains(q) ||
+            b.sku.toLowerCase().contains(q) ||
+            (b.ownerName ?? '').toLowerCase().contains(q) ||
+            (b.governorate ?? '').toLowerCase().contains(q) ||
+            b.type.toLowerCase().contains(q) ||
+            b.id.toLowerCase().contains(q);
+      }).toList();
+    }
+    if (_pausedFilter != null) {
+      out = out.where((b) => b.paused == _pausedFilter).toList();
+    }
+    if (_ownerFilter != null) {
+      out = out.where((b) => b.ownerId == _ownerFilter).toList();
+    }
+    out = [...out];
+    switch (_sort) {
+      case _BatchSort.newest:
+        out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      case _BatchSort.oldest:
+        out.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      case _BatchSort.availableDesc:
+        out.sort((a, b) => b.availableCount.compareTo(a.availableCount));
+      case _BatchSort.name:
+        out.sort((a, b) => (a.productName.isEmpty ? a.sku : a.productName)
+            .compareTo(b.productName.isEmpty ? b.sku : b.productName));
+    }
+    return out;
+  }
+
+  bool get _filtered =>
+      _query.trim().isNotEmpty ||
+      _pausedFilter != null ||
+      _ownerFilter != null ||
+      _focusIds.isNotEmpty;
+
+  void _clearFilters() => setState(() {
+        _searchCtrl.clear();
+        _query = '';
+        _pausedFilter = null;
+        _ownerFilter = null;
+        _focusIds = const {};
+      });
 
   Future<void> _togglePause(VoucherBatch batch) async {
     if (_busy.contains(batch.id)) return;
@@ -1047,10 +1455,7 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
       await repo.pauseBatch(batch.id, pause: !batch.paused);
       await _load();
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
-      }
+      if (mounted) showError(context, e);
     } finally {
       if (mounted) setState(() => _busy.remove(batch.id));
     }
@@ -1058,40 +1463,25 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
 
   Future<void> _confirmDelete(VoucherBatch batch) async {
     if (_busy.contains(batch.id)) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(_tr(context, 'حذف الدفعة', 'Delete batch')),
-        content: Text(_tr(
-          context,
-          'سيتم حذف جميع القسائم في هذه الدفعة نهائياً. لا يمكن التراجع.',
-          'All vouchers in this batch will be permanently deleted. This cannot be undone.',
-        )),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(_tr(context, 'إلغاء', 'Cancel')),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(ctx).colorScheme.error),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(_tr(context, 'حذف', 'Delete')),
-          ),
-        ],
+    final confirmed = await showConfirm(
+      context,
+      title: _tr(context, 'حذف الدفعة', 'Delete batch'),
+      body: _tr(
+        context,
+        'سيتم حذف جميع القسائم في هذه الدفعة نهائياً. لا يمكن التراجع.',
+        'All vouchers in this batch will be permanently deleted. This cannot be undone.',
       ),
+      confirmLabel: _tr(context, 'حذف', 'Delete'),
+      destructive: true,
     );
-    if (confirmed != true) return;
+    if (!confirmed || !mounted) return;
     setState(() => _busy.add(batch.id));
     try {
       final repo = ProductRepository(ref.read(apiClientProvider));
       await repo.deleteBatch(batch.id);
       await _load();
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
-      }
+      if (mounted) showError(context, e);
     } finally {
       if (mounted) setState(() => _busy.remove(batch.id));
     }
@@ -1129,15 +1519,9 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
           await File(finalPath).writeAsBytes(bytes);
         }
       }
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(fileDownloadedMsg)));
-      }
+      if (mounted) showOk(context, fileDownloadedMsg);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
-      }
+      if (mounted) showError(context, e);
     } finally {
       if (mounted) setState(() => _busy.remove(batch.id));
     }
@@ -1145,62 +1529,172 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
 
   Future<void> _withdraw(VoucherBatch batch) async {
     if (_busy.contains(batch.id)) return;
-    // Capture bilingual strings before the async gap (showDialog returns a Future).
-    final confirmTitle = _tr(context, 'سحب الدفعة', 'Withdraw batch');
-    final confirmBody = _tr(
+    final confirmed = await showConfirm(
       context,
-      'سيتم سحب جميع القسائم غير المستخدمة في هذه الدفعة إلى المقر. القسائم المستخدمة لا يمكن استرجاعها.',
-      'All UNUSED vouchers in this batch will be reclaimed to HQ. Used vouchers cannot be recovered.',
-    );
-    final cancelLabel = _tr(context, 'إلغاء', 'Cancel');
-    final withdrawLabel = _tr(context, 'سحب', 'Withdraw');
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(confirmTitle),
-        content: Text(confirmBody),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(cancelLabel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(withdrawLabel),
-          ),
-        ],
+      title: _tr(context, 'سحب الدفعة', 'Withdraw batch'),
+      body: _tr(
+        context,
+        'سيتم سحب جميع القسائم غير المستخدمة في هذه الدفعة إلى المقر. القسائم المستخدمة لا يمكن استرجاعها.',
+        'All UNUSED vouchers in this batch will be reclaimed to HQ. Used vouchers cannot be recovered.',
       ),
+      confirmLabel: _tr(context, 'سحب', 'Withdraw'),
+      icon: Icons.undo_outlined,
+      destructive: true,
     );
-    if (confirmed != true) return;
+    if (!confirmed || !mounted) return;
     setState(() => _busy.add(batch.id));
     try {
       final repo = ProductRepository(ref.read(apiClientProvider));
       final result = await repo.withdrawBatch(batch.id);
       if (mounted) {
-        final isAr = Localizations.localeOf(context).languageCode == 'ar';
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-            isAr
-                ? 'تم سحب ${result.reclaimed} • مُستخدَم ${result.used}'
-                : 'Reclaimed ${result.reclaimed} • Used ${result.used}',
-          ),
-        ));
+        showOk(
+          context,
+          _tr(context, 'تم سحب ${result.reclaimed} • مُستخدَم ${result.used}',
+              'Reclaimed ${result.reclaimed} • Used ${result.used}'),
+        );
       }
       await _load();
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
-      }
+      if (mounted) showError(context, e);
     } finally {
       if (mounted) setState(() => _busy.remove(batch.id));
     }
   }
 
+  // ── Bulk actions (UX-06) ───────────────────────────────────────────────────
+
+  /// Runs [action] over the selected batches one at a time, reporting progress
+  /// and a per-batch failure count rather than dying on the first refusal — a
+  /// recall that stops half-way is worse than one that reports what it missed.
+  Future<void> _runBulk({
+    required String label,
+    required String confirmTitle,
+    required String confirmBody,
+    required bool destructive,
+    required Future<void> Function(ProductRepository repo, VoucherBatch b) action,
+  }) async {
+    final all = _batches ?? const <VoucherBatch>[];
+    final targets =
+        all.where((b) => _selected.contains(b.id)).toList(growable: false);
+    if (targets.isEmpty || _bulkLabel != null) return;
+    final ok = await showConfirm(
+      context,
+      title: confirmTitle,
+      body: confirmBody,
+      confirmLabel: label,
+      destructive: destructive,
+    );
+    if (!ok || !mounted) return;
+    setState(() {
+      _bulkLabel = label;
+      _bulkDone = 0;
+      _bulkTotal = targets.length;
+    });
+    final repo = ProductRepository(ref.read(apiClientProvider));
+    var failed = 0;
+    Object? lastError;
+    for (final b in targets) {
+      try {
+        await action(repo, b);
+      } catch (e) {
+        failed++;
+        lastError = e;
+      }
+      if (!mounted) return;
+      setState(() => _bulkDone++);
+    }
+    if (!mounted) return;
+    setState(() {
+      _bulkLabel = null;
+      _selecting = false;
+      _selected.clear();
+    });
+    await _load();
+    if (!mounted) return;
+    if (failed == 0) {
+      showOk(
+          context,
+          _tr(context, 'تم على ${targets.length} دفعة',
+              'Done on ${targets.length} batches'));
+    } else {
+      final why = friendlyError(lastError!, context);
+      showError(
+        context,
+        _tr(
+          context,
+          'فشل $failed من ${targets.length}: $why',
+          '$failed of ${targets.length} failed: $why',
+        ),
+      );
+    }
+  }
+
+  Future<void> _bulkPause(bool pause) => _runBulk(
+        label: pause
+            ? _tr(context, 'إيقاف مؤقت', 'Pause')
+            : _tr(context, 'استئناف', 'Resume'),
+        confirmTitle: pause
+            ? _tr(context, 'إيقاف ${_selected.length} دفعة؟',
+                'Pause ${_selected.length} batches?')
+            : _tr(context, 'استئناف ${_selected.length} دفعة؟',
+                'Resume ${_selected.length} batches?'),
+        confirmBody: pause
+            ? _tr(context, 'لن تُباع أي قسيمة من هذه الدفعات حتى الاستئناف.',
+                'No voucher from these batches can be sold until they are resumed.')
+            : _tr(context, 'ستعود هذه الدفعات قابلة للبيع.',
+                'These batches become sellable again.'),
+        destructive: pause,
+        action: (repo, b) => repo.pauseBatch(b.id, pause: pause),
+      );
+
+  Future<void> _bulkWithdraw() => _runBulk(
+        label: _tr(context, 'سحب', 'Withdraw'),
+        confirmTitle: _tr(context, 'سحب ${_selected.length} دفعة؟',
+            'Withdraw ${_selected.length} batches?'),
+        confirmBody: _tr(
+          context,
+          'سيتم سحب جميع القسائم غير المستخدمة في هذه الدفعات إلى المقر. '
+              'القسائم المستخدمة لا يمكن استرجاعها.',
+          'All UNUSED vouchers in these batches will be reclaimed to HQ. '
+              'Used vouchers cannot be recovered.',
+        ),
+        destructive: true,
+        action: (repo, b) => repo.withdrawBatch(b.id),
+      );
+
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    // UX-05: a finished import pins the batches it just created AND reloads —
+    // this tab used not to refresh at all, so the new batch was invisible.
+    //
+    // Deliberately a `watch` + tick and NOT a `ref.listen`: the import happens on
+    // the OTHER tab, and switching to this one is what builds this widget for the
+    // first time. A listener registered during that build would never see the
+    // change that caused it. The event is cleared once applied so it cannot
+    // re-pin on a later visit.
+    final focus = ref.watch(_batchFocusProvider);
+    if (focus != null && focus.tick != _appliedFocusTick) {
+      _appliedFocusTick = focus.tick;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _focusIds = focus.batchIds.toSet();
+          _searchCtrl.clear();
+          _query = '';
+          _pausedFilter = null;
+          _ownerFilter = null;
+          _selecting = false;
+          _selected.clear();
+        });
+        ref.read(_batchFocusProvider.notifier).state = null;
+        _load();
+      });
+    }
+
+    if (_loading) {
+      return LoadingState(
+          message: _tr(context, 'جارٍ تحميل الدفعات…', 'Loading batches…'));
+    }
     if (_error != null) return ErrorState(error: _error!, onRetry: _load);
     final batches = _batches ?? [];
     if (batches.isEmpty) {
@@ -1212,20 +1706,250 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
         ),
       );
     }
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView.separated(
-        padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
-        itemCount: batches.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 10),
-        itemBuilder: (_, i) => _BatchCard(
-          batch: batches[i],
-          busy: _busy.contains(batches[i].id),
-          onTogglePause: () => _togglePause(batches[i]),
-          onDelete: () => _confirmDelete(batches[i]),
-          onExport: () => _export(batches[i]),
-          onWithdraw: () => _withdraw(batches[i]),
+    final visible = _visible(batches);
+    final bulkRunning = _bulkLabel != null;
+    return Column(
+      children: [
+        _controls(batches, visible),
+        if (bulkRunning)
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 10),
+            child: _ProgressBlock(
+              progress: _bulkTotal == 0 ? 0 : _bulkDone / _bulkTotal,
+              title: _bulkLabel,
+              label: _tr(context, '$_bulkDone من $_bulkTotal دفعة',
+                  '$_bulkDone of $_bulkTotal batches'),
+            ),
+          ),
+        Expanded(
+          child: visible.isEmpty
+              ? EmptyState(
+                  message: _tr(context, 'لا توجد دفعة تطابق البحث',
+                      'No batch matches this search'),
+                  actionLabel: _tr(context, 'مسح الفلاتر', 'Clear filters'),
+                  onAction: _clearFilters,
+                )
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView.separated(
+                    padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
+                    itemCount: visible.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
+                    itemBuilder: (_, i) {
+                      final b = visible[i];
+                      return _BatchCard(
+                        batch: b,
+                        busy: _busy.contains(b.id) || bulkRunning,
+                        selecting: _selecting,
+                        selected: _selected.contains(b.id),
+                        onSelect: () => setState(() {
+                          if (!_selected.remove(b.id)) _selected.add(b.id);
+                        }),
+                        onTogglePause: () => _togglePause(b),
+                        onDelete: () => _confirmDelete(b),
+                        onExport: () => _export(b),
+                        onWithdraw: () => _withdraw(b),
+                      );
+                    },
+                  ),
+                ),
         ),
+      ],
+    );
+  }
+
+  /// Search, status/owner filters, sort and the multi-select bar.
+  ///
+  /// UX-06: before this the tab was an unbounded flat list of cards whose only
+  /// identity was a product name and a string-sliced timestamp, and Pause /
+  /// Withdraw — the two levers of a supplier recall — could only be pulled one
+  /// card at a time.
+  Widget _controls(List<VoucherBatch> all, List<VoucherBatch> visible) {
+    final cs = Theme.of(context).colorScheme;
+    final owners = <String, String>{};
+    for (final b in all) {
+      if (b.ownerId.isEmpty) continue;
+      owners[b.ownerId] = (b.ownerName ?? '').isNotEmpty ? b.ownerName! : b.ownerId;
+    }
+    final busy = _bulkLabel != null;
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Expanded(
+              child: TextField(
+                controller: _searchCtrl,
+                enabled: !busy,
+                onChanged: (v) => setState(() => _query = v),
+                decoration: InputDecoration(
+                  isDense: true,
+                  prefixIcon: const Icon(Icons.search, size: 18),
+                  hintText: _tr(context, 'ابحث بالفئة أو الوكيل أو المحافظة',
+                      'Search product, agent or governorate'),
+                  suffixIcon: _query.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          onPressed: () => setState(() {
+                            _searchCtrl.clear();
+                            _query = '';
+                          }),
+                        ),
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            PopupMenuButton<_BatchSort>(
+              enabled: !busy,
+              tooltip: _tr(context, 'الترتيب', 'Sort'),
+              icon: const Icon(Icons.sort, size: 20),
+              initialValue: _sort,
+              onSelected: (v) => setState(() => _sort = v),
+              itemBuilder: (_) => [
+                PopupMenuItem(
+                    value: _BatchSort.newest,
+                    child: Text(_tr(context, 'الأحدث أولاً', 'Newest first'))),
+                PopupMenuItem(
+                    value: _BatchSort.oldest,
+                    child: Text(_tr(context, 'الأقدم أولاً', 'Oldest first'))),
+                PopupMenuItem(
+                    value: _BatchSort.availableDesc,
+                    child: Text(_tr(context, 'الأكثر متاحاً', 'Most available'))),
+                PopupMenuItem(
+                    value: _BatchSort.name,
+                    child: Text(_tr(context, 'حسب الفئة', 'By product'))),
+              ],
+            ),
+            IconButton(
+              tooltip: _tr(context, 'تحديد متعدد', 'Select several'),
+              isSelected: _selecting,
+              icon: const Icon(Icons.checklist, size: 20),
+              onPressed: busy
+                  ? null
+                  : () => setState(() {
+                        _selecting = !_selecting;
+                        if (!_selecting) _selected.clear();
+                      }),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              if (_focusIds.isNotEmpty)
+                InputChip(
+                  avatar: const Icon(Icons.new_releases_outlined, size: 16),
+                  label: Text(_tr(context, 'الرفع الأخير', 'Just uploaded')),
+                  onDeleted: () => setState(() => _focusIds = const {}),
+                ),
+              FilterChip(
+                label: Text(_tr(context, 'الكل', 'All')),
+                selected: _pausedFilter == null,
+                onSelected: busy ? null : (_) => setState(() => _pausedFilter = null),
+              ),
+              FilterChip(
+                label: Text(_tr(context, 'نشط', 'Active')),
+                selected: _pausedFilter == false,
+                onSelected: busy ? null : (_) => setState(() => _pausedFilter = false),
+              ),
+              FilterChip(
+                label: Text(_tr(context, 'موقوف', 'Paused')),
+                selected: _pausedFilter == true,
+                onSelected: busy ? null : (_) => setState(() => _pausedFilter = true),
+              ),
+              if (owners.length > 1)
+                // C-18 turns the owning agent into something you can filter by.
+                PopupMenuButton<String?>(
+                  enabled: !busy,
+                  initialValue: _ownerFilter,
+                  onSelected: (v) => setState(() => _ownerFilter = v),
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                        value: null,
+                        child: Text(_tr(context, 'كل الوكلاء', 'All agents'))),
+                    for (final e in owners.entries)
+                      PopupMenuItem(value: e.key, child: Text(e.value)),
+                  ],
+                  child: Chip(
+                    avatar: const Icon(Icons.store_outlined, size: 16),
+                    label: Text(_ownerFilter == null
+                        ? _tr(context, 'كل الوكلاء', 'All agents')
+                        : (owners[_ownerFilter] ?? _ownerFilter!)),
+                  ),
+                ),
+              if (_filtered)
+                TextButton.icon(
+                  onPressed: busy ? null : _clearFilters,
+                  icon: const Icon(Icons.filter_alt_off_outlined, size: 16),
+                  label: Text(_tr(context, 'مسح', 'Clear')),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _tr(context, 'عرض ${visible.length} من ${all.length}',
+                'Showing ${visible.length} of ${all.length}'),
+            style: IntesharType.sans(11.5, color: cs.onSurfaceVariant),
+          ),
+          if (_selecting) ...[
+            const SizedBox(height: 8),
+            InkCard(
+              ruleColor: context.tones.brandInk,
+              padding: const EdgeInsets.all(10),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    _tr(context, 'محدد: ${_selected.length}',
+                        '${_selected.length} selected'),
+                    style: IntesharType.sans(13,
+                        color: cs.onSurface, w: FontWeight.w800),
+                  ),
+                  TextButton(
+                    onPressed: busy
+                        ? null
+                        : () => setState(() {
+                              _selected
+                                ..clear()
+                                ..addAll(visible.map((b) => b.id));
+                            }),
+                    child: Text(_tr(context, 'تحديد المعروض', 'Select shown')),
+                  ),
+                  if (_selected.isNotEmpty)
+                    TextButton(
+                      onPressed: busy ? null : () => setState(_selected.clear),
+                      child: Text(_tr(context, 'إلغاء التحديد', 'Clear')),
+                    ),
+                  OutlinedButton.icon(
+                    onPressed:
+                        (_selected.isEmpty || busy) ? null : () => _bulkPause(true),
+                    icon: const Icon(Icons.pause_outlined, size: 16),
+                    label: Text(_tr(context, 'إيقاف', 'Pause')),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed:
+                        (_selected.isEmpty || busy) ? null : () => _bulkPause(false),
+                    icon: const Icon(Icons.play_arrow_outlined, size: 16),
+                    label: Text(_tr(context, 'استئناف', 'Resume')),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: (_selected.isEmpty || busy) ? null : _bulkWithdraw,
+                    style: OutlinedButton.styleFrom(foregroundColor: cs.error),
+                    icon: const Icon(Icons.undo_outlined, size: 16),
+                    label: Text(_tr(context, 'سحب', 'Withdraw')),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -1236,6 +1960,9 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
 class _BatchCard extends StatelessWidget {
   final VoucherBatch batch;
   final bool busy;
+  final bool selecting;
+  final bool selected;
+  final VoidCallback onSelect;
   final VoidCallback onTogglePause;
   final VoidCallback onDelete;
   final VoidCallback onExport;
@@ -1244,6 +1971,9 @@ class _BatchCard extends StatelessWidget {
   const _BatchCard({
     required this.batch,
     required this.busy,
+    this.selecting = false,
+    this.selected = false,
+    required this.onSelect,
     required this.onTogglePause,
     required this.onDelete,
     required this.onExport,
@@ -1256,13 +1986,24 @@ class _BatchCard extends StatelessWidget {
     final paused = batch.paused;
 
     return InkCard(
-      ruleColor: paused ? cs.outline : context.tones.brandInk,
+      ruleColor: selected
+          ? context.tones.brand
+          : (paused ? cs.outline : context.tones.brandInk),
       padding: const EdgeInsets.all(14),
+      onTap: selecting ? onSelect : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header: product name + status badge
           Row(children: [
+            if (selecting) ...[
+              Checkbox(
+                value: selected,
+                onChanged: busy ? null : (_) => onSelect(),
+                visualDensity: VisualDensity.compact,
+              ),
+              const SizedBox(width: 4),
+            ],
             Expanded(
               child: Text(
                 batch.productName.isNotEmpty
@@ -1275,6 +2016,27 @@ class _BatchCard extends StatelessWidget {
             const SizedBox(width: 8),
             _BatchStatusChip(paused: paused),
           ]),
+          // C-18 ("المطلوب إظهار اسم الوكيل الذي رُفعت إليه البضاعة"): the owning
+          // agent is resolved server-side and was parsed and then dropped, so two
+          // uploads of the same category differed only by a sliced timestamp —
+          // and the one fact that tells them apart, WHO GOT THE STOCK, was the
+          // one missing.
+          if ((batch.ownerName ?? '').isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Row(children: [
+              Icon(Icons.store_outlined, size: 14, color: context.tones.brandOnSurface),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                  batch.ownerName!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: IntesharType.sans(13,
+                      color: context.tones.brandOnSurface, w: FontWeight.w700),
+                ),
+              ),
+            ]),
+          ],
           const SizedBox(height: 6),
           // SKU · type · governorate tags
           Row(children: [

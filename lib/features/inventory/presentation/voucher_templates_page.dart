@@ -11,7 +11,10 @@ import 'package:inteshar/features/inventory/domain/voucher_template.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
+import 'package:inteshar/shared/widgets/app_snackbar.dart';
+import 'package:inteshar/shared/widgets/confirm_dialog.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
+import 'package:inteshar/shared/widgets/loading_state.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -107,18 +110,17 @@ class _VoucherTemplatesPageState extends ConsumerState<VoucherTemplatesPage> {
     if (_selected?.id == def.id) return;
     if (_dirty) {
       final l = AppLocalizations.of(context)!;
-      final discard = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text(l.vtUnsavedTitle),
-          content: Text(l.vtUnsavedBody),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l.vtKeepEditing)),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(l.vtDiscard)),
-          ],
-        ),
+      // Destructive: "Discard" throws away edits with no undo. The shared
+      // confirm carries that signal; the plain gold FilledButton did not.
+      final discard = await showConfirm(
+        context,
+        title: l.vtUnsavedTitle,
+        body: l.vtUnsavedBody,
+        confirmLabel: l.vtDiscard,
+        cancelLabel: l.vtKeepEditing,
+        destructive: true,
       );
-      if (discard != true) return;
+      if (!discard || !mounted) return;
     }
     _selectDef(def);
   }
@@ -164,20 +166,10 @@ class _VoucherTemplatesPageState extends ConsumerState<VoucherTemplatesPage> {
           if (idx >= 0) _defs![idx] = updated;
           _selected = updated;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context)!.vtSaved)),
-        );
+        showOk(context, AppLocalizations.of(context)!.vtSaved);
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content:
-                Text(AppLocalizations.of(context)!.vtSaveFailed),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      }
+      if (mounted) showError(context, AppLocalizations.of(context)!.vtSaveFailed);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -188,7 +180,11 @@ class _VoucherTemplatesPageState extends ConsumerState<VoucherTemplatesPage> {
     final l = AppLocalizations.of(context)!;
 
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return LoadingState(
+        message: Localizations.localeOf(context).languageCode == 'ar'
+            ? 'جارٍ تحميل القوالب…'
+            : 'Loading templates…',
+      );
     }
     if (_error != null) {
       return ErrorState(error: _error!, onRetry: _load);

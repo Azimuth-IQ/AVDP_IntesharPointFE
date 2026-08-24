@@ -11,10 +11,13 @@ import 'package:inteshar/features/inventory/data/definition_repository.dart';
 import 'package:inteshar/features/inventory/domain/product_definition.dart';
 import 'package:inteshar/features/inventory/domain/voucher_template.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
+import 'package:inteshar/shared/widgets/app_snackbar.dart';
+import 'package:inteshar/shared/widgets/confirm_dialog.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/image_upload_field.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
+import 'package:inteshar/shared/widgets/loading_state.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
 class DefinitionsPage extends ConsumerStatefulWidget {
@@ -29,6 +32,9 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
   Object? _error;
   bool _loading = true;
   String _search = '';
+
+  /// Category ids with a delete in flight (UX-87) — guards BOTH entry points.
+  final Set<String> _deleting = {};
 
   @override
   void initState() {
@@ -115,66 +121,59 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
     );
   }
 
-  Future<void> _delete(ProductDefinition def, {bool force = false}) async {
+  /// UX-87: the confirm closes the instant it is tapped and the DELETE then ran
+  /// unguarded — and this category has TWO delete entry points (the swipe and
+  /// the row menu), so the second tap did not even have to be on the same
+  /// control. [_deleting] gates both, and the row goes inert while it runs.
+  ///
+  /// The forced retry is a loop rather than recursion so the guard is held for
+  /// the whole sequence instead of blocking its own second pass.
+  Future<void> _delete(ProductDefinition def) async {
     final l = AppLocalizations.of(context)!;
-    // The first delete shows the generic confirm; a forced retry skips it (the user
-    // already confirmed via the "delete anyway" dialog below).
-    if (!force) {
-      final confirm = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text(l.defsDeleteTitle),
-          content: Text(l.defsDeleteConfirm(def.name)),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: Text(l.defsCancel)),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              style: FilledButton.styleFrom(
-                  backgroundColor: Theme.of(ctx).colorScheme.error),
-              child: Text(l.defsDelete),
-            ),
-          ],
-        ),
-      );
-      if (confirm != true) return;
-    }
-    try {
-      final api = ref.read(apiClientProvider);
-      final repo = DefinitionRepository(api);
-      await repo.delete(def.id, force: force);
-      _load();
-    } catch (e) {
+    if (_deleting.contains(def.id)) return;
+    final confirmed = await showConfirm(
+      context,
+      title: l.defsDeleteTitle,
+      body: l.defsDeleteConfirm(def.name),
+      confirmLabel: l.defsDelete,
+      cancelLabel: l.defsCancel,
+      destructive: true,
+    );
+    if (!confirmed || !mounted) return;
+    var force = false;
+    while (true) {
+      setState(() => _deleting.add(def.id));
+      Object? failure;
+      try {
+        await DefinitionRepository(ref.read(apiClientProvider))
+            .delete(def.id, force: force);
+      } catch (e) {
+        failure = e;
+      }
       if (!mounted) return;
-      final apiErr = ApiException.from(e);
-      // 409 = the category still has vouchers referencing it. Show the backend's
-      // explanatory message and offer a forced delete (admin override).
-      if (apiErr?.statusCode == 409) {
-        final forceConfirm = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: Text(l.defsDeleteTitle),
-            content: Text(apiErr!.message),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: Text(l.defsCancel)),
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                style: FilledButton.styleFrom(
-                    backgroundColor: Theme.of(ctx).colorScheme.error),
-                child: Text(l.defsDeleteAnyway),
-              ),
-            ],
-          ),
-        );
-        if (forceConfirm == true) await _delete(def, force: true);
+      setState(() => _deleting.remove(def.id));
+      if (failure == null) {
+        await _load();
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(apiErr?.message ?? l.commonDeleteFailed('$e'))),
-      );
+      final apiErr = ApiException.from(failure);
+      // 409 = the category still has vouchers referencing it. Show the backend's
+      // explanatory message and offer a forced delete (admin override).
+      if (apiErr?.statusCode == 409 && !force) {
+        final again = await showConfirm(
+          context,
+          title: l.defsDeleteTitle,
+          body: apiErr!.message,
+          confirmLabel: l.defsDeleteAnyway,
+          cancelLabel: l.defsCancel,
+          destructive: true,
+        );
+        if (!again || !mounted) return;
+        force = true;
+        continue;
+      }
+      showError(context, apiErr?.message ?? failure);
+      return;
     }
   }
 
@@ -183,7 +182,11 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
     final l = AppLocalizations.of(context)!;
 
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return LoadingState(
+        message: Localizations.localeOf(context).languageCode == 'ar'
+            ? 'جارٍ تحميل الفئات…'
+            : 'Loading categories…',
+      );
     }
     if (_error != null) {
       return ErrorState(error: _error!, onRetry: _load);
@@ -305,6 +308,7 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
                                             },
                                             child: _DefinitionRow(
                                               def: def,
+                                              busy: _deleting.contains(def.id),
                                               onEdit: () =>
                                                   _showForm(existing: def),
                                               onDelete: () => _delete(def),
@@ -366,10 +370,16 @@ class _DefsTableHeader extends StatelessWidget {
 
 class _DefinitionRow extends StatefulWidget {
   final ProductDefinition def;
+
+  /// A delete is in flight for this row — every control is inert (UX-87).
+  final bool busy;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   const _DefinitionRow(
-      {required this.def, required this.onEdit, required this.onDelete});
+      {required this.def,
+      this.busy = false,
+      required this.onEdit,
+      required this.onDelete});
 
   @override
   State<_DefinitionRow> createState() => _DefinitionRowState();
@@ -387,7 +397,7 @@ class _DefinitionRowState extends State<_DefinitionRow> {
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: InkWell(
-        onTap: widget.onEdit,
+        onTap: widget.busy ? null : widget.onEdit,
         child: Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 4, 12),
           child: Row(
@@ -469,7 +479,13 @@ class _DefinitionRowState extends State<_DefinitionRow> {
               // discoverable on web (HQ's main surface), where swipe-to-delete is
               // invisible (B-072). Swipe still works as a shortcut on touch.
               PopupMenuButton<String>(
-                icon: Icon(Icons.more_vert, size: 18, color: cs.onSurfaceVariant),
+                enabled: !widget.busy,
+                icon: widget.busy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : Icon(Icons.more_vert, size: 18, color: cs.onSurfaceVariant),
                 tooltip: l.defsEdit,
                 onSelected: (v) => v == 'edit' ? widget.onEdit() : widget.onDelete(),
                 itemBuilder: (_) => [
@@ -711,8 +727,7 @@ class _DefinitionFormSheetState extends State<_DefinitionFormSheet> {
                             } catch (e) {
                               if (mounted) {
                                 // ignore: use_build_context_synchronously
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Error: $e')));
+                                showError(context, e);
                               }
                             } finally {
                               if (mounted) setState(() => _saving = false);

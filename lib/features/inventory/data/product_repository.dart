@@ -192,6 +192,12 @@ class ProductRepository {
   /// to `POST /api/inventory/product/batch` (the backend encrypts each PIN, dedups
   /// by serial, and bulk-inserts), aggregating the per-chunk results. [governorate]
   /// region-locks NEW/SEW batches; null leaves OTHER vouchers region-free.
+  ///
+  /// UX-85: a chunk that fails after an earlier one succeeded throws a
+  /// [PartialImportException] carrying the counts so far — the vouchers from the
+  /// successful chunks are already on the server, owned and sellable, so the
+  /// caller must report them rather than a flat failure. Failing on the FIRST
+  /// chunk rethrows unchanged: nothing landed, and there is nothing to reconcile.
   Future<BatchImportResult> batchImport({
     required String definitionId,
     required String ownerId,
@@ -199,10 +205,12 @@ class ProductRepository {
     required String type,
     required List<ParsedVoucher> vouchers,
     int chunk = 1000,
+    int from = 0,
     void Function(int done, int total)? onProgress,
   }) async {
     var agg = const BatchImportResult();
-    for (var i = 0; i < vouchers.length; i += chunk) {
+    var sent = from;
+    for (var i = from; i < vouchers.length; i += chunk) {
       final end = (i + chunk) < vouchers.length ? (i + chunk) : vouchers.length;
       final slice = vouchers.sublist(i, end);
       final body = <String, dynamic>{
@@ -220,10 +228,21 @@ class ProductRepository {
                 })
             .toList(),
       };
-      final response = await _api.post(Endpoints.productBatch, data: body);
-      final res = _api.unwrap(
-          response, (d) => BatchImportResult.fromJson(d as Map<String, dynamic>));
-      agg = agg.merge(res);
+      try {
+        final response = await _api.post(Endpoints.productBatch, data: body);
+        final res = _api.unwrap(response,
+            (d) => BatchImportResult.fromJson(d as Map<String, dynamic>));
+        agg = agg.merge(res);
+        sent = end;
+      } catch (e) {
+        if (agg.isEmpty) rethrow;
+        throw PartialImportException(
+          partial: agg,
+          cause: e,
+          sentRows: sent,
+          totalRows: vouchers.length,
+        );
+      }
       onProgress?.call(end, vouchers.length);
     }
     return agg;

@@ -10,11 +10,14 @@ import 'package:inteshar/features/companies/data/company_repository.dart';
 import 'package:inteshar/features/companies/domain/company.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
+import 'package:inteshar/shared/widgets/app_snackbar.dart';
+import 'package:inteshar/shared/widgets/confirm_dialog.dart';
 import 'package:inteshar/shared/widgets/entity_search_picker.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/image_upload_field.dart';
+import 'package:inteshar/shared/widgets/loading_state.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
 /// Local Arabic/English strings for the Companies admin page.
@@ -70,6 +73,12 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
   bool _loading = true;
   Object? _error;
 
+  /// Company ids with a delete in flight. UX-87: the confirm dialog closed
+  /// instantly and the DELETE then ran with nothing disabled, so the row menu
+  /// could fire it again — and the second call reaches a server that may still
+  /// be finishing the first.
+  final Set<String> _deleting = {};
+
   CompanyRepository get _repo => CompanyRepository(ref.read(apiClientProvider));
 
   @override
@@ -109,63 +118,61 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
   }
 
   Future<void> _confirmDelete(Company c) async {
+    if (_deleting.contains(c.id)) return;
     final s = _S.of(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(s.deleteTitle),
-        content: Text(s.deleteBody(c.name)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.cancel)),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(s.delete),
-          ),
-        ],
-      ),
+    final ok = await showConfirm(
+      context,
+      title: s.deleteTitle,
+      body: s.deleteBody(c.name),
+      confirmLabel: s.delete,
+      cancelLabel: s.cancel,
+      destructive: true,
     );
-    if (ok != true) return;
-    await _runDelete(s, c, force: false);
+    if (!ok || !mounted) return;
+    await _runDelete(s, c);
   }
 
   /// The server refuses while the company still has categories and says how many.
   /// That count is the thing worth confirming — the generic warning above cannot
   /// know it — so the refusal becomes a second, specific prompt rather than an
   /// error the operator has to interpret.
-  Future<void> _runDelete(_S s, Company c, {required bool force}) async {
-    try {
-      await _repo.delete(c.id, force: force);
-      _load();
-    } catch (e) {
+  ///
+  /// The forced retry is a loop, not recursion, so the in-flight guard can be
+  /// held across both passes instead of blocking the second one.
+  Future<void> _runDelete(_S s, Company c) async {
+    var force = false;
+    while (true) {
+      setState(() => _deleting.add(c.id));
+      Object? failure;
+      try {
+        await _repo.delete(c.id, force: force);
+      } catch (e) {
+        failure = e;
+      }
       if (!mounted) return;
-      final reason = serverReason(e);
-      if (!force && reason != null && ApiException.from(e)?.statusCode == 409) {
-        final again = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: Text(s.deleteTitle),
-            content: Text(reason),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: Text(s.cancel)),
-              FilledButton(
-                style: FilledButton.styleFrom(
-                    backgroundColor: Theme.of(ctx).colorScheme.error),
-                onPressed: () => Navigator.pop(ctx, true),
-                child: Text(s.deleteAnyway),
-              ),
-            ],
-          ),
-        );
-        if (again == true) await _runDelete(s, c, force: true);
+      setState(() => _deleting.remove(c.id));
+      if (failure == null) {
+        await _load();
         return;
       }
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(reason ?? friendlyError(e, context))));
+      final reason = serverReason(failure);
+      if (!force &&
+          reason != null &&
+          ApiException.from(failure)?.statusCode == 409) {
+        final again = await showConfirm(
+          context,
+          title: s.deleteTitle,
+          body: reason,
+          confirmLabel: s.deleteAnyway,
+          cancelLabel: s.cancel,
+          destructive: true,
+        );
+        if (!again || !mounted) return;
+        force = true;
+        continue;
       }
+      showError(context, reason ?? failure);
+      return;
     }
   }
 
@@ -196,7 +203,9 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
   }
 
   Widget _body(_S s, {required bool canManage}) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) {
+      return LoadingState(message: s.p('Loading companies…', 'جارٍ تحميل الشركات…'));
+    }
     if (_error != null) return ErrorState(error: _error!, onRetry: _load);
     if (_items.isEmpty) {
       return EmptyState(message: '${s.empty}\n${s.emptyHint}', actionLabel: s.newCompany, onAction: () => _openForm());
@@ -213,7 +222,7 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
           return InkCard(
             ruleColor: context.tones.brand,
             padding: const EdgeInsets.all(16),
-            onTap: () => _openForm(existing: c),
+            onTap: _deleting.contains(c.id) ? null : () => _openForm(existing: c),
             child: Row(
               children: [
                 Container(
@@ -250,6 +259,13 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
                 ),
                 if (canManage)
                   PopupMenuButton<String>(
+                    enabled: !_deleting.contains(c.id),
+                    icon: _deleting.contains(c.id)
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : null,
                     onSelected: (v) => v == 'edit' ? _openForm(existing: c) : _confirmDelete(c),
                     itemBuilder: (_) => [
                       PopupMenuItem(value: 'edit', child: Text(s.edit)),

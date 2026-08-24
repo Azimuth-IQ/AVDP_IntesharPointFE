@@ -7,6 +7,7 @@ import 'package:inteshar/features/inventory/domain/print_operation.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
+import 'package:inteshar/shared/widgets/loading_state.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
 String _tr(BuildContext c, String ar, String en) =>
@@ -109,7 +110,10 @@ class _PrintOperationsPageState extends ConsumerState<PrintOperationsPage> {
   }
 
   Widget _body() {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) {
+      return LoadingState(
+          message: _tr(context, 'جارٍ البحث…', 'Searching…'));
+    }
     if (_error != null) return ErrorState(error: _error!, onRetry: _search);
     final r = _results;
     if (r == null || r.isEmpty) {

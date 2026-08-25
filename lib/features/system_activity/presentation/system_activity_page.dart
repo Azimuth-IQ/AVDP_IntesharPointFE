@@ -15,6 +15,7 @@ import 'package:inteshar/core/api/paged.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
+import 'package:inteshar/features/entities/presentation/entity_row_actions.dart';
 import 'package:inteshar/features/system_activity/data/system_activity_repository.dart';
 import 'package:inteshar/features/system_activity/domain/feed_rows.dart';
 import 'package:inteshar/features/system_activity/domain/log_phrase.dart';
@@ -372,7 +373,7 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
     if (failed > 0) {
       out.add(_Exception(
         icon: Icons.error_outline,
-        color: IntesharColors.oxblood,
+        color: context.status.danger,
         title: ar
             ? '$failed معاملة فاشلة'
             : '$failed failed transaction${failed == 1 ? '' : 's'}',
@@ -384,7 +385,7 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
     if (errors > 0) {
       out.add(_Exception(
         icon: Icons.report_gmailerrorred_outlined,
-        color: IntesharColors.oxblood,
+        color: context.status.danger,
         title: ar ? '$errors خطأ في السجل' : '$errors error${errors == 1 ? '' : 's'} in the log',
         subtitle: _windowLabel(o.activityWindowHours, ar),
         onTap: () => _focusKpi(_Kpi.errors),
@@ -393,7 +394,7 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
     if (_unpriced.isNotEmpty) {
       out.add(_Exception(
         icon: Icons.price_change_outlined,
-        color: IntesharColors.warn,
+        color: context.status.warn,
         title: ar
             ? '${_unpriced.length} وكيل رئيسي لديه بطاقات غير مسعّرة'
             : '${_unpriced.length} main agent(s) with unpriced cards',
@@ -407,7 +408,7 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
     if (warns > 0) {
       out.add(_Exception(
         icon: Icons.warning_amber_rounded,
-        color: IntesharColors.warn,
+        color: context.status.warn,
         title: ar ? '$warns تحذير' : '$warns warning${warns == 1 ? '' : 's'}',
         subtitle: _windowLabel(o.activityWindowHours, ar),
         onTap: () => _focusKpi(_Kpi.warnings),
@@ -690,7 +691,7 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
                     const SizedBox(width: 8),
                     _FilterPill(
                       label: l.sysActLevelInfo,
-                      tint: const Color(0xFF2563EB),
+                      tint: context.status.inFlight,
                       selected: _level == 'INFO',
                       onTap: () => _setLevel('INFO'),
                     ),
@@ -704,14 +705,14 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
                     const SizedBox(width: 8),
                     _FilterPill(
                       label: l.sysActLevelError,
-                      tint: IntesharColors.oxblood,
+                      tint: context.status.danger,
                       selected: _level == 'ERROR',
                       onTap: () => _setLevel('ERROR'),
                     ),
                     const SizedBox(width: 8),
                     _FilterPill(
                       label: l.sysActFailuresOnly,
-                      tint: IntesharColors.oxblood,
+                      tint: context.status.danger,
                       icon: Icons.report_gmailerrorred_outlined,
                       selected: _failuresOnly,
                       onTap: () => setState(() {
@@ -785,7 +786,7 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
                   const SizedBox(width: 8),
                   _FilterPill(
                     label: _txnStatusLabel(l, s),
-                    tint: _txnStatusColor(s),
+                    tint: _txnStatusColor(context, s),
                     selected: _txnStatus == s,
                     onTap: () => setState(() {
                       _txnStatus = _txnStatus == s ? null : s;
@@ -884,7 +885,12 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
             emptyMessage: l.sysActNoEntities,
             onRefresh: () => _refreshWithOverview(_entityFeed),
             itemBuilder: (row) =>
-                _EntityRow(row: row, l: l, onTap: () => _showEntityDetail(row, l)),
+                _EntityRow(
+                  row: row,
+                  l: l,
+                  onTap: () => _showEntityDetail(row, l),
+                  onChanged: () => _refreshWithOverview(_entityFeed),
+                ),
           ),
         ),
       ],
@@ -906,6 +912,15 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
           Navigator.pop(sheetCtx);
           _focusEntityActivity(row.id, row.label);
         },
+        // UX-93: and this leaves oversight for the one place that account is
+        // actually administered, instead of naming a screen and stopping.
+        onOpenAgent: entityHasDetailPage(row.type)
+            ? () {
+                Navigator.pop(sheetCtx);
+                openAgentDetail(context, row.id, row.label,
+                    onChanged: () => _refreshWithOverview(_entityFeed));
+              }
+            : null,
       ),
     );
   }
@@ -1023,9 +1038,9 @@ class _AllClearCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
       decoration: BoxDecoration(
-        color: IntesharColors.sage.withValues(alpha: 0.10),
+        color: context.status.success.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(IntesharRadii.md),
-        border: Border.all(color: IntesharColors.sage.withValues(alpha: 0.35)),
+        border: Border.all(color: context.status.success.withValues(alpha: 0.35)),
       ),
       child: Row(children: [
         Container(
@@ -1033,10 +1048,10 @@ class _AllClearCard extends StatelessWidget {
           height: 42,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: IntesharColors.sage.withValues(alpha: 0.16),
+            color: context.status.success.withValues(alpha: 0.16),
             borderRadius: BorderRadius.circular(21),
           ),
-          child: const Icon(Icons.check_circle_outline_rounded, size: 22, color: IntesharColors.sage),
+          child: Icon(Icons.check_circle_outline_rounded, size: 22, color: context.status.success),
         ),
         const SizedBox(width: 14),
         Expanded(
@@ -1178,7 +1193,7 @@ class _StatStrip extends StatelessWidget {
       ),
       _StatTile(
         icon: Icons.people_alt_outlined,
-        tint: const Color(0xFF2563EB),
+        tint: context.status.inFlight,
         value: v(o?.userTotal),
         label: l.sysActUsers,
         period: allTime,
@@ -1186,7 +1201,7 @@ class _StatStrip extends StatelessWidget {
       ),
       _StatTile(
         icon: Icons.swap_horiz,
-        tint: IntesharColors.sage,
+        tint: context.status.success,
         value: v(o?.txnTotal),
         label: l.navTransactions,
         period: allTime,
@@ -1202,7 +1217,7 @@ class _StatStrip extends StatelessWidget {
       ),
       _StatTile(
         icon: Icons.error_outline,
-        tint: IntesharColors.oxblood,
+        tint: context.status.danger,
         value: v(o?.failedTxnCount),
         // "Failed" alone said nothing about WHAT failed.
         label: ar ? 'معاملات فاشلة' : 'Failed transactions',
@@ -1212,7 +1227,7 @@ class _StatStrip extends StatelessWidget {
       if (o != null && o.hasActivity) ...[
         _StatTile(
           icon: Icons.bolt_outlined,
-          tint: const Color(0xFF2563EB),
+          tint: context.status.inFlight,
           value: v(o.activityEvents),
           label: ar ? 'أحداث' : 'Events',
           period: window,
@@ -1220,7 +1235,7 @@ class _StatStrip extends StatelessWidget {
         ),
         _StatTile(
           icon: Icons.warning_amber_rounded,
-          tint: IntesharColors.warn,
+          tint: context.status.warn,
           value: v(o.activityWarnings),
           label: l.sysActLevelWarn,
           period: window,
@@ -1228,7 +1243,7 @@ class _StatStrip extends StatelessWidget {
         ),
         _StatTile(
           icon: Icons.report_gmailerrorred_outlined,
-          tint: IntesharColors.oxblood,
+          tint: context.status.danger,
           value: v(o.activityErrors),
           label: l.sysActLevelError,
           period: window,
@@ -1314,7 +1329,7 @@ class _StatTile extends StatelessWidget {
                 Text(label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: IntesharType.sans(11, color: IntesharColors.inkSoft, w: FontWeight.w600)),
+                    style: IntesharType.sans(11, color: context.status.neutral, w: FontWeight.w600)),
                 const SizedBox(height: 2),
                 Text(period,
                     maxLines: 1,
@@ -1494,11 +1509,12 @@ class _SearchField extends StatelessWidget {
 
 // ─── Shared formatting helpers ─────────────────────────────────────────────────
 
-({IconData icon, Color color}) _logVisual(OperationLog log) {
-  if (log.isError) return (icon: Icons.error_outline, color: IntesharColors.oxblood);
-  if (log.isWarn) return (icon: Icons.warning_amber_rounded, color: IntesharColors.warn);
-  if (!log.success) return (icon: Icons.info_outline, color: const Color(0xFF2563EB));
-  return (icon: Icons.check_circle_outline, color: IntesharColors.sage);
+({IconData icon, Color color}) _logVisual(BuildContext context, OperationLog log) {
+  final t = context.status;
+  if (log.isError) return (icon: Icons.error_outline, color: t.danger);
+  if (log.isWarn) return (icon: Icons.warning_amber_rounded, color: t.warn);
+  if (!log.success) return (icon: Icons.info_outline, color: t.inFlight);
+  return (icon: Icons.check_circle_outline, color: t.success);
 }
 
 /// True when an error is an HTTP 403 — the screen + feeds are ADMIN-only, so a
@@ -1520,15 +1536,16 @@ String _fmtFull(DateTime? d) => d == null ? '—' : DateFormat('yyyy-MM-dd HH:mm
 /// correctly inside the RTL Arabic layout.
 Widget _ltr(Widget child) => Directionality(textDirection: TextDirection.ltr, child: child);
 
-Widget _logStatusPill(OperationLog log) {
+Widget _logStatusPill(BuildContext context, OperationLog log) {
   if (log.httpStatus != null) {
     return StampPill(
       label: '${log.httpStatus}',
-      color: log.success ? IntesharColors.sage : IntesharColors.oxblood,
+      color: log.success ? context.status.success : context.status.danger,
       fontSize: 10,
     );
   }
-  return StampPill(label: log.level, color: _logVisual(log).color, fontSize: 10);
+  return StampPill(
+      label: log.level, color: _logVisual(context, log).color, fontSize: 10);
 }
 
 /// B-108: the headline is a sentence, not a route. `POST /api/auth/login` next
@@ -1547,7 +1564,7 @@ class _LogRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final v = _logVisual(log);
+    final v = _logVisual(context, log);
     final ar = Localizations.localeOf(context).languageCode == 'ar';
     final phrase = logPhrase(log, ar: ar);
     final meta = <String>[
@@ -1586,7 +1603,7 @@ class _LogRow extends StatelessWidget {
                 Text(meta,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: IntesharType.sans(11.5, color: IntesharColors.inkSoft)),
+                    style: IntesharType.sans(11.5, color: context.status.neutral)),
               ],
             ),
           ),
@@ -1594,7 +1611,7 @@ class _LogRow extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              _logStatusPill(log),
+              _logStatusPill(context, log),
               if (log.durationMs != null) ...[
                 const SizedBox(height: 5),
                 _ltr(Text('${log.durationMs}ms',
@@ -1620,11 +1637,11 @@ class _LogDetailSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    final v = _logVisual(light);
+    final v = _logVisual(context, light);
 
     return _SheetFrame(
       title: l.sysActDetailTitle,
-      titleTrailing: _logStatusPill(light),
+      titleTrailing: _logStatusPill(context, light),
       children: [
         Row(
           children: [
@@ -1719,10 +1736,10 @@ String _txnStatusLabel(AppLocalizations l, TransactionStatus s) => switch (s) {
       TransactionStatus.FAILED => l.txnStatusFailed,
     };
 
-Color _txnStatusColor(TransactionStatus s) => switch (s) {
-      TransactionStatus.COMPLETED => IntesharColors.sage,
-      TransactionStatus.FAILED => IntesharColors.oxblood,
-      _ => IntesharColors.warn,
+Color _txnStatusColor(BuildContext context, TransactionStatus s) => switch (s) {
+      TransactionStatus.COMPLETED => context.status.success,
+      TransactionStatus.FAILED => context.status.danger,
+      _ => context.status.warn,
     };
 
 class _TxnRow extends StatelessWidget {
@@ -1753,7 +1770,7 @@ class _TxnRow extends StatelessWidget {
                 _ltr(Text('#$shortId · ${row.date} ${row.time}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: IntesharType.mono(10.5, color: IntesharColors.inkSoft))),
+                    style: IntesharType.mono(10.5, color: context.status.neutral))),
               ],
             ),
           ),
@@ -1761,7 +1778,7 @@ class _TxnRow extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              StampPill(label: _txnStatusLabel(l, row.statusEnum), color: _txnStatusColor(row.statusEnum), fontSize: 10),
+              StampPill(label: _txnStatusLabel(l, row.statusEnum), color: _txnStatusColor(context, row.statusEnum), fontSize: 10),
               const SizedBox(height: 5),
               Text(Formatters.iqd(row.totalAmount),
                   style: IntesharType.mono(12, color: cs.onSurface, w: FontWeight.w700)),
@@ -1784,7 +1801,7 @@ class _TxnDetailSheet extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return _SheetFrame(
       title: l.txnsDetailTitle,
-      titleTrailing: StampPill(label: _txnStatusLabel(l, row.statusEnum), color: _txnStatusColor(row.statusEnum)),
+      titleTrailing: StampPill(label: _txnStatusLabel(l, row.statusEnum), color: _txnStatusColor(context, row.statusEnum)),
       children: [
         _kv(context, l.txnsFrom, row.sourceLabel),
         _kv(context, l.txnsTo, row.destinationLabel),
@@ -1818,7 +1835,7 @@ class _TxnDetailSheet extends StatelessWidget {
                     child: Row(
                       children: [
                         Expanded(child: _ltr(Text(ln.sku, style: IntesharType.mono(12.5, color: cs.onSurface, w: FontWeight.w600)))),
-                        Text('×${Formatters.money(ln.amount)}', style: IntesharType.sans(12.5, color: IntesharColors.inkSoft)),
+                        Text('×${Formatters.money(ln.amount)}', style: IntesharType.sans(12.5, color: context.status.neutral)),
                         const SizedBox(width: 14),
                         Text(Formatters.iqd(ln.lineTotal), style: IntesharType.mono(12.5, color: cs.onSurface, w: FontWeight.w700)),
                       ],
@@ -1861,14 +1878,26 @@ String _entityTypeLabel(AppLocalizations l, EntityType t) => switch (t) {
       EntityType.STORE => l.entityTypeStore,
     };
 
-class _EntityRow extends StatelessWidget {
+/// UX-93: this tab was the FOURTH surface listing the same entity objects, and
+/// the only one from which nothing could be done — an admin who spotted a
+/// problem here had to remember which of the other three screens carried the
+/// fix. It now renders the canonical row menu, which gates itself exactly as it
+/// does in the hierarchy and the agent directories: a viewer without
+/// MANAGE_AGENTS still sees a read-only list.
+class _EntityRow extends ConsumerWidget {
   final EntitySummaryRow row;
   final AppLocalizations l;
   final VoidCallback onTap;
-  const _EntityRow({required this.row, required this.l, required this.onTap});
+  final VoidCallback onChanged;
+  const _EntityRow({
+    required this.row,
+    required this.l,
+    required this.onTap,
+    required this.onChanged,
+  });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
     final meta = <String>[
       l.entityTreeChildrenCount(row.childrenCount),
@@ -1902,7 +1931,7 @@ class _EntityRow extends StatelessWidget {
                 Text(meta,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: IntesharType.sans(11.5, color: IntesharColors.inkSoft)),
+                    style: IntesharType.sans(11.5, color: context.status.neutral)),
                 if (row.parentName.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text('${l.entityTreeParentLabel}: ${row.parentName}',
@@ -1913,8 +1942,8 @@ class _EntityRow extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          Icon(Icons.chevron_right, size: 18, color: cs.onSurfaceVariant),
+          const SizedBox(width: 4),
+          EntityRowActionsButton(row: row, onChanged: onChanged, iconSize: 17),
         ],
       ),
     );
@@ -1926,11 +1955,13 @@ class _EntityDetailSheet extends StatelessWidget {
   final Future<Paged<AdminUserRow>> usersFuture;
   final AppLocalizations l;
   final VoidCallback? onViewActivity;
+  final VoidCallback? onOpenAgent;
   const _EntityDetailSheet({
     required this.row,
     required this.usersFuture,
     required this.l,
     this.onViewActivity,
+    this.onOpenAgent,
   });
 
   @override
@@ -1941,15 +1972,21 @@ class _EntityDetailSheet extends StatelessWidget {
       title: row.label,
       titleTrailing: RoleBadge(type: row.type),
       children: [
-        if (onViewActivity != null) ...[
-          Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: OutlinedButton.icon(
-              onPressed: onViewActivity,
-              icon: const Icon(Icons.bolt_outlined, size: 18),
-              label: Text(ar ? 'نشاط هذا الحساب' : "This account's activity"),
-            ),
-          ),
+        if (onViewActivity != null || onOpenAgent != null) ...[
+          Wrap(spacing: 10, runSpacing: 10, children: [
+            if (onViewActivity != null)
+              OutlinedButton.icon(
+                onPressed: onViewActivity,
+                icon: const Icon(Icons.bolt_outlined, size: 18),
+                label: Text(ar ? 'نشاط هذا الحساب' : "This account's activity"),
+              ),
+            if (onOpenAgent != null)
+              OutlinedButton.icon(
+                onPressed: onOpenAgent,
+                icon: const Icon(Icons.open_in_new, size: 18),
+                label: Text(ar ? 'فتح ملف الوكيل' : 'Open agent'),
+              ),
+          ]),
           const SizedBox(height: 14),
         ],
         _kv(context, l.entityTreeIdent, row.id, mono: true),
@@ -2004,7 +2041,7 @@ class _EntityDetailSheet extends StatelessWidget {
 
 Widget _roleChip(BuildContext context, UserRole role, AppLocalizations l) => StampPill(
       label: role == UserRole.ADMIN ? l.sysActRoleAdmin : l.entityTypeUser,
-      color: role == UserRole.ADMIN ? context.tones.brandInk : IntesharColors.inkSoft,
+      color: role == UserRole.ADMIN ? context.tones.brandInk : context.status.neutral,
       fontSize: 10,
     );
 
@@ -2046,7 +2083,7 @@ class _UserRow extends StatelessWidget {
                       child: Text(row.entityLabel,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: IntesharType.sans(11.5, color: IntesharColors.inkSoft)),
+                          style: IntesharType.sans(11.5, color: context.status.neutral)),
                     ),
                     if (type != null) ...[const SizedBox(width: 6), _MiniTypeTag(type: type)],
                   ],
@@ -2141,7 +2178,7 @@ Widget _kv(BuildContext context, String label, String value, {bool mono = false}
       children: [
         SizedBox(
           width: 116,
-          child: Text(label, style: IntesharType.sans(11.5, color: IntesharColors.inkSoft, w: FontWeight.w600)),
+          child: Text(label, style: IntesharType.sans(11.5, color: context.status.neutral, w: FontWeight.w600)),
         ),
         const SizedBox(width: 12),
         Expanded(child: mono ? _ltr(valueWidget) : valueWidget),
@@ -2208,7 +2245,7 @@ class _CodeBlock extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: IntesharType.sans(11.5, color: tint ?? IntesharColors.inkSoft, w: FontWeight.w700)),
+        Text(label, style: IntesharType.sans(11.5, color: tint ?? context.status.neutral, w: FontWeight.w700)),
         const SizedBox(height: 6),
         Container(
           width: double.infinity,

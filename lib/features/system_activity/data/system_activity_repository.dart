@@ -7,7 +7,7 @@ import 'package:inteshar/features/system_activity/domain/system_overview.dart';
 
 /// BFF client for the HQ "System Activity" screen. Every call is admin-only and
 /// returns a projected / paged payload, so the screen never downloads the heavy
-/// `readall` collections. See `Docs/system-activity-backend-endpoints.txt`.
+/// `readall` collections. See `Docs/arch/system-activity-backend-endpoints.txt`.
 class SystemActivityRepository {
   final ApiClient _api;
   SystemActivityRepository(this._api);

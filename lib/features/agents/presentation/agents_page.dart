@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:inteshar/core/api/error_mapper.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,9 +12,7 @@ import 'package:inteshar/features/agents/domain/agent_tier.dart';
 import 'package:inteshar/features/agents/presentation/agent_form.dart';
 import 'package:inteshar/features/agents/presentation/agent_strings.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
-import 'package:inteshar/features/entities/domain/entity.dart';
-import 'package:inteshar/features/entities/presentation/delete_agent_sheet.dart';
-import 'package:inteshar/features/entities/presentation/visible_products_sheet.dart';
+import 'package:inteshar/features/entities/presentation/entity_row_actions.dart';
 import 'package:inteshar/features/pos_admin/data/pos_admin_repository.dart';
 import 'package:inteshar/features/pos_admin/domain/pos_network.dart';
 import 'package:inteshar/features/pricing/data/pricing_repository.dart';
@@ -24,6 +21,7 @@ import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
+import 'package:inteshar/shared/widgets/role_badge.dart';
 
 /// HQ admin directory for one agent tier (Main Agents or Sub Agents). Paged,
 /// searchable; create/edit via the shared [AgentForm]; delete via the shared
@@ -175,59 +173,14 @@ class _AgentsPageState extends ConsumerState<AgentsPage> {
     _debounce = Timer(const Duration(milliseconds: 350), _reload);
   }
 
-  Future<void> _openForm({String? editId}) async {
-    final repo = _repo;
-    Entity? existing;
-    if (editId != null) {
-      try {
-        existing = await repo.read(editId);
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
-        }
-        return;
-      }
-    }
-    if (!mounted) return;
+  /// Creating a NEW agent. Editing an existing one goes through the canonical
+  /// row action set (UX-93) — the same editor, from the same menu, as the
+  /// hierarchy tree and the oversight tab.
+  Future<void> _openForm() async {
     final ok = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => AgentForm(tier: tier, existing: existing)),
+      MaterialPageRoute(builder: (_) => AgentForm(tier: tier)),
     );
     if (ok == true) _reload();
-  }
-
-  /// Deleting an agent is leaf-only AND needs an authenticator code, so this
-  /// opens the same clear-out sheet the hierarchy tree uses instead of a local
-  /// confirm dialog.
-  ///
-  /// The dialog this replaced called `delete(id)` with no code at all, which the
-  /// server refuses for every tier — the button could not delete anything for a
-  /// 2FA-enrolled admin, and it also gave an agent still holding sub-agents and
-  /// shops a bare "leaf-only" refusal with nothing to act on. The sheet lists
-  /// everything attached, deletes each item with its own confirmation code, and
-  /// unlocks the account once it is empty.
-  Future<void> _confirmDelete(EntitySummaryRow row) async {
-    // True when ANYTHING went — the account itself, or any child cleared out on
-    // the way there — which is exactly when this list is stale.
-    final changed = await showDeleteAgentSheet(
-      context,
-      ref,
-      entityId: row.id,
-      entityName: row.label,
-    );
-    if (changed && mounted) _reload();
-  }
-
-  /// UX-103: which voucher SKUs this agent — and everything under it — may see
-  /// and sell. The control existed but had exactly ONE entry point in the app: a
-  /// menu item on a hierarchy-tree row. Deciding what a partner is allowed to
-  /// sell is agent administration, so it belongs on the agent directory too;
-  /// nothing about it suggested it lived inside the tree.
-  Future<void> _openVisibleProducts(EntitySummaryRow row) async {
-    await showVisibleProductsSheet(
-      context,
-      entityId: row.id,
-      entityName: row.label,
-    );
   }
 
   @override
@@ -300,9 +253,7 @@ class _AgentsPageState extends ConsumerState<AgentsPage> {
             slotsReady: _slotsReady,
             unpriced: _unpriced[_items[i].id] ?? 0,
             pricingReady: _pricingReady,
-            onEdit: () => _openForm(editId: _items[i].id),
-            onDelete: () => _confirmDelete(_items[i]),
-            onVisibleProducts: () => _openVisibleProducts(_items[i]),
+            onChanged: _reload,
           );
         },
       ),
@@ -310,7 +261,15 @@ class _AgentsPageState extends ConsumerState<AgentsPage> {
   }
 }
 
-class _AgentCard extends StatelessWidget {
+/// One agent in the directory.
+///
+/// UX-93: the identity block and the readiness strip are this page's own, but
+/// every ACTION on the row is the canonical set — the same menu, with the same
+/// capability gating, as the hierarchy tree and the oversight tab. Tapping the
+/// card opens the agent's own page rather than dropping straight into the edit
+/// form, so "look at this agent" and "change this agent" stop being the same
+/// gesture.
+class _AgentCard extends ConsumerWidget {
   final EntitySummaryRow row;
   final AgentStrings s;
   final AgentTier tier;
@@ -319,9 +278,7 @@ class _AgentCard extends StatelessWidget {
   final bool slotsReady;
   final int unpriced;
   final bool pricingReady;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-  final VoidCallback onVisibleProducts;
+  final VoidCallback onChanged;
   const _AgentCard({
     required this.row,
     required this.s,
@@ -331,19 +288,17 @@ class _AgentCard extends StatelessWidget {
     required this.slotsReady,
     required this.unpriced,
     required this.pricingReady,
-    required this.onEdit,
-    required this.onDelete,
-    required this.onVisibleProducts,
+    required this.onChanged,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
     final locale = s.ar ? 'ar' : 'en';
     return InkCard(
       ruleColor: context.tones.brand,
       padding: const EdgeInsets.all(16),
-      onTap: onEdit,
+      onTap: () => openAgentDetail(context, row.id, row.label, onChanged: onChanged),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -353,31 +308,32 @@ class _AgentCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(row.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: IntesharType.sans(17, color: cs.onSurface, w: FontWeight.w800)),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(row.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: IntesharType.sans(17,
+                                  color: cs.onSurface, w: FontWeight.w800)),
+                        ),
+                        const SizedBox(width: 8),
+                        // UX-93: the same object wore a different face on every
+                        // surface — a role badge in the oversight tab, a colour-
+                        // coded avatar in the hierarchy, and nothing at all
+                        // here. This is the shared badge.
+                        RoleBadge(type: row.type),
+                      ],
+                    ),
                     const SizedBox(height: 3),
                     SelectableText(row.id,
                         style: IntesharType.mono(11, color: cs.onSurfaceVariant, letterSpacing: 0.3)),
                   ],
                 ),
               ),
-              if (canManage)
-                PopupMenuButton<String>(
-                  onSelected: (v) => switch (v) {
-                    'edit' => onEdit(),
-                    'visible_products' => onVisibleProducts(),
-                    _ => onDelete(),
-                  },
-                  itemBuilder: (_) => [
-                    PopupMenuItem(value: 'edit', child: Text(s.edit)),
-                    PopupMenuItem(
-                        value: 'visible_products',
-                        child: Text(s.visibleProducts)),
-                    PopupMenuItem(value: 'delete', child: Text(s.delete)),
-                  ],
-                ),
+              // Tapping the card already opens the agent, so the menu does not
+              // repeat that hop.
+              EntityRowActionsButton(row: row, onChanged: onChanged, showOpen: false),
             ],
           ),
           if (row.parentName.isNotEmpty) ...[
@@ -420,7 +376,7 @@ class _AgentCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(s.setupTitle, style: IntesharType.overline(color: cs.onSurfaceVariant)),
           const SizedBox(height: 8),
-          _readinessStrip(context),
+          _readinessStrip(context, ref),
         ],
       ),
     );
@@ -431,7 +387,7 @@ class _AgentCard extends StatelessWidget {
   ///
   /// Pricing has no HQ-side screen to link to (that is UX-01), so it reports its
   /// state and stops rather than pretending to be actionable from here.
-  Widget _readinessStrip(BuildContext context) {
+  Widget _readinessStrip(BuildContext context, WidgetRef ref) {
     final main = tier == AgentTier.main;
     return Wrap(
       spacing: 8,
@@ -480,7 +436,11 @@ class _AgentCard extends StatelessWidget {
           // No bulk source for "which SKUs are visible", so this is an entry
           // point rather than a verdict — it must not claim either state.
           unknown: true,
-          onTap: canManage ? onVisibleProducts : null,
+          onTap: canManage
+              ? () => runEntityRowAction(
+                    context, ref, EntityRowAction.visibleProducts, row,
+                    onChanged: onChanged)
+              : null,
         ),
       ],
     );
@@ -510,10 +470,10 @@ class _ReadyChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final tone = unknown
-        ? IntesharColors.lichen
+        ? context.status.neutral
         : done
-            ? IntesharColors.sage
-            : IntesharColors.warn;
+            ? context.status.success
+            : context.status.warn;
     final chip = Container(
       padding: const EdgeInsetsDirectional.fromSTEB(10, 7, 10, 7),
       decoration: BoxDecoration(

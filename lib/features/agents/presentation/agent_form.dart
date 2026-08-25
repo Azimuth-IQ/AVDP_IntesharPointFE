@@ -1073,13 +1073,13 @@ class _StepPill extends StatelessWidget {
             shape: BoxShape.circle,
           ),
           child: done
-              ? const Icon(Icons.check, size: 15, color: IntesharColors.ink)
+              ? Icon(Icons.check, size: 15, color: context.tones.onBrand)
               : Text(
                   '$index',
                   style: IntesharType.sans(
                     12,
                     w: FontWeight.w800,
-                    color: on ? IntesharColors.ink : cs.onSurfaceVariant,
+                    color: on ? context.tones.onBrand : cs.onSurfaceVariant,
                   ),
                 ),
         ),

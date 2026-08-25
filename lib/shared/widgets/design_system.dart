@@ -54,7 +54,7 @@ class SectionLabel extends StatelessWidget {
     this.text, {
     super.key,
     this.trailing,
-    this.padding = const EdgeInsets.fromLTRB(0, 0, 0, 12),
+    this.padding = const EdgeInsets.fromLTRB(0, 0, 0, IntesharSpacing.md),
     this.dot = true,
     @Deprecated('Editorial rule is removed; parameter ignored.')
     bool withRule = true,
@@ -69,7 +69,7 @@ class SectionLabel extends StatelessWidget {
         children: [
           if (dot)
             Padding(
-              padding: const EdgeInsetsDirectional.only(end: 10),
+              padding: const EdgeInsetsDirectional.only(end: IntesharSpacing.sm2),
               child: Container(
                 width: 6,
                 height: 6,
@@ -82,11 +82,9 @@ class SectionLabel extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: TextStyle(
-                fontFamily: 'CodecPro',
+              style: IntesharText.bodyLg(
                 color: cs.onSurface,
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
+                w: IntesharWeight.heavy,
                 letterSpacing: 0.1,
                 height: 1.2,
               ),
@@ -100,6 +98,28 @@ class SectionLabel extends StatelessWidget {
 }
 
 // ─── InkCard (now a soft shadow tile) ──────────────────────────────────────
+
+/// How much air an [InkCard] puts around its content (UX-135).
+///
+/// 55 of 61 `InkCard` sites overrode `padding` across **17 distinct values** —
+/// `all(14)`, `all(12)`, `all(10)`, `all(24)`, `symmetric(14, 12)`… Adjacent
+/// cards differing by 2px do not read as a deliberate hierarchy; they read as
+/// nobody having decided. Three named densities is the decision.
+enum CardDensity {
+  /// 12 — list rows, chips-in-a-card, anything repeated many times per screen.
+  dense(IntesharSpacing.md),
+
+  /// 16 — the default. Ordinary content cards.
+  normal(IntesharSpacing.lg),
+
+  /// 24 — hero/summary cards that own their region of the page.
+  roomy(IntesharSpacing.xl);
+
+  const CardDensity(this.value);
+  final double value;
+
+  EdgeInsets get padding => EdgeInsets.all(value);
+}
 
 /// **The** card in this app. White surface tile with a soft drop shadow.
 /// Optionally paints a yellow accent ridge along the start edge (`ruleColor`) —
@@ -116,12 +136,26 @@ class SectionLabel extends StatelessWidget {
 class InkCard extends StatelessWidget {
   final Widget child;
   final Color? ruleColor;
-  final EdgeInsetsGeometry padding;
+
+  /// Free-form padding **escape hatch**. Prefer [density]; this stays because 55
+  /// existing call sites pass it, and a card that genuinely needs asymmetric
+  /// insets (a tile whose trailing edge holds a full-bleed action) has nowhere
+  /// else to say so. When null, [density] decides.
+  final EdgeInsetsGeometry? padding;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final BorderRadius? borderRadius;
   final Color? background;
+
+  /// Legacy alias for `density: CardDensity.dense`.
+  ///
+  /// It was declared, defaulted to `false`, and **never read by `build`** — a
+  /// dead knob that silently did nothing for anyone who set it. It is wired up
+  /// now; [density] is the way to say this going forward.
   final bool dense;
+
+  /// How much padding the card carries when [padding] is not given.
+  final CardDensity density;
   final bool elevated;
 
   /// Adds the 1px `outlineVariant` hairline around the tile (UX-126). The fill
@@ -132,12 +166,13 @@ class InkCard extends StatelessWidget {
     super.key,
     required this.child,
     this.ruleColor,
-    this.padding = const EdgeInsets.all(16),
+    this.padding,
     this.onTap,
     this.onLongPress,
     this.borderRadius,
     this.background,
     this.dense = false,
+    this.density = CardDensity.normal,
     this.elevated = true,
     this.bordered = false,
   });
@@ -147,6 +182,8 @@ class InkCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final radius = borderRadius ?? BorderRadius.circular(IntesharRadii.lg);
     final bg = background ?? cs.surfaceContainer;
+    final insets =
+        padding ?? (dense ? CardDensity.dense : density).padding;
 
     final content = ClipRRect(
       borderRadius: radius,
@@ -161,8 +198,8 @@ class InkCard extends StatelessWidget {
             ),
           Padding(
             padding: ruleColor != null
-                ? padding.add(const EdgeInsetsDirectional.only(start: 4))
-                : padding,
+                ? insets.add(const EdgeInsetsDirectional.only(start: 4))
+                : insets,
             child: child,
           ),
         ],
@@ -203,7 +240,7 @@ class StampPill extends StatelessWidget {
   /// Smallest legible size for bold Arabic on a tinted pill — a status read at
   /// arm's length on a POS handheld in daylight. Callers asking for less get
   /// this (UX-142).
-  static const double minFontSize = 12;
+  static const double minFontSize = IntesharScale.body;
 
   final String label;
   final Color color;
@@ -216,7 +253,7 @@ class StampPill extends StatelessWidget {
     required this.color,
     this.icon,
     this.filled = true,
-    this.fontSize = 12,
+    this.fontSize = IntesharScale.body,
   });
 
   @override
@@ -235,7 +272,7 @@ class StampPill extends StatelessWidget {
 
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: icon != null ? 8 : 10,
+        horizontal: icon != null ? IntesharSpacing.sm : IntesharSpacing.sm2,
         vertical: 5,
       ),
       decoration: BoxDecoration(
@@ -250,15 +287,14 @@ class StampPill extends StatelessWidget {
         children: [
           if (icon != null) ...[
             Icon(icon, size: size + 2, color: foreground),
-            const SizedBox(width: 4),
+            const SizedBox(width: IntesharSpacing.xs),
           ],
           Text(
             label,
-            style: TextStyle(
-              fontFamily: 'CodecPro',
+            style: IntesharType.sans(
+              size,
               color: foreground,
-              fontSize: size,
-              fontWeight: FontWeight.w700,
+              w: IntesharWeight.bold,
               letterSpacing: 0.2,
               height: 1.1,
             ),
@@ -271,14 +307,52 @@ class StampPill extends StatelessWidget {
 
 // ─── FigureBlock (now a stat tile) ─────────────────────────────────────────
 
-/// Stacked label / big numeral / caption stat tile. Replaces the editorial
-/// horizontal-rule + Fraunces-numeral pattern.
+/// How large a [FigureBlock]'s hero numeral is drawn.
+///
+/// The app had 13 hand-built stat tiles across dashboard, system activity,
+/// pos_admin, pos_network, pos_sales, reports, batch_add and inventory, with
+/// hero numerals at **ten** sizes — 17/18/19/20/22/24/26/30/32/34 — including
+/// two tiles that differed only by `fontSize 24 vs 22` and `divider 34 vs 30`.
+/// Those are the same tile. Pick a size here instead of inventing one.
+enum FigureSize {
+  /// [IntesharScale.title] — a figure inside a dense row or a narrow column.
+  small(IntesharScale.title),
+
+  /// [IntesharScale.display] — the default KPI tile.
+  medium(IntesharScale.display),
+
+  /// [IntesharScale.displayLg] — the one hero figure on a page (a balance).
+  large(IntesharScale.displayLg);
+
+  const FigureSize(this.value);
+  final double value;
+}
+
+/// **The** stat tile: stacked label / hero numeral / caption note.
+///
+/// UX-130: this existed with **zero** call sites while thirteen local
+/// re-implementations of it lived in features. It is the canonical one — a new
+/// stat tile uses this, and the thirteen should migrate to it rather than a
+/// fourteenth variation being written.
+///
+/// [monoValue] switches the numeral to JetBrains Mono, which is right whenever
+/// figures are stacked in a column and must align on the digit — a balance
+/// ledger, a serial count — and wrong for a single standalone KPI, where the
+/// proportional brand face reads better.
 class FigureBlock extends StatelessWidget {
   final String label;
   final String value;
   final String? note;
   final Color? accent;
   final bool monoValue;
+
+  /// Hero-numeral size. Defaults to [FigureSize.medium].
+  final FigureSize size;
+
+  /// Hide the 6px accent dot before the label — for tiles laid out in a grid
+  /// where a dot per cell is noise.
+  final bool showDot;
+
   const FigureBlock({
     super.key,
     required this.label,
@@ -286,6 +360,8 @@ class FigureBlock extends StatelessWidget {
     this.note,
     this.accent,
     this.monoValue = false,
+    this.size = FigureSize.medium,
+    this.showDot = true,
   });
 
   @override
@@ -297,40 +373,49 @@ class FigureBlock extends StatelessWidget {
       children: [
         Row(
           children: [
-            Container(
-              width: 6,
-              height: 6,
-              decoration: BoxDecoration(
-                color: accentColor,
-                borderRadius: BorderRadius.circular(3),
+            if (showDot) ...[
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: accentColor,
+                  borderRadius: BorderRadius.circular(3),
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                fontFamily: 'CodecPro',
-                color: cs.onSurfaceVariant,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.2,
+              const SizedBox(width: IntesharSpacing.sm),
+            ],
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: IntesharText.body(
+                  color: cs.onSurfaceVariant,
+                  w: IntesharWeight.semibold,
+                  letterSpacing: 0.2,
+                ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        Text(
-          value,
-          style: monoValue
-              ? IntesharType.mono(28, color: cs.onSurface, w: FontWeight.w700)
-              : IntesharType.display(
-                  34,
-                  color: cs.onSurface,
-                  w: FontWeight.w900,
-                ),
+        IntesharSpacing.gapSm,
+        // FittedBox so a long figure (a balance in dinars runs to 10+ digits)
+        // shrinks instead of overflowing the tile it was sized for.
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: AlignmentDirectional.centerStart,
+          child: Text(
+            value,
+            maxLines: 1,
+            style: monoValue
+                ? IntesharType.mono(size.value,
+                    color: cs.onSurface, w: IntesharWeight.bold)
+                : IntesharType.display(size.value,
+                    color: cs.onSurface, w: IntesharWeight.black),
+          ),
         ),
         if (note != null) ...[
-          const SizedBox(height: 4),
+          IntesharSpacing.gapXs,
           Text(note!, style: Theme.of(context).textTheme.bodySmall),
         ],
       ],
@@ -397,7 +482,12 @@ class PageHeader extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.trailing,
-    this.padding = const EdgeInsets.fromLTRB(16, 18, 16, 12),
+    this.padding = const EdgeInsets.fromLTRB(
+      IntesharSpacing.lg,
+      IntesharSpacing.lg,
+      IntesharSpacing.lg,
+      IntesharSpacing.md,
+    ),
     this.showEyebrow = true,
   });
 
@@ -432,16 +522,14 @@ class PageHeader extends StatelessWidget {
               eyebrow.toUpperCase(),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontFamily: 'CodecPro',
+              // UX-141: `overline` drops the tracking for a cursive locale, so
+              // the eyebrow keeps its Latin look without breaking Arabic joins.
+              style: IntesharType.overline(
                 color: cs.onSurfaceVariant,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
                 letterSpacing: 1.2,
-                height: 1,
-              ),
+              ).copyWith(fontWeight: IntesharWeight.heavy),
             ),
-            const SizedBox(height: 8),
+            IntesharSpacing.gapSm,
           ],
           // UX-115: `trailing` is a non-flex Row child, so it was handed
           // UNBOUNDED width — a Wrap never wrapped, a button pair claimed its
@@ -459,16 +547,12 @@ class PageHeader extends StatelessWidget {
                     child: Text(
                       title,
                       maxLines: 1,
-                      style: IntesharType.display(
-                        32,
-                        color: cs.onSurface,
-                        w: FontWeight.w900,
-                      ),
+                      style: IntesharText.displayLg(color: cs.onSurface),
                     ),
                   ),
                 ),
                 if (trailing != null) ...[
-                  const SizedBox(width: 12),
+                  const SizedBox(width: IntesharSpacing.md),
                   ConstrainedBox(
                     constraints: BoxConstraints(
                       maxWidth: constraints.maxWidth * 0.55,
@@ -482,7 +566,7 @@ class PageHeader extends StatelessWidget {
           const SizedBox(height: 6),
           const BrandRule(),
           if (subtitle != null) ...[
-            const SizedBox(height: 12),
+            IntesharSpacing.gapMd,
             Text(
               subtitle!,
               style: Theme.of(
@@ -543,7 +627,7 @@ class IntesharLockup extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           IntesharStar(size: compact ? 28 : 36, color: fg),
-          const SizedBox(width: 12),
+          const SizedBox(width: IntesharSpacing.md),
           Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -552,26 +636,25 @@ class IntesharLockup extends StatelessWidget {
                 title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontFamily: 'CodecPro',
-                  fontSize: compact ? 18 : 22,
-                  fontWeight: FontWeight.w900,
+                // UX-127: was an off-scale 18/22.
+                style: IntesharType.sans(
+                  compact ? IntesharScale.title : IntesharScale.titleLg,
                   color: fg,
+                  w: IntesharWeight.black,
                   letterSpacing: -0.4,
                   height: 1.0,
                 ),
               ),
               if (showTagline) ...[
-                const SizedBox(height: 4),
+                IntesharSpacing.gapXs,
                 Text(
                   tagline,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'CodecPro',
-                    fontSize: compact ? 10.5 : 11.5,
+                  // UX-127: was 10.5 / 11.5 — two half-point steps for one label.
+                  style: IntesharText.caption(
                     color: fgSoft,
-                    fontWeight: FontWeight.w600,
+                    w: IntesharWeight.semibold,
                     letterSpacing: 0.2,
                   ),
                 ),
@@ -588,9 +671,11 @@ class IntesharLockup extends StatelessWidget {
 
 /// SelectableText preconfigured with JetBrainsMono — used for ids, serials,
 /// pins, MACs, JWTs.
+/// UX-127: the default was an off-scale 13; `body` (12) is the size the ~39
+/// explicit `IntesharType.mono` call sites already cluster on.
 SelectableText monoText(
   String value, {
-  double size = 13,
+  double size = IntesharScale.body,
   Color? color,
   FontWeight w = FontWeight.w500,
   double letterSpacing = 0.4,

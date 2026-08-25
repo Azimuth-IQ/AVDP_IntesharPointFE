@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:inteshar/app/router.dart';
+import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/app/theme_provider.dart';
 import 'package:inteshar/core/api/session_expiry_gate.dart';
 import 'package:inteshar/core/locale/locale_controller.dart';
@@ -32,6 +33,14 @@ class IntesharApp extends ConsumerWidget {
     // so the currency unit (د.ع vs IQD) follows the locale from here. Same value
     // the app is about to rebuild with — the two can never disagree for a frame.
     Formatters.languageCode = locale.languageCode;
+    // UX-141: same idiom, same reason — letter-spacing is a Latin device, and
+    // applying it to Arabic (the primary locale) pulls the joins of a cursive
+    // script apart. Setting the flag here corrects all 25 `IntesharType.overline`
+    // call sites, and every other tracked style widgets build directly, without
+    // editing any of them. The baked `TextTheme` is handled by
+    // `brandThemeProvider`, which watches the same locale.
+    IntesharType.cursiveScript =
+        kCursiveLanguageCodes.contains(locale.languageCode);
     return MaterialApp.router(
       title: 'Inteshar',
       debugShowCheckedModeBanner: false,

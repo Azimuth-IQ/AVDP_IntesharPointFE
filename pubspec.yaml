@@ -106,38 +106,34 @@ flutter:
           weight: 700
         - asset: assets/fonts/mono/JetBrainsMono-ExtraBold.ttf
           weight: 800
+    # UX-140: the SIX italic faces are NOT declared. `FontStyle.italic` appears
+    # zero times in lib/, and the italics measured 3.20 MB of a 7.61 MB CodecPro
+    # payload — on a web app served over plain HTTP and an APK that is sideloaded
+    # onto POS handhelds, that is a download every user pays for and nobody sees.
+    # They also carry NO Arabic (727 codepoints vs 1011 in the uprights, 295 of
+    # them Arabic), so the primary locale could never have rendered from them
+    # even if something had asked. The TTFs stay in assets/fonts/ — re-add the
+    # `style: italic` entries here if an italic is ever genuinely designed in.
+    #
+    # NOTE (UX-127): the weights below are the ONLY faces that exist. There is no
+    # 600, so `FontWeight.w600` has no face — use `IntesharWeight.semibold`.
+    # `News` is registered at 500 but is Codec Pro's *third-lightest* face: it is
+    # lighter than Regular/400, so `w500` renders lighter than body text. Fixing
+    # that means re-registering it (a whole-app rendering change) — not done here.
     - family: CodecPro
       fonts:
         - asset: assets/fonts/CodecPro-Light.ttf
           weight: 300
-        - asset: assets/fonts/CodecPro-LightItalic.ttf
-          weight: 300
-          style: italic
         - asset: assets/fonts/CodecPro-Regular.ttf
           weight: 400
-        - asset: assets/fonts/CodecPro-Italic.ttf
-          weight: 400
-          style: italic
         - asset: assets/fonts/CodecPro-News.ttf
           weight: 500
-        - asset: assets/fonts/CodecPro-NewsItalic.ttf
-          weight: 500
-          style: italic
         - asset: assets/fonts/CodecPro-Bold.ttf
           weight: 700
-        - asset: assets/fonts/CodecPro-BoldItalic.ttf
-          weight: 700
-          style: italic
         - asset: assets/fonts/CodecPro-ExtraBold.ttf
           weight: 800
-        - asset: assets/fonts/CodecPro-ExtraBoldItalic.ttf
-          weight: 800
-          style: italic
         - asset: assets/fonts/CodecPro-Heavy.ttf
           weight: 900
-        - asset: assets/fonts/CodecPro-HeavyItalic.ttf
-          weight: 900
-          style: italic
 
 # --- Brand identity generation (Inteshar) -----------------------------------
 # Source art lives in assets/branding/ (not bundled). Regenerate after edits:

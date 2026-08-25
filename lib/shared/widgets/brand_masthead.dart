@@ -78,13 +78,17 @@ class BrandMasthead extends ConsumerWidget {
           ),
         ),
         if (name.isNotEmpty) ...[
-          const SizedBox(width: 10),
+          const SizedBox(width: IntesharSpacing.sm2),
           Flexible(
             child: Text(
               name,
               overflow: TextOverflow.ellipsis,
               maxLines: compact ? 1 : 2,
-              style: IntesharType.serif(compact ? 15 : 18, color: fg, w: FontWeight.w800),
+              // UX-140/UX-127: was `IntesharType.serif` (a pre-refactor alias of
+              // sans) at an off-scale 15/18.
+              style: compact
+                  ? IntesharText.bodyLg(color: fg, w: IntesharWeight.heavy)
+                  : IntesharText.title(color: fg, w: IntesharWeight.heavy),
             ),
           ),
         ],

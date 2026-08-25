@@ -61,13 +61,160 @@ class IntesharRadii {
   static const xl = 28.0;
 }
 
+/// The spacing scale (UX-135). Gaps, paddings and insets come from here.
+///
+/// It was declared long ago and referenced **zero** times in 49k lines, so the
+/// app drifted to 169 off-scale gaps with `EdgeInsets.all(14)` — a value that is
+/// on no scale at all — as its single most common padding. Two adjacent cards
+/// with 14 and 16 of padding do not read as "different"; they read as sloppy.
+///
+/// [sm2] is the one deliberate half-step: it is the old `10` that shows up in
+/// tight chip/pill interiors where 8 crowds the glyphs and 12 wastes a phone's
+/// width. Everything else snaps to 4/8/12/16/24/32.
 class IntesharSpacing {
   static const xs = 4.0;
   static const sm = 8.0;
+  static const sm2 = 10.0;
   static const md = 12.0;
   static const lg = 16.0;
   static const xl = 24.0;
   static const xxl = 32.0;
+
+  /// Vertical gap of [size]. Reads better than a bare `SizedBox` in a Column.
+  static const gapXs = SizedBox(height: xs);
+  static const gapSm = SizedBox(height: sm);
+  static const gapMd = SizedBox(height: md);
+  static const gapLg = SizedBox(height: lg);
+  static const gapXl = SizedBox(height: xl);
+}
+
+// ─── Type scale (UX-127) ─────────────────────────────────────────────────────
+
+/// The app's **seven** type sizes. Every new `fontSize` comes from here.
+///
+/// The app had drifted to **28** distinct sizes, including half-point steps
+/// (9.5/10.5/11.5/12.5/13.5/14.5) that no screen can render as distinct, and
+/// seven near-identical body sizes carrying ~307 call sites. Meanwhile
+/// [IntesharType.sans] was called 238× — *always* with an explicit size — while
+/// the carefully tuned 16-style [TextTheme] was read 41 times. Two type systems,
+/// one of them dead.
+///
+/// So the steps below are deliberately **the same numbers the `TextTheme`
+/// already uses**, and each one names the theme style it corresponds to. Reading
+/// `Theme.of(context).textTheme.bodyMedium` and writing
+/// `IntesharType.bodyLg(...)` now produce the same size — they cannot drift.
+///
+/// | step        | px | `TextTheme` equivalent            | use |
+/// |-------------|----|-----------------------------------|-----|
+/// | [caption]   | 11 | `labelSmall`                      | overlines, meta, timestamps, unit suffixes |
+/// | [body]      | 12 | `labelMedium` / `bodySmall`       | secondary body, chip labels, table cells |
+/// | [bodyLg]    | 14 | `bodyMedium` / `titleSmall`       | **default body**, list rows, form text |
+/// | [title]     | 16 | `bodyLarge` / `titleMedium`       | card titles, list-row primaries |
+/// | [titleLg]   | 20 | `titleLarge`                      | section/sheet titles, app-bar titles |
+/// | [display]   | 24 | `headlineSmall`                   | stat-tile numerals, sheet hero |
+/// | [displayLg] | 32 | `headlineLarge`                   | page titles, balance heroes |
+///
+/// Sizes above 32 (a splash wordmark, the POS total) are genuinely one-offs and
+/// stay explicit — they are not a *tier*, and pretending otherwise would just
+/// grow the scale back.
+class IntesharScale {
+  static const double caption = 11;
+  static const double body = 12;
+  static const double bodyLg = 14;
+  static const double title = 16;
+  static const double titleLg = 20;
+  static const double display = 24;
+  static const double displayLg = 32;
+
+  /// Ascending, for migration tooling and tests.
+  static const List<double> steps = <double>[
+    caption,
+    body,
+    bodyLg,
+    title,
+    titleLg,
+    display,
+    displayLg,
+  ];
+
+  /// The step nearest to [size] — the migration helper for the ~307 legacy call
+  /// sites. Ties round **up**, because shrinking text on a POS handheld held at
+  /// arm's length is the more expensive mistake. Sizes above [displayLg] are
+  /// returned untouched (see the class note on one-offs).
+  static double snap(double size) {
+    if (size >= displayLg) return size;
+    var best = steps.first;
+    var bestDelta = (size - best).abs();
+    for (final step in steps) {
+      final delta = (size - step).abs();
+      // `<=` makes a tie resolve to the LARGER step, since `steps` ascends.
+      if (delta <= bestDelta) {
+        best = step;
+        bestDelta = delta;
+      }
+    }
+    return best;
+  }
+}
+
+/// The CodecPro weights that actually have a face registered in `pubspec.yaml`.
+///
+/// **There is no 600 face** — the family ships Light/News/Regular/Bold/ExtraBold/
+/// Heavy and nothing between Regular and Bold. `FontWeight.w600` was written at
+/// ~100 sites anyway, so the intended "semibold" tier does not exist and each
+/// platform invents a different answer for it:
+///
+/// * **Android** (minikin, nearest-match, ties to the first declared face)
+///   resolves 600 to **News** — which, measured, is *lighter than Regular*
+///   (normalised ink area 0.376 vs 0.420). So on the Sunmi POS the semibold tier
+///   renders **lighter than body text**.
+/// * **Web** (CSS font matching, "≥ target first") resolves 600 to **Bold**.
+///
+/// Same widget, opposite weight, depending on which half of the fleet you are
+/// looking at. There is no SemiBold TTF to ship, so [semibold] is an explicit
+/// **alias of [bold]**: the nearest real face, and already what the browser
+/// shows.
+///
+/// **[news] is a trap and is not used by this file.** Codec Pro's News sits
+/// between Light and Regular, but `pubspec.yaml` registers it at weight 500, so
+/// every `FontWeight.w500` in the app renders *lighter* than the `w400` body it
+/// is meant to emphasise. Fixing that means re-registering the face (a
+/// whole-app rendering change) — see the follow-up note; until then, do not
+/// reach for 500 to mean "slightly bolder".
+class IntesharWeight {
+  /// CodecPro-Light.
+  static const FontWeight light = FontWeight.w300;
+
+  /// CodecPro-Regular — body text.
+  static const FontWeight regular = FontWeight.w400;
+
+  /// CodecPro-News. **Lighter than [regular]** despite the higher number; see
+  /// the class note. Present for completeness, not for use.
+  static const FontWeight news = FontWeight.w500;
+
+  /// CodecPro-Bold.
+  static const FontWeight bold = FontWeight.w700;
+
+  /// The "semibold" tier. Deliberately **the same face as [bold]** — no 600
+  /// face exists. Named separately so the intent stays legible at the call site
+  /// and so a real SemiBold, if one is ever licensed, lands in one place.
+  static const FontWeight semibold = bold;
+
+  /// CodecPro-ExtraBold.
+  static const FontWeight heavy = FontWeight.w800;
+
+  /// CodecPro-Heavy.
+  static const FontWeight black = FontWeight.w900;
+
+  /// Weights with a real registered face. `w600` is absent on purpose.
+  static const Set<FontWeight> registered = <FontWeight>{
+    light,
+    regular,
+    news,
+    bold,
+    heavy,
+    black,
+  };
 }
 
 /// Soft drop-shadow stack — replaces the hairline-border elevation pattern.
@@ -459,20 +606,74 @@ const List<String> kMonoFallback = <String>[
 /// `mono` stays on JetBrainsMono because Codec Pro is proportional and breaks
 /// alignment on voucher serials, PINs, and printer MAC addresses.
 class IntesharType {
+  /// True when the active locale is written in a **cursive** script — Arabic,
+  /// which is this product's primary locale (UX-141).
+  ///
+  /// Letter-spacing is a Latin typographic device: it opens even gaps between
+  /// standalone letterforms. Arabic letters *join*, so positive tracking pulls
+  /// the joins apart and a word visibly falls into pieces; negative tracking
+  /// makes them collide. The app was applying `letterSpacing: 2.2` to 25
+  /// [overline] labels and 1.2 to `labelSmall` — on strings that are **always**
+  /// translated.
+  ///
+  /// Set once from `IntesharApp.build`, exactly like `Formatters.languageCode`
+  /// next to it, so every existing call site is corrected without touching any
+  /// of them. Tracking a caller passes **explicitly** is always honoured — this
+  /// only governs the defaults.
+  static bool cursiveScript = false;
+
+  /// [tracking] for the current script: suppressed when the locale is cursive.
+  static double? _track(double? tracking) {
+    if (tracking == null || tracking == 0) return tracking;
+    return cursiveScript ? null : tracking;
+  }
+
   /// Heavy display — page wordmarks, hero numerals on ledger cards.
-  static TextStyle display(double size, {Color? color, FontWeight w = FontWeight.w800}) => TextStyle(
+  ///
+  /// Prefer the named steps [IntesharText.display] / [IntesharText.displayLg];
+  /// this free-size form stays for the genuine one-offs (splash wordmark, POS
+  /// total) and for the call sites not yet migrated.
+  static TextStyle display(double size,
+          {Color? color, FontWeight w = IntesharWeight.heavy}) =>
+      TextStyle(
         fontFamily: _kCodec,
         fontSize: size,
         fontWeight: w,
         color: color,
         height: 1.05,
-        letterSpacing: -0.6,
+        letterSpacing: _track(-0.6),
       );
 
-  /// Editorial mid-weight — what was Fraunces. Reads as a "title with voice".
-  /// Italic + News weight still gives the printed-broadsheet flavor.
+  /// Body sans — Regular by default.
+  ///
+  /// Prefer the named steps on [IntesharText]. This is the 238-call-site legacy
+  /// entry point: every one of those sites passes an explicit size, which is
+  /// how the app ended up with 28 of them (UX-127).
+  static TextStyle sans(double size,
+          {Color? color,
+          FontWeight w = IntesharWeight.regular,
+          double? height,
+          double? letterSpacing}) =>
+      TextStyle(
+        fontFamily: _kCodec,
+        fontSize: size,
+        fontWeight: w,
+        color: color,
+        height: height ?? 1.35,
+        letterSpacing: _track(letterSpacing),
+      );
+
+  /// **Vestigial** (UX-140). Codec Pro replaced the old Fraunces serif, so this
+  /// is now byte-for-byte [sans] with a different default weight — and that
+  /// default, `w500`, is Codec Pro's News, which renders *lighter* than the
+  /// `w400` it is meant to emphasise (see [IntesharWeight]). Three call sites
+  /// remain; use [sans] or an [IntesharText] step instead.
   static TextStyle serif(double size,
-          {Color? color, FontWeight w = FontWeight.w500, double? height, FontStyle? style, double? letterSpacing}) =>
+          {Color? color,
+          FontWeight w = IntesharWeight.news,
+          double? height,
+          FontStyle? style,
+          double? letterSpacing}) =>
       TextStyle(
         fontFamily: _kCodec,
         fontSize: size,
@@ -480,19 +681,7 @@ class IntesharType {
         fontStyle: style,
         color: color,
         height: height ?? 1.2,
-        letterSpacing: letterSpacing ?? -0.2,
-      );
-
-  /// Body sans — Regular by default.
-  static TextStyle sans(double size,
-          {Color? color, FontWeight w = FontWeight.w400, double? height, double? letterSpacing}) =>
-      TextStyle(
-        fontFamily: _kCodec,
-        fontSize: size,
-        fontWeight: w,
-        color: color,
-        height: height ?? 1.35,
-        letterSpacing: letterSpacing,
+        letterSpacing: _track(letterSpacing ?? -0.2),
       );
 
   /// True monospace — reserved for serials, PINs, MAC addresses, hex dumps.
@@ -513,14 +702,100 @@ class IntesharType {
       );
 
   /// Tracking-wide editorial overline. Reads like "DEPARTMENT — SECTION".
-  static TextStyle overline({Color? color, double size = 11}) => TextStyle(
+  ///
+  /// UX-141: the 2.2 tracking is applied **only to Latin**. All 25 call sites
+  /// label localized strings, and in Arabic — the primary locale — that tracking
+  /// tore the joins of a cursive script apart. Weight, case and colour carry the
+  /// "department label" read on their own; the tracking was never load-bearing.
+  /// See [cursiveScript].
+  static TextStyle overline({
+    Color? color,
+    double size = IntesharScale.caption,
+    double? letterSpacing,
+  }) =>
+      TextStyle(
         fontFamily: _kCodec,
         fontSize: size,
-        fontWeight: FontWeight.w700,
+        fontWeight: IntesharWeight.bold,
         color: color,
-        letterSpacing: 2.2,
+        letterSpacing: _track(letterSpacing ?? 2.2),
         height: 1,
       );
+}
+
+/// The **seven named type steps** (UX-127) — the API new code should reach for.
+///
+/// Each returns a Codec Pro [TextStyle] already sized from [IntesharScale] and
+/// weighted from [IntesharWeight], so a call site can no longer invent a size or
+/// ask for a weight that has no face. They live on their own class because
+/// [IntesharType.display] and [IntesharType.sans] are free-size functions with
+/// ~263 existing call sites and a required positional `size`; Dart forbids a
+/// signature with both optional-positional and named parameters, so the steps
+/// could not be layered onto those names without breaking every one of them.
+///
+/// Equivalent theme styles are listed on [IntesharScale]. When a widget already
+/// has a `BuildContext` and wants the *default* colour too, prefer the theme
+/// (`Theme.of(context).textTheme.bodyMedium`) — these are for the cases that
+/// need a specific colour or weight.
+class IntesharText {
+  /// 11 · overlines, meta, timestamps, unit suffixes. Bold by default because a
+  /// caption this small needs the weight to survive daylight on a POS handheld.
+  static TextStyle caption({
+    Color? color,
+    FontWeight w = IntesharWeight.bold,
+    double? height,
+    double? letterSpacing,
+  }) =>
+      IntesharType.sans(IntesharScale.caption,
+          color: color, w: w, height: height ?? 1.2, letterSpacing: letterSpacing);
+
+  /// 12 · secondary body, chip labels, dense table cells.
+  static TextStyle body({
+    Color? color,
+    FontWeight w = IntesharWeight.regular,
+    double? height,
+    double? letterSpacing,
+  }) =>
+      IntesharType.sans(IntesharScale.body,
+          color: color, w: w, height: height, letterSpacing: letterSpacing);
+
+  /// 14 · **the default body step** — list rows, form text, paragraphs.
+  static TextStyle bodyLg({
+    Color? color,
+    FontWeight w = IntesharWeight.regular,
+    double? height,
+    double? letterSpacing,
+  }) =>
+      IntesharType.sans(IntesharScale.bodyLg,
+          color: color, w: w, height: height, letterSpacing: letterSpacing);
+
+  /// 16 · card titles and list-row primaries. Semibold by default.
+  static TextStyle title({
+    Color? color,
+    FontWeight w = IntesharWeight.semibold,
+    double? height,
+    double? letterSpacing,
+  }) =>
+      IntesharType.sans(IntesharScale.title,
+          color: color, w: w, height: height ?? 1.25, letterSpacing: letterSpacing);
+
+  /// 20 · section and sheet titles.
+  static TextStyle titleLg({
+    Color? color,
+    FontWeight w = IntesharWeight.heavy,
+    double? height,
+    double? letterSpacing,
+  }) =>
+      IntesharType.sans(IntesharScale.titleLg,
+          color: color, w: w, height: height ?? 1.2, letterSpacing: letterSpacing);
+
+  /// 24 · stat-tile numerals, sheet heroes.
+  static TextStyle display({Color? color, FontWeight w = IntesharWeight.heavy}) =>
+      IntesharType.display(IntesharScale.display, color: color, w: w);
+
+  /// 32 · page titles, balance heroes.
+  static TextStyle displayLg({Color? color, FontWeight w = IntesharWeight.black}) =>
+      IntesharType.display(IntesharScale.displayLg, color: color, w: w);
 }
 
 /// Builds a mode's theme, optionally seeded by a white-label brand.
@@ -541,7 +816,12 @@ class IntesharType {
 /// control; those edits are outside this file — see the follow-up list for
 /// `agent_form.dart`, `entity_tree_page.dart`, `entity.dart`, `branding.dart`
 /// and `theme_provider.dart`.
-ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
+ThemeData _build(
+  Brightness b, {
+  Color? brandPrimary,
+  Color? brandSecondary,
+  bool cursive = false,
+}) {
   final isDark = b == Brightness.dark;
 
   final paper       = isDark ? IntesharColors.inkPaper : IntesharColors.paper;
@@ -635,25 +915,33 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
         fontStyle: style,
         color: c,
         height: height,
-        letterSpacing: tracking,
+        // UX-141: tracking is a Latin device — suppressed for cursive scripts.
+        letterSpacing: cursive ? null : tracking,
       );
 
+  // UX-127: the seven sizes below the headline tier now come from
+  // [IntesharScale], so the theme and `IntesharText.*` cannot drift apart.
+  // `bodySmall` was the theme's only half-point step (12.5) and is now `body`.
+  //
+  // Every `w600` is gone: CodecPro registers no 600 face, so that tier resolved
+  // to News on Android (lighter than the body it emphasised) and to Bold on the
+  // web — see [IntesharWeight]. `semibold` is Bold, the nearest real face.
   final textTheme = TextTheme(
-    displayLarge:   codec(size: 57, w: FontWeight.w900, c: onPaper, height: 1.0,  tracking: -1.6),
-    displayMedium:  codec(size: 45, w: FontWeight.w900, c: onPaper, height: 1.05, tracking: -1.1),
-    displaySmall:   codec(size: 36, w: FontWeight.w800, c: onPaper, height: 1.05, tracking: -0.7),
-    headlineLarge:  codec(size: 32, w: FontWeight.w800, c: onPaper, height: 1.1,  tracking: -0.5),
-    headlineMedium: codec(size: 28, w: FontWeight.w700, c: onPaper, height: 1.15, tracking: -0.4),
-    headlineSmall:  codec(size: 24, w: FontWeight.w700, c: onPaper, height: 1.2,  tracking: -0.3),
-    titleLarge:     codec(size: 20, w: FontWeight.w700, c: onPaper, height: 1.25, tracking: -0.2),
-    titleMedium:    codec(size: 16, w: FontWeight.w600, c: onPaper, height: 1.3,  tracking: 0.0),
-    titleSmall:     codec(size: 14, w: FontWeight.w600, c: onPaper, height: 1.3,  tracking: 0.1),
-    bodyLarge:      codec(size: 16, w: FontWeight.w400, c: onPaper, height: 1.5),
-    bodyMedium:     codec(size: 14, w: FontWeight.w400, c: onPaper, height: 1.45),
-    bodySmall:      codec(size: 12.5, w: FontWeight.w400, c: onPaperSoft, height: 1.4),
-    labelLarge:     codec(size: 14, w: FontWeight.w600, c: onPaper,     tracking: 0.4),
-    labelMedium:    codec(size: 12, w: FontWeight.w600, c: onPaperSoft, tracking: 0.6),
-    labelSmall:     codec(size: 11, w: FontWeight.w700, c: onPaperSoft, tracking: 1.2),
+    displayLarge:   codec(size: 57, w: IntesharWeight.black, c: onPaper, height: 1.0,  tracking: -1.6),
+    displayMedium:  codec(size: 45, w: IntesharWeight.black, c: onPaper, height: 1.05, tracking: -1.1),
+    displaySmall:   codec(size: 36, w: IntesharWeight.heavy, c: onPaper, height: 1.05, tracking: -0.7),
+    headlineLarge:  codec(size: IntesharScale.displayLg, w: IntesharWeight.heavy, c: onPaper, height: 1.1,  tracking: -0.5),
+    headlineMedium: codec(size: 28, w: IntesharWeight.bold, c: onPaper, height: 1.15, tracking: -0.4),
+    headlineSmall:  codec(size: IntesharScale.display, w: IntesharWeight.bold, c: onPaper, height: 1.2,  tracking: -0.3),
+    titleLarge:     codec(size: IntesharScale.titleLg, w: IntesharWeight.bold, c: onPaper, height: 1.25, tracking: -0.2),
+    titleMedium:    codec(size: IntesharScale.title, w: IntesharWeight.semibold, c: onPaper, height: 1.3,  tracking: 0.0),
+    titleSmall:     codec(size: IntesharScale.bodyLg, w: IntesharWeight.semibold, c: onPaper, height: 1.3,  tracking: 0.1),
+    bodyLarge:      codec(size: IntesharScale.title, w: IntesharWeight.regular, c: onPaper, height: 1.5),
+    bodyMedium:     codec(size: IntesharScale.bodyLg, w: IntesharWeight.regular, c: onPaper, height: 1.45),
+    bodySmall:      codec(size: IntesharScale.body, w: IntesharWeight.regular, c: onPaperSoft, height: 1.4),
+    labelLarge:     codec(size: IntesharScale.bodyLg, w: IntesharWeight.semibold, c: onPaper,     tracking: 0.4),
+    labelMedium:    codec(size: IntesharScale.body, w: IntesharWeight.semibold, c: onPaperSoft, tracking: 0.6),
+    labelSmall:     codec(size: IntesharScale.caption, w: IntesharWeight.bold, c: onPaperSoft, tracking: 1.2),
   );
 
   return ThemeData(
@@ -692,7 +980,7 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
       centerTitle: false,
       elevation: 0,
       scrolledUnderElevation: 0,
-      titleTextStyle: codec(size: 22, w: FontWeight.w700, c: onPaper, tracking: -0.3),
+      titleTextStyle: codec(size: IntesharScale.titleLg, w: IntesharWeight.bold, c: onPaper, tracking: -0.3),
     ),
     cardTheme: CardThemeData(
       elevation: 0,
@@ -708,17 +996,17 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
       backgroundColor: sunk,
       side: BorderSide(color: outline, width: 1),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(IntesharRadii.xs)),
-      labelStyle: codec(size: 11, w: FontWeight.w700, c: onPaper, tracking: 1.0),
+      labelStyle: codec(size: IntesharScale.caption, w: IntesharWeight.bold, c: onPaper, tracking: 1.0),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: card,
       isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      hintStyle: codec(size: 14, w: FontWeight.w400, c: onPaperSoft.withValues(alpha: 0.55)),
-      labelStyle: codec(size: 13, w: FontWeight.w500, c: onPaperSoft),
-      floatingLabelStyle: codec(size: 13, w: FontWeight.w600, c: brandInk),
+      contentPadding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.lg, vertical: IntesharSpacing.lg),
+      hintStyle: codec(size: IntesharScale.bodyLg, w: IntesharWeight.regular, c: onPaperSoft.withValues(alpha: 0.55)),
+      labelStyle: codec(size: IntesharScale.bodyLg, w: IntesharWeight.regular, c: onPaperSoft),
+      floatingLabelStyle: codec(size: IntesharScale.body, w: IntesharWeight.semibold, c: brandInk),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(IntesharRadii.sm),
         borderSide: BorderSide(color: outline, width: 1),
@@ -746,7 +1034,7 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
       style: FilledButton.styleFrom(
         backgroundColor: onPaper,
         foregroundColor: paper,
-        textStyle: codec(size: 14, w: FontWeight.w700, tracking: 0.4),
+        textStyle: codec(size: IntesharScale.bodyLg, w: IntesharWeight.bold, tracking: 0.4),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(IntesharRadii.sm)),
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
         minimumSize: const Size(0, 48),
@@ -759,7 +1047,7 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
         // Ink for the stock marigold (white fails WCAG on yellow), but measured
         // per brand — a hardcoded ink was unreadable on a dark white-label fill.
         foregroundColor: onSaffron,
-        textStyle: codec(size: 14, w: FontWeight.w800, tracking: 0.4),
+        textStyle: codec(size: IntesharScale.bodyLg, w: IntesharWeight.heavy, tracking: 0.4),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(IntesharRadii.sm)),
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
       ),
@@ -768,7 +1056,7 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
       style: OutlinedButton.styleFrom(
         foregroundColor: onPaper,
         side: BorderSide(color: outline, width: 1),
-        textStyle: codec(size: 14, w: FontWeight.w600, tracking: 0.3),
+        textStyle: codec(size: IntesharScale.bodyLg, w: IntesharWeight.semibold, tracking: 0.3),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(IntesharRadii.sm)),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
       ),
@@ -776,7 +1064,7 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: brandInk,
-        textStyle: codec(size: 13, w: FontWeight.w600, tracking: 0.3),
+        textStyle: codec(size: IntesharScale.bodyLg, w: IntesharWeight.semibold, tracking: 0.3),
       ),
     ),
     floatingActionButtonTheme: FloatingActionButtonThemeData(
@@ -791,12 +1079,12 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
     listTileTheme: ListTileThemeData(
       iconColor: onPaperSoft,
       textColor: onPaper,
-      titleTextStyle: codec(size: 14.5, w: FontWeight.w600, c: onPaper),
-      subtitleTextStyle: codec(size: 12.5, w: FontWeight.w400, c: onPaperSoft),
+      titleTextStyle: codec(size: IntesharScale.bodyLg, w: IntesharWeight.semibold, c: onPaper),
+      subtitleTextStyle: codec(size: IntesharScale.body, w: IntesharWeight.regular, c: onPaperSoft),
     ),
     snackBarTheme: SnackBarThemeData(
       backgroundColor: onPaper,
-      contentTextStyle: codec(size: 14, w: FontWeight.w500, c: paper),
+      contentTextStyle: codec(size: IntesharScale.bodyLg, w: IntesharWeight.regular, c: paper),
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(IntesharRadii.sm)),
     ),
@@ -821,8 +1109,8 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
         borderRadius: BorderRadius.circular(IntesharRadii.md),
         side: BorderSide(color: outline, width: 1),
       ),
-      titleTextStyle: codec(size: 22, w: FontWeight.w700, c: onPaper, tracking: -0.3),
-      contentTextStyle: codec(size: 14, w: FontWeight.w400, c: onPaper, height: 1.45),
+      titleTextStyle: codec(size: IntesharScale.titleLg, w: IntesharWeight.bold, c: onPaper, tracking: -0.3),
+      contentTextStyle: codec(size: IntesharScale.bodyLg, w: IntesharWeight.regular, c: onPaper, height: 1.45),
     ),
     // UX-145: the selected item used to be the LEAST readable thing on the bar —
     // raw gold on white is 2.05:1 against 6.25:1 for the unselected grey. It now
@@ -832,7 +1120,7 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: card,
       surfaceTintColor: Colors.transparent,
-      indicatorColor: saffron.withValues(alpha: 0.16),
+      indicatorColor: brandWash,
       indicatorShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(IntesharRadii.sm)),
       iconTheme: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
@@ -841,8 +1129,8 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
         return codec(
-          size: 11,
-          w: selected ? FontWeight.w800 : FontWeight.w600,
+          size: IntesharScale.caption,
+          w: selected ? IntesharWeight.heavy : IntesharWeight.semibold,
           tracking: 0.5,
           c: selected ? brandOnSurface : onPaperSoft,
         );
@@ -851,12 +1139,12 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
     ),
     navigationRailTheme: NavigationRailThemeData(
       backgroundColor: card,
-      indicatorColor: saffron.withValues(alpha: 0.16),
+      indicatorColor: brandWash,
       indicatorShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(IntesharRadii.sm)),
       selectedIconTheme: IconThemeData(color: brandOnSurface, size: 22),
       unselectedIconTheme: IconThemeData(color: onPaperSoft, size: 22),
-      selectedLabelTextStyle: codec(size: 11, w: FontWeight.w800, c: brandOnSurface, tracking: 0.4),
-      unselectedLabelTextStyle: codec(size: 11, w: FontWeight.w500, c: onPaperSoft, tracking: 0.4),
+      selectedLabelTextStyle: codec(size: IntesharScale.caption, w: IntesharWeight.heavy, c: brandOnSurface, tracking: 0.4),
+      unselectedLabelTextStyle: codec(size: IntesharScale.caption, w: IntesharWeight.regular, c: onPaperSoft, tracking: 0.4),
     ),
     sliderTheme: SliderThemeData(
       activeTrackColor: brandOnSurface,
@@ -882,6 +1170,8 @@ ThemeData _build(Brightness b, {Color? brandPrimary, Color? brandSecondary}) {
 
 final intesharLightTheme = _build(Brightness.light);
 final intesharDarkTheme = _build(Brightness.dark);
+final _intesharLightThemeCursive = _build(Brightness.light, cursive: true);
+final _intesharDarkThemeCursive = _build(Brightness.dark, cursive: true);
 
 /// Parses `#RRGGBB`, `RRGGBB`, or `#AARRGGBB`. Returns null on null/empty/invalid.
 Color? parseHexColor(String? hex) {
@@ -898,14 +1188,27 @@ Color? parseHexColor(String? hex) {
 
 /// Light+dark themes seeded by optional brand hex colours (white-label, FR-28).
 /// Falls back to the default Inteshar Sunburst themes when both are unset/invalid.
-({ThemeData light, ThemeData dark}) buildBrandThemes({String? primaryHex, String? secondaryHex}) {
+///
+/// [cursiveScript] carries the UX-141 rule into the baked `TextTheme`: with a
+/// cursive locale active every letter-spacing in the theme is dropped, because
+/// tracking breaks the joins of Arabic. It mirrors [IntesharType.cursiveScript],
+/// which does the same for the styles widgets build directly.
+({ThemeData light, ThemeData dark}) buildBrandThemes({
+  String? primaryHex,
+  String? secondaryHex,
+  bool cursiveScript = false,
+}) {
   final primary = parseHexColor(primaryHex);
   final secondary = parseHexColor(secondaryHex);
   if (primary == null && secondary == null) {
-    return (light: intesharLightTheme, dark: intesharDarkTheme);
+    return cursiveScript
+        ? (light: _intesharLightThemeCursive, dark: _intesharDarkThemeCursive)
+        : (light: intesharLightTheme, dark: intesharDarkTheme);
   }
   return (
-    light: _build(Brightness.light, brandPrimary: primary, brandSecondary: secondary),
-    dark: _build(Brightness.dark, brandPrimary: primary, brandSecondary: secondary),
+    light: _build(Brightness.light,
+        brandPrimary: primary, brandSecondary: secondary, cursive: cursiveScript),
+    dark: _build(Brightness.dark,
+        brandPrimary: primary, brandSecondary: secondary, cursive: cursiveScript),
   );
 }

@@ -8,6 +8,7 @@ import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
 import 'package:inteshar/features/notifications/data/notification_repository.dart';
 import 'package:inteshar/features/notifications/domain/app_notification.dart';
+import 'package:inteshar/shared/widgets/app_snackbar.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/entity_search_picker.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
@@ -47,7 +48,24 @@ class _S {
   String get errBody => p('Message is required', 'الرسالة مطلوبة');
   String get errTypes => p('Pick at least one type', 'اختر نوعًا واحدًا على الأقل');
   String get errEntities => p('Pick at least one entity', 'اختر كيانًا واحدًا على الأقل');
-  String get successMsg => p('Notification sent!', 'تم إرسال الإشعار!');
+  /// UX-88: "Notification sent!" confirmed nothing — not the kind that went out
+  /// (an ALERT is a persistent banner, a notification is an inbox row) and not
+  /// who received it. A broadcast to everyone and a note to one shop produced
+  /// the SAME six characters. These name both, from the audience the sender
+  /// just chose, so the toast can be checked against the intent.
+  String sentAlertTo(String audience) =>
+      p('Alert sent to $audience', 'أُرسل التنبيه إلى $audience');
+  String sentNoticeTo(String audience) =>
+      p('Notification sent to $audience', 'أُرسل الإشعار إلى $audience');
+  String get audAllPos => p('all POS operators', 'كل مستخدمي نقاط البيع');
+  String get audEveryone => p('everyone', 'الجميع');
+  String audAccounts(int n) => p(
+      n == 1 ? '1 account' : '$n accounts',
+      n == 1 ? 'حساب واحد' : '$n حسابات');
+  /// "POS operators in [the named tiers]" — posOnly narrows a tier/entity audience too,
+  /// and a confirmation that omits the narrowing overstates the reach.
+  String posWithin(String audience) =>
+      p('POS operators in $audience', 'مستخدمو نقاط البيع في $audience');
   String get historyLabel => p('Sent notifications', 'الإشعارات المرسلة');
   String get historyEmpty => p('No notifications have been sent yet.', 'لم يُرسل أي إشعار بعد.');
   String get loadMore => p('Load more', 'تحميل المزيد');
@@ -221,18 +239,27 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
     super.dispose();
   }
 
+  /// UX-88: ONE description of the audience, used by both the pre-send confirm
+  /// and the post-send toast — so the sentence the sender agreed to is the
+  /// sentence they get back. It also now NAMES the tiers instead of saying "the
+  /// selected tiers", and carries the posOnly narrowing into every mode (it
+  /// applies to tier and entity audiences too, not just "Everyone").
+  String _audienceLabel(_S s) {
+    final base = switch (_mode) {
+      _Mode.all => s.audEveryone,
+      _Mode.type => (_types.toList()..sort()).map(s.tierLabel).join('، '),
+      _Mode.entity => s.audAccounts(_entityIds.length),
+    };
+    if (!_posOnly) return base;
+    return _mode == _Mode.all ? s.audAllPos : s.posWithin(base);
+  }
+
   /// Confirm a send before it fires — a broadcast (especially an ALERT to
   /// Everyone) pushes an irreversible, persistent banner to many users on one tap.
   Future<bool> _confirmSend() async {
     final ar = Localizations.localeOf(context).languageCode == 'ar';
     final kind = _isAlert ? (ar ? 'تنبيه' : 'an alert') : (ar ? 'إشعار' : 'a notification');
-    final audience = switch (_mode) {
-      _Mode.all => _posOnly
-          ? (ar ? 'كل نقاط البيع' : 'all POS operators')
-          : (ar ? 'الجميع' : 'everyone'),
-      _Mode.type => ar ? 'الفئات المحددة' : 'the selected tiers',
-      _Mode.entity => ar ? '${_entityIds.length} حساب' : '${_entityIds.length} account(s)',
-    };
+    final audience = _audienceLabel(widget.s);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -258,6 +285,11 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
 
     if (!await _confirmSend()) return;
 
+    // Captured BEFORE the form is reset — the toast describes the send that just
+    // happened, and `_send` clears the audience on success.
+    final audience = _audienceLabel(s);
+    final wasAlert = _isAlert;
+
     setState(() { _sending = true; _error = null; });
     try {
       await NotificationRepository(ref.read(apiClientProvider)).send(
@@ -280,8 +312,11 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
         _entityIds.clear();
         _posOnly = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(s.successMsg), behavior: SnackBarBehavior.floating));
+      // UX-88: names the kind and the audience. A true recipient COUNT would be
+      // better still, but `POST /api/notifications` returns the created
+      // Notification and no delivery tally — that needs a backend change.
+      showOk(context,
+          wasAlert ? s.sentAlertTo(audience) : s.sentNoticeTo(audience));
       widget.onSent();
     } catch (e) {
       if (mounted) setState(() { _sending = false; _error = friendlyError(e, context); });

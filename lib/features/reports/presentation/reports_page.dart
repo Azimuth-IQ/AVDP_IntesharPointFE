@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
@@ -19,6 +20,7 @@ import 'package:inteshar/features/reports/data/reports_repository.dart';
 import 'package:inteshar/features/reports/domain/report_filters.dart';
 import 'package:inteshar/features/reports/domain/report_rows.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
+import 'package:inteshar/shared/widgets/entity_search_picker.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
@@ -41,7 +43,16 @@ class _RS {
 
   String get eyebrow => p('Reports', 'التقارير');
   String get title => p('Reports', 'التقارير');
-  String get subtitle => p('Balances, transfers, prices and stock', 'الأرصدة والتحويلات والأسعار والمخزون');
+  // UX-105: Reports and System Activity are both in Oversight, both show
+  // transfers/entities/users, and neither said which to open. The stated split:
+  // reports = TOTALS over a period; activity = individual events as they land.
+  String get subtitle => p(
+      'Totals over a period — balances, transfers, prices and stock',
+      'مجاميع على مدة زمنية — الأرصدة والتحويلات والأسعار والمخزون');
+  String get goActivity => p('System Activity', 'نشاط النظام');
+  String get goActivityHint => p(
+      'Looking for a single event as it happened? That is System Activity.',
+      'تبحث عن حدث مفرد لحظة وقوعه؟ ذلك في نشاط النظام.');
   String get tabPrices => p('Prices', 'الأسعار');
   String get tabStock => p('Stock', 'المخزون');
   String get tabDetailed => p('Detailed', 'مفصّل');
@@ -49,6 +60,13 @@ class _RS {
   String get tabAgentBalances => p('Agent balances', 'أرصدة الوكلاء');
   String get tabTransfers => p('Transfers', 'التحويلات');
   String get viewFor => p('Report for', 'التقرير لـ');
+  // UX-29: the dropdown only ever held self + DIRECT children, so a Main Agent
+  // could scope a report to a sub-agent but never to one of the shops beneath
+  // it — the leaves where selling actually happens. The read routes are already
+  // self-or-descendant scoped, so the whole subtree is reachable; it just needed
+  // a way to reach it that isn't a list of every descendant.
+  String get searchAccounts =>
+      p('Search any account below you', 'ابحث في أي حساب تابع لك');
   String get self => p('Me', 'أنا');
   String get company => p('Company', 'الشركة');
   String get category => p('Category', 'الفئة');
@@ -352,7 +370,12 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
           ...subs.map((e) => (e.id, e.name)),
         ];
       } catch (_) {}
-    } else if (me != null && me.type == EntityType.AGENT1) {
+    } else if (me != null &&
+        (me.type == EntityType.AGENT1 || me.type == EntityType.AGENT2)) {
+      // UX-29: AGENT2 used to fall through here with no branch at all, so a Sub
+      // Agent got no picker and could never isolate one of its own shops. Its
+      // direct children ARE the shops, so the same query serves both tiers; a
+      // Main Agent reaches ITS shops (grandchildren) through the search button.
       try {
         final children = await EntityRepository(ref.read(apiClientProvider))
             .children(me.id, size: 200);
@@ -889,7 +912,23 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     return MaxWidthBox(
       child: Column(
         children: [
-          PageHeader(eyebrow: s.eyebrow, title: s.title, subtitle: s.subtitle),
+          PageHeader(
+            eyebrow: s.eyebrow,
+            title: s.title,
+            subtitle: s.subtitle,
+            // UX-105: the cross-link back to the other half of Oversight. HQ
+            // only — `/hq/home` is the sole System Activity route, so offering
+            // it to an agent would be a dead end. Deliberately one icon rather
+            // than a card: this page already carries a picker, a family bar, a
+            // tab row and a filter row before the first data row (B-103).
+            trailing: _isHq
+                ? IconButton(
+                    icon: const Icon(Icons.bolt_outlined, size: 20),
+                    tooltip: '${s.goActivity} — ${s.goActivityHint}',
+                    onPressed: () => context.go('/hq/home'),
+                  )
+                : null,
+          ),
           if (_pickables.length > 1) _targetPicker(s),
           _familyBar(tabs, s),
           _tabBar(tabs),
@@ -923,8 +962,39 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
             },
           ),
         ),
+        // UX-29: the whole subtree, not just the level below. Listing every
+        // descendant in a dropdown is what this picker was avoiding, so the
+        // depth is reached by search instead — the same server-scoped picker
+        // used by pricing and the POS network.
+        const SizedBox(width: 4),
+        IconButton(
+          icon: const Icon(Icons.manage_search),
+          tooltip: s.searchAccounts,
+          onPressed: _pickTargetBySearch,
+        ),
       ]),
     );
+  }
+
+  /// UX-29: pick ANY account inside the caller's own subtree. `GET
+  /// /api/entity/search` is scoped server-side (HQ global, everyone else their
+  /// own subtree) and the report routes accept any self-or-descendant root, so
+  /// this needs no new server surface. A hit that isn't already in the quick
+  /// list is appended, so the dropdown can still name what it is showing.
+  Future<void> _pickTargetBySearch() async {
+    final picked = await showEntitySearchPicker(
+      context,
+      repository: EntityRepository(ref.read(apiClientProvider)),
+      title: _RS.of(context).viewFor,
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      if (!_pickables.any((p) => p.$1 == picked.id)) {
+        _pickables = [..._pickables, (picked.id, picked.label)];
+      }
+      _targetId = picked.id;
+    });
+    _invalidate();
   }
 
   /// B-103: the family picker. Three segments instead of nine chips, so the tab
@@ -1118,6 +1188,10 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
           const SizedBox(width: 8),
           IconButton(
             icon: Icon(Icons.clear, size: 18, color: cs.onSurfaceVariant),
+            // UX-150: a bare × beside a date range could plausibly close, reset
+            // or delete. Name the outcome, in the same words the button it
+            // clears would then show.
+            tooltip: s.allDates,
             // B-097: clearing now genuinely means every date — _allDates flows to
             // the API as an explicit flag. Use _invalidate so the paged accumulators
             // reset too; a stale _acc would show the old window's rows under the
@@ -1504,8 +1578,15 @@ class _ReportSurfaceState extends State<_ReportSurface> {
     );
   }
 
+  /// UX-119: the vertical padding used to live HERE, outside the per-cell
+  /// InkWell — so the sort control's actual hit area was the 15dp glyph line
+  /// while the header looked 35dp tall. It moved into [_headerCell], which now
+  /// carries a 44dp floor, so the whole cell is the target for both pointers
+  /// and fingers.
+  static const double _headerCellMinHeight = 44;
+
   Widget _header(ColorScheme cs) => Container(
-        padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(
           color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
           border: Border(bottom: BorderSide(color: cs.outlineVariant)),
@@ -1532,22 +1613,38 @@ class _ReportSurfaceState extends State<_ReportSurface> {
       style: IntesharType.overline(
           color: _sortIndex == i ? context.tones.brandInk : cs.onSurfaceVariant),
     );
-    if (!col.numeric) return text;
-    return InkWell(
-      onTap: () => _tapColumn(i),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          Flexible(child: text),
-          const SizedBox(width: 2),
-          Icon(
-            _sortIndex == i
-                ? (_desc ? Icons.arrow_downward : Icons.arrow_upward)
-                : Icons.unfold_more,
-            size: 13,
-            color: _sortIndex == i ? context.tones.brandInk : cs.onSurfaceVariant,
+    if (!col.numeric) {
+      return Container(
+        constraints: const BoxConstraints(minHeight: _headerCellMinHeight),
+        alignment: AlignmentDirectional.centerStart,
+        child: text,
+      );
+    }
+    // UX-150: an `unfold_more` arrow beside a column name is not self-describing
+    // — nothing on this header says the column is tappable, or what tapping does.
+    return Tooltip(
+      message: '${widget.s.sortBy}: ${col.label}',
+      child: InkWell(
+        onTap: () => _tapColumn(i),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: _headerCellMinHeight),
+          alignment: AlignmentDirectional.centerEnd,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Flexible(child: text),
+              const SizedBox(width: 2),
+              Icon(
+                _sortIndex == i
+                    ? (_desc ? Icons.arrow_downward : Icons.arrow_upward)
+                    : Icons.unfold_more,
+                size: 13,
+                color: _sortIndex == i ? context.tones.brandInk : cs.onSurfaceVariant,
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -2116,7 +2213,12 @@ class _StockReport extends StatelessWidget {
                         color: cs.surfaceContainerHighest,
                         child: Icon(Icons.style_outlined, size: 34, color: cs.onSurfaceVariant),
                       )
+                    // UX-150: the artwork IS the row's identity in this grid, so
+                    // to a screen reader an unlabelled image leaves the card
+                    // anonymous until the name below it. The SKU name is the
+                    // description.
                     : Image.network(art,
+                        semanticLabel: sku.name,
                         width: double.infinity,
                         fit: BoxFit.cover,
                         errorBuilder: (_, _, _) => Container(

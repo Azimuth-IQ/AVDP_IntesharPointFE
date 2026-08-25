@@ -13,6 +13,7 @@ import 'package:inteshar/features/entities/domain/entity_summary_row.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/pricing/data/pricing_repository.dart';
 import 'package:inteshar/features/pricing/domain/pricing_models.dart';
+import 'package:inteshar/shared/widgets/app_snackbar.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
@@ -55,6 +56,27 @@ class _TS {
   String confirmTakeBack(String amount, String from) =>
       p('Confirm: take back $amount from $from', 'تأكيد: استرجاع $amount من $from');
   String get takenBack => p('Balance taken back', 'تم استرجاع الرصيد');
+
+  /// UX-88: for money, the AMOUNT is the confirmation. "Balance transferred"
+  /// confirmed that *something* happened to *someone* — it did not confirm the
+  /// figure that was typed, the account it went to, or what is left, which is
+  /// the whole reason an agent watches a transfer land. Same shape as the
+  /// withdraw toast the app already gets right ("Withdrew 60 of 100 — 40 left").
+  String sentDetail(String amount, String to, String left) => p(
+      'Sent $amount to $to — $left left',
+      'أُرسل $amount إلى $to — تبقّى $left');
+  String takenBackDetail(String amount, String from, String left) => p(
+      'Took back $amount from $from — $left left',
+      'استُرجع $amount من $from — تبقّى $left');
+
+  /// Same confirmations, minus the remaining balance — used when the refresh
+  /// that follows the transfer failed. The transfer itself succeeded, so it
+  /// must still be confirmed; quoting the PRE-transfer balance as "left" would
+  /// be worse than saying nothing about it.
+  String sentDetailOnly(String amount, String to) =>
+      p('Sent $amount to $to', 'أُرسل $amount إلى $to');
+  String takenBackDetailOnly(String amount, String from) =>
+      p('Took back $amount from $from', 'استُرجع $amount من $from');
   String get takeBackHint => p(
       'Only balance the account has not spent can come back.',
       'يمكن استرجاع الرصيد غير المصروف فقط.');
@@ -226,6 +248,21 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
     }
   }
 
+  /// UX-88: refresh, then report the balance the SERVER now holds — or null if
+  /// the refresh didn't land.
+  ///
+  /// The confirmation quotes "what's left", and the only honest source for that
+  /// is a figure read back after the transfer. `_load` swallows its own errors
+  /// (it renders an ErrorState instead), so a failed refresh would otherwise
+  /// leave `_balance` at its PRE-transfer value and the toast would confirm a
+  /// number that was never true. Null means "say the amount and the recipient,
+  /// but claim nothing about the remainder".
+  Future<num?> _reloadForConfirmation() async {
+    await _load(silent: true);
+    if (!mounted || _error != null) return null;
+    return _balance?.available;
+  }
+
   /// EVERY direct child, paged to exhaustion. The server clamps `size` to 200 and
   /// sorts rows type-ascending, so an agent's own POS points (STORE sorts last) fell
   /// off the first page entirely — which is why they appeared to be missing (B-092).
@@ -393,8 +430,19 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
       await PricingRepository(ref.read(apiClientProvider))
           .reclaim(destId: target.id, amount: amount);
       if (!mounted) return;
-      messenger.showSnackBar(SnackBar(content: Text(s.takenBack)));
-      await _load(silent: true);
+      // UX-88: reload FIRST so "left" is the balance the server actually holds,
+      // not a locally-subtracted guess — a take-back the server partially
+      // refused would otherwise be confirmed with a figure that never existed.
+      final fresh = await _reloadForConfirmation();
+      if (!mounted) return;
+      showOk(
+        context,
+        fresh == null
+            ? s.takenBackDetailOnly(
+                Formatters.iqd(amount.round()), target.label)
+            : s.takenBackDetail(Formatters.iqd(amount.round()), target.label,
+                Formatters.iqd(fresh.round())),
+      );
     } catch (e) {
       if (mounted) {
         // The server knows the real ceiling; its wording is the useful one.
@@ -420,6 +468,8 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
     // sub-agent is occasional. Falls back to agents when the account has no POS
     // points, so the dialog never opens on an empty list.
     var kind = posCount > 0 ? _DestKind.pos : _DestKind.subAgents;
+    // UX-31: a two-way control is only worth a row when both ways lead somewhere.
+    final showKind = posCount > 0 && agentCount > 0;
     EntitySummaryRow? dest;
     var query = '';
     var armed = false; // second press commits (B-040 confirmation, inlined)
@@ -459,25 +509,34 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
         return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               // Recipient type — the agent's OWN POS points are a first-class
               // choice here, not something hidden behind another dialog.
-              SegmentedButton<_DestKind>(
-                showSelectedIcon: false,
-                style: const ButtonStyle(visualDensity: VisualDensity.compact),
-                segments: [
-                  ButtonSegment(
-                      value: _DestKind.subAgents,
-                      label: Text(ar ? 'الوكلاء ($agentCount)' : 'Agents ($agentCount)')),
-                  ButtonSegment(
-                      value: _DestKind.pos,
-                      label: Text(ar ? 'نقاط البيع ($posCount)' : 'POS ($posCount)')),
-                ],
-                selected: {kind},
-                onSelectionChanged: (sel) => setD(() {
-                  kind = sel.first;
-                  dest = null; // never carry a selection across lists
-                  disarm();
-                }),
-              ),
-              const SizedBox(height: 8),
+              //
+              // UX-31: only when there is actually a choice to make. A Sub
+              // Agent's children are ALL shops, so this control permanently read
+              // "الوكلاء (0) | نقاط البيع (N)" — a tappable segment whose only
+              // effect was to empty the list, costing a row in a dialog that
+              // already overflows on a phone (UX-26). With one kind present the
+              // list below IS that kind and needs no filter above it.
+              if (showKind) ...[
+                SegmentedButton<_DestKind>(
+                  showSelectedIcon: false,
+                  style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                  segments: [
+                    ButtonSegment(
+                        value: _DestKind.subAgents,
+                        label: Text(ar ? 'الوكلاء ($agentCount)' : 'Agents ($agentCount)')),
+                    ButtonSegment(
+                        value: _DestKind.pos,
+                        label: Text(ar ? 'نقاط البيع ($posCount)' : 'POS ($posCount)')),
+                  ],
+                  selected: {kind},
+                  onSelectionChanged: (sel) => setD(() {
+                    kind = sel.first;
+                    dest = null; // never carry a selection across lists
+                    disarm();
+                  }),
+                ),
+                const SizedBox(height: 8),
+              ],
               if (_children.length > 6)
                 TextField(
                   decoration: InputDecoration(
@@ -631,8 +690,17 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
       await PricingRepository(ref.read(apiClientProvider))
           .grant(destId: target.id, amount: amount);
       if (!mounted) return;
-      messenger.showSnackBar(SnackBar(content: Text(s.sent)));
-      await _load(silent: true);
+      // UX-88: see [_TS.sentDetail] — reload before confirming so the remaining
+      // balance quoted is the server's, not this screen's arithmetic.
+      final fresh = await _reloadForConfirmation();
+      if (!mounted) return;
+      showOk(
+        context,
+        fresh == null
+            ? s.sentDetailOnly(Formatters.iqd(amount.round()), target.label)
+            : s.sentDetail(Formatters.iqd(amount.round()), target.label,
+                Formatters.iqd(fresh.round())),
+      );
     } catch (e) {
       if (mounted) {
         messenger

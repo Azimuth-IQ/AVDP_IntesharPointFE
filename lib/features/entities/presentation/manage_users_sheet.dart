@@ -469,6 +469,10 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
                     decoration: InputDecoration(
                       labelText: l.manageUsersPassword,
                       suffixIcon: IconButton(
+                        // UX-150.
+                        tooltip: _obscurePass
+                            ? (_ar ? 'إظهار كلمة المرور' : 'Show password')
+                            : (_ar ? 'إخفاء كلمة المرور' : 'Hide password'),
                         icon: Icon(
                           _obscurePass
                               ? Icons.visibility
@@ -675,8 +679,10 @@ class _UserRow extends StatelessWidget {
                 },
               )
             else
+              // UX-150: an icon-only, unrecoverable delete with no name on it.
               IconButton(
                 key: Key('remove-${user.phone}'),
+                tooltip: ar ? 'حذف المستخدم' : 'Remove user',
                 icon: Icon(Icons.delete_outline, color: cs.error, size: 18),
                 onPressed: onRemove,
               ),

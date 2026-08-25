@@ -233,6 +233,10 @@ class _SliderRow extends StatelessWidget {
             borderRadius: BorderRadius.circular(IntesharRadii.sm),
             child: Image.network(
               slider.imageUrl,
+              // UX-150: a slide has no name — the picture IS the slide, so an
+              // unlabelled thumbnail leaves a screen-reader user with four
+              // identical rows. The audience line is what distinguishes them.
+              semanticLabel: audienceSummary,
               width: 84,
               height: 47, // ~16:9
               fit: BoxFit.cover,
@@ -265,7 +269,14 @@ class _SliderRow extends StatelessWidget {
         // two taps apart and one of them cannot be undone. Full-size targets
         // restored, plus tooltips so four bare glyphs are distinguishable.
         final actions = [
-          Switch(value: slider.active, onChanged: (_) => onToggle()),
+          // UX-150: the switch was the one control in this row of five with no
+          // name at all — the four icon buttons at least got tooltips.
+          Tooltip(
+            message: slider.active
+                ? _t(context, 'إخفاء الصورة', 'Hide slide')
+                : _t(context, 'إظهار الصورة', 'Show slide'),
+            child: Switch(value: slider.active, onChanged: (_) => onToggle()),
+          ),
           IconButton(
               tooltip: _t(context, 'تحريك لأعلى', 'Move up'),
               icon: const Icon(Icons.keyboard_arrow_up, size: 20),
@@ -475,7 +486,10 @@ class _SliderEditorSheetState extends ConsumerState<_SliderEditorSheet> {
                 borderRadius: BorderRadius.circular(IntesharRadii.sm),
                 child: AspectRatio(
                   aspectRatio: 16 / 9,
-                  child: Image.network(_imageUrl, fit: BoxFit.cover),
+                  child: Image.network(_imageUrl,
+                      // UX-150: the preview of the slide being edited.
+                      semanticLabel: _t(context, 'معاينة الصورة', 'Slide preview'),
+                      fit: BoxFit.cover),
                 ),
               ),
             const SizedBox(height: 10),

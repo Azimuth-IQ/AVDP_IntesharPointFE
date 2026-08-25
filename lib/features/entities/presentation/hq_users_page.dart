@@ -238,10 +238,15 @@ class _UserCard extends StatelessWidget {
                 tooltip: _tr(context, 'إعادة تعيين 2FA', 'Reset 2FA'),
                 onPressed: onResetTotp,
                 icon: const Icon(Icons.lock_reset, size: 18)),
+            // UX-150: three bare glyphs in a row, one of them an unrecoverable
+            // delete, and only the first was named. A tooltip is the only label
+            // an icon-only control ever gets.
             IconButton(
+                tooltip: _tr(context, 'تعديل المستخدم', 'Edit user'),
                 onPressed: onEdit,
                 icon: const Icon(Icons.edit_outlined, size: 18)),
             IconButton(
+                tooltip: _tr(context, 'حذف المستخدم', 'Remove user'),
                 onPressed: onRemove,
                 icon: Icon(Icons.delete_outline, size: 18, color: cs.error)),
           ]),

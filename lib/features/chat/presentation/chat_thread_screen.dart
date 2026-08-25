@@ -376,6 +376,8 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
           // because it is now visible as its own bubble rather than as a
           // disabled send button.
           IconButton.filled(
+            // UX-150: the send button carried no name at all.
+            tooltip: ar ? 'إرسال' : 'Send',
             onPressed: _send,
             icon: const Icon(Icons.send, size: 20),
           ),

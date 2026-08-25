@@ -444,7 +444,15 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
           PageHeader(
             eyebrow: l.navSystemActivity,
             title: l.navSystemActivity,
-            subtitle: l.sysActSubtitle,
+            // UX-105: this screen and Reports both sit in Oversight and both
+            // show transfers, entities and users, and neither said which to
+            // open. The division is: ACTIVITY answers "what just happened" —
+            // individual events, as they land; REPORTS answers "how much, over
+            // a period" — totals you can export. The subtitle states the first
+            // half; `_reportsCrossLink` names the second and links to it.
+            subtitle: ar
+                ? 'ما حدث للتو — الأحداث والمعاملات والكيانات والمستخدمون، حدثاً بحدث.'
+                : 'What just happened — events, transactions, entities and users, one at a time.',
             trailing: IconButton.filledTonal(
               tooltip: l.inventoryRefresh,
               onPressed: _refreshVisible,
@@ -555,6 +563,17 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
           ],
           const SizedBox(height: 12),
           _HealthHint(ar: ar),
+          const SizedBox(height: 16),
+          // UX-105: the other half of the Oversight pair, named and linked
+          // rather than left to be discovered by opening both and comparing.
+          _SiblingSectionLink(
+            icon: Icons.summarize_outlined,
+            title: ar ? 'التقارير' : 'Reports',
+            body: ar
+                ? 'المجاميع على مدة زمنية — الأرصدة والتحويلات والمبيعات والمخزون، قابلة للتصدير. هذه الشاشة تعرض الأحداث المفردة؛ التقارير تجمعها.'
+                : 'Totals over a period — balances, transfers, sales and stock, exportable. This screen shows individual events; Reports adds them up.',
+            onTap: () => context.go('/hq/reports'),
+          ),
         ],
       ),
     );
@@ -1154,6 +1173,54 @@ class _HealthHint extends StatelessWidget {
   }
 }
 
+/// UX-105: a link to the OTHER Oversight screen, with the division of labour
+/// spelled out on it.
+///
+/// Reports and System Activity answer different questions over largely the same
+/// data (transfers, entities and users appear on both), and neither said which
+/// to open — so the same fact was looked up in two places on two different
+/// bases. Stating the split where the reader already is beats renaming a nav
+/// item they have already learned.
+class _SiblingSectionLink extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String body;
+  final VoidCallback onTap;
+  const _SiblingSectionLink({
+    required this.icon,
+    required this.title,
+    required this.body,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return InkCard(
+      bordered: true,
+      elevated: false,
+      onTap: onTap,
+      padding: const EdgeInsets.all(14),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, size: 20, color: context.tones.brandInk),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title,
+                style: IntesharType.sans(13.5,
+                    color: cs.onSurface, w: FontWeight.w800)),
+            const SizedBox(height: 3),
+            Text(body,
+                style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
+          ]),
+        ),
+        const SizedBox(width: 8),
+        Icon(Icons.chevron_right, size: 20, color: cs.onSurfaceVariant),
+      ]),
+    );
+  }
+}
+
 // ─── Stat strip ────────────────────────────────────────────────────────────────
 
 /// UX-37: five of these tiles are all-time totals and the sixth was windowed,
@@ -1501,7 +1568,11 @@ class _SearchField extends StatelessWidget {
         prefixIcon: const Icon(Icons.search, size: 20),
         suffixIcon: controller.text.isEmpty
             ? null
-            : IconButton(icon: const Icon(Icons.close, size: 18), onPressed: onClear),
+            // UX-150: a bare x inside a search box.
+            : IconButton(
+                tooltip: MaterialLocalizations.of(context).deleteButtonTooltip,
+                icon: const Icon(Icons.close, size: 18),
+                onPressed: onClear),
       ),
     );
   }

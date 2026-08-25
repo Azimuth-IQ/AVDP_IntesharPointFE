@@ -468,6 +468,8 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
               suffixIcon: _query.isEmpty
                   ? null
                   : IconButton(
+                      // UX-150: a bare x inside a search box.
+                      tooltip: MaterialLocalizations.of(context).deleteButtonTooltip,
                       icon: const Icon(Icons.close, size: 18),
                       onPressed: () {
                         _searchDebounce?.cancel();

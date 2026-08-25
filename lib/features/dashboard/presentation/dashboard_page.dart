@@ -374,6 +374,15 @@ class _SlimHeader extends StatelessWidget {
 /// actual selling counter is a separate point-of-sale login (the USER-role
 /// account on `/pos`). Prevents an owner who signed in with the admin account
 /// from concluding the app can't sell.
+///
+/// UX-107: it now also says where MESSAGES live. HQ, AGENT1 and AGENT2 all have
+/// a Conversations destination and a sub-agent can start a thread with a shop —
+/// but there is no `/store/chat` route and no store nav entry, so the thread
+/// lands only on the counter operator's device while the person the agent
+/// actually needs (the owner, about balance and stock) has no inbox at all.
+/// Adding the route is `lib/app/router.dart` + `lib/shared/widgets/app_scaffold.dart`;
+/// until then, silence here reads as "the app has no messaging", which is worse
+/// than a plain statement of where to look.
 class _StorePosNote extends StatelessWidget {
   const _StorePosNote();
 
@@ -381,6 +390,28 @@ class _StorePosNote extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final ar = Localizations.localeOf(context).languageCode == 'ar';
+
+    Widget line(IconData icon, String title, String body) => Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 20, color: context.tones.brandInk),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: IntesharType.sans(13.5,
+                          color: cs.onSurface, w: FontWeight.w800)),
+                  const SizedBox(height: 3),
+                  Text(body,
+                      style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+                ],
+              ),
+            ),
+          ],
+        );
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -388,28 +419,23 @@ class _StorePosNote extends StatelessWidget {
         borderRadius: BorderRadius.circular(IntesharRadii.md),
         border: Border.all(color: context.tones.brand.withValues(alpha: 0.4)),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.point_of_sale_outlined, size: 20, color: context.tones.brandInk),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  ar ? 'هذه شاشة إدارة المتجر' : 'This is the shop management console',
-                  style: IntesharType.sans(13.5, color: cs.onSurface, w: FontWeight.w800),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  ar
-                      ? 'للبيع والطباعة، سجّل الدخول بحساب نقطة البيع (حساب المستخدم) على تطبيق نقطة البيع.'
-                      : 'To sell and print, sign in with your point-of-sale account (the USER login) in the POS app.',
-                  style: IntesharType.sans(12.5, color: cs.onSurfaceVariant),
-                ),
-              ],
-            ),
+          line(
+            Icons.point_of_sale_outlined,
+            ar ? 'هذه شاشة إدارة المتجر' : 'This is the shop management console',
+            ar
+                ? 'للبيع والطباعة، سجّل الدخول بحساب نقطة البيع (حساب المستخدم) على تطبيق نقطة البيع.'
+                : 'To sell and print, sign in with your point-of-sale account (the USER login) in the POS app.',
+          ),
+          const SizedBox(height: 12),
+          line(
+            Icons.forum_outlined,
+            ar ? 'المحادثات مع وكيلك' : 'Messages from your agent',
+            ar
+                ? 'تصل رسائل وكيلك إلى تبويب "التواصل" في تطبيق نقطة البيع، وليس إلى هذه الشاشة. أما إشعارات الإدارة فتجدها في "الإشعارات" هنا.'
+                : 'Your agent\'s messages arrive in the "Conversations" tab of the POS app, not on this console. Headquarters announcements are under Notifications here.',
           ),
         ],
       ),

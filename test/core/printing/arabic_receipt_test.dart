@@ -83,13 +83,33 @@ void main() {
     expect(len, greaterThan(0));
   });
 
-  test('the test receipt stays ASCII — it is the cheap transport check', () async {
-    // Deliberately NOT rasterized: it must stay small and dependency-free so a
-    // "does this printer respond at all" probe is meaningful.
-    final job = await buildTestPrintJob();
-    expect(job.bytes.length, greaterThan(0));
-    expect(job.bytes.length, lessThan(2000),
-        reason: 'a raster test page would hide transport-level problems');
+  group('the test slip exercises the SAME path as a real receipt (UX-61)', () {
+    /// Millimetres of 58mm paper the byte stream implies, at 203 dpi.
+    double mmFor(int bytes) => (bytes / (PaperSize.mm58.width / 8)) / 203 * 25.4;
+
+    test('it is a raster, not an ESC/POS text slip', () async {
+      // The previous slip was ~60 bytes of Latin-1 `Generator.text()` while a
+      // real voucher is a rendered bitmap — so a printer with no raster support,
+      // a small input buffer or a chunking bug on the transport passed the test
+      // and garbled every actual receipt. A raster is orders of magnitude larger
+      // than any text slip, which is precisely the point.
+      final job = await buildTestPrintJob();
+      expect(job.bytes.length, greaterThan(4000),
+          reason: 'a text-only slip would not prove the raster path works');
+    });
+
+    test('it still costs the shop only a few centimetres of paper', () async {
+      // This is the slip you print repeatedly while triaging an unknown printer.
+      final job = await buildTestPrintJob();
+      expect(mmFor(job.bytes.length), lessThan(70));
+    });
+
+    test('the intent-transport text twin carries Arabic', () async {
+      // That path sends a Dart String, never the Latin-1 encoder, so an
+      // ASCII-only twin was a self-imposed limit.
+      final job = await buildTestPrintJob();
+      expect(containsArabic(job.text), isTrue);
+    });
   });
 
   group('Arabic detection drives the paragraph direction', () {

@@ -92,6 +92,19 @@ class PrinterService extends Notifier<PrinterState> {
   bool get isConnected =>
       _target != null && state.status == PrinterStatus.connected;
 
+  /// How long a re-probe may take before it is called a failure. A probe runs
+  /// while an operator is looking at a voucher sheet, so it must resolve in
+  /// about the time it takes to read the price — not in an RFCOMM timeout.
+  static const _probeTimeout = Duration(seconds: 4);
+
+  /// One probe at a time. Two in flight would fight over the same socket.
+  bool _probing = false;
+
+  /// True while [send] is pushing a receipt. A probe must never touch a
+  /// transport mid-receipt — re-opening an RFCOMM socket under a half-written
+  /// voucher would cut the customer's code in two.
+  bool _sending = false;
+
   /// True when the active transport re-renders our content instead of printing
   /// our bytes (the vendor intent path). The UI must say so.
   bool get isApproximate => _target?.isApproximate ?? false;
@@ -344,6 +357,120 @@ class PrinterService extends Notifier<PrinterState> {
     state = const PrinterState(status: PrinterStatus.idle);
   }
 
+  // ------------------------------------------------------------------ probing
+
+  /// Re-check that the adopted printer is still actually there.
+  ///
+  /// UX-55: [use] validates a transport **once**, at adoption, and until now
+  /// nothing ever re-checked it. A printer switched off, unplugged, out of paper
+  /// on the shelf or carried out of range kept a green "connected" chip and an
+  /// enabled Print button — and, worse, silenced the pre-sale "no printer
+  /// connected" warning, which is the app's one chance to set expectations
+  /// BEFORE an irreversible tap. The failure then surfaced only after the code
+  /// had been burned.
+  ///
+  /// The contract, in order of importance:
+  ///
+  /// * **It never writes bytes.** Not a status query, not an `ESC @`, nothing
+  ///   that could reach the head. A probe that prints — or that a loopback
+  ///   "printer" answers happily — is worse than no probe at all.
+  /// * **It never blocks a sale.** Callers fire it and forget; it self-limits
+  ///   with [_probeTimeout] and it does not gate any button.
+  /// * **It never adopts, drops or swaps a target.** The only thing it changes
+  ///   is whether the state reads [PrinterStatus.connected] or
+  ///   [PrinterStatus.unreachable] — the operator's choice of printer survives
+  ///   a failed probe, because a probe can be wrong and a sold code must never
+  ///   be trapped behind our guess.
+  ///
+  /// Returns true when the printer answered.
+  Future<bool> verifyConnection() async {
+    final t = _target;
+    if (t == null) return false;
+    // A connect is in flight; it will publish its own verdict in a moment.
+    if (state.status == PrinterStatus.connecting) return false;
+    // A receipt is on the wire. That IS the live proof of reachability, and
+    // interrupting it is the one thing this must never do.
+    if (_sending) return true;
+    if (_probing) return state.status == PrinterStatus.connected;
+    _probing = true;
+    try {
+      final ok =
+          await _probe(t).timeout(_probeTimeout, onTimeout: () => false);
+      // The operator may have picked a different printer while we were asking.
+      if (_target != t) return ok;
+      if (ok) {
+        if (state.status != PrinterStatus.connected) {
+          state = PrinterState(
+            status: PrinterStatus.connected,
+            deviceName: t.label,
+            target: t,
+          );
+        }
+      } else if (state.status != PrinterStatus.unreachable) {
+        state = PrinterState(
+          status: PrinterStatus.unreachable,
+          deviceName: t.label,
+          target: t,
+        );
+      }
+      return ok;
+    } finally {
+      _probing = false;
+    }
+  }
+
+  /// The per-transport reachability question, asked without printing anything.
+  ///
+  /// Each case is the cheapest check that can distinguish "the printer is there"
+  /// from "the printer is gone", using only what the transport already exposes:
+  /// no new native surface, and no byte ever reaches a print head.
+  Future<bool> _probe(PrinterTarget t) async {
+    try {
+      switch (t.transport) {
+        // The built-in heads answer through their vendor service binder. A dead
+        // binder means the head is genuinely unusable; a live one cannot tell us
+        // about paper, which only the print itself will.
+        case PrinterTransport.sunmi:
+          return await SunmiPrinter.isAvailable();
+        case PrinterTransport.centerm:
+          return await CentermPrinter.isAvailable();
+        case PrinterTransport.intent:
+          return await RovoPrinter.isAvailable();
+
+        // The native side reuses a live RFCOMM socket and only re-opens a dead
+        // one, so this is a socket check, not a print. A powered-off or
+        // out-of-range printer fails the re-open and throws — which is exactly
+        // the answer we came for.
+        case PrinterTransport.spp:
+          await SppPrinter.connect(t.id);
+          return true;
+
+        // Unplugged devices vanish from the list; a revoked permission means the
+        // next write would fail on a system dialog we refuse to raise mid-sale.
+        case PrinterTransport.usb:
+          final attached = await UsbPrinter.list();
+          if (!attached.any((d) => d.id == t.id)) return false;
+          return await UsbPrinter.hasPermission(t.id);
+
+        // Opens and immediately destroys a socket — the same check [use] runs
+        // when adopting a network printer.
+        case PrinterTransport.tcp:
+          return await NetworkPrinter.probe(t.host, t.port);
+
+        // GATT tells us whether the link is still up. Losing the write
+        // characteristic means the connection was torn down under us.
+        case PrinterTransport.ble:
+          final d = _bleDevice;
+          if (d == null || _writeChar == null) return false;
+          return d.isConnected;
+      }
+    } catch (_) {
+      // Any refusal, timeout or missing plugin reads as "not reachable". This is
+      // deliberately not an error state: the printer is still SELECTED.
+      return false;
+    }
+  }
+
   // ------------------------------------------------------------------ sending
 
   /// Send one receipt. The transport decides HOW; [PrintJob.bytes] decides WHAT,
@@ -351,24 +478,40 @@ class PrinterService extends Notifier<PrinterState> {
   Future<void> send(PrintJob job) async {
     final t = _target;
     if (t == null) throw Exception('No printer connected');
-    switch (t.transport) {
-      case PrinterTransport.sunmi:
-        await SunmiPrinter.printRaw(job.bytes);
-      case PrinterTransport.centerm:
-        await CentermPrinter.printRaw(job.bytes);
-      case PrinterTransport.spp:
-        await SppPrinter.write(t.id, job.bytes);
-      case PrinterTransport.usb:
-        await UsbPrinter.write(t.id, job.bytes);
-      case PrinterTransport.tcp:
-        await NetworkPrinter.send(t.host, t.port, job.bytes);
-      case PrinterTransport.ble:
-        await _bleWrite(job.bytes);
-      case PrinterTransport.intent:
-        if (!job.hasText) {
-          throw Exception('This printer cannot print a graphical receipt');
-        }
-        await RovoPrinter.printText(job.text);
+    // Marks the transport busy so [verifyConnection] stays off it (UX-55).
+    _sending = true;
+    try {
+      switch (t.transport) {
+        case PrinterTransport.sunmi:
+          await SunmiPrinter.printRaw(job.bytes);
+        case PrinterTransport.centerm:
+          await CentermPrinter.printRaw(job.bytes);
+        case PrinterTransport.spp:
+          await SppPrinter.write(t.id, job.bytes);
+        case PrinterTransport.usb:
+          await UsbPrinter.write(t.id, job.bytes);
+        case PrinterTransport.tcp:
+          await NetworkPrinter.send(t.host, t.port, job.bytes);
+        case PrinterTransport.ble:
+          await _bleWrite(job.bytes);
+        case PrinterTransport.intent:
+          if (!job.hasText) {
+            throw Exception('This printer cannot print a graphical receipt');
+          }
+          await RovoPrinter.printText(job.text);
+      }
+      // A receipt that reached the printer is the strongest possible proof of
+      // reachability — stronger than any probe — so a state left amber by an
+      // earlier failed probe corrects itself here.
+      if (_target == t && state.status == PrinterStatus.unreachable) {
+        state = PrinterState(
+          status: PrinterStatus.connected,
+          deviceName: t.label,
+          target: t,
+        );
+      }
+    } finally {
+      _sending = false;
     }
   }
 
@@ -504,6 +647,12 @@ enum PrinterStatus {
   /// Several plausible printers were found and none was remembered, so nothing
   /// was connected on purpose — the operator has to say which one.
   needsChoice,
+
+  /// A printer IS selected, but the last probe could not reach it — switched
+  /// off, unplugged, out of range (UX-55). Deliberately not [error] and
+  /// deliberately not [idle]: the choice of printer stands and printing is still
+  /// allowed to be attempted, we simply stop promising it will work.
+  unreachable,
 }
 
 class PrinterState {
@@ -523,6 +672,24 @@ class PrinterState {
 
   /// True when what prints is NOT the byte stream we built.
   bool get isApproximate => target?.isApproximate ?? false;
+
+  /// A printer is selected AND answered the last probe. This is the only state
+  /// allowed to look green.
+  bool get isReady => status == PrinterStatus.connected;
+
+  /// A printer is selected, reachable or not. Printing is offered on this, never
+  /// on [isReady]: a probe can be wrong, and an already-sold code must never be
+  /// trapped behind our own guess about the hardware.
+  bool get hasPrinter =>
+      status == PrinterStatus.connected || status == PrinterStatus.unreachable;
+
+  /// The last probe failed. The chip says so instead of claiming a connection.
+  bool get isUnreachable => status == PrinterStatus.unreachable;
+
+  /// Auto-connect found more than one plausible printer and deliberately picked
+  /// none — a decision is WAITING for the operator. Flattening this into "no
+  /// printer found" (which it is not) meant nobody was ever told (UX-55).
+  bool get needsChoice => status == PrinterStatus.needsChoice;
 
   PrinterState copyWith({
     PrinterStatus? status,

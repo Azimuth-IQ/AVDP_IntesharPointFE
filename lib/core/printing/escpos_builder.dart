@@ -308,26 +308,66 @@ Future<PrintJob> buildVoucherPrintJob({
 /// The test receipt, for every transport.
 Future<PrintJob> buildTestPrintJob({bool cutAtEnd = false}) async => PrintJob(
   bytes: await buildTestReceipt(cutAtEnd: cutAtEnd),
-  text: 'Point of Sale\nPrinter OK\n',
+  // The text twin is only ever used by the vendor-intent transport, which takes
+  // a Dart String and never touches the Latin-1 encoder — so it may be Arabic.
+  text: 'Inteshar Point · انتشار بوينت\n'
+      'اختبار الطباعة — Printer test\n'
+      'الرقم السري / PIN: 1234 5678 9012\n'
+      'الطابعة جاهزة · Printer OK\n',
 );
 
+/// The "طباعة تجريبية" slip.
+///
+/// UX-61: this used to be built with `Generator.text()` — a handful of Latin-1
+/// bytes — while a real voucher is a **rendered raster**, because Arabic cannot
+/// go through `Generator.text()` at all (see [renderReceiptRaster]). The two
+/// exercised completely different halves of the stack: a printer with no raster
+/// bit-image support, a small input buffer or a chunking problem on the transport
+/// would pass the slip perfectly and garble or drop every real receipt — found
+/// out later, with a burned code in hand.
+///
+/// So the slip now goes through the SAME pipeline as a voucher, and carries the
+/// things that actually break: shaped Arabic, a bidi line mixing Arabic with
+/// Latin digits, a PIN-sized single-line block and a QR. Passing it means what
+/// the operator thinks it means.
+///
+/// It is still deliberately SHORT — this is the slip you print repeatedly while
+/// triaging an unknown printer, and it is charged to the shop's paper roll.
 Future<List<int>> buildTestReceipt({bool cutAtEnd = false}) async {
   final profile = await CapabilityProfile.load();
   final g = Generator(PaperSize.mm58, profile);
-  final out = <int>[];
-  out.addAll(
-    g.text(
-      'Point of Sale',
-      styles: const PosStyles(
-        align: PosAlign.center,
-        bold: true,
-        height: PosTextSize.size2,
-      ),
+  final width = PaperSize.mm58.width;
+
+  final blocks = <ReceiptBlock>[
+    TextBlock('Inteshar Point', fontSize: 30, weight: FontWeight.w800, padBottom: 2),
+    // Shaped, right-to-left, and in the face the receipt will really use.
+    TextBlock('انتشار بوينت', fontSize: 30, weight: FontWeight.w800, padBottom: 4),
+    RuleBlock(),
+    // A bidi run: Arabic words around Latin digits, the case naive layouts
+    // reverse and naive encoders reject.
+    TextBlock('اختبار الطباعة — 58mm', fontSize: 24, padBottom: 4),
+    // Same block, same sizing rules and same one-line invariant as a real PIN,
+    // so an operator can see at a glance whether a code would come out legible.
+    LabelValueBlock(
+      'الرقم السري / PIN',
+      '1234 5678 9012',
+      labelSize: 22,
+      valueSize: 40,
+      valueWeight: FontWeight.w800,
+      valueSpacing: 2,
+      padBottom: 8,
+      singleLineValue: true,
+      minValueSize: 18,
     ),
-  );
-  out.addAll(
-    g.text('Printer OK', styles: const PosStyles(align: PosAlign.center)),
-  );
+    // Small on purpose: enough to prove the head can lay down a dense bitmap
+    // without spending a voucher's worth of paper on every probe.
+    QrBlock('*133*123456789012#', size: 130),
+    TextBlock('الطابعة جاهزة · Printer OK', fontSize: 24, padBottom: 4),
+  ];
+
+  final raster = await renderReceiptRaster(width: width, blocks: blocks);
+  final out = <int>[];
+  out.addAll(g.imageRaster(raster));
   // Same cutterless-head reasoning as the voucher receipt above — and it matters
   // more here, because this is the slip you print repeatedly while triaging an
   // unknown printer. A cut on a cutterless head spends a receipt's worth of

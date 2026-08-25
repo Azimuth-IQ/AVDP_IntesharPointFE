@@ -42,7 +42,17 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
   List<PrintOperation> _ops = const [];
   bool _loading = true;
   bool _reloading = false; // a re-query with rows already on screen
-  bool _busy = false;
+  /// UX-83: the id of the ONE sale being recovered, not a page-wide flag.
+  ///
+  /// A single `_busy` greyed every row on the report while the row that was
+  /// actually tapped showed nothing at all, so the only feedback for "reprint
+  /// this sale" was the whole list going dim — indistinguishable from a freeze,
+  /// on the screen an operator opens when a customer is disputing a card.
+  /// `printer_picker_page` (`_busyId`) and `delete_agent_sheet` already scope
+  /// theirs; this follows them.
+  String? _busyOpId;
+  /// The window report's own print, which really is a page-level action.
+  bool _printingReport = false;
   Object? _error;
   late DateTimeRange _range;
   _RangePreset _preset = _RangePreset.today;
@@ -340,7 +350,10 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
   /// Re-serves the SAME sale (recover — no new card, no new debit) and offers
   /// print / copy / share on the recovered code.
   Future<void> _reprint(PrintOperation op) async {
-    setState(() => _busy = true);
+    // Already recovering this sale — a second tap must not fire a second
+    // /draw/recover for the same row.
+    if (_busyOpId == op.id) return;
+    setState(() => _busyOpId = op.id);
     final messenger = ScaffoldMessenger.of(context);
     try {
       final repo = ProductRepository(ref.read(apiClientProvider));
@@ -356,7 +369,7 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
         messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _busyOpId = null);
     }
   }
 
@@ -543,7 +556,7 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
           _stat(ar ? 'المجموع' : 'Total', Formatters.iqd(s.total.round()), cs),
           if (s.notPrinted > 0)
             _stat(ar ? 'لم تُطبع' : 'Not printed', '${s.notPrinted}', cs,
-                tint: IntesharColors.oxblood),
+                tint: context.status.danger),
         ]),
         if (s.unpriced > 0)
           Padding(
@@ -562,7 +575,7 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
               ar
                   ? 'الفترة تحتوي على مبيعات أكثر مما تم تحميله — المجموع جزئي'
                   : 'This window holds more sales than were loaded — the total is partial',
-              style: IntesharType.sans(11, color: IntesharColors.oxblood, w: FontWeight.w600),
+              style: IntesharType.sans(11, color: context.status.danger, w: FontWeight.w600),
             ),
           ),
         // UX-58: "how many Asiacell 5,000 did I sell?" — the breakdown was already
@@ -626,8 +639,13 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
         Row(children: [
           Expanded(
             child: FilledButton.icon(
-              onPressed: (_busy || _summaryLoading || s.cards == 0) ? null : _printReport,
-              icon: _summaryLoading
+              onPressed: (_printingReport || _summaryLoading || s.cards == 0)
+                  ? null
+                  : _printReport,
+              // The spinner now also covers the print itself, not just the
+              // summary walk — the control that was tapped is the one that
+              // reports back.
+              icon: (_summaryLoading || _printingReport)
                   ? const SizedBox(
                       width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.print_outlined, size: 16),
@@ -664,7 +682,7 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
 
   Future<void> _printReport() async {
     final ar = Localizations.localeOf(context).languageCode == 'ar';
-    setState(() => _busy = true);
+    setState(() => _printingReport = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
       final job = await buildSalesReportPrintJob(
@@ -682,7 +700,7 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
     } catch (e) {
       if (mounted) messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _printingReport = false);
     }
   }
 
@@ -708,6 +726,9 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
   }
 
   Widget _opCard(PrintOperation op, bool ar, ColorScheme cs) {
+    // UX-83: the spinner belongs to the row that was tapped, and only that row
+    // is disabled — the rest of the report stays usable.
+    final busy = _busyOpId == op.id;
     final when = op.createdAt.length >= 16
         ? op.createdAt.substring(0, 16).replaceFirst('T', ' ')
         : op.createdAt;
@@ -726,7 +747,7 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
             if (!op.printed)
               StampPill(
                   label: ar ? 'لم تتم الطباعة' : 'Not printed',
-                  color: IntesharColors.oxblood),
+                  color: context.status.danger),
           ]),
           const SizedBox(height: 3),
           Text('SN ${op.serialNumber}',
@@ -743,9 +764,16 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
           Align(
             alignment: AlignmentDirectional.centerEnd,
             child: OutlinedButton.icon(
-              onPressed: _busy ? null : () => _reprint(op),
-              icon: const Icon(Icons.print_outlined, size: 16),
-              label: Text(ar ? 'إعادة طباعة / مشاركة' : 'Reprint / share'),
+              onPressed: busy ? null : () => _reprint(op),
+              icon: busy
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.print_outlined, size: 16),
+              label: Text(busy
+                  ? (ar ? 'جارٍ التحضير…' : 'Preparing…')
+                  : (ar ? 'إعادة طباعة / مشاركة' : 'Reprint / share')),
             ),
           ),
         ]),

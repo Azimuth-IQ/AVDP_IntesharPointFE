@@ -37,7 +37,7 @@ class PrintQueueLine extends ConsumerWidget {
                 height: 12,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: s.isRetrying ? IntesharColors.warn : cs.onSurfaceVariant,
+                  color: s.isRetrying ? context.status.warn : cs.onSurfaceVariant,
                 ),
               ),
               const SizedBox(width: 8),
@@ -49,7 +49,7 @@ class PrintQueueLine extends ConsumerWidget {
                     fontFamily: 'CodecPro',
                     fontSize: 11.5,
                     fontWeight: FontWeight.w700,
-                    color: s.isRetrying ? IntesharColors.warn : cs.onSurfaceVariant,
+                    color: s.isRetrying ? context.status.warn : cs.onSurfaceVariant,
                   ),
                 ),
               ),

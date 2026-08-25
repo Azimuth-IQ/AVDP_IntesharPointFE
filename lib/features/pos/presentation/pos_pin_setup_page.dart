@@ -206,7 +206,7 @@ class _PinSetupForm extends StatelessWidget {
                 color: context.tones.brand,
                 borderRadius: BorderRadius.circular(22),
               ),
-              child: const Icon(Icons.lock_outline, color: IntesharColors.ink, size: 22),
+              child: Icon(Icons.lock_outline, color: context.tones.onBrand, size: 22),
             ),
             const SizedBox(width: 14),
             Expanded(

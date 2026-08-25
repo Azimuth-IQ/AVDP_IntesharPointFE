@@ -36,6 +36,7 @@ import 'package:inteshar/features/pos/presentation/pos_sales_panel.dart';
 import 'package:inteshar/features/pos/presentation/pos_statement_panel.dart';
 import 'package:inteshar/features/pos/presentation/print_queue_indicator.dart';
 import 'package:inteshar/features/pos/presentation/printer_picker_page.dart';
+import 'package:inteshar/features/pos/presentation/printer_status_chip.dart';
 import 'package:inteshar/shared/widgets/map_location_picker.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
@@ -111,6 +112,11 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
     } else if (state == AppLifecycleState.resumed) {
       final since = _backgroundedAt;
       _backgroundedAt = null;
+      // UX-55: a shift break is exactly when the printer gets switched off,
+      // unplugged or carried away, and the chip would otherwise still be green
+      // on the first sale back. Fire-and-forget: it writes no bytes, it cannot
+      // fail loudly, and nothing on screen waits for it.
+      unawaited(ref.read(printerServiceProvider.notifier).verifyConnection());
       if (since != null && DateTime.now().difference(since) >= _relockAfter) {
         // Left unattended — drop the unlock flag and send the operator back to the PIN.
         ref.read(posUnlockedProvider.notifier).state = false;
@@ -239,39 +245,21 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
           ),
         ),
         actions: [
+          // UX-55/UX-63: one chip, one vocabulary (see printer_status_chip.dart).
+          // "Connected" is now a probed fact rather than a claim, "a decision is
+          // waiting for you" is no longer printed as "nothing found", and the
+          // label is width-clamped so a MAC-named printer cannot crowd out the
+          // shop name beside it.
           Consumer(
-            builder: (ctx, ref, _) {
-              final ps = ref.watch(printerServiceProvider);
-              final isConnected = ps.status == PrinterStatus.connected;
-              return Padding(
-                padding: const EdgeInsetsDirectional.only(end: 8),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(999),
-                  onTap: () => Navigator.push<void>(ctx, MaterialPageRoute(builder: (_) => const PrinterPickerPage())),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    child: Row(
-                      children: [
-                        // Neutral printer icon — the connected device may be the Sunmi/Rovo
-                        // inner thermal head, not Bluetooth, so don't imply a radio.
-                        Icon(isConnected ? Icons.print : Icons.print_disabled_outlined, size: 16, color: isConnected ? IntesharColors.sage : cs.onSurfaceVariant),
-                        const SizedBox(width: 6),
-                        Text(
-                          isConnected ? (ps.deviceName ?? l.posPrinterConnected) : l.posHomeSetupPrinter,
-                          style: TextStyle(
-                            fontFamily: 'CodecPro',
-                            fontSize: 12,
-                            color: isConnected ? IntesharColors.sage : cs.onSurfaceVariant,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
+            builder: (ctx, ref, _) => Padding(
+              padding: const EdgeInsetsDirectional.only(end: 8),
+              child: PrinterStatusChip(
+                state: ref.watch(printerServiceProvider),
+                ar: _ar,
+                onTap: () => Navigator.push<void>(
+                    ctx, MaterialPageRoute(builder: (_) => const PrinterPickerPage())),
+              ),
+            ),
           ),
           IconButton(
             icon: const Icon(Icons.logout_outlined),
@@ -360,10 +348,10 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-      color: IntesharColors.warn.withValues(alpha: 0.12),
+      color: context.status.warn.withValues(alpha: 0.12),
       child: Row(
         children: [
-          const Icon(Icons.sync_problem_outlined, size: 16, color: IntesharColors.warn),
+          Icon(Icons.sync_problem_outlined, size: 16, color: context.status.warn),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -1154,9 +1142,9 @@ class _CompanyCard extends StatelessWidget {
                     ? Image.network(
                         logoUrl!,
                         fit: BoxFit.contain,
-                        errorBuilder: (_, _, _) => _logoFallback(cs, name),
+                        errorBuilder: (_, _, _) => _logoFallback(context, cs, name),
                       )
-                    : _logoFallback(cs, name),
+                    : _logoFallback(context, cs, name),
               ),
             ),
             const SizedBox(height: 8),
@@ -1173,14 +1161,14 @@ class _CompanyCard extends StatelessWidget {
     );
   }
 
-  Widget _logoFallback(ColorScheme cs, String name) => Container(
+  Widget _logoFallback(BuildContext context, ColorScheme cs, String name) => Container(
         width: 52,
         height: 52,
         alignment: Alignment.center,
         decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(26)),
         child: Text(
           name.trim().isEmpty ? '?' : name.trim().substring(0, 1).toUpperCase(),
-          style: IntesharType.display(22, color: IntesharColors.ink, w: FontWeight.w900),
+          style: IntesharType.display(22, color: context.tones.onBrand, w: FontWeight.w900),
         ),
       );
 }
@@ -1271,12 +1259,12 @@ class _SkuCard extends StatelessWidget {
                     Image.network(
                       s.imageUrl!,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => _artFallback(cs, s.sku),
+                      errorBuilder: (_, _, _) => _artFallback(context, cs, s.sku),
                       loadingBuilder: (ctx, child, progress) =>
                           progress == null ? child : Container(color: cs.surfaceContainerHighest),
                     )
                   else
-                    _artFallback(cs, s.sku),
+                    _artFallback(context, cs, s.sku),
                   if (unaffordable)
                     const Positioned.fill(
                       child: ColoredBox(color: Color(0x59FFFFFF)),
@@ -1350,7 +1338,7 @@ class _SkuCard extends StatelessWidget {
   /// How many of this card can actually be sold right now — or why none can.
   Widget _availabilityLine(BuildContext context, {required bool ar, required bool unaffordable}) {
     final cs = Theme.of(context).colorScheme;
-    final color = unaffordable ? IntesharColors.warn : IntesharColors.sage;
+    final color = unaffordable ? context.status.warn : context.status.success;
     return Row(
       children: [
         Icon(unaffordable ? Icons.block : Icons.inventory_2_outlined, size: 12, color: color),
@@ -1375,7 +1363,7 @@ class _SkuCard extends StatelessWidget {
     );
   }
 
-  Widget _artFallback(ColorScheme cs, String sku) => Container(
+  Widget _artFallback(BuildContext context, ColorScheme cs, String sku) => Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [cs.primary, cs.onPrimaryContainer],
@@ -1386,7 +1374,7 @@ class _SkuCard extends StatelessWidget {
         alignment: Alignment.center,
         child: Text(
           sku,
-          style: IntesharType.mono(20, color: IntesharColors.ink, w: FontWeight.w900, letterSpacing: 1),
+          style: IntesharType.mono(20, color: context.tones.onBrand, w: FontWeight.w900, letterSpacing: 1),
         ),
       );
 }
@@ -1457,6 +1445,15 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
     // lost-response retry returns the original sale instead of drawing a second card.
     _clientRef = 'draw-${widget.sku.sku}-${DateTime.now().microsecondsSinceEpoch}';
     _loadQuote();
+    // UX-55: re-probe the printer NOW, while the operator is still reading the
+    // price — this is the last moment before an irreversible tap, and until now
+    // the pre-sale "no printer connected" warning could not fire for a printer
+    // that was switched off, because the app still believed it was connected.
+    //
+    // Deliberately in initState (once per sheet, never from a rebuild), never
+    // awaited, and it writes NOTHING to any print head. It cannot delay or block
+    // the Sell button; the worst it does is turn the chip amber.
+    unawaited(ref.read(printerServiceProvider.notifier).verifyConnection());
   }
 
   /// Ask the server how many cards may be sold right now. Read-only — it claims no cards
@@ -1977,6 +1974,11 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(IntesharRadii.sm)),
+                            // Deliberately NOT theme tokens: a QR is a scan
+                            // target, not a surface. It stays fixed dark-on-white
+                            // whatever the agent's brand or the device theme is,
+                            // because a white-label palette that lightened these
+                            // modules would make the customer's code unscannable.
                             child: QrImageView(
                               data: t.qrPayload(pin: p.pin, serial: p.serialNumber),
                               version: QrVersions.auto,
@@ -2104,7 +2106,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
             child: Row(children: [
-              Icon(Icons.check_circle, color: IntesharColors.sage, size: 22),
+              Icon(Icons.check_circle, color: context.status.success, size: 22),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -2302,29 +2304,41 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
           // Selling burns the code the instant Reveal is tapped, so warn BEFORE that
           // moment if no printer is connected — the operator can still sell and then
           // Copy/Share the code, but they should know they'll have no receipt to print.
+          //
+          // UX-55: this is the warning that silently did not fire in the most
+          // common failure mode. It keyed off `status == connected`, which was set
+          // once at adoption and never re-checked, so a printer switched off or out
+          // of range kept the banner hidden and the operator learned about it with
+          // a burned code in hand. The sheet re-probes on open (see initState) and
+          // an unreachable printer now says so — in its own words, amber rather than
+          // grey, because "chosen but not answering" is a different problem from
+          // "none set up" and has a different fix.
           Consumer(
             builder: (ctx, ref, _) {
-              final connected =
-                  ref.watch(printerServiceProvider).status == PrinterStatus.connected;
-              if (connected) return const SizedBox.shrink();
+              final ps = ref.watch(printerServiceProvider);
+              if (ps.isReady) return const SizedBox.shrink();
+              final info = printerStatusInfo(ps, ar: ar);
+              final warning = info.tone == PrinterChipTone.warn;
+              final tint = info.tone.color(ctx);
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
-                    color: cs.surfaceContainerHighest,
+                    color: warning
+                        ? tint.withValues(alpha: 0.10)
+                        : cs.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(IntesharRadii.md),
-                    border: Border.all(color: cs.outline),
+                    border: Border.all(
+                        color: warning ? tint.withValues(alpha: 0.45) : cs.outline),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.print_disabled_outlined, size: 18, color: cs.onSurfaceVariant),
+                      Icon(info.icon, size: 18, color: warning ? tint : cs.onSurfaceVariant),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          ar
-                              ? 'لا توجد طابعة متصلة — يمكنك البيع ثم نسخ أو مشاركة الرمز.'
-                              : 'No printer connected — you can still sell, then copy or share the code.',
+                          info.sentence ?? info.label,
                           style: TextStyle(fontFamily: 'CodecPro', fontSize: 12, height: 1.35, fontWeight: FontWeight.w600, color: cs.onSurface),
                         ),
                       ),
@@ -2332,7 +2346,11 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                       TextButton(
                         onPressed: () => Navigator.push<void>(ctx, MaterialPageRoute(builder: (_) => const PrinterPickerPage())),
                         style: TextButton.styleFrom(visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 8)),
-                        child: Text(ar ? 'ربط' : 'Connect'),
+                        child: Text(
+                          ps.needsChoice
+                              ? (ar ? 'اختيار' : 'Choose')
+                              : (ar ? 'ربط' : 'Connect'),
+                        ),
                       ),
                     ],
                   ),
@@ -2354,12 +2372,12 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
                 color: _saleError!.outcomeUnknown
-                    ? IntesharColors.warn.withValues(alpha: 0.12)
+                    ? context.status.warn.withValues(alpha: 0.12)
                     : cs.errorContainer,
                 borderRadius: BorderRadius.circular(IntesharRadii.md),
                 border: Border.all(
                     color: _saleError!.outcomeUnknown
-                        ? IntesharColors.warn.withValues(alpha: 0.55)
+                        ? context.status.warn.withValues(alpha: 0.55)
                         : cs.error.withValues(alpha: 0.5)),
               ),
               child: Row(
@@ -2368,7 +2386,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                   Icon(
                     _saleError!.outcomeUnknown ? Icons.help_outline : Icons.error_outline,
                     size: 18,
-                    color: _saleError!.outcomeUnknown ? IntesharColors.warn : cs.error,
+                    color: _saleError!.outcomeUnknown ? context.status.warn : cs.error,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -2465,7 +2483,13 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
       child: Consumer(
         builder: (ctx, ref, _) {
           final ps = ref.watch(printerServiceProvider);
-          final isConnected = ps.status == PrinterStatus.connected;
+          final isConnected = ps.isReady;
+          // UX-55: the code is ALREADY SOLD here, so a failed probe must not
+          // take the Print button away — a probe can be wrong, and trapping a
+          // paid-for code behind our own guess is the worse failure. The chip
+          // tells the truth; the button still lets them try, and a real failure
+          // comes back through printerErrorMessage with something actionable.
+          final canPrint = ps.hasPrinter;
           return Column(
             children: [
               // Persistent print-failure banner — the code is already sold, so a missed
@@ -2523,13 +2547,13 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
-                    color: IntesharColors.warn.withValues(alpha: 0.10),
+                    color: context.status.warn.withValues(alpha: 0.10),
                     borderRadius: BorderRadius.circular(IntesharRadii.md),
-                    border: Border.all(color: IntesharColors.warn.withValues(alpha: 0.4)),
+                    border: Border.all(color: context.status.warn.withValues(alpha: 0.4)),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.warning_amber_rounded, size: 16, color: IntesharColors.warn),
+                      Icon(Icons.warning_amber_rounded, size: 16, color: context.status.warn),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
@@ -2544,36 +2568,23 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                 ),
                 const SizedBox(height: 10),
               ],
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isConnected ? IntesharColors.sage.withValues(alpha: 0.10) : cs.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: isConnected ? IntesharColors.sage.withValues(alpha: 0.4) : cs.outline),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(isConnected ? Icons.print_outlined : Icons.print_disabled_outlined, size: 14, color: isConnected ? IntesharColors.sage : cs.onSurfaceVariant),
-                    const SizedBox(width: 8),
-                    Text(
-                      isConnected ? (ps.deviceName ?? l.posPrinterConnected) : l.posHomePrinterNotConnected,
-                      style: TextStyle(
-                        fontFamily: 'CodecPro',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: isConnected ? IntesharColors.sage : cs.onSurfaceVariant,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                  ],
-                ),
+              PrinterStatusChip(
+                state: ps,
+                ar: ar,
+                filled: true,
+                // A voucher sheet is wider than the app bar and this row has
+                // nothing to compete with, so the name can run longer here.
+                maxWidth: 260,
               ),
               const SizedBox(height: 12),
               if (!isConnected)
                 BrandCTAButton(
-                  label: l.posConnectPrinter,
-                  leading: Icons.bluetooth,
+                  // The printer icon, not a Bluetooth one: the head may be the
+                  // built-in Sunmi/Rovo thermal printer, no radio involved.
+                  label: ps.needsChoice
+                      ? (ar ? 'اختر الطابعة' : 'Choose a printer')
+                      : l.posConnectPrinter,
+                  leading: Icons.print_outlined,
                   variant: BrandCTAVariant.outline,
                   onPressed: () => Navigator.push<void>(ctx, MaterialPageRoute(builder: (_) => const PrinterPickerPage())),
                 ),
@@ -2594,7 +2605,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                           : (_printError != null ? (ar ? 'إعادة الطباعة' : 'Reprint') : l.posPrintVoucher),
                       leading: _printing ? null : Icons.print_outlined,
                       loading: _printing,
-                      onPressed: (_printing || !isConnected) ? null : _print,
+                      onPressed: (_printing || !canPrint) ? null : _print,
                     ),
                   ),
                 ],

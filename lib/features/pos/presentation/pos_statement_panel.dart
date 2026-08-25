@@ -161,7 +161,9 @@ class _PosStatementPanelState extends ConsumerState<PosStatementPanel> {
 
   Widget _rowCard(StatementRow r, bool ar, ColorScheme cs) {
     final grant = r.type == 'GRANT';
-    final tint = grant ? IntesharColors.sage : cs.error;
+    // Semantic tones: money in is a success, money out is the danger tone the
+    // rest of the app uses for an outgoing/destructive row.
+    final tint = grant ? context.status.success : context.status.danger;
     final when = r.at.length >= 16 ? r.at.substring(0, 16).replaceFirst('T', ' ') : r.at;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),

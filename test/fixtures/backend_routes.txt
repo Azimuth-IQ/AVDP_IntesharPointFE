@@ -3,7 +3,7 @@
 #
 # Every route the backend controllers map: class @RequestMapping +
 # method @Get/@Post/@Put/@Patch/@DeleteMapping, comments stripped.
-# 134 distinct routes across 21 controllers.
+# 139 distinct routes across 21 controllers.
 #
 # The system_activity coverage test asserts each of these resolves to a
 # phrase in lib/features/system_activity/domain/log_phrase.dart, and
@@ -11,7 +11,7 @@
 #
 # NOT COVERED — method-level @RequestMapping (legacy style, not parsed
 # as a route; add a phrase by hand if one of these starts showing up):
-#   /api/entity/getwithchildren  (EntityController.java:697)
+#   /api/entity/getwithchildren  (EntityController.java:849)
 
 /api/admin/overview
 /api/admin/users
@@ -59,8 +59,10 @@
 /api/entity/update
 /api/entity/users
 /api/entity/users/add
+/api/entity/users/archived
 /api/entity/users/remove
 /api/entity/users/resetTotp
+/api/entity/users/restore
 /api/entity/users/update
 /api/entity/workingHours
 /api/health/cpu
@@ -99,6 +101,9 @@
 /api/inventory/product/setPin
 /api/inventory/product/setStatus
 /api/inventory/product/summaryByEntity
+/api/inventory/retire
+/api/inventory/retire/restore
+/api/inventory/retired
 /api/inventory/withdraw
 /api/logs
 /api/logs/client

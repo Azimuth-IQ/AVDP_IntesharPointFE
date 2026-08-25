@@ -224,6 +224,19 @@ class EntityUser {
   final String posGovernorate;
   final String posAddress;
 
+  /// UX-156 — when this user was archived, or null while it is in service.
+  ///
+  /// Deleting a user retires it instead of destroying it: the account stops
+  /// authenticating, drops out of every roster, and can be restored. Rosters read
+  /// [Entity.liveUsers]; the archive screen reads this.
+  final DateTime? archivedAt;
+
+  /// Phone of whoever archived it — shown on the archive row so "who did this?"
+  /// does not need a trip to the activity log.
+  final String archivedBy;
+
+  bool get isArchived => archivedAt != null;
+
   const EntityUser({
     this.id = '',
     required this.phone,
@@ -235,6 +248,8 @@ class EntityUser {
     this.posOwnerName = '',
     this.posGovernorate = '',
     this.posAddress = '',
+    this.archivedAt,
+    this.archivedBy = '',
   });
 
   factory EntityUser.fromJson(Map<String, dynamic> j) => EntityUser(
@@ -248,6 +263,8 @@ class EntityUser {
     posOwnerName: j['posOwnerName'] as String? ?? '',
     posGovernorate: j['posGovernorate'] as String? ?? '',
     posAddress: j['posAddress'] as String? ?? '',
+    archivedAt: DateTime.tryParse(j['archivedAt'] as String? ?? ''),
+    archivedBy: j['archivedBy'] as String? ?? '',
   );
 
   Map<String, dynamic> toJson() {
@@ -255,6 +272,10 @@ class EntityUser {
     if (id.isNotEmpty) m['id'] = id;
     if (password.isNotEmpty) m['password'] = password;
     if (capabilities.isNotEmpty) m['capabilities'] = capabilitiesToJson(capabilities);
+    // UX-156: an archived user should never be in an update payload at all (the
+    // rosters that build one exclude it). If one ever is, say so — dropping the
+    // stamp would make the full-document save silently RESURRECT the account.
+    if (archivedAt != null) m['archivedAt'] = archivedAt!.toUtc().toIso8601String();
     return m;
   }
 
@@ -269,6 +290,8 @@ class EntityUser {
     posOwnerName: posOwnerName,
     posGovernorate: posGovernorate,
     posAddress: posAddress,
+    archivedAt: archivedAt,
+    archivedBy: archivedBy,
   );
 }
 
@@ -297,6 +320,27 @@ class Entity {
   final String pushBaseUrl;
 
   const Entity({required this.id, required this.meta, this.profile, this.parent = '', required this.type, this.childrenIds = const [], this.productsIds = const [], this.users = const [], this.active = true, this.allowedCapabilities, this.effectiveCapabilities, this.pushToken = '', this.pushBaseUrl = ''});
+
+  /// The users still in service — [users] minus the archived ones (UX-156).
+  ///
+  /// Reads that return a whole entity (`/entity/read`, `/entity/readwithchildren`)
+  /// include archived users, because the server keeps the record. Every roster,
+  /// user COUNT and "who operates this shop" lookup wants this list instead: a
+  /// retired account showing up as a shop's operator, or padding an agent's user
+  /// count, is the archive leaking into places it was supposed to disappear from.
+  ///
+  /// It is also what any list feeding an entity PUT must be built from — the
+  /// server re-attaches archived users it does not see, and sending one back
+  /// would risk resurrecting it.
+  List<EntityUser> get liveUsers =>
+      users.where((u) => !u.isArchived).toList(growable: false);
+
+  /// The retired accounts, newest archive first — the archive screen's list.
+  List<EntityUser> get archivedUsers {
+    final rows = users.where((u) => u.isArchived).toList();
+    rows.sort((a, b) => b.archivedAt!.compareTo(a.archivedAt!));
+    return rows;
+  }
 
   factory Entity.fromJson(Map<String, dynamic> j) => Entity(
     id: j['id'] as String? ?? j['_id'] as String? ?? '',

@@ -778,6 +778,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get inventoryStatusFailedPrinting => 'Print failed';
 
   @override
+  String get inventoryStatusRetired => 'Retired';
+
+  @override
   String get inventorySearchHint => 'Search by name, SKU, or serial…';
 
   @override
@@ -816,6 +819,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String inventoryDamagedCount(int count) {
     return '$count damaged';
+  }
+
+  @override
+  String inventoryRetiredCount(int count) {
+    return '$count retired';
   }
 
   @override

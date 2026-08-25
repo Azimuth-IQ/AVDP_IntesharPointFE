@@ -86,12 +86,16 @@ void main() {
     expect(saved!.map((u) => u.phone), containsAll(['07700000001', '07700000002']));
   });
 
-  testWidgets('save names the user before deleting them', (tester) async {
+  testWidgets('save names the user before archiving them', (tester) async {
     await tester.pumpWidget(harness());
     await markForRemoval(tester, '07700000002');
     await pressSave(tester);
 
-    expect(find.text('Delete user?'), findsOneWidget);
+    // UX-156: the account is retired and restorable, so the prompt must not
+    // offer to delete it. Asserting the absence too, because a stale "Delete"
+    // left anywhere here promises destruction the server no longer performs.
+    expect(find.text('Archive user?'), findsOneWidget);
+    expect(find.text('Delete user?'), findsNothing);
     // The phone appears in the dialog, so the operator can check it is the
     // account they meant.
     expect(find.text('07700000002'), findsWidgets);
@@ -124,15 +128,24 @@ void main() {
 
   group('the Arabic count in the confirmation title', () {
     test('uses the dual for two rather than a digit', () {
-      expect(arDeleteUsersCount(1), 'حذف مستخدم');
-      expect(arDeleteUsersCount(2), 'حذف مستخدمين');
-      expect(arDeleteUsersCount(2), isNot(contains('2')));
+      expect(arArchiveUsersCount(1), 'أرشفة مستخدم');
+      expect(arArchiveUsersCount(2), 'أرشفة مستخدمين');
+      expect(arArchiveUsersCount(2), isNot(contains('2')));
     });
 
     test('counts 3-10 with the plural and 11+ with the singular', () {
-      expect(arDeleteUsersCount(3), 'حذف 3 مستخدمين');
-      expect(arDeleteUsersCount(10), 'حذف 10 مستخدمين');
-      expect(arDeleteUsersCount(11), 'حذف 11 مستخدماً');
+      expect(arArchiveUsersCount(3), 'أرشفة 3 مستخدمين');
+      expect(arArchiveUsersCount(10), 'أرشفة 10 مستخدمين');
+      expect(arArchiveUsersCount(11), 'أرشفة 11 مستخدماً');
+    });
+
+    // UX-156 retired the verb حذف: the account is archived and restorable, not
+    // destroyed. A confirmation that still says "delete" would promise
+    // something the server no longer does.
+    test('no longer promises deletion', () {
+      for (final n in [1, 2, 3, 10, 11]) {
+        expect(arArchiveUsersCount(n), isNot(contains('حذف')));
+      }
     });
   });
 

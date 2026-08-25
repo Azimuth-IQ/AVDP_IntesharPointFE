@@ -12,6 +12,7 @@ import 'package:inteshar/features/inventory/domain/product.dart';
 import 'package:inteshar/features/inventory/domain/sku_summary.dart';
 import 'package:inteshar/features/agents/data/agent_repository.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
+import 'package:inteshar/features/entities/presentation/confirm_code_dialog.dart';
 import 'package:inteshar/features/system_activity/domain/feed_rows.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/app_snackbar.dart';
@@ -20,6 +21,20 @@ import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/loading_state.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
+
+/// Where the cards pulled out of an agent's warehouse are headed (C-19).
+///
+/// The client asked for two destinations — "تحويل لوكيل اخر او اخراج من السستم
+/// بشكل نهائي". Only [retire] is built here; transferring straight to another
+/// agent needs a real Transaction so it shows up in the transfer reports and
+/// honours the geo-lock, which this screen's withdraw call does not do.
+enum _WithdrawDestination {
+  /// Back to HQ's own shelf, still sellable. The original behaviour.
+  hq,
+
+  /// Out of circulation for good — non-sellable, kept for audit, restorable by HQ.
+  retire,
+}
 
 class InventoryPage extends ConsumerStatefulWidget {
   /// When set, browses this entity's inventory instead of the signed-in
@@ -105,6 +120,7 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
         ProductStatus.DAMAGED => s.damaged,
         ProductStatus.SENT_FOR_PRINTING => s.sentForPrinting,
         ProductStatus.FAILED_PRINTING => s.failedPrinting,
+        ProductStatus.RETIRED => s.retired,
       };
 
   /// Low-stock threshold applied per (SKU × governorate) bucket — the viewer's
@@ -539,6 +555,7 @@ class _StatusFilterChips extends StatelessWidget {
       (ProductStatus.AVAILABLE, l.inventoryStatusAvailable, context.status.success),
       (ProductStatus.PRINTED, l.inventoryStatusPrinted, context.tones.brandInk),
       (ProductStatus.DAMAGED, l.inventoryStatusDamaged, context.status.danger),
+      (ProductStatus.RETIRED, l.inventoryStatusRetired, context.tones.brandInk),
     ];
     return Container(
       decoration: BoxDecoration(
@@ -776,91 +793,219 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
   bool _showsPill(ProductStatus status) =>
       widget.statusFilter == null || widget.statusFilter == status;
 
-  /// Asks how many cards of this SKU to pull back, then reports what actually
-  /// moved — which can be fewer than asked if some sold in the meantime.
+  /// Asks how many cards of this SKU to pull back and where they should go, then
+  /// reports what actually moved — which can be fewer than asked if some sold in
+  /// the meantime.
   Future<void> _withdrawDialog() async {
     final s = widget.summary;
     final controller = TextEditingController(text: '${s.available}');
     final formKey = GlobalKey<FormState>();
+    var destination = _WithdrawDestination.hq;
 
-    final entered = await showDialog<int>(
+    final entered = await showDialog<(int, _WithdrawDestination)>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(_tr('سحب من المخزن', 'Withdraw from warehouse')),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(_tr(
-                'إعادة كروت "${s.name}" من مخزن هذا الوكيل إلى المركز. '
-                    'المتاح الآن ${s.available}. الكروت المباعة لا يمكن سحبها.',
-                'Return "${s.name}" cards from this agent\'s warehouse to HQ. '
-                    '${s.available} available now. Sold cards cannot be taken back.',
-              )),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: controller,
-                autofocus: true,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                    labelText: _tr('العدد', 'How many')),
-                validator: (v) {
-                  final n = int.tryParse((v ?? '').trim());
-                  if (n == null || n <= 0) {
-                    return _tr('أدخل عدداً صحيحاً', 'Enter a whole number');
-                  }
-                  if (n > s.available) {
-                    return _tr('المتاح ${s.available} فقط', 'Only ${s.available} available');
-                  }
-                  return null;
-                },
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: Text(_tr('سحب من المخزن', 'Withdraw from warehouse')),
+          content: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_tr(
+                    'سحب كروت "${s.name}" من مخزن هذا الوكيل. '
+                        'المتاح الآن ${s.available}. الكروت المباعة لا يمكن سحبها.',
+                    'Pull "${s.name}" cards out of this agent\'s warehouse. '
+                        '${s.available} available now. Sold cards cannot be taken back.',
+                  )),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: controller,
+                    autofocus: true,
+                    keyboardType: TextInputType.number,
+                    decoration:
+                        InputDecoration(labelText: _tr('العدد', 'How many')),
+                    validator: (v) {
+                      final n = int.tryParse((v ?? '').trim());
+                      if (n == null || n <= 0) {
+                        return _tr('أدخل عدداً صحيحاً', 'Enter a whole number');
+                      }
+                      if (n > s.available) {
+                        return _tr('المتاح ${s.available} فقط',
+                            'Only ${s.available} available');
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _tr('إلى أين؟', 'Where to?'),
+                    style: Theme.of(ctx).textTheme.labelLarge,
+                  ),
+                  // C-19. A third destination — transfer straight to another
+                  // agent — belongs in this list, but it has to go through a real
+                  // Transaction so it lands in the transfer reports and respects
+                  // the geo-lock. Adding it here is a new enum value plus its own
+                  // call; nothing about this dialog assumes there are only two.
+                  RadioGroup<_WithdrawDestination>(
+                    groupValue: destination,
+                    onChanged: (v) =>
+                        setLocal(() => destination = v ?? _WithdrawDestination.hq),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        RadioListTile<_WithdrawDestination>(
+                          value: _WithdrawDestination.hq,
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(_tr(
+                              'إلى مخزن المركز', 'To the HQ warehouse')),
+                          subtitle: Text(_tr(
+                            'تبقى الكروت صالحة للبيع ويمكن توزيعها من جديد.',
+                            'The cards stay sellable and can be handed out again.',
+                          )),
+                        ),
+                        RadioListTile<_WithdrawDestination>(
+                          value: _WithdrawDestination.retire,
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(_tr('إخراج من السستم نهائياً',
+                              'Out of the system permanently')),
+                          subtitle: Text(_tr(
+                            'تتوقف عن البيع نهائياً. يبقى الرمز محفوظاً للتدقيق '
+                                'ويمكن للمركز إرجاعها.',
+                            'They stop being sellable for good. The code is kept '
+                                'for audit and HQ can put them back.',
+                          )),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(_tr('إلغاء', 'Cancel')),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (formKey.currentState?.validate() ?? false) {
+                  Navigator.pop(
+                      ctx, (int.parse(controller.text.trim()), destination));
+                }
+              },
+              child: Text(destination == _WithdrawDestination.retire
+                  ? _tr('إخراج نهائي', 'Retire')
+                  : _tr('سحب', 'Withdraw')),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(_tr('إلغاء', 'Cancel')),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (formKey.currentState?.validate() ?? false) {
-                Navigator.pop(ctx, int.parse(controller.text.trim()));
-              }
-            },
-            child: Text(_tr('سحب', 'Withdraw')),
-          ),
-        ],
       ),
     );
     if (entered == null || !mounted) return;
+    final (count, dest) = entered;
+
+    // Retiring is irreversible in the same sense a delete is — it takes real,
+    // money-backed codes off the shelf — so it is confirmed by the person doing
+    // it, like /entity/delete and the POS revoke.
+    String? code;
+    if (dest == _WithdrawDestination.retire) {
+      code = await showConfirmCodeDialog(
+        context,
+        title: _tr('إخراج من السستم نهائياً', 'Retire permanently'),
+        warning: _tr(
+          'سيتم إخراج $count كرت من "${s.name}" من السستم ولن تعود للبيع. '
+              'يبقى الرمز محفوظاً ويمكن للمركز إرجاعها لاحقاً.',
+          '$count "${s.name}" card(s) will leave the system and stop being sellable. '
+              'The codes are kept and HQ can restore them later.',
+        ),
+        confirmLabel: _tr('إخراج نهائي', 'Retire'),
+      );
+      if (code == null || !mounted) return;
+    }
+
     // UX-87: the confirm closes instantly and the withdraw can take up to ~15s
     // on a bad link. Without this flag the icon stayed live and armed, and
     // "withdraw 100" tapped twice moved 200 cards. The button below reads
     // `_withdrawing` and shows a spinner instead.
     setState(() => _withdrawing = true);
     try {
-      final res = await _repo.withdrawStock(
-        fromEntityId: widget.entityId,
-        sku: s.sku,
-        count: entered,
-      );
-      if (!mounted) return;
-      // Say what actually happened: "asked for 100, got 60" is the useful line.
-      showOk(
+      if (dest == _WithdrawDestination.retire) {
+        final res = await _repo.retireStock(
+          fromEntityId: widget.entityId,
+          sku: s.sku,
+          count: count,
+          totp: code,
+        );
+        if (!mounted) return;
+        final ref = res.retireRef;
+        showOk(
           context,
           res.isShort
-              ? _tr('تم سحب ${res.reclaimed} من ${res.requested} — المتبقي ${res.remaining}',
-                  'Withdrew ${res.reclaimed} of ${res.requested} — ${res.remaining} left')
-              : _tr('تم سحب ${res.reclaimed} كرت', 'Withdrew ${res.reclaimed} cards'));
+              ? _tr(
+                  'تم إخراج ${res.retired} من ${res.requested} — المتبقي ${res.remaining}',
+                  'Retired ${res.retired} of ${res.requested} — ${res.remaining} left')
+              : _tr('تم إخراج ${res.retired} كرت نهائياً',
+                  'Retired ${res.retired} cards'),
+          // The undo is offered where the mistake is noticed, not only on a
+          // separate screen — pulling the wrong agent's stock is realised in the
+          // second after it happens.
+          actionLabel: ref == null ? null : _tr('تراجع', 'Undo'),
+          onAction: ref == null ? null : () => _restoreRetired(ref),
+        );
+      } else {
+        final res = await _repo.withdrawStock(
+          fromEntityId: widget.entityId,
+          sku: s.sku,
+          count: count,
+        );
+        if (!mounted) return;
+        // Say what actually happened: "asked for 100, got 60" is the useful line.
+        showOk(
+            context,
+            res.isShort
+                ? _tr('تم سحب ${res.reclaimed} من ${res.requested} — المتبقي ${res.remaining}',
+                    'Withdrew ${res.reclaimed} of ${res.requested} — ${res.remaining} left')
+                : _tr('تم سحب ${res.reclaimed} كرت', 'Withdrew ${res.reclaimed} cards'));
+      }
       widget.onChanged();
     } catch (e) {
       if (mounted) showError(context, serverReason(e) ?? e);
     } finally {
       if (mounted) setState(() => _withdrawing = false);
+    }
+  }
+
+  /// Puts a retire back — the undo behind the toast's action.
+  ///
+  /// Asks for the code again rather than reusing the one that authorised the
+  /// retire: it is a second write, and a code that has already been spent on one
+  /// action should not silently authorise another.
+  Future<void> _restoreRetired(String retireRef) async {
+    final code = await showConfirmCodeDialog(
+      context,
+      title: _tr('إرجاع الكروت', 'Restore the cards'),
+      warning: _tr(
+        'سيتم إرجاع الكروت إلى الوكيل الذي سُحبت منه وتعود للبيع.',
+        'The cards go back to the account they were taken from and become sellable again.',
+      ),
+      confirmLabel: _tr('إرجاع', 'Restore'),
+      destructive: false,
+    );
+    if (code == null || !mounted) return;
+    try {
+      final lot = await _repo.restoreRetired(retireRef, totp: code);
+      if (!mounted) return;
+      showOk(
+          context,
+          _tr('تم إرجاع ${lot.count} كرت إلى ${lot.displayFrom}',
+              'Restored ${lot.count} cards to ${lot.displayFrom}'));
+      widget.onChanged();
+    } catch (e) {
+      if (mounted) showError(context, serverReason(e) ?? e);
     }
   }
 
@@ -936,6 +1081,12 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
                   ],
                   if (_showsPill(ProductStatus.DAMAGED) && s.damaged > 0) ...[
                     StampPill(label: l.inventoryDamagedCount(s.damaged), color: context.status.danger),
+                    const SizedBox(width: 6),
+                  ],
+                  // C-19: retired cards stay in `total`, so they need a pill of
+                  // their own or the header reads as if some stock vanished.
+                  if (_showsPill(ProductStatus.RETIRED) && s.retired > 0) ...[
+                    StampPill(label: l.inventoryRetiredCount(s.retired), color: context.tones.brandInk),
                     const SizedBox(width: 6),
                   ],
                   // C-09: pull stock back from THIS agent's warehouse — the
@@ -1206,6 +1357,7 @@ class _ProductRow extends StatelessWidget {
       ProductStatus.PRINTED => context.tones.brandInk,
       ProductStatus.FAILED_PRINTING => context.status.danger,
       ProductStatus.DAMAGED => context.status.danger,
+      ProductStatus.RETIRED => context.tones.brandInk,
     };
   }
 
@@ -1217,6 +1369,7 @@ class _ProductRow extends StatelessWidget {
       ProductStatus.PRINTED => l.inventoryStatusPrinted,
       ProductStatus.FAILED_PRINTING => l.inventoryStatusFailedPrinting,
       ProductStatus.DAMAGED => l.inventoryStatusDamaged,
+      ProductStatus.RETIRED => l.inventoryStatusRetired,
     };
   }
 

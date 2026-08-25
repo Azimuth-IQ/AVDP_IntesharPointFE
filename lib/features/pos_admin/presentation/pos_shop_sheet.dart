@@ -104,7 +104,7 @@ class _PosShopSheetState extends State<_PosShopSheet> {
   /// The shop's POS operator, or null. Same strict rule as the list (B-130): a
   /// user without `isPos` is one the server refuses every operator action for.
   EntityUser? get _operator {
-    for (final u in widget.store.users) {
+    for (final u in widget.store.liveUsers) {
       if (u.isPos) return u;
     }
     return null;

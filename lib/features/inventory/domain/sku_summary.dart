@@ -8,6 +8,10 @@ class GovBucket {
   final int damaged;
   final int sentForPrinting;
   final int failedPrinting;
+
+  /// C-19: pulled out of circulation by HQ. Never sellable, still part of [total]
+  /// — without its own field the card's total stops equalling its pills.
+  final int retired;
   final num availableValue; // available * EFFECTIVE price (per-gov override ?? SKU-wide base ?? default), set by the backend
 
   const GovBucket({
@@ -18,6 +22,7 @@ class GovBucket {
     this.damaged = 0,
     this.sentForPrinting = 0,
     this.failedPrinting = 0,
+    this.retired = 0,
     this.availableValue = 0,
   });
 
@@ -31,6 +36,7 @@ class GovBucket {
         damaged: (j['damaged'] as num?)?.toInt() ?? 0,
         sentForPrinting: (j['sentForPrinting'] as num?)?.toInt() ?? 0,
         failedPrinting: (j['failedPrinting'] as num?)?.toInt() ?? 0,
+        retired: (j['retired'] as num?)?.toInt() ?? 0,
         availableValue: (j['availableValue'] as num?) ?? 0,
       );
 }
@@ -48,6 +54,9 @@ class SkuSummary {
   final int damaged;
   final int sentForPrinting;
   final int failedPrinting;
+
+  /// C-19: pulled out of circulation by HQ — counted in [total], never sellable.
+  final int retired;
   final List<GovBucket> governorates;
 
   const SkuSummary({
@@ -60,6 +69,7 @@ class SkuSummary {
     this.damaged = 0,
     this.sentForPrinting = 0,
     this.failedPrinting = 0,
+    this.retired = 0,
     this.governorates = const [],
   });
 
@@ -82,6 +92,7 @@ class SkuSummary {
         damaged: (j['damaged'] as num?)?.toInt() ?? 0,
         sentForPrinting: (j['sentForPrinting'] as num?)?.toInt() ?? 0,
         failedPrinting: (j['failedPrinting'] as num?)?.toInt() ?? 0,
+        retired: (j['retired'] as num?)?.toInt() ?? 0,
         governorates: ((j['governorates'] as List<dynamic>?) ?? const [])
             .map((e) => GovBucket.fromJson(e as Map<String, dynamic>))
             .toList(),

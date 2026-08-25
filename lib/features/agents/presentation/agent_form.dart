@@ -167,7 +167,10 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         _contactPhone.text = p.contactPhone;
         _contactEmail.text = p.contactEmail;
       }
-      for (final u in e.users) {
+      // UX-156: liveUsers ONLY. The form rebuilds the users array for a full
+      // entity PUT, so an archived user loaded in here would be sent back and
+      // resurrected. The server re-attaches the ones it does not see.
+      for (final u in e.liveUsers) {
         _users.add(_UserDraft.fromUser(u));
       }
     }

@@ -124,7 +124,8 @@ class AuthController extends AsyncNotifier<AuthState> {
       final entity = await entityRepo.me();
       debugPrint('[AUTH] entity fetched: ${entity.id}');
       final phone = await sessionStorage.getCurrentPhone() ?? '';
-      final user = entity.users.where((u) => u.phone == phone).firstOrNull;
+      // UX-156: liveUsers — an archived account must never resolve a session.
+      final user = entity.liveUsers.where((u) => u.phone == phone).firstOrNull;
       final role = user?.role ?? UserRole.ADMIN;
       // POS-user quota model: a POS is any USER flagged isPos (on any entity). Backward-compatible
       // with the legacy rule (a USER on a STORE) so existing store logins still route to /pos.
@@ -179,7 +180,7 @@ class AuthController extends AsyncNotifier<AuthState> {
       state = AsyncValue.data(AuthUnauthenticated());
       return const LoginFailed('Could not find entity for this user');
     }
-    final user = found.users.where((u) => u.phone == phone).firstOrNull;
+    final user = found.liveUsers.where((u) => u.phone == phone).firstOrNull;
     if (user == null) {
       state = AsyncValue.data(AuthUnauthenticated());
       return const LoginFailed('Could not find entity for this user');

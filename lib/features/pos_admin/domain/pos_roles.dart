@@ -24,10 +24,13 @@ const List<EntityType> kPosPointHolderTypes = [EntityType.AGENT1, EntityType.AGE
 /// the owner's own account: the credential endpoints all require `isPos`, so
 /// anything else here would be a guaranteed 403.
 EntityUser? counterUserOf(Entity store) {
-  for (final u in store.users) {
+  // UX-156: liveUsers only. A retired operator is not who runs the counter,
+  // and offering their account would be a guaranteed 403 on every credential
+  // endpoint — the same dead end the isPos check already avoids.
+  for (final u in store.liveUsers) {
     if (u.isPos) return u;
   }
-  for (final u in store.users) {
+  for (final u in store.liveUsers) {
     if (u.role == UserRole.USER) return u;
   }
   return null;

@@ -8,6 +8,7 @@ import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
+import 'package:inteshar/features/entities/presentation/confirm_code_dialog.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
@@ -43,9 +44,14 @@ class HqUsersPage extends ConsumerStatefulWidget {
 
 class _HqUsersPageState extends ConsumerState<HqUsersPage> {
   List<EntityUser>? _users;
+  List<EntityUser>? _archived;
   bool _loading = true;
   Object? _error;
   String _entityId = '';
+
+  /// UX-156: the archive is a segment of THIS screen, not a separate
+  /// destination. Someone who just archived a user looks for it here.
+  bool _showArchive = false;
 
   @override
   void initState() {
@@ -63,11 +69,15 @@ class _HqUsersPageState extends ConsumerState<HqUsersPage> {
       _error = null;
     });
     try {
-      final users =
-          await EntityRepository(ref.read(apiClientProvider)).listUsers(_entityId);
+      final repo = EntityRepository(ref.read(apiClientProvider));
+      // Both lists every time: the segment control shows the archive count, and
+      // archiving moves a row from one list to the other.
+      final users = await repo.listUsers(_entityId);
+      final archived = await repo.listArchivedUsers(_entityId);
       if (mounted) {
         setState(() {
           _users = users;
+          _archived = archived;
           _loading = false;
         });
       }
@@ -91,31 +101,131 @@ class _HqUsersPageState extends ConsumerState<HqUsersPage> {
     if (saved == true) _load();
   }
 
-  Future<void> _remove(EntityUser u) async {
+  /// Archives a user (UX-156).
+  ///
+  /// The customer asked whether deleting a user moves it somewhere or cancels it
+  /// for good. The dialog answers that in words before anything happens, because
+  /// the previous prompt ("Remove 07…?") described an irreversible delete and
+  /// performed one.
+  Future<void> _archive(EntityUser u) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(_tr(ctx, 'إزالة المستخدم', 'Remove user')),
-        content: Text(_tr(ctx, 'إزالة ${u.phone}؟', 'Remove ${u.phone}?')),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(_tr(ctx, 'إلغاء', 'Cancel'))),
-          FilledButton(
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return AlertDialog(
+          icon: Icon(Icons.inventory_2_outlined, color: cs.error),
+          title: Text(_tr(ctx, 'أرشفة المستخدم', 'Archive user')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(_tr(
+                ctx,
+                'سيتوقف ${u.phone} عن تسجيل الدخول فوراً وينتقل إلى الأرشيف. '
+                    'لا يُحذف الحساب — يمكنك إعادة تفعيله لاحقاً بنفس كلمة المرور.',
+                '${u.phone} stops being able to sign in immediately and moves to '
+                    'the archive. The account is not deleted — you can restore it '
+                    'later with the same password.',
+              )),
+              const SizedBox(height: 12),
+              // The number staying taken is the surprise worth stating up front:
+              // it is the one thing an admin will try to do next and be refused.
+              Text(
+                _tr(
+                  ctx,
+                  'يبقى رقم الهاتف محجوزاً لهذا الحساب ولا يمكن استخدامه لمستخدم جديد.',
+                  'The phone number stays reserved for this account and cannot be '
+                      'reused for a new user.',
+                ),
+                style: Theme.of(ctx).textTheme.bodySmall,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(_tr(ctx, 'إلغاء', 'Cancel'))),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: cs.error),
               onPressed: () => Navigator.pop(ctx, true),
-              child: Text(_tr(ctx, 'إزالة', 'Remove'))),
-        ],
-      ),
+              child: Text(_tr(ctx, 'أرشفة', 'Archive')),
+            ),
+          ],
+        );
+      },
     );
-    if (ok != true) return;
+    if (ok != true || !mounted) return;
+
+    // Same class of action as revoking a POS: it takes someone's login away.
+    final code = await showConfirmCodeDialog(
+      context,
+      title: _tr(context, 'تأكيد الأرشفة', 'Confirm archiving'),
+      warning: _tr(
+        context,
+        'سيتم إيقاف دخول ${u.phone} ونقله إلى الأرشيف.',
+        '${u.phone} will be signed out and moved to the archive.',
+      ),
+      confirmLabel: _tr(context, 'أرشفة', 'Archive'),
+    );
+    if (code == null || !mounted) return;
     try {
       await EntityRepository(ref.read(apiClientProvider))
-          .removeUser(_entityId, u.phone);
+          .archiveUser(_entityId, u.phone, totp: code);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(_tr(context, 'تمت الأرشفة', 'User archived'))));
+      }
       _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(serverReason(e) ?? friendlyError(e, context))));
+      }
+    }
+  }
+
+  /// Brings an archived user back into service.
+  Future<void> _restore(EntityUser u) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return AlertDialog(
+          icon: Icon(Icons.restore_outlined, color: cs.primary),
+          title: Text(_tr(ctx, 'إعادة تفعيل المستخدم', 'Restore user')),
+          content: Text(_tr(
+            ctx,
+            'سيتمكن ${u.phone} من تسجيل الدخول بنفس كلمة المرور وتطبيق المصادقة '
+                'كما كان، وتعود صلاحياته كما هي.',
+            '${u.phone} will be able to sign in with the same password and '
+                'authenticator as before, with their capabilities unchanged.',
+          )),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(_tr(ctx, 'إلغاء', 'Cancel'))),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(_tr(ctx, 'إعادة تفعيل', 'Restore'))),
+          ],
+        );
+      },
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await EntityRepository(ref.read(apiClientProvider))
+          .restoreUser(_entityId, u.phone);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(_tr(context, 'تمت إعادة التفعيل', 'User restored'))));
+      }
+      _load();
+    } catch (e) {
+      if (mounted) {
+        // Prefer the server's words: "AGENT2 may have at most 1 user(s)" is the
+        // answer, and a generic failure would leave the admin guessing.
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(serverReason(e) ?? friendlyError(e, context))));
       }
     }
   }
@@ -170,13 +280,44 @@ class _HqUsersPageState extends ConsumerState<HqUsersPage> {
           ),
           Padding(
             padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 12),
-            child: SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: () => _openForm(),
-                icon: const Icon(Icons.person_add_alt_1, size: 18),
-                label: Text(_tr(context, 'إضافة مشرف', 'Add supervisor')),
-              ),
+            child: Column(
+              children: [
+                if (!_showArchive)
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () => _openForm(),
+                      icon: const Icon(Icons.person_add_alt_1, size: 18),
+                      label: Text(_tr(context, 'إضافة مشرف', 'Add supervisor')),
+                    ),
+                  ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: SegmentedButton<bool>(
+                    segments: [
+                      ButtonSegment(
+                        value: false,
+                        icon: const Icon(Icons.people_outline, size: 16),
+                        label: Text(_tr(context, 'النشطون', 'Active')),
+                      ),
+                      ButtonSegment(
+                        value: true,
+                        icon: const Icon(Icons.inventory_2_outlined, size: 16),
+                        // The count is on the tab: an archive you cannot tell is
+                        // empty is one nobody opens.
+                        label: Text(_archived == null || _archived!.isEmpty
+                            ? _tr(context, 'الأرشيف', 'Archived')
+                            : _tr(context, 'الأرشيف (${_archived!.length})',
+                                'Archived (${_archived!.length})')),
+                      ),
+                    ],
+                    selected: {_showArchive},
+                    onSelectionChanged: (v) =>
+                        setState(() => _showArchive = v.first),
+                  ),
+                ),
+              ],
             ),
           ),
           Expanded(child: _body()),
@@ -188,6 +329,21 @@ class _HqUsersPageState extends ConsumerState<HqUsersPage> {
   Widget _body() {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) return ErrorState(error: _error!, onRetry: _load);
+    if (_showArchive) {
+      final a = _archived ?? const <EntityUser>[];
+      if (a.isEmpty) {
+        return EmptyState(
+            message: _tr(context, 'لا يوجد مستخدمون مؤرشفون',
+                'No archived users'));
+      }
+      return ListView.separated(
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 24),
+        itemCount: a.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
+        itemBuilder: (_, i) =>
+            _ArchivedUserCard(user: a[i], onRestore: () => _restore(a[i])),
+      );
+    }
     final u = _users;
     if (u == null || u.isEmpty) {
       return EmptyState(
@@ -200,8 +356,65 @@ class _HqUsersPageState extends ConsumerState<HqUsersPage> {
       itemBuilder: (_, i) => _UserCard(
         user: u[i],
         onEdit: () => _openForm(existing: u[i]),
-        onRemove: () => _remove(u[i]),
+        onRemove: () => _archive(u[i]),
         onResetTotp: () => _resetTotp(u[i]),
+      ),
+    );
+  }
+}
+
+/// A retired account: who it was, when it was archived and by whom, and the one
+/// action that applies to it.
+class _ArchivedUserCard extends StatelessWidget {
+  final EntityUser user;
+  final VoidCallback onRestore;
+  const _ArchivedUserCard({required this.user, required this.onRestore});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final when = user.archivedAt?.toLocal().toString().substring(0, 16) ?? '';
+    return InkCard(
+      ruleColor: cs.outline,
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Expanded(
+              child: monoText(user.phone,
+                  size: 14, color: cs.onSurfaceVariant, w: FontWeight.w800),
+            ),
+            StampPill(
+              label: _tr(context, 'مؤرشف', 'Archived'),
+              color: cs.onSurfaceVariant,
+              fontSize: 10,
+            ),
+          ]),
+          if (when.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              user.archivedBy.isEmpty
+                  ? _tr(context, 'أُرشف في $when', 'Archived $when')
+                  : _tr(context, 'أُرشف في $when بواسطة ${user.archivedBy}',
+                      'Archived $when by ${user.archivedBy}'),
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: cs.onSurfaceVariant),
+            ),
+          ],
+          const SizedBox(height: 10),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: FilledButton.icon(
+              key: Key('restore-user-${user.phone}'),
+              onPressed: onRestore,
+              icon: const Icon(Icons.restore_outlined, size: 16),
+              label: Text(_tr(context, 'إعادة تفعيل', 'Restore')),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -246,9 +459,9 @@ class _UserCard extends StatelessWidget {
                 onPressed: onEdit,
                 icon: const Icon(Icons.edit_outlined, size: 18)),
             IconButton(
-                tooltip: _tr(context, 'حذف المستخدم', 'Remove user'),
+                tooltip: _tr(context, 'أرشفة المستخدم', 'Archive user'),
                 onPressed: onRemove,
-                icon: Icon(Icons.delete_outline, size: 18, color: cs.error)),
+                icon: Icon(Icons.inventory_2_outlined, size: 18, color: cs.error)),
           ]),
           const SizedBox(height: 4),
           Wrap(

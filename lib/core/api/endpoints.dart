@@ -41,7 +41,12 @@ class Endpoints {
   static const entityUsers = '/api/entity/users';
   static const entityUserAdd = '/api/entity/users/add';
   static const entityUserUpdate = '/api/entity/users/update';
+  // UX-156: `remove` ARCHIVES the user (retired, restorable) — the path and verb
+  // are kept so already-shipped APKs stop destroying accounts the moment the
+  // server deploys.
   static const entityUserRemove = '/api/entity/users/remove';
+  static const entityUsersArchived = '/api/entity/users/archived';
+  static const entityUserRestore = '/api/entity/users/restore';
   static const entityUserResetTotp = '/api/entity/users/resetTotp';
   static const entityPosStats = '/api/entity/posStats';
 
@@ -176,6 +181,11 @@ class Endpoints {
   static const productBatchWithdraw = '/api/inventory/batch/withdraw';
   // C-09: pull a quantity of one SKU back from an agent's warehouse.
   static const productWithdrawStock = '/api/inventory/withdraw';
+  // C-19: the second destination for a withdraw — out of the system for good,
+  // recoverable by HQ via productRetireRestore.
+  static const productRetireStock = '/api/inventory/retire';
+  static const productRetireRestore = '/api/inventory/retire/restore';
+  static const productRetiredLots = '/api/inventory/retired';
   static const productBatchExport = '/api/inventory/batch/export';
 
   // Broadcast notifications. GET inbox + POST create share the base path;

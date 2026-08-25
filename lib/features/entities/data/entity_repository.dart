@@ -222,8 +222,40 @@ class EntityRepository {
     });
   }
 
-  Future<void> removeUser(String entityId, String phone) async {
-    await _api.delete(Endpoints.entityUserRemove,
+  /// Archives a user (UX-156): the account stops authenticating and leaves the
+  /// roster, but the record is kept and [restoreUser] brings it back.
+  ///
+  /// [totp] is the caller's own authenticator code. The server demands it for the
+  /// same reason it does on a POS revoke — this takes someone's login away — and
+  /// waves it through for callers on a tier where 2FA is switched off. A wrong
+  /// code comes back 403, never 401, so it does not sign the admin out.
+  ///
+  /// The phone stays taken afterwards: an archived user keeps its number, which is
+  /// what makes a restore safe from ever minting a duplicate login.
+  Future<void> archiveUser(String entityId, String phone, {String? totp}) async {
+    await _api.delete(Endpoints.entityUserRemove, params: {
+      'entityId': entityId,
+      'phone': phone,
+      if (totp != null && totp.isNotEmpty) 'totp': totp,
+    });
+  }
+
+  /// The entity's archived users, newest first.
+  Future<List<EntityUser>> listArchivedUsers(String entityId) async {
+    final response = await _api
+        .get(Endpoints.entityUsersArchived, params: {'entityId': entityId});
+    return _api.unwrap(response, (d) {
+      final list = d as List<dynamic>;
+      return list
+          .map((e) => EntityUser.fromJson(e as Map<String, dynamic>))
+          .toList();
+    });
+  }
+
+  /// Returns an archived user to service. Their password, PIN and authenticator
+  /// enrolment were never touched, so they sign in exactly as before.
+  Future<void> restoreUser(String entityId, String phone) async {
+    await _api.post(Endpoints.entityUserRestore,
         params: {'entityId': entityId, 'phone': phone});
   }
 

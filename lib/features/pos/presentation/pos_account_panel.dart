@@ -32,7 +32,7 @@ class PosAccountPanel extends ConsumerWidget {
     final entity = auth is AuthAuthenticated ? auth.entity : null;
     final profile = entity?.profile;
     final shop = entity?.meta.name ?? '';
-    final phone = entity?.users.firstOrNull?.phone ?? '';
+    final phone = entity?.liveUsers.firstOrNull?.phone ?? '';
     final gov = (entity?.meta.governorates.isNotEmpty ?? false)
         ? governorateLabel(entity!.meta.governorates.first, loc)
         : '';

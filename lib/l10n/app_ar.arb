@@ -328,6 +328,7 @@
   "inventoryStatusDamaged": "تالف",
   "inventoryStatusSentForPrinting": "قيد الطباعة",
   "inventoryStatusFailedPrinting": "فشلت الطباعة",
+  "inventoryStatusRetired": "مسحوب نهائياً",
   "inventorySearchHint": "بحث بالاسم أو رمز المنتج أو الرقم التسلسلي…",
   "inventoryFilterAll": "الكل",
   "inventoryEmptyFirst": "لا توجد منتجات مملوكة لهذه الجهة بعد.",
@@ -347,6 +348,10 @@
   },
   "inventoryDamagedCount": "{count} تالف",
   "@inventoryDamagedCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "inventoryRetiredCount": "{count} مسحوب نهائياً",
+  "@inventoryRetiredCount": {
     "placeholders": { "count": { "type": "int" } }
   },
   "inventorySnLabel": "ر.ت",

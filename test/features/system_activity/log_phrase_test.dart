@@ -109,4 +109,40 @@ void main() {
     expect(p.line, 'Login request');
     expect(p.line.endsWith('·'), isFalse);
   });
+
+  // C-19. The lookup is a substring test walked in declaration order, so the
+  // shortest of a family of routes will answer for all of them if it is listed
+  // first. Three routes that share a stem is exactly where that goes wrong, and
+  // an admin reading "stock retired" against a plain list view would be looking
+  // at an event that never happened.
+  group('the three retire routes each keep their own sentence', () {
+    test('retiring, restoring and listing do not collapse into one phrase', () {
+      final retire = logPhrase(log(path: '/api/inventory/retire'), ar: false).title;
+      final restore = logPhrase(log(path: '/api/inventory/retire/restore'), ar: false).title;
+      final list = logPhrase(log(path: '/api/inventory/retired'), ar: false).title;
+
+      expect(retire, 'Stock retired permanently');
+      expect(restore, 'Retired stock restored');
+      expect(list, 'Retired stock list');
+      expect({retire, restore, list}, hasLength(3));
+    });
+
+    test('and none of them is mistaken for the ordinary withdraw', () {
+      expect(logPhrase(log(path: '/api/inventory/withdraw'), ar: false).title,
+          'Stock withdrawn from an agent');
+      expect(logPhrase(log(path: '/api/inventory/retire'), ar: false).title,
+          isNot('Stock withdrawn from an agent'));
+    });
+
+    test('the Arabic side is Arabic, not an English fallback', () {
+      for (final path in [
+        '/api/inventory/retire',
+        '/api/inventory/retire/restore',
+        '/api/inventory/retired',
+      ]) {
+        final title = logPhrase(log(path: path), ar: true).title;
+        expect(RegExp(r'[؀-ۿ]').hasMatch(title), isTrue, reason: path);
+      }
+    });
+  });
 }

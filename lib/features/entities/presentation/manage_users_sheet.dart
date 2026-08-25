@@ -9,15 +9,18 @@ import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/password_field.dart';
 
-/// "Delete N users" in Arabic, which does not simply take a number and a plural:
-/// two is its own dual form, 3–10 take the plural, and 11+ go back to the
-/// singular accusative. Getting this wrong is small but reads as machine output
-/// in a confirmation people are meant to trust.
-String arDeleteUsersCount(int n) {
-  if (n == 1) return 'حذف مستخدم';
-  if (n == 2) return 'حذف مستخدمين';
-  if (n <= 10) return 'حذف $n مستخدمين';
-  return 'حذف $n مستخدماً';
+/// "Archive N users" in Arabic, which does not simply take a number and a
+/// plural: two is its own dual form, 3–10 take the plural, and 11+ go back to
+/// the singular accusative. Getting this wrong is small but reads as machine
+/// output in a confirmation people are meant to trust.
+///
+/// UX-156 changed the verb from حذف (delete) to أرشفة (archive), because the
+/// action changed: the account is retired and restorable, not destroyed.
+String arArchiveUsersCount(int n) {
+  if (n == 1) return 'أرشفة مستخدم';
+  if (n == 2) return 'أرشفة مستخدمين';
+  if (n <= 10) return 'أرشفة $n مستخدمين';
+  return 'أرشفة $n مستخدماً';
 }
 
 class ManageUsersSheet extends StatefulWidget {
@@ -53,7 +56,10 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
   @override
   void initState() {
     super.initState();
-    _users = List.of(widget.entity.users);
+    // UX-156: the sheet manages users in SERVICE. Archived ones are invisible
+    // here, and must stay out of the list the save diffs against — diffing them
+    // as "removed" would re-archive an already-archived account (409).
+    _users = List.of(widget.entity.liveUsers);
   }
 
   @override
@@ -127,7 +133,7 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
   /// True when this user already exists on the server, so dropping them is a
   /// real deletion rather than discarding an unsaved row.
   bool _isPersisted(EntityUser u) =>
-      widget.entity.users.any((x) => x.phone == u.phone);
+      widget.entity.liveUsers.any((x) => x.phone == u.phone);
 
   /// The users that would exist after a save — [_users] less anything marked
   /// for removal. Everything that asks "how many users will be left" must go
@@ -285,8 +291,8 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
       return;
     }
 
-    // Deleting a login is the one irreversible thing this sheet does, so it is
-    // named out loud — phone by phone — before anything is written.
+    // Archiving a login is the heaviest thing this sheet does, so the accounts
+    // are named out loud — phone by phone — before anything is written.
     if (_pendingRemoval.isNotEmpty) {
       final going = _users
           .map((u) => u.phone)
@@ -297,23 +303,27 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
         builder: (ctx) {
           final cs = Theme.of(ctx).colorScheme;
           return AlertDialog(
-            icon: Icon(Icons.person_remove_outlined, color: cs.error),
+            icon: Icon(Icons.inventory_2_outlined, color: cs.error),
             title: Text(_ar
-                ? '${arDeleteUsersCount(going.length)}؟'
+                ? '${arArchiveUsersCount(going.length)}؟'
                 : (going.length == 1
-                    ? 'Delete user?'
-                    : 'Delete ${going.length} users?')),
+                    ? 'Archive user?'
+                    : 'Archive ${going.length} users?')),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // UX-156: this used to say "can't be undone", which is now
+                // false — and a warning that overstates the damage is as bad
+                // as one that understates it. It stops the login and keeps
+                // the record; the archive is where it goes.
                 Text(_ar
                     ? (going.length == 1
-                        ? 'لن يعود بإمكانه تسجيل الدخول. لا يمكن التراجع.'
-                        : 'لن يعود بإمكان هؤلاء تسجيل الدخول. لا يمكن التراجع.')
+                        ? 'لن يعود بإمكانه تسجيل الدخول، وينتقل الحساب إلى الأرشيف. يمكن إعادة تفعيله لاحقاً.'
+                        : 'لن يعود بإمكان هؤلاء تسجيل الدخول، وتنتقل حساباتهم إلى الأرشيف. يمكن إعادة تفعيلها لاحقاً.')
                     : (going.length == 1
-                        ? "This person will no longer be able to sign in. This can't be undone."
-                        : "These people will no longer be able to sign in. This can't be undone.")),
+                        ? 'This person can no longer sign in and their account moves to the archive. It can be restored later.'
+                        : 'These people can no longer sign in and their accounts move to the archive. They can be restored later.')),
                 const SizedBox(height: 12),
                 ...going.map((p) => Padding(
                       padding: const EdgeInsets.symmetric(vertical: 2),
@@ -332,7 +342,7 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
                 key: const Key('confirm-user-removal'),
                 style: FilledButton.styleFrom(backgroundColor: cs.error),
                 onPressed: () => Navigator.pop(ctx, true),
-                child: Text(_ar ? 'حذف' : 'Delete'),
+                child: Text(_ar ? 'أرشفة' : 'Archive'),
               ),
             ],
           );

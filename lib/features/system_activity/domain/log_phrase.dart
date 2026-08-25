@@ -80,6 +80,11 @@ const Map<String, (String, String)> _routes = {
   '/inventory/batch/export': ('Batch exported', 'تصدير دفعة'),
   '/inventory/batch/pause': ('Batch paused', 'إيقاف دفعة'),
   '/inventory/withdraw': ('Stock withdrawn from an agent', 'سحب كروت من مخزن وكيل'),
+  // C-19. Order matters — the match is a substring test, so `/inventory/retire`
+  // would swallow both of the longer keys if it came first.
+  '/inventory/retire/restore': ('Retired stock restored', 'إرجاع كروت مسحوبة نهائياً'),
+  '/inventory/retired': ('Retired stock list', 'قائمة الكروت المسحوبة نهائياً'),
+  '/inventory/retire': ('Stock retired permanently', 'إخراج كروت من السستم نهائياً'),
   '/inventory/batch/withdraw': ('Batch withdrawn', 'سحب دفعة'),
   '/inventory/batches': ('Batch list', 'قائمة الدفعات'),
   '/inventory/batch': ('Batch deleted', 'حذف دفعة'),
@@ -131,7 +136,12 @@ const Map<String, (String, String)> _routes = {
   // ── accounts ────────────────────────────────────────────────────────────
   '/entity/users/resettotp': ('2FA reset', 'إعادة تعيين التحقق بخطوتين'),
   '/entity/users/add': ('User added', 'إضافة مستخدم'),
-  '/entity/users/remove': ('User removed', 'حذف مستخدم'),
+  // UX-156: /remove keeps its path but no longer destroys the account — it
+  // archives it. The sentence has to say what actually happened, or the audit
+  // trail reads as a delete that never occurred.
+  '/entity/users/archived': ('Archived users', 'قائمة المستخدمين المؤرشفين'),
+  '/entity/users/restore': ('User restored', 'إعادة تفعيل مستخدم'),
+  '/entity/users/remove': ('User archived', 'أرشفة مستخدم'),
   '/entity/users/update': ('User updated', 'تعديل مستخدم'),
   '/entity/users': ('User list', 'قائمة المستخدمين'),
   '/entity/create': ('Account created', 'إنشاء حساب'),

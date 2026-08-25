@@ -560,7 +560,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
   ///
   /// Strict now, so the UI only offers what the server will accept.
   EntityUser? _operator(Entity store) {
-    for (final u in store.users) {
+    for (final u in store.liveUsers) {
       if (u.isPos) return u;
     }
     return null;

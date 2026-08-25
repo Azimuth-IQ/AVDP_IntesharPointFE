@@ -6,6 +6,7 @@ import 'package:inteshar/features/inventory/domain/print_operation.dart';
 import 'package:inteshar/features/inventory/domain/product.dart';
 import 'package:inteshar/features/inventory/domain/sku_summary.dart';
 import 'package:inteshar/features/inventory/domain/batch_withdraw_result.dart';
+import 'package:inteshar/features/inventory/domain/stock_retire_result.dart';
 import 'package:inteshar/features/inventory/domain/stock_withdraw_result.dart';
 import 'package:inteshar/features/inventory/domain/voucher_batch.dart';
 import 'package:inteshar/features/inventory/domain/voucher_import.dart';
@@ -516,6 +517,55 @@ class ProductRepository {
     });
     return _api.unwrap(
         response, (d) => StockWithdrawResult.fromJson(d as Map<String, dynamic>));
+  }
+
+  /// Takes [count] sellable vouchers of one SKU out of circulation for good
+  /// (C-19 — "اخراج من السستم بشكل نهائي").
+  ///
+  /// Not a delete: the cards move to a terminal non-sellable state under HQ, keep
+  /// their code and history, and can be put back with [restoreRetired]. Needs the
+  /// operator's authenticator code like every other irreversible action.
+  /// `POST /api/inventory/retire`.
+  Future<StockRetireResult> retireStock({
+    required String fromEntityId,
+    required String sku,
+    String? governorate,
+    required int count,
+    String? totp,
+  }) async {
+    final response = await _api.post(Endpoints.productRetireStock, params: {
+      'fromEntityId': fromEntityId,
+      'sku': sku,
+      if (governorate != null && governorate.isNotEmpty)
+        'governorate': governorate,
+      'count': count,
+      if (totp != null && totp.isNotEmpty) 'totp': totp,
+    });
+    return _api.unwrap(
+        response, (d) => StockRetireResult.fromJson(d as Map<String, dynamic>));
+  }
+
+  /// Puts one retire action's cards back with the account they came from.
+  /// `POST /api/inventory/retire/restore`.
+  Future<RetiredLot> restoreRetired(String retireRef, {String? totp}) async {
+    final response = await _api.post(Endpoints.productRetireRestore, params: {
+      'retireRef': retireRef,
+      if (totp != null && totp.isNotEmpty) 'totp': totp,
+    });
+    return _api.unwrap(
+        response, (d) => RetiredLot.fromJson(d as Map<String, dynamic>));
+  }
+
+  /// The retire actions HQ can still undo, newest first.
+  /// `GET /api/inventory/retired`.
+  Future<List<RetiredLot>> retiredLots() async {
+    final response = await _api.get(Endpoints.productRetiredLots);
+    return _api.unwrap(
+      response,
+      (d) => (d as List<dynamic>)
+          .map((e) => RetiredLot.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
   }
 
   /// Withdraws (reclaims) all still-AVAILABLE vouchers in a batch back to the

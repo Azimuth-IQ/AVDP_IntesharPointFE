@@ -13,6 +13,7 @@ import 'package:inteshar/features/entities/data/entity_repository.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/domain/entity_summary_row.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
+import 'package:inteshar/features/entities/presentation/confirm_code_dialog.dart';
 import 'package:inteshar/features/entities/presentation/delete_agent_sheet.dart';
 import 'package:inteshar/features/entities/presentation/manage_users_sheet.dart';
 import 'package:inteshar/features/entities/presentation/visible_products_sheet.dart';
@@ -442,13 +443,41 @@ Future<void> showEntityUsersSheet(
         // Fine-grained diff: avoids the full-entity PUT that clears childrenIds
         // on the backend (EntityHelper.updateEntity bug) — and, more to the
         // point, never round-trips a read-back user object (C-10).
-        final originalByPhone = {for (final u in full.users) u.phone: u};
+        // UX-156: liveUsers — an archived user is not in the sheet's list, so
+        // diffing against the raw array would call archive on it a second time.
+        final originalByPhone = {for (final u in full.liveUsers) u.phone: u};
         final updatedByPhone = {for (final u in updatedUsers) u.phone: u};
 
-        for (final phone in originalByPhone.keys) {
-          if (!updatedByPhone.containsKey(phone)) {
-            await repo.removeUser(row.id, phone);
-          }
+        // UX-156: archiving takes someone's login away, so the server demands
+        // the caller's own authenticator code — the same step-up as a POS
+        // revoke. Asked ONCE for the whole batch, and asked BEFORE any mutation
+        // runs: the adds and role edits below are already applied one call at a
+        // time, so prompting mid-loop would leave the roster half-changed if
+        // the operator backed out.
+        final going = originalByPhone.keys
+            .where((phone) => !updatedByPhone.containsKey(phone))
+            .toList();
+        String? code;
+        if (going.isNotEmpty) {
+          if (!ctx.mounted) return;
+          final ar = Localizations.localeOf(ctx).languageCode == 'ar';
+          code = await showConfirmCodeDialog(
+            ctx,
+            title: ar ? 'تأكيد الأرشفة' : 'Confirm archiving',
+            warning: going.length == 1
+                ? (ar
+                    ? 'سيتم إيقاف دخول ${going.first} ونقله إلى الأرشيف. يمكن إرجاعه لاحقاً.'
+                    : '${going.first} will be signed out and moved to the archive. They can be restored later.')
+                : (ar
+                    ? '${arArchiveUsersCount(going.length)}: سيتم إيقاف دخولهم ونقلهم إلى الأرشيف. يمكن إرجاعهم لاحقاً.'
+                    : '${going.length} users will be signed out and moved to the archive. They can be restored later.'),
+            confirmLabel: ar ? 'أرشفة' : 'Archive',
+          );
+          if (code == null) return;
+        }
+
+        for (final phone in going) {
+          await repo.archiveUser(row.id, phone, totp: code);
         }
 
         for (final u in updatedUsers) {

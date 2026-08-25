@@ -538,6 +538,8 @@
   "@inventoryStatusSentForPrinting": {},
   "inventoryStatusFailedPrinting": "Print failed",
   "@inventoryStatusFailedPrinting": {},
+  "inventoryStatusRetired": "Retired",
+  "@inventoryStatusRetired": {},
   "inventorySearchHint": "Search by name, SKU, or serial…",
   "@inventorySearchHint": {},
   "inventoryFilterAll": "All",
@@ -562,6 +564,10 @@
   },
   "inventoryDamagedCount": "{count} damaged",
   "@inventoryDamagedCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "inventoryRetiredCount": "{count} retired",
+  "@inventoryRetiredCount": {
     "placeholders": { "count": { "type": "int" } }
   },
   "inventorySnLabel": "SN",

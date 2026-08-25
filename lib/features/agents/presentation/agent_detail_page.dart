@@ -152,7 +152,7 @@ class _AgentDetailPageState extends ConsumerState<AgentDetailPage> {
       type: e?.type ?? EntityType.AGENT1,
       childrenCount: e?.childrenIds.length ?? 0,
       productsCount: e?.productsIds.length ?? 0,
-      userCount: e?.users.length ?? 0,
+      userCount: e?.liveUsers.length ?? 0,
       governorates: e?.meta.governorates ?? const [],
     );
   }
@@ -308,7 +308,7 @@ class _AgentDetailPageState extends ConsumerState<AgentDetailPage> {
                 '${e.childrenIds.length}',
                 ar,
               ),
-              _figure(ar ? 'المستخدمون' : 'Users', '${e.users.length}', ar),
+              _figure(ar ? 'المستخدمون' : 'Users', '${e.liveUsers.length}', ar),
             ],
           ),
         ],
@@ -548,13 +548,15 @@ class _AgentDetailPageState extends ConsumerState<AgentDetailPage> {
               child: Text(ar ? 'إدارة' : 'Manage'),
             )
           : null,
-      child: e.users.isEmpty
+      // UX-156: the roster is the users in SERVICE. /entity/read returns the
+      // archived ones too, because the server keeps the record.
+      child: e.liveUsers.isEmpty
           ? _note(ar ? 'لا يوجد مستخدمون.' : 'No users.')
           : Column(
               children: [
-                for (var i = 0; i < e.users.length; i++)
+                for (var i = 0; i < e.liveUsers.length; i++)
                   Padding(
-                    padding: EdgeInsets.only(bottom: i == e.users.length - 1 ? 0 : 10),
+                    padding: EdgeInsets.only(bottom: i == e.liveUsers.length - 1 ? 0 : 10),
                     child: Row(
                       children: [
                         Icon(Icons.person_outline, size: 17, color: cs.onSurfaceVariant),
@@ -564,12 +566,12 @@ class _AgentDetailPageState extends ConsumerState<AgentDetailPage> {
                             textDirection: TextDirection.ltr,
                             child: Align(
                               alignment: AlignmentDirectional.centerStart,
-                              child: Text(e.users[i].phone, style: IntesharType.mono(12.5)),
+                              child: Text(e.liveUsers[i].phone, style: IntesharType.mono(12.5)),
                             ),
                           ),
                         ),
                         StampPill(
-                          label: e.users[i].role.name,
+                          label: e.liveUsers[i].role.name,
                           color: context.status.neutral,
                           filled: false,
                         ),

@@ -777,6 +777,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get inventoryStatusFailedPrinting => 'فشلت الطباعة';
 
   @override
+  String get inventoryStatusRetired => 'مسحوب نهائياً';
+
+  @override
   String get inventorySearchHint =>
       'بحث بالاسم أو رمز المنتج أو الرقم التسلسلي…';
 
@@ -819,6 +822,11 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String inventoryDamagedCount(int count) {
     return '$count تالف';
+  }
+
+  @override
+  String inventoryRetiredCount(int count) {
+    return '$count مسحوب نهائياً';
   }
 
   @override

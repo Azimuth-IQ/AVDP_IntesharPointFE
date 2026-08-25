@@ -1,7 +1,22 @@
 // ignore_for_file: constant_identifier_names
 import 'package:inteshar/features/inventory/domain/product_definition.dart';
 
-enum ProductStatus { AVAILABLE, SENT_FOR_PRINTING, PRINTED, FAILED_PRINTING, DAMAGED }
+/// Mirrors the backend `ProductStatus`. Only `AVAILABLE` is sellable.
+///
+/// Keep this in step with the server: [Product.fromJson] falls back to
+/// `AVAILABLE` for a name it does not know, so a status missing from here reads
+/// as sellable stock rather than as an unknown.
+enum ProductStatus {
+  AVAILABLE,
+  SENT_FOR_PRINTING,
+  PRINTED,
+  FAILED_PRINTING,
+  DAMAGED,
+
+  /// C-19: taken out of circulation by HQ. The code still exists for audit and HQ
+  /// can put it back, but it is not stock any more.
+  RETIRED,
+}
 
 class Product {
   final String id;

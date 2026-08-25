@@ -1484,6 +1484,12 @@ abstract class AppLocalizations {
   /// **'Print failed'**
   String get inventoryStatusFailedPrinting;
 
+  /// No description provided for @inventoryStatusRetired.
+  ///
+  /// In en, this message translates to:
+  /// **'Retired'**
+  String get inventoryStatusRetired;
+
   /// No description provided for @inventorySearchHint.
   ///
   /// In en, this message translates to:
@@ -1537,6 +1543,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count} damaged'**
   String inventoryDamagedCount(int count);
+
+  /// No description provided for @inventoryRetiredCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} retired'**
+  String inventoryRetiredCount(int count);
 
   /// No description provided for @inventorySnLabel.
   ///

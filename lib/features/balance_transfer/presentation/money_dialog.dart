@@ -52,7 +52,9 @@ Future<bool?> showMoneyDialog({
           child: Scaffold(
             appBar: AppBar(
               title: Text(title),
+              // UX-150: the only way out of a full-screen money dialog, unnamed.
               leading: IconButton(
+                tooltip: MaterialLocalizations.of(ctx).closeButtonTooltip,
                 icon: const Icon(Icons.close),
                 onPressed: () => Navigator.pop(ctx, false),
               ),

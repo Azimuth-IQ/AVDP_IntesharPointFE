@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:inteshar/core/api/api_exception.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -53,8 +54,26 @@ class _S {
   String get errName => p('Name is required', 'الاسم مطلوب');
   String get createTitle => p('New company', 'شركة جديدة');
   String get editTitle => p('Edit company', 'تعديل الشركة');
-  String get cap => p('Withdrawal cap per shop (0 = unlimited)', 'حد السحب لكل نقطة (0 = بلا حد)');
-  String get window => p('Window (hours)', 'المدة (ساعات)');
+  // UX-71: the cap and the window are ONE rule. They used to be two labelled
+  // boxes that never referenced each other — "Withdrawal cap per shop (0 =
+  // unlimited)" truncated inside ~160px next to "Window (hours)" — and this
+  // rule throttles selling at every POS on the platform, so a misread `1`
+  // silently 429s every shop. It is now written as one sentence with the two
+  // numbers inline, plus a plain-language readout of what was just typed.
+  String get capSection => p('Selling limit per shop', 'حد البيع لكل نقطة');
+  String get capLead => p('Limit each shop to', 'حدّ كل نقطة بـ');
+  String get capMid => p('cards every', 'كرت كل');
+  String get capTail => p('hours', 'ساعة');
+  String get capUnlimited => p(
+      'No limit — every shop may sell as many of this company’s cards as it holds.',
+      'بلا حد — كل نقطة تبيع من كروت هذه الشركة بقدر ما لديها.');
+  String capReadout(int n, int h) => p(
+      'Each shop may sell at most $n card(s) of this company in any $h-hour window; the next sale is refused until the window rolls.',
+      'كل نقطة تبيع $n كرت كحد أقصى من هذه الشركة خلال كل $h ساعة، ثم يُرفض البيع حتى تنتهي المدة.');
+  // The rule is invisible on the list, so a shop hitting a 429 sends the admin
+  // into the dialog of every company to find which one is capped.
+  String capRow(int n, int h) => p('$n / $h h per shop', '$n لكل نقطة / $h س');
+  String get capRowNone => p('No selling limit', 'بلا حد بيع');
   String get restrictSection => p('Restrict for agents', 'تقييد لوكلاء');
   String get restrictHint => p('Hidden for the chosen agent and everything under it.', 'يُخفى عن الوكيل المحدد وكل ما تحته.');
   String get addAgent => p('Add agent', 'إضافة وكيل');
@@ -244,6 +263,39 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
                             overflow: TextOverflow.ellipsis,
                             style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
                       ],
+                      // UX-71: the effective cap, on the row. It was visible
+                      // nowhere but inside this company's dialog, so a shop
+                      // refused with a 429 sent the admin opening companies one
+                      // by one to find which rule bit.
+                      const SizedBox(height: 3),
+                      Row(children: [
+                        Icon(
+                          c.withdrawalCap > 0
+                              ? Icons.speed_outlined
+                              : Icons.all_inclusive,
+                          size: 13,
+                          color: cs.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            c.withdrawalCap > 0
+                                ? s.capRow(
+                                    c.withdrawalCap,
+                                    c.withdrawalWindowHours > 0
+                                        ? c.withdrawalWindowHours
+                                        : 24)
+                                : s.capRowNone,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: IntesharType.sans(11.5,
+                                color: cs.onSurfaceVariant,
+                                w: c.withdrawalCap > 0
+                                    ? FontWeight.w700
+                                    : FontWeight.w400),
+                          ),
+                        ),
+                      ]),
                     ],
                   ),
                 ),
@@ -352,6 +404,75 @@ class _CompanyDialogState extends State<_CompanyDialog> {
     }
   }
 
+  /// UX-71: the per-shop selling limit, written as one sentence.
+  ///
+  /// The two numbers are the same two fields as before — `withdrawalCap` and
+  /// `withdrawalWindowHours` — but inline in the rule they belong to, so
+  /// neither can be read on its own. Underneath, a readout says in words what
+  /// the pair currently means, because this is the control that decides whether
+  /// a live POS sale is refused with a `429`.
+  ///
+  /// The backend counts per DRAWING ENTITY over a rolling window
+  /// (`InventoryController.enforceWithdrawalCap`), which is what "each shop"
+  /// and "in any N-hour window" are saying.
+  Widget _capRule(_S s) {
+    final cs = Theme.of(context).colorScheme;
+    final cap = int.tryParse(_cap.text.trim()) ?? 0;
+    final hours = int.tryParse(_window.text.trim()) ?? 24;
+    Widget numberField(TextEditingController c, double width, String hint) =>
+        SizedBox(
+          width: width,
+          child: TextField(
+            controller: c,
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            style: IntesharType.mono(15, color: cs.onSurface, w: FontWeight.w800),
+            decoration: InputDecoration(isDense: true, hintText: hint),
+            // The readout below is the point of the control, so it has to move
+            // with the digits rather than after a save.
+            onChanged: (_) => setState(() {}),
+          ),
+        );
+    final labelStyle =
+        IntesharType.sans(13.5, color: cs.onSurface, w: FontWeight.w600);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionLabel(s.capSection, padding: const EdgeInsets.only(bottom: 6)),
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text(s.capLead, style: labelStyle),
+            numberField(_cap, 86, '0'),
+            Text(s.capMid, style: labelStyle),
+            numberField(_window, 72, '24'),
+            Text(s.capTail, style: labelStyle),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(cap <= 0 ? Icons.all_inclusive : Icons.speed_outlined,
+                size: 15, color: cs.onSurfaceVariant),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                cap <= 0
+                    ? s.capUnlimited
+                    : s.capReadout(cap, hours <= 0 ? 24 : hours),
+                style: IntesharType.sans(11.5, color: cs.onSurfaceVariant),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = _S.of(context);
@@ -383,24 +504,7 @@ class _CompanyDialogState extends State<_CompanyDialog> {
             ),
             const SizedBox(height: 4),
             const SizedBox(height: 10),
-            Row(children: [
-              Expanded(
-                child: TextField(
-                  controller: _cap,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(labelText: s.cap),
-                ),
-              ),
-              const SizedBox(width: 10),
-              SizedBox(
-                width: 110,
-                child: TextField(
-                  controller: _window,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(labelText: s.window),
-                ),
-              ),
-            ]),
+            _capRule(s),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: Text(s.active),

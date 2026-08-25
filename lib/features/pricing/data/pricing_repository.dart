@@ -16,6 +16,12 @@ class PricingRepository {
 
   /// Sets the entity's price for a category, optionally scoped to a [governorate]
   /// (the voucher subcategory). Null/'' governorate = the SKU-wide base price.
+  ///
+  /// UX-09: **currently unreferenced.** The price grid's Save used to call this
+  /// once per changed row — up to 180 serial round trips for one screenful, and
+  /// non-atomic — and now builds the same payload for a single [setBulk]. Kept
+  /// because `/api/pricing/set` is a live single-row endpoint; if you reach for
+  /// it from a multi-row flow, use [setBulk] instead.
   Future<void> setPrice({required String entityId, required String sku, required num price, String? governorate}) async {
     await _api.post(Endpoints.pricingSet, data: {
       'entityId': entityId,

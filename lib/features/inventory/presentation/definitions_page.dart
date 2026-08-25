@@ -19,6 +19,7 @@ import 'package:inteshar/shared/widgets/image_upload_field.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/loading_state.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
+import 'package:inteshar/shared/widgets/sheet_frame.dart';
 
 class DefinitionsPage extends ConsumerStatefulWidget {
   const DefinitionsPage({super.key});
@@ -79,7 +80,16 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
     final id = existing?.id ?? 'def-${DateTime.now().millisecondsSinceEpoch}';
     final nameCtrl = TextEditingController(text: existing?.name ?? '');
     final skuCtrl = TextEditingController(text: existing?.sku ?? '');
-    final priceCtrl = TextEditingController(text: existing?.defaultPrice ?? '');
+    // UX-70: this field is money and is now typed like every other money field
+    // in the app — thousands-grouped as you type, read back with [parseAmount].
+    // So it also has to OPEN grouped, or the first keystroke would reformat a
+    // number the operator never touched.
+    final existingPrice = num.tryParse(existing?.defaultPrice ?? '');
+    final priceCtrl = TextEditingController(
+      text: existingPrice == null
+          ? (existing?.defaultPrice ?? '')
+          : Formatters.money(existingPrice),
+    );
     final descCtrl = TextEditingController(text: existing?.description ?? '');
 
     await showModalBottomSheet<void>(
@@ -103,7 +113,10 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
             id: id,
             name: nameCtrl.text.trim(),
             sku: skuCtrl.text.trim().toUpperCase(),
-            defaultPrice: priceCtrl.text.trim(),
+            // UX-70: the field carries separators now, so the digits go to the
+            // server — `"5,000"` on the wire would land as a null Double.
+            defaultPrice:
+                (parseAmount(priceCtrl.text) ?? 0).toString(),
             description: descCtrl.text.trim(),
             companyId: selectedCompanyId ?? '',
             imageUrl: imageUrl,
@@ -571,7 +584,11 @@ class _DefinitionFormSheetState extends State<_DefinitionFormSheet> {
     final name = widget.nameCtrl.text.trim();
     final sku = widget.skuCtrl.text.trim().toUpperCase();
     if (widget.skuCtrl.text != sku) widget.skuCtrl.text = sku;
-    final price = num.tryParse(widget.priceCtrl.text.trim());
+    // UX-70: `num.tryParse` rejected `5,000` — the format the app itself types
+    // into every other money field, and the format the grid above FORCES — so
+    // the error said "Enter a price greater than 0", blaming the value rather
+    // than the separators. `parseAmount` is the app's one money reader.
+    final price = parseAmount(widget.priceCtrl.text);
     setState(() {
       _nameError =
           name.isEmpty ? (ar ? 'الاسم مطلوب' : 'Name is required') : null;
@@ -587,37 +604,20 @@ class _DefinitionFormSheetState extends State<_DefinitionFormSheet> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
     final ar = Localizations.localeOf(context).languageCode == 'ar';
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-        left: 24,
-        right: 24,
-        top: 20,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
+    // UX-77: this sheet used to re-decide the handle, the keyboard inset, the
+    // height cap and the title size for itself, and its action row was the LAST
+    // child of the scroll view — so on a 360dp POS with the keyboard up you
+    // scrolled past every field to reach Save. `SheetFrame` owns those four
+    // decisions and pins the footer above the scroll area.
+    return SheetFrame(
+      eyebrow: widget.isNew ? l.defsMintLabel : l.defsAmendLabel,
+      title: widget.title,
+      footer: _actions(l),
+      child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Drag handle
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                    color: cs.outline,
-                    borderRadius: BorderRadius.circular(2)),
-              ),
-            ),
-            const SizedBox(height: 16),
-            SectionLabel(widget.isNew ? l.defsMintLabel : l.defsAmendLabel),
-            Text(
-              widget.title,
-              style: IntesharType.display(28, color: cs.onSurface),
-            ),
-            const SizedBox(height: 24),
             TextField(
               controller: widget.nameCtrl,
               decoration: InputDecoration(
@@ -663,8 +663,17 @@ class _DefinitionFormSheetState extends State<_DefinitionFormSheet> {
             TextField(
               controller: widget.priceCtrl,
               keyboardType: TextInputType.number,
+              // UX-70: same three pieces as every other money entry in the app
+              // — group as you type, name the currency, read back with
+              // `parseAmount`. This is the field every unpriced agent inherits,
+              // so it was the worst place to keep a second convention.
+              inputFormatters: const [ThousandsInputFormatter()],
               decoration: InputDecoration(
-                  labelText: l.defsFieldPrice, errorText: _priceError),
+                labelText: l.defsFieldPrice,
+                errorText: _priceError,
+                suffixText: Formatters.currencyUnit(
+                    Localizations.localeOf(context).languageCode),
+              ),
               onChanged: _priceError == null
                   ? null
                   : (_) => setState(() => _priceError = null),
@@ -706,49 +715,52 @@ class _DefinitionFormSheetState extends State<_DefinitionFormSheet> {
                 );
               }),
             ],
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed:
-                        _saving ? null : () => Navigator.pop(context),
-                    child: Text(l.defsCancel),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: _saving
-                        ? null
-                        : () async {
-                            if (!_validate(ar: ar)) return;
-                            setState(() => _saving = true);
-                            try {
-                              await widget.onSave();
-                            } catch (e) {
-                              if (mounted) {
-                                // ignore: use_build_context_synchronously
-                                showError(context, e);
-                              }
-                            } finally {
-                              if (mounted) setState(() => _saving = false);
-                            }
-                          },
-                    child: _saving
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2))
-                        : Text(l.defsSave),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
           ],
         ),
-      ),
+    );
+  }
+
+  /// UX-77: the action row, pinned by [SheetFrame.footer] instead of trailing
+  /// the fields. Validation still runs against the whole form, so an error on a
+  /// field that has scrolled out of view is still what blocks the save.
+  Widget _actions(AppLocalizations l) {
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton(
+            onPressed: _saving ? null : () => Navigator.pop(context),
+            child: Text(l.defsCancel),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: FilledButton(
+            onPressed: _saving
+                ? null
+                : () async {
+                    if (!_validate(ar: ar)) return;
+                    setState(() => _saving = true);
+                    try {
+                      await widget.onSave();
+                    } catch (e) {
+                      if (mounted) {
+                        // ignore: use_build_context_synchronously
+                        showError(context, e);
+                      }
+                    } finally {
+                      if (mounted) setState(() => _saving = false);
+                    }
+                  },
+            child: _saving
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : Text(l.defsSave),
+          ),
+        ),
+      ],
     );
   }
 }

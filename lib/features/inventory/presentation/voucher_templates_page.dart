@@ -105,23 +105,35 @@ class _VoucherTemplatesPageState extends ConsumerState<VoucherTemplatesPage> {
   bool get _dirty =>
       _selected != null && !mapEquals(_edited.toJson(), _selected!.template.toJson());
 
+  /// UX-78: set for the single frame in which an answered discard prompt lets
+  /// the route pop, so [PopScope] does not veto its own retry forever. Same
+  /// idiom as the pricing grid's dirty guard.
+  bool _allowPop = false;
+
+  /// UX-78: the ONE unsaved-edits prompt, shared by both exits that throw the
+  /// edits away — switching SKU (which reloads every controller) and leaving the
+  /// route. `_dirty` was already computed and correct, and guarded only the
+  /// first of those two; the nav rail lost a designed template silently, which
+  /// is precisely the loss the SKU guard exists to prevent.
+  Future<bool> _confirmDiscard() async {
+    if (!_dirty) return true;
+    final l = AppLocalizations.of(context)!;
+    // Destructive: "Discard" throws away edits with no undo. The shared
+    // confirm carries that signal; the plain gold FilledButton did not.
+    return showConfirm(
+      context,
+      title: l.vtUnsavedTitle,
+      body: l.vtUnsavedBody,
+      confirmLabel: l.vtDiscard,
+      cancelLabel: l.vtKeepEditing,
+      destructive: true,
+    );
+  }
+
   /// Switch SKUs, guarding unsaved edits with a discard/keep prompt (B-072).
   Future<void> _trySelect(ProductDefinition def) async {
     if (_selected?.id == def.id) return;
-    if (_dirty) {
-      final l = AppLocalizations.of(context)!;
-      // Destructive: "Discard" throws away edits with no undo. The shared
-      // confirm carries that signal; the plain gold FilledButton did not.
-      final discard = await showConfirm(
-        context,
-        title: l.vtUnsavedTitle,
-        body: l.vtUnsavedBody,
-        confirmLabel: l.vtDiscard,
-        cancelLabel: l.vtKeepEditing,
-        destructive: true,
-      );
-      if (!discard || !mounted) return;
-    }
+    if (!await _confirmDiscard() || !mounted) return;
     _selectDef(def);
   }
 
@@ -209,7 +221,21 @@ class _VoucherTemplatesPageState extends ConsumerState<VoucherTemplatesPage> {
       );
     }
 
-    return Scaffold(
+    // UX-78: leaving via the nav rail threw away every edit with no prompt —
+    // the same loss the SKU switch already guards against.
+    return PopScope<Object?>(
+      canPop: _allowPop || !_dirty,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        // Resolved before the await so the prompt's async gap cannot leave us
+        // reaching into a defunct element for it.
+        final nav = Navigator.of(context);
+        if (!await _confirmDiscard() || !mounted) return;
+        setState(() => _allowPop = true);
+        await nav.maybePop();
+        if (mounted) setState(() => _allowPop = false);
+      },
+      child: Scaffold(
       body: MaxWidthBox(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -242,6 +268,7 @@ class _VoucherTemplatesPageState extends ConsumerState<VoucherTemplatesPage> {
                           onSuffixChanged: _onSuffixChanged,
                           onToggle: (t) => setState(() => _edited = t),
                           onSave: _save,
+                          dirty: _dirty,
                         )
                       : _NarrowLayout(
                           defs: defs,
@@ -261,12 +288,14 @@ class _VoucherTemplatesPageState extends ConsumerState<VoucherTemplatesPage> {
                           onSuffixChanged: _onSuffixChanged,
                           onToggle: (t) => setState(() => _edited = t),
                           onSave: _save,
+                          dirty: _dirty,
                         ),
                 ),
               ],
             );
           },
         ),
+      ),
       ),
     );
   }
@@ -297,6 +326,9 @@ class _WideLayout extends StatelessWidget {
   final _TemplateToggleCb onToggle;
   final VoidCallback onSave;
 
+  /// UX-78: the template on screen differs from the saved one.
+  final bool dirty;
+
   const _WideLayout({
     required this.defs,
     required this.selected,
@@ -315,6 +347,7 @@ class _WideLayout extends StatelessWidget {
     required this.onSuffixChanged,
     required this.onToggle,
     required this.onSave,
+    required this.dirty,
   });
 
   @override
@@ -358,6 +391,7 @@ class _WideLayout extends StatelessWidget {
                         onSuffixChanged: onSuffixChanged,
                         onToggle: onToggle,
                         onSave: onSave,
+                        dirty: dirty,
                       ),
                     ),
                     const VerticalDivider(width: 1),
@@ -412,6 +446,9 @@ class _NarrowLayout extends StatelessWidget {
   final _TemplateToggleCb onToggle;
   final VoidCallback onSave;
 
+  /// UX-78: the template on screen differs from the saved one.
+  final bool dirty;
+
   const _NarrowLayout({
     required this.defs,
     required this.selected,
@@ -430,6 +467,7 @@ class _NarrowLayout extends StatelessWidget {
     required this.onSuffixChanged,
     required this.onToggle,
     required this.onSave,
+    required this.dirty,
   });
 
   @override
@@ -458,6 +496,7 @@ class _NarrowLayout extends StatelessWidget {
             onSuffixChanged: onSuffixChanged,
             onToggle: onToggle,
             onSave: onSave,
+            dirty: dirty,
             inScrollable: true,
           ),
           const SizedBox(height: 24),
@@ -673,6 +712,9 @@ class _TemplateEditor extends StatelessWidget {
   final ValueChanged<String> onSuffixChanged;
   final _TemplateToggleCb onToggle;
   final VoidCallback onSave;
+
+  /// UX-78: the template on screen differs from the saved one.
+  final bool dirty;
   final bool inScrollable;
 
   const _TemplateEditor({
@@ -691,6 +733,7 @@ class _TemplateEditor extends StatelessWidget {
     required this.onSuffixChanged,
     required this.onToggle,
     required this.onSave,
+    required this.dirty,
     this.inScrollable = false,
   });
 
@@ -731,6 +774,18 @@ class _TemplateEditor extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              // UX-78: the unsaved state is stated on the thing being edited,
+              // not left to the operator's memory. Icon + words, never colour
+              // alone.
+              if (dirty) ...[
+                const SizedBox(width: 8),
+                StampPill(
+                  label: isAr ? 'غير محفوظ' : 'Unsaved',
+                  color: context.tones.brandInk,
+                  icon: Icons.edit_outlined,
+                  filled: false,
+                ),
+              ],
             ],
           ),
         ),
@@ -950,22 +1005,40 @@ class _TemplateEditor extends StatelessWidget {
         const SizedBox(height: 24),
 
         // ── Save button ──────────────────────────────────────────────────
+        // UX-78: Save used to look identical before and after a change, so
+        // "did that take?" was unanswerable without leaving and coming back.
+        // It now carries the dirty state itself and goes inert with nothing to
+        // write, and a line under it says which of the two is true.
         SizedBox(
           width: double.infinity,
-          child: ElevatedButton(
-            onPressed: saving ? null : onSave,
-            child: saving
+          child: ElevatedButton.icon(
+            onPressed: (saving || !dirty) ? null : onSave,
+            icon: saving
                 ? SizedBox(
-                    height: 20,
-                    width: 20,
+                    height: 18,
+                    width: 18,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
                       // ElevatedButton is a brand fill in this theme.
                       color: context.tones.onBrand,
                     ),
                   )
-                : Text(l.vtSave),
+                : Icon(dirty ? Icons.save_outlined : Icons.check, size: 18),
+            label: Text(l.vtSave),
           ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          dirty
+              ? (isAr
+                  ? 'تغييرات غير محفوظة — اضغط حفظ القالب لتطبيقها على الطباعة.'
+                  : 'Unsaved changes — tap Save to apply them to printing.')
+              : (isAr
+                  ? 'كل التغييرات محفوظة.'
+                  : 'All changes saved.'),
+          style: IntesharType.sans(11.5,
+              color: dirty ? context.tones.brandInk : cs.onSurfaceVariant,
+              w: dirty ? FontWeight.w700 : FontWeight.w400),
         ),
       ],
     );

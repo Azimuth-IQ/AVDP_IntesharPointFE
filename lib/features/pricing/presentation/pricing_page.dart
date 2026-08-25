@@ -69,7 +69,17 @@ class _S {
   // and watching it not move reads as "it didn't save".
   String get atOfficialPrice => p('at official price', 'بالسعر الرسمي');
   String get save => p('Save prices', 'حفظ الأسعار');
-  String get saved => p('Prices saved', 'تم حفظ الأسعار');
+  // UX-09: the Save is ONE request now, and it says how many rows the server
+  // reported back rather than "done" over a write that may have stopped short.
+  String savedN(int n) => p('$n price(s) saved', 'تم حفظ $n سعر');
+  String savedPartial(int applied, int total) => p(
+      'Saved $applied of $total prices — reloading to show what applied',
+      'تم حفظ $applied من $total سعر — يُعاد التحميل لعرض ما طُبّق');
+  String get nothingToSave =>
+      p('No price changes to save', 'لا توجد تغييرات على الأسعار');
+  // The whole batch is one request, so a failure is all-or-nothing on the wire
+  // — say so instead of leaving the operator to guess how far it got.
+  String get saveFailedNone => p('No prices were saved', 'لم يتم حفظ أي سعر');
   String get uncategorized => p('Uncategorized', 'بدون شركة');
   String get empty =>
       p('No categories in the catalog yet.', 'لا توجد فئات في الكتالوج بعد.');
@@ -80,6 +90,13 @@ class _S {
       p('Pricing access not granted', 'لا تملك صلاحية إدارة الأسعار');
   String get exportXlsx => p('Export', 'تصدير');
   String get uploadXlsx => p('Upload', 'رفع');
+  // UX-10: the spreadsheet round trip IS the tool for "set 200 prices", but it
+  // sat in the page header looking like chrome while the grid below invited
+  // hand-typing. It belongs beside the grid it replaces, saying what it is for.
+  String get bulkTitle => p('Bulk price update', 'تحديث الأسعار بالجملة');
+  String get bulkHint => p(
+      'Download these rows as Excel, edit the price column, upload it back — faster than typing each one.',
+      'نزّل هذه الصفوف كملف Excel، عدّل عمود السعر، ثم أعد رفعه — أسرع من كتابة كل صف.');
   String get applyToSelf => p('Apply to me', 'تطبيق على حسابي');
   String get alsoAgents => p('Also apply to agents…', 'تطبيق على وكلاء أيضاً…');
   // B-125: apply one sheet to every sub-agent in one action.
@@ -448,48 +465,90 @@ class _PricingPageState extends ConsumerState<PricingPage> {
 
   String _fmt(num v) => v % 1 == 0 ? v.toInt().toString() : v.toString();
 
+  /// UX-09: the rows the bottom Save is about to write, in exactly the shape
+  /// `/api/pricing/set-bulk` takes.
+  ///
+  /// The selection rules are the ones the old per-row loop used — a non-regional
+  /// SKU contributes ONE base row keyed `''`, a regional SKU contributes a row
+  /// per governorate (including the untagged `""` bucket) — so *what* gets
+  /// written is unchanged. Only the number of round trips is.
+  List<Map<String, dynamic>> _pendingPrices(PricingCatalog catalog) {
+    final out = <Map<String, dynamic>>[];
+    for (final row in catalog.rows) {
+      if (!_regionalRow(row)) {
+        final baseVal = parseAmount(_ctrls['${row.sku}::']?.text);
+        if (baseVal != null &&
+            (row.agentPrice == null || row.agentPrice != baseVal)) {
+          out.add({'sku': row.sku, 'governorate': '', 'price': baseVal});
+        }
+        continue;
+      }
+      for (final g in row.governorates) {
+        final value = parseAmount(_ctrls['${row.sku}::${g.governorate}']?.text);
+        if (value == null) continue;
+        if (g.agentPrice == null || g.agentPrice != value) {
+          out.add({
+            'sku': row.sku,
+            'governorate': g.governorate,
+            'price': value,
+          });
+        }
+      }
+    }
+    return out;
+  }
+
+  /// UX-09: ONE request for the whole grid.
+  ///
+  /// This used to be a `setPrice` per changed field, awaited in sequence — 60
+  /// SKUs across 3 governorates is up to 180 serial round trips behind a single
+  /// spinner, and a failure at number 90 left 89 prices written, showed one
+  /// snackbar naming neither, and left no record of what had applied. The Excel
+  /// path already posted the same payload in a single `set-bulk`; the DEFAULT
+  /// path was the slow non-atomic one.
+  ///
+  /// `set-bulk` answers with a per-account applied count, so a short write is
+  /// reported as a short write instead of as "saved".
   Future<void> _save() async {
     final s = _S.of(context);
     final catalog = _catalog;
     if (catalog == null) return;
+    final pending = _pendingPrices(catalog);
+    if (pending.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(s.nothingToSave)));
+      return;
+    }
     setState(() => _saving = true);
     try {
-      for (final row in catalog.rows) {
-        if (!_regionalRow(row)) {
-          // Non-regional: a single SKU-wide base price.
-          final baseVal = parseAmount(_ctrls['${row.sku}::']?.text);
-          if (baseVal != null &&
-              (row.agentPrice == null || row.agentPrice != baseVal)) {
-            await _repo.setPrice(entityId: _targetId ?? '', sku: row.sku, price: baseVal);
-          }
-          continue;
-        }
-        // Regional: per-governorate prices ONLY (no standalone global price). The
-        // untagged "" bucket, if any, is saved here too via its own governorate row.
-        for (final g in row.governorates) {
-          final value = parseAmount(_ctrls['${row.sku}::${g.governorate}']?.text);
-          if (value == null) continue;
-          if (g.agentPrice == null || g.agentPrice != value) {
-            await _repo.setPrice(
-              entityId: _targetId ?? '',
-              sku: row.sku,
-              governorate: g.governorate,
-              price: value,
-            );
-          }
-        }
-      }
+      // Empty target list = the caller's own account (the server's default),
+      // which is what an empty `entityId` meant on the old per-row call.
+      final result = await _repo.setBulk(
+        prices: pending,
+        entityIds: [
+          if (_targetId != null && _targetId!.isNotEmpty) _targetId!,
+        ],
+      );
+      // One target, so one count — but take the smallest either way rather than
+      // reporting the most flattering number.
+      final applied = result.values.isEmpty
+          ? pending.length
+          : result.values.reduce((a, b) => a < b ? a : b);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(s.saved)));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(applied >= pending.length
+              ? s.savedN(pending.length)
+              : s.savedPartial(applied, pending.length)),
+        ));
       }
+      // Reload either way: the catalog IS the record of what applied, so the
+      // grid re-reads it rather than trusting the numbers still on screen.
       await _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('${friendlyError(e, context)} · ${s.saveFailedNone}'),
+        ));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -808,27 +867,84 @@ class _PricingPageState extends ConsumerState<PricingPage> {
     return MaxWidthBox(
       child: Column(
         children: [
+          // UX-10: Export/Upload used to live here, above the balance card, the
+          // agent picker and the filter bar — page chrome, three controls away
+          // from the grid they replace. They now sit in a labelled strip
+          // directly above the rows (see [_bulkStrip]).
           PageHeader(
             eyebrow: s.eyebrow,
             title: s.title,
             subtitle: s.subtitle,
-            trailing: (_authorized && _catalog != null)
-                ? Wrap(spacing: 8, children: [
-                    OutlinedButton.icon(
-                      onPressed: _saving ? null : () => _exportXlsx(s),
-                      icon: const Icon(Icons.download, size: 16),
-                      label: Text(s.exportXlsx),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: _saving ? null : () => _uploadXlsx(s),
-                      icon: const Icon(Icons.upload_file, size: 16),
-                      label: Text(s.uploadXlsx),
-                    ),
-                  ])
-                : null,
           ),
           Expanded(child: _body(s)),
         ],
+      ),
+    );
+  }
+
+  /// UX-10: the spreadsheet round trip, named and placed where the work is.
+  ///
+  /// For "set 200 prices" this IS the fast route and the manual grid is the
+  /// escape hatch, but the layout said the opposite — so admins hand-typed
+  /// hundreds of fields. The strip sits immediately above the grid, says what
+  /// the two buttons are FOR, and stays scoped by the filter bar just above it.
+  Widget _bulkStrip(_S s) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 8),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(IntesharRadii.md),
+          border: Border.all(color: cs.outlineVariant),
+        ),
+        child: Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          alignment: WrapAlignment.spaceBetween,
+          children: [
+            SizedBox(
+              width: 320,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.table_chart_outlined,
+                        size: 16, color: context.tones.brandInk),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        s.bulkTitle,
+                        style: IntesharType.sans(13,
+                            color: cs.onSurface, w: FontWeight.w800),
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 2),
+                  Text(
+                    s.bulkHint,
+                    style: IntesharType.sans(11.5, color: cs.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              OutlinedButton.icon(
+                onPressed: _saving ? null : () => _exportXlsx(s),
+                icon: const Icon(Icons.download, size: 16),
+                label: Text(s.exportXlsx),
+              ),
+              FilledButton.tonalIcon(
+                onPressed: _saving ? null : () => _uploadXlsx(s),
+                icon: const Icon(Icons.upload_file, size: 16),
+                label: Text(s.uploadXlsx),
+              ),
+            ]),
+          ],
+        ),
       ),
     );
   }
@@ -951,9 +1067,10 @@ class _PricingPageState extends ConsumerState<PricingPage> {
             ],
           ]),
         ],
-        // B-117: Export/Upload sit up in the header, far from these controls, so
-        // say here that they follow them — otherwise "Export" reads as "export
-        // everything" and the scoped file looks like data loss.
+        // B-117: the export follows these controls, so say so — otherwise
+        // "Export" reads as "export everything" and the scoped file looks like
+        // data loss. UX-10 moved the buttons directly below this line, so the
+        // note now sits between the filters and the thing they scope.
         if (_filter.isActive) ...[
           const SizedBox(height: 6),
           Align(
@@ -1045,6 +1162,8 @@ class _PricingPageState extends ConsumerState<PricingPage> {
         ),
         if (_targets.isNotEmpty) _agentPicker(s, loc),
         _filterBar(s, loc, companies, govs, visibleRows.length, catalog.rows.length),
+        // UX-10: the bulk route, beside the grid it replaces.
+        _bulkStrip(s),
         Expanded(
           child: visibleRows.isEmpty
               ? Center(

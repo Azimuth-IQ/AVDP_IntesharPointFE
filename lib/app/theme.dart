@@ -213,7 +213,13 @@ class IntesharWeight {
   static const FontWeight black = FontWeight.w900;
 
   /// Weights with a real registered face. `w600` is absent on purpose.
-  static const Set<FontWeight> registered = <FontWeight>{
+  ///
+  /// `final`, not `const`: Dart forbids a const set whose element type
+  /// overrides `==`/`hashCode`, and `FontWeight` does. Local Flutter (3.38.5)
+  /// still accepts the const form, CI (3.47.1) rejects it as
+  /// `const_set_element_not_primitive_equality` — so a clean local `analyze`
+  /// is not a CI pass. Leave this `final`.
+  static final Set<FontWeight> registered = <FontWeight>{
     light,
     regular,
     news,

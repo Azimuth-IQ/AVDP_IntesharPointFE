@@ -7,6 +7,7 @@ import 'package:inteshar/features/inventory/domain/product.dart';
 import 'package:inteshar/features/inventory/domain/sku_summary.dart';
 import 'package:inteshar/features/inventory/domain/batch_withdraw_result.dart';
 import 'package:inteshar/features/inventory/domain/stock_retire_result.dart';
+import 'package:inteshar/features/inventory/domain/stock_transfer_result.dart';
 import 'package:inteshar/features/inventory/domain/stock_withdraw_result.dart';
 import 'package:inteshar/features/inventory/domain/voucher_batch.dart';
 import 'package:inteshar/features/inventory/domain/voucher_import.dart';
@@ -543,6 +544,32 @@ class ProductRepository {
     });
     return _api.unwrap(
         response, (d) => StockRetireResult.fromJson(d as Map<String, dynamic>));
+  }
+
+  /// Moves stock straight from one agent's warehouse to another
+  /// (C-19 — "تحويل لوكيل اخر"). `POST /api/inventory/transfer`.
+  ///
+  /// No authenticator code, unlike [retireStock]: a transfer can be transferred
+  /// back, and the step-up is reserved for what cannot be undone. The server
+  /// sends only what the destination could sell, so `moved` may be short — or
+  /// zero — without the agent being out of stock.
+  Future<StockTransferResult> transferStock({
+    required String fromEntityId,
+    required String toEntityId,
+    required String sku,
+    String? governorate,
+    required int count,
+  }) async {
+    final response = await _api.post(Endpoints.productTransferStock, params: {
+      'fromEntityId': fromEntityId,
+      'toEntityId': toEntityId,
+      'sku': sku,
+      if (governorate != null && governorate.isNotEmpty)
+        'governorate': governorate,
+      'count': count,
+    });
+    return _api.unwrap(response,
+        (d) => StockTransferResult.fromJson(d as Map<String, dynamic>));
   }
 
   /// Puts one retire action's cards back with the account they came from.

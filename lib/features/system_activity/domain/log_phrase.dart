@@ -82,6 +82,7 @@ const Map<String, (String, String)> _routes = {
   '/inventory/withdraw': ('Stock withdrawn from an agent', 'سحب كروت من مخزن وكيل'),
   // C-19. Order matters — the match is a substring test, so `/inventory/retire`
   // would swallow both of the longer keys if it came first.
+  '/inventory/transfer': ('Stock moved between agents', 'تحويل كروت بين الوكلاء'),
   '/inventory/retire/restore': ('Retired stock restored', 'إرجاع كروت مسحوبة نهائياً'),
   '/inventory/retired': ('Retired stock list', 'قائمة الكروت المسحوبة نهائياً'),
   '/inventory/retire': ('Stock retired permanently', 'إخراج كروت من السستم نهائياً'),

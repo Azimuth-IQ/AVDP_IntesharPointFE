@@ -183,6 +183,7 @@ class Endpoints {
   static const productWithdrawStock = '/api/inventory/withdraw';
   // C-19: the second destination for a withdraw — out of the system for good,
   // recoverable by HQ via productRetireRestore.
+  static const productTransferStock = '/api/inventory/transfer';
   static const productRetireStock = '/api/inventory/retire';
   static const productRetireRestore = '/api/inventory/retire/restore';
   static const productRetiredLots = '/api/inventory/retired';

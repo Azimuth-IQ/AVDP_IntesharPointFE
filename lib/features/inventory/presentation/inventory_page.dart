@@ -11,8 +11,11 @@ import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:inteshar/features/inventory/domain/product.dart';
 import 'package:inteshar/features/inventory/domain/sku_summary.dart';
 import 'package:inteshar/features/agents/data/agent_repository.dart';
+import 'package:inteshar/features/entities/data/entity_repository.dart';
+import 'package:inteshar/features/entities/domain/entity_summary_row.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/entities/presentation/confirm_code_dialog.dart';
+import 'package:inteshar/shared/widgets/entity_search_picker.dart';
 import 'package:inteshar/features/system_activity/domain/feed_rows.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/app_snackbar.dart';
@@ -24,13 +27,19 @@ import 'package:inteshar/shared/widgets/responsive.dart';
 
 /// Where the cards pulled out of an agent's warehouse are headed (C-19).
 ///
-/// The client asked for two destinations — "تحويل لوكيل اخر او اخراج من السستم
-/// بشكل نهائي". Only [retire] is built here; transferring straight to another
-/// agent needs a real Transaction so it shows up in the transfer reports and
-/// honours the geo-lock, which this screen's withdraw call does not do.
+/// The client asked for two destinations beyond the original — "تحويل لوكيل اخر
+/// او اخراج من السستم بشكل نهائي".
+///
+/// [transfer] is a DELIVERY and the server selects it differently because of
+/// that: region-locked stock outside the destination's governorates, expired
+/// cards and supplier-recalled batches are all skipped. Pulling those back to
+/// HQ is fine; handing them to an agent who cannot sell them is not.
 enum _WithdrawDestination {
   /// Back to HQ's own shelf, still sellable. The original behaviour.
   hq,
+
+  /// Straight to another agent's warehouse, still sellable — by them.
+  transfer,
 
   /// Out of circulation for good — non-sellable, kept for audit, restorable by HQ.
   retire,
@@ -801,8 +810,10 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
     final controller = TextEditingController(text: '${s.available}');
     final formKey = GlobalKey<FormState>();
     var destination = _WithdrawDestination.hq;
+    EntitySummaryRow? transferTarget;
 
-    final entered = await showDialog<(int, _WithdrawDestination)>(
+    final entered =
+        await showDialog<(int, _WithdrawDestination, EntitySummaryRow?)>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) => AlertDialog(
@@ -844,11 +855,6 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
                     _tr('إلى أين؟', 'Where to?'),
                     style: Theme.of(ctx).textTheme.labelLarge,
                   ),
-                  // C-19. A third destination — transfer straight to another
-                  // agent — belongs in this list, but it has to go through a real
-                  // Transaction so it lands in the transfer reports and respects
-                  // the geo-lock. Adding it here is a new enum value plus its own
-                  // call; nothing about this dialog assumes there are only two.
                   RadioGroup<_WithdrawDestination>(
                     groupValue: destination,
                     onChanged: (v) =>
@@ -867,6 +873,41 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
                           )),
                         ),
                         RadioListTile<_WithdrawDestination>(
+                          value: _WithdrawDestination.transfer,
+                          contentPadding: EdgeInsets.zero,
+                          title:
+                              Text(_tr('تحويل لوكيل آخر', 'To another agent')),
+                          subtitle: Text(transferTarget == null
+                              ? _tr(
+                                  'اختر الوكيل. تُرسل فقط الكروت التي يستطيع بيعها.',
+                                  'Pick the agent. Only cards they can sell are sent.',
+                                )
+                              : _tr(
+                                  'إلى ${transferTarget!.name}',
+                                  'To ${transferTarget!.name}',
+                                )),
+                          secondary: TextButton(
+                            onPressed: () async {
+                              final picked = await showEntitySearchPicker(
+                                ctx,
+                                repository: EntityRepository(
+                                    ref.read(apiClientProvider)),
+                                title: _tr('اختر الوكيل', 'Pick the agent'),
+                                where: (r) => r.id != widget.entityId,
+                              );
+                              if (picked != null) {
+                                setLocal(() {
+                                  transferTarget = picked;
+                                  destination = _WithdrawDestination.transfer;
+                                });
+                              }
+                            },
+                            child: Text(transferTarget == null
+                                ? _tr('اختيار', 'Choose')
+                                : _tr('تغيير', 'Change')),
+                          ),
+                        ),
+                        RadioListTile<_WithdrawDestination>(
                           value: _WithdrawDestination.retire,
                           contentPadding: EdgeInsets.zero,
                           title: Text(_tr('إخراج من السستم نهائياً',
@@ -881,6 +922,22 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
                       ],
                     ),
                   ),
+                  // Naming the destination is part of the instruction, not a
+                  // detail: "transfer" with nobody chosen would otherwise fall
+                  // through to a silent no-op at the server.
+                  if (destination == _WithdrawDestination.transfer &&
+                      transferTarget == null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        _tr('اختر الوكيل المستلم أولاً.',
+                            'Choose the receiving agent first.'),
+                        style: Theme.of(ctx)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: Theme.of(ctx).colorScheme.error),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -891,22 +948,30 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
               child: Text(_tr('إلغاء', 'Cancel')),
             ),
             FilledButton(
-              onPressed: () {
-                if (formKey.currentState?.validate() ?? false) {
-                  Navigator.pop(
-                      ctx, (int.parse(controller.text.trim()), destination));
-                }
-              },
-              child: Text(destination == _WithdrawDestination.retire
-                  ? _tr('إخراج نهائي', 'Retire')
-                  : _tr('سحب', 'Withdraw')),
+              onPressed: destination == _WithdrawDestination.transfer &&
+                      transferTarget == null
+                  ? null
+                  : () {
+                      if (formKey.currentState?.validate() ?? false) {
+                        Navigator.pop(ctx, (
+                          int.parse(controller.text.trim()),
+                          destination,
+                          transferTarget
+                        ));
+                      }
+                    },
+              child: Text(switch (destination) {
+                _WithdrawDestination.retire => _tr('إخراج نهائي', 'Retire'),
+                _WithdrawDestination.transfer => _tr('تحويل', 'Transfer'),
+                _WithdrawDestination.hq => _tr('سحب', 'Withdraw'),
+              }),
             ),
           ],
         ),
       ),
     );
     if (entered == null || !mounted) return;
-    final (count, dest) = entered;
+    final (count, dest, target) = entered;
 
     // Retiring is irreversible in the same sense a delete is — it takes real,
     // money-backed codes off the shelf — so it is confirmed by the person doing
@@ -955,6 +1020,32 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
           // second after it happens.
           actionLabel: ref == null ? null : _tr('تراجع', 'Undo'),
           onAction: ref == null ? null : () => _restoreRetired(ref),
+        );
+      } else if (dest == _WithdrawDestination.transfer && target != null) {
+        final res = await _repo.transferStock(
+          fromEntityId: widget.entityId,
+          toEntityId: target.id,
+          sku: s.sku,
+          count: count,
+        );
+        if (!mounted) return;
+        // A transfer can move nothing for a reason that is not "out of stock":
+        // the destination may not operate in the region this stock is locked to.
+        // Saying only "Transferred 0 of 50" would read as a broken button.
+        showOk(
+          context,
+          res.moved == 0 && res.remaining > 0
+              ? _tr(
+                  'لم يُحوَّل شيء — ${res.remaining} كرت لدى الوكيل لا يمكن '
+                      'بيعها في مناطق ${target.name}',
+                  'Nothing transferred — the agent\'s ${res.remaining} card(s) '
+                      'cannot be sold in ${target.name}\'s regions')
+              : res.isShort
+                  ? _tr(
+                      'تم تحويل ${res.moved} من ${res.requested} إلى ${target.name} — المتبقي ${res.remaining}',
+                      'Transferred ${res.moved} of ${res.requested} to ${target.name} — ${res.remaining} left')
+                  : _tr('تم تحويل ${res.moved} كرت إلى ${target.name}',
+                      'Transferred ${res.moved} cards to ${target.name}'),
         );
       } else {
         final res = await _repo.withdrawStock(

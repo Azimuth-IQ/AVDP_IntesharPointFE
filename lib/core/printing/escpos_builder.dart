@@ -95,7 +95,11 @@ Future<List<int>> buildVoucherReceipt({
   // reads left-aligned. Headline blocks stay centred — that is conventional on a
   // receipt in either language, and centring is direction-neutral anyway.
   if (template.showSerial) {
-    blocks.add(TextBlock('$labelSerial: $serial',
+    // UX-152: the serial is set in the receipt monospace while the (Arabic)
+    // label keeps the platform stack — see [FieldLineBlock]. It is the number a
+    // shop reads back to its agent to trace a disputed card, so `0`/`O` and
+    // `1`/`l` have to be distinguishable on thermal paper.
+    blocks.add(FieldLineBlock(labelSerial, serial,
         fontSize: 26, padBottom: 5, align: TextAlign.start));
   }
   if (template.showPin) {
@@ -106,6 +110,12 @@ Future<List<int>> buildVoucherReceipt({
     // half of it keyed in, or the wrap taken for a space or a dash. PIN length
     // varies by operator and denomination, so 46px is the ceiling and the block
     // shrinks only as far as a longer code actually requires.
+    //
+    // UX-152: and it is set in the SAME monospace as the on-screen voucher. The
+    // customer keys this into a phone from thermal paper at 203 dpi, once — a
+    // proportional `0`/`O` or `1`/`l` is a misread of a code that is already
+    // sold and cannot be re-issued. The LABEL keeps the platform stack, so
+    // `الرقم السري` still shapes correctly.
     blocks.add(
       LabelValueBlock(
         labelPin,
@@ -117,6 +127,7 @@ Future<List<int>> buildVoucherReceipt({
         padBottom: 10,
         singleLineValue: true,
         minValueSize: 18,
+        valueMono: true,
       ),
     );
   }
@@ -346,8 +357,10 @@ Future<List<int>> buildTestReceipt({bool cutAtEnd = false}) async {
     // A bidi run: Arabic words around Latin digits, the case naive layouts
     // reverse and naive encoders reject.
     TextBlock('اختبار الطباعة — 58mm', fontSize: 24, padBottom: 4),
-    // Same block, same sizing rules and same one-line invariant as a real PIN,
-    // so an operator can see at a glance whether a code would come out legible.
+    // Same block, same sizing rules, same one-line invariant AND the same
+    // monospace as a real PIN, so an operator can see at a glance whether a
+    // code would come out legible — including whether this head resolves the
+    // bundled face rather than falling back (UX-152).
     LabelValueBlock(
       'الرقم السري / PIN',
       '1234 5678 9012',
@@ -358,6 +371,7 @@ Future<List<int>> buildTestReceipt({bool cutAtEnd = false}) async {
       padBottom: 8,
       singleLineValue: true,
       minValueSize: 18,
+      valueMono: true,
     ),
     // Small on purpose: enough to prove the head can lay down a dense bitmap
     // without spending a voucher's worth of paper on every probe.

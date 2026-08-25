@@ -621,9 +621,10 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
               alignment: AlignmentDirectional.centerStart,
               child: TextButton(
                 onPressed: () => setState(() => _categoriesExpanded = !_categoriesExpanded),
+                // UX-119: compact density shrinks the padded tap target to
+                // 40dp; the tight padding alone gives the same look at 48.
                 style: TextButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 4)),
+                    padding: const EdgeInsets.symmetric(horizontal: 8)),
                 child: Text(
                   _categoriesExpanded
                       ? (ar ? 'عرض أقل' : 'Show less')
@@ -750,12 +751,15 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
                   color: context.status.danger),
           ]),
           const SizedBox(height: 3),
+          // UX-147: the serial is the string an operator reads ALOUD to their
+          // agent to trace a card — 11.5px was the smallest type in this panel
+          // and it carried the one value that has to be transcribed exactly.
           Text('SN ${op.serialNumber}',
-              style: IntesharType.mono(11.5, color: cs.onSurfaceVariant)),
+              style: IntesharType.mono(13, color: cs.onSurface, w: FontWeight.w600)),
           Row(children: [
             Expanded(
                 child: Text(when,
-                    style: IntesharType.mono(11, color: cs.onSurfaceVariant))),
+                    style: IntesharType.mono(12, color: cs.onSurfaceVariant))),
             if (op.soldPrice != null)
               Text(Formatters.iqd(op.soldPrice!.round()),
                   style: IntesharType.mono(12.5, color: cs.onSurface)),

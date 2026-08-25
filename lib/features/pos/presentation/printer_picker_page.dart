@@ -773,13 +773,12 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
+                // UX-147: this line carries the MAC / host:port — the string an
+                // operator compares against a label on the back of a printer.
+                // 11px was below the app's floor for exactly that kind of text.
                 Text(
                   subtitle,
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 11,
-                    color: cs.onSurfaceVariant,
-                    letterSpacing: 0.3,
-                  ),
+                  style: IntesharType.mono(12, color: cs.onSurfaceVariant, letterSpacing: 0.3),
                   overflow: TextOverflow.ellipsis,
                 ),
               ],

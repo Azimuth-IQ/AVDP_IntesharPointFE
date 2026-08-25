@@ -251,6 +251,11 @@ class _PinSetupForm extends StatelessWidget {
               counterText: '',
               prefixIcon: const Icon(Icons.lock_clock_outlined, size: 18),
               suffixIcon: IconButton(
+                // UX-150: an icon-only control that toggles whether a secret is
+                // on screen has to say which way it will go.
+                tooltip: obscureCurrent
+                    ? (ar ? 'إظهار الرمز' : 'Show PIN')
+                    : (ar ? 'إخفاء الرمز' : 'Hide PIN'),
                 icon: Icon(
                   obscureCurrent ? Icons.visibility_outlined : Icons.visibility_off_outlined,
                   size: 18,
@@ -274,6 +279,9 @@ class _PinSetupForm extends StatelessWidget {
             counterText: '',
             prefixIcon: const Icon(Icons.pin_outlined, size: 18),
             suffixIcon: IconButton(
+              tooltip: obscurePin
+                  ? (ar ? 'إظهار الرمز' : 'Show PIN')
+                  : (ar ? 'إخفاء الرمز' : 'Hide PIN'),
               icon: Icon(
                 obscurePin ? Icons.visibility_outlined : Icons.visibility_off_outlined,
                 size: 18,
@@ -296,6 +304,9 @@ class _PinSetupForm extends StatelessWidget {
             counterText: '',
             prefixIcon: const Icon(Icons.pin_outlined, size: 18),
             suffixIcon: IconButton(
+              tooltip: obscureConfirm
+                  ? (ar ? 'إظهار الرمز' : 'Show PIN')
+                  : (ar ? 'إخفاء الرمز' : 'Hide PIN'),
               icon: Icon(
                 obscureConfirm ? Icons.visibility_outlined : Icons.visibility_off_outlined,
                 size: 18,

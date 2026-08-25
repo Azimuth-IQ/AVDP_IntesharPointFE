@@ -194,7 +194,9 @@ class _PosStatementPanelState extends ConsumerState<PosStatementPanel> {
                 style: IntesharType.sans(13.5, color: cs.onSurface, w: FontWeight.w600),
               ),
               const SizedBox(height: 1),
-              Text(when, style: IntesharType.mono(11, color: cs.onSurfaceVariant)),
+              // UX-147: 11px was below the app's floor for text a cashier
+              // reconciles a till against.
+              Text(when, style: IntesharType.mono(12, color: cs.onSurfaceVariant)),
             ]),
           ),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -210,7 +212,9 @@ class _PosStatementPanelState extends ConsumerState<PosStatementPanel> {
               r.amount == null
                   ? '${ar ? 'الرصيد' : 'Balance'}: ${Formatters.iqd(r.balanceAfter.round())}'
                   : '${Formatters.iqd((r.balanceAfter - r.amount!).round())} → ${Formatters.iqd(r.balanceAfter.round())}',
-              style: IntesharType.mono(10.5, color: cs.onSurfaceVariant),
+              // UX-147: 10.5px was the smallest type in the POS, on the running
+              // balance a shop uses to check its own account.
+              style: IntesharType.mono(12, color: cs.onSurfaceVariant),
             ),
           ]),
         ]),

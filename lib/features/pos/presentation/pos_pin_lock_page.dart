@@ -356,6 +356,11 @@ class _LockForm extends StatelessWidget {
               counterText: '',
               prefixIcon: const Icon(Icons.pin_outlined, size: 18),
               suffixIcon: IconButton(
+                // UX-150: an icon-only control that toggles whether a secret is
+                // on screen has to say which way it will go.
+                tooltip: obscure
+                    ? (ar ? 'إظهار الرمز' : 'Show PIN')
+                    : (ar ? 'إخفاء الرمز' : 'Hide PIN'),
                 icon: Icon(
                   obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
                   size: 18,

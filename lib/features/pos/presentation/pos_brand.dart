@@ -42,6 +42,10 @@ class PosBrandMark extends ConsumerWidget {
         logo,
         height: size,
         fit: BoxFit.contain,
+        // UX-150: the brand mark stands in for the shop's own name in the app
+        // bar and on the voucher — without a description it is announced as an
+        // unlabelled image.
+        semanticLabel: posShopName(ref),
         errorBuilder: (_, _, _) => _fallback(ref, color),
       );
     }
@@ -112,6 +116,7 @@ class PosBrandHero extends ConsumerWidget {
                 logo,
                 height: wide ? 64 : 40,
                 fit: BoxFit.contain,
+                semanticLabel: name.isNotEmpty ? name : headline,
                 errorBuilder: (_, _, _) =>
                     Icon(Icons.point_of_sale, size: wide ? 64 : 40, color: cs.primary),
               ),

@@ -72,6 +72,26 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
   /// An in-place refresh that failed. The grid stays (with the previous counts),
   /// so the operator has to be told those counts may now be stale.
   String? _refreshError;
+
+  /// UX-89: when the counts on screen were last actually fetched. Stamped in the
+  /// app bar, because "العداد المباشر" (live counter) is a promise about
+  /// freshness and the operator has no other way to judge it.
+  DateTime? _updatedAt;
+
+  /// UX-89: what makes the counter live.
+  ///
+  /// The pool belongs to the PARENT agent, so it moves without this device
+  /// doing anything — the agent withdraws stock, a second POS on the same shop
+  /// sells. Until now the counts only changed on open, on pull-to-refresh and
+  /// after this operator's own sale, so a cashier could promise a card the pool
+  /// no longer held and meet the 409 at reveal, after the customer had been told
+  /// yes.
+  ///
+  /// This is a READ (`/product/sellable` + balance). It never touches the draw
+  /// path, and it is suppressed while a sheet or dialog is open so it can never
+  /// rebuild the screen under a sale in progress.
+  Timer? _poll;
+  static const _pollEvery = Duration(seconds: 60);
   final TextEditingController _searchCtrl = TextEditingController();
   String _search = '';
   int _tab = 0; // bottom nav: 0=Store, 1=الحسابات, 2=التقارير, 3=التواصل, 4=الحساب
@@ -101,6 +121,7 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _poll?.cancel();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -121,6 +142,20 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
         // Left unattended — drop the unlock flag and send the operator back to the PIN.
         ref.read(posUnlockedProvider.notifier).state = false;
         if (mounted) context.go('/pos/pin-lock');
+        return;
+      }
+      // UX-89: the pool almost certainly moved while the app was away — a break
+      // is exactly when the agent rebalances stock. Coming back to the counts
+      // from before, under a label that says "live", is how a cashier promises a
+      // card that is gone. A read (`/product/sellable`), never the draw path.
+      //
+      // Skipped when the counts are seconds old: a Share sheet and a vendor
+      // print intent each background and restore the app, so a bulk print would
+      // otherwise fire one fetch per card.
+      final fresh = _updatedAt != null &&
+          DateTime.now().difference(_updatedAt!) < const Duration(seconds: 15);
+      if (!fresh && ref.read(posUnlockedProvider) && _sellable != null) {
+        unawaited(_load());
       }
     }
   }
@@ -135,6 +170,23 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
       return;
     }
     _load();
+    _startPolling();
+  }
+
+  /// UX-89: keep the counter honest between manual refreshes. Cheap guards, all
+  /// of them about not surprising the operator:
+  /// * only the Store tab — the other tabs don't show pool counts;
+  /// * only when this route is on top, so a poll can never rebuild the screen
+  ///   beneath an open voucher sheet or confirm dialog;
+  /// * never on top of a load already in flight.
+  void _startPolling() {
+    _poll?.cancel();
+    _poll = Timer.periodic(_pollEvery, (_) {
+      if (!mounted || _tab != 0 || _loading || _refreshing) return;
+      if (ModalRoute.of(context)?.isCurrent != true) return;
+      if (!ref.read(posUnlockedProvider)) return;
+      unawaited(_load());
+    });
   }
 
   /// Fetch the sellable pool + balance.
@@ -179,6 +231,9 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
           _sellable = sellable;
           _balance = balance;
           _sliderUrls = slider;
+          // Only a SUCCESSFUL fetch moves the stamp — a failed refresh leaves it
+          // reading when the numbers on screen were last known to be true.
+          _updatedAt = DateTime.now();
         });
       }
     } catch (e) {
@@ -224,22 +279,34 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
               // initial), never the Inteshar star (B-083).
               const PosBrandMark(size: 26),
               const SizedBox(width: 12),
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    shopName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontFamily: 'CodecPro', fontSize: 20, fontWeight: FontWeight.w800, color: cs.onSurface, letterSpacing: -0.3, height: 1),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    l.posHomeLiveCounter,
-                    style: TextStyle(fontFamily: 'CodecPro', fontSize: 11, color: cs.onSurfaceVariant, letterSpacing: 0.2, fontWeight: FontWeight.w600),
-                  ),
-                ],
+              // Expanded so both lines actually ellipsise: a Row lays non-flex
+              // children out unbounded, which is where a long shop name gets to
+              // overflow instead of truncating.
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      shopName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontFamily: 'CodecPro', fontSize: 20, fontWeight: FontWeight.w800, color: cs.onSurface, letterSpacing: -0.3, height: 1),
+                    ),
+                    const SizedBox(height: 2),
+                    // UX-89: "العداد المباشر" is a claim about freshness, so it
+                    // now carries the evidence — when these counts were last
+                    // fetched. The counter is genuinely live (resume + poll, see
+                    // _startPolling); the stamp is how the operator can tell,
+                    // and it stops moving the moment a refresh starts failing.
+                    Text(
+                      _counterSubtitle(l),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontFamily: 'CodecPro', fontSize: 11, color: cs.onSurfaceVariant, letterSpacing: 0.2, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -310,6 +377,22 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
     );
   }
 
+  /// UX-89: the live-counter label plus when it was last true.
+  ///
+  /// "Just now" for the first minute (the poll interval — anything finer would
+  /// be a ticking number nobody reads), then the clock time it was fetched, so a
+  /// stale screen is obvious at a glance rather than implied.
+  String _counterSubtitle(AppLocalizations l) {
+    final at = _updatedAt;
+    if (at == null) return l.posHomeLiveCounter;
+    final age = DateTime.now().difference(at);
+    final ar = _ar;
+    final stamp = age < const Duration(minutes: 1)
+        ? (ar ? 'الآن' : 'just now')
+        : '${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}';
+    return '${l.posHomeLiveCounter} · ${ar ? 'حُدّث' : 'updated'} $stamp';
+  }
+
   /// Builds only the selected tab (lazy) — see the body comment above.
   Widget _tabBody(AppLocalizations l) {
     switch (_tab) {
@@ -363,7 +446,11 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
           ),
           TextButton(
             onPressed: _refreshing ? null : _load,
-            style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+            // UX-119: `VisualDensity.compact` does not just tighten the padding
+            // — it shrinks the PADDED tap target from 48dp to 40dp. This is the
+            // way out of a stale-counts screen; it keeps the full target and
+            // pays for it with horizontal padding instead.
+            style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10)),
             child: Text(_ar ? 'إعادة المحاولة' : 'Retry'),
           ),
         ],
@@ -1009,12 +1096,26 @@ class _HomeSliderState extends State<_HomeSlider> {
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
       child: LayoutBuilder(builder: (context, constraints) {
         // Slides are cropped 16:9 at upload — render in a matching frame so
-        // nothing gets re-cropped; height-capped (and centered) on wide screens.
-        final height = (constraints.maxWidth * 9 / 16).clamp(0.0, 280.0);
+        // nothing gets re-cropped.
+        //
+        // UX-122: the cap used to be a flat 280dp of HEIGHT, which on a wide
+        // screen pinned the hero at 497×280 while the page around it kept
+        // growing — a 1920px asset displayed at 497 logical px, shrinking
+        // relative to everything else. That was a clamp, not a decision.
+        //
+        // The decision: the slide runs the full content width, up to a slide
+        // width that still reads as a banner rather than a billboard, and never
+        // takes more than ~40% of the viewport height (it sits above the company
+        // grid, which must not be pushed off the first screen).
+        const maxSlideWidth = 720.0;
+        final heightBudget = MediaQuery.sizeOf(context).height * 0.4;
+        final width = constraints.maxWidth
+            .clamp(0.0, maxSlideWidth)
+            .clamp(0.0, heightBudget * 16 / 9);
         return Center(
           child: SizedBox(
-            width: height * 16 / 9,
-            height: height,
+            width: width,
+            height: width * 9 / 16,
             child: _frame(cs),
           ),
         );
@@ -1044,6 +1145,13 @@ class _HomeSliderState extends State<_HomeSlider> {
                     widget.urls[i],
                     fit: BoxFit.cover,
                     width: double.infinity,
+                    // UX-150: no POS image carried a description. The slide
+                    // itself is promotional and its content is unknown to us,
+                    // so it announces its position rather than pretending to
+                    // describe the artwork.
+                    semanticLabel: ar
+                        ? 'صورة ${i + 1} من ${widget.urls.length}'
+                        : 'Slide ${i + 1} of ${widget.urls.length}',
                     errorBuilder: (_, _, _) => Container(
                       color: cs.surfaceContainerHighest,
                       alignment: Alignment.center,
@@ -1142,6 +1250,9 @@ class _CompanyCard extends StatelessWidget {
                     ? Image.network(
                         logoUrl!,
                         fit: BoxFit.contain,
+                        // UX-150: the logo IS the company name for a screen
+                        // reader — the text below it is the only other clue.
+                        semanticLabel: name,
                         errorBuilder: (_, _, _) => _logoFallback(context, cs, name),
                       )
                     : _logoFallback(context, cs, name),
@@ -1259,6 +1370,9 @@ class _SkuCard extends StatelessWidget {
                     Image.network(
                       s.imageUrl!,
                       fit: BoxFit.cover,
+                      // UX-150: the card artwork is how an operator recognises
+                      // the denomination at a glance; name it.
+                      semanticLabel: s.name,
                       errorBuilder: (_, _, _) => _artFallback(context, cs, s.sku),
                       loadingBuilder: (ctx, child, progress) =>
                           progress == null ? child : Container(color: cs.surfaceContainerHighest),
@@ -1363,20 +1477,29 @@ class _SkuCard extends StatelessWidget {
     );
   }
 
-  Widget _artFallback(BuildContext context, ColorScheme cs, String sku) => Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [cs.primary, cs.onPrimaryContainer],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+  Widget _artFallback(BuildContext context, ColorScheme cs, String sku) {
+    // UX-148: the SKU is the only thing identifying a card that has no artwork,
+    // and it sits at the CENTRE of the gradient — but its ink was `tones.onBrand`,
+    // which is measured against `cs.primary`, the top-left stop alone. The other
+    // stop is `brandInk`, a deliberately darkened brand tone, so on a white-label
+    // brand where the two stops straddle the light/dark threshold the winner at
+    // the corner is the loser in the middle. Measure where the text actually is.
+    final mid = Color.lerp(cs.primary, cs.onPrimaryContainer, 0.5)!;
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [cs.primary, cs.onPrimaryContainer],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        alignment: Alignment.center,
-        child: Text(
-          sku,
-          style: IntesharType.mono(20, color: context.tones.onBrand, w: FontWeight.w900, letterSpacing: 1),
-        ),
-      );
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        sku,
+        style: IntesharType.mono(20, color: legibleOn(mid), w: FontWeight.w900, letterSpacing: 1),
+      ),
+    );
+  }
 }
 
 // ── Voucher sheet ───────────────────────────────────────────────────────────
@@ -1914,11 +2037,21 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                       // Branding logos actually printed on the receipt, gated by the template
                       // toggles: the owning Main Agent's logo, then the SKU's company logo.
                       if (t.showAgentLogo && (_agentLogoUrl ?? '').trim().isNotEmpty) ...[
-                        Image.network(_agentLogoUrl!, height: 44, fit: BoxFit.contain, errorBuilder: (_, _, _) => const SizedBox.shrink()),
+                        Image.network(_agentLogoUrl!,
+                            height: 44,
+                            fit: BoxFit.contain,
+                            semanticLabel: _ar ? 'شعار الوكيل' : 'Agent logo',
+                            errorBuilder: (_, _, _) => const SizedBox.shrink()),
                         const SizedBox(height: 8),
                       ],
                       if (t.showCompanyLogo && (_companyLogoUrl ?? '').trim().isNotEmpty) ...[
-                        Image.network(_companyLogoUrl!, height: 36, fit: BoxFit.contain, errorBuilder: (_, _, _) => const SizedBox.shrink()),
+                        Image.network(_companyLogoUrl!,
+                            height: 36,
+                            fit: BoxFit.contain,
+                            semanticLabel: (_companyName ?? '').trim().isNotEmpty
+                                ? _companyName!.trim()
+                                : (_ar ? 'شعار الشركة' : 'Company logo'),
+                            errorBuilder: (_, _, _) => const SizedBox.shrink()),
                         const SizedBox(height: 8),
                       ],
                       const PosBrandMark(size: 40),
@@ -2028,6 +2161,74 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
     );
   }
 
+  /// UX-72: type the quantity instead of stepping to it.
+  ///
+  /// Nothing here touches the sale: it only edits [_qty] BEFORE the operator
+  /// commits, and the same confirm dialog (+ PIN above [_pinRequiredFrom]) still
+  /// stands between this number and `/product/drawBulk`. The value is clamped to
+  /// the server's [_maxQty] on the way in, so the pad can never ask for more
+  /// than the quote allows — and the server clamps again regardless.
+  Future<void> _editQty(bool ar) async {
+    final ctrl = TextEditingController(text: '$_qty');
+    ctrl.selection = TextSelection(baseOffset: 0, extentOffset: ctrl.text.length);
+    final picked = await showDialog<int>(
+      context: context,
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        void submit() {
+          final n = int.tryParse(ctrl.text.trim());
+          if (n == null || n < 1) {
+            Navigator.pop(ctx);
+            return;
+          }
+          Navigator.pop(ctx, n.clamp(1, _maxQty));
+        }
+
+        return AlertDialog(
+          title: Text(ar ? 'الكمية' : 'Quantity'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              maxLength: 4,
+              textAlign: TextAlign.center,
+              style: IntesharType.mono(28, color: cs.onSurface, w: FontWeight.w900),
+              decoration: InputDecoration(
+                counterText: '',
+                // The ceiling, stated where the number is entered — a typed 50
+                // against a max of 12 is otherwise a silent correction.
+                helperText: ar ? 'الحد الأقصى $_maxQty' : 'Max $_maxQty',
+                helperMaxLines: 2,
+              ),
+              onSubmitted: (_) => submit(),
+            ),
+            const SizedBox(height: 12),
+            // Round numbers a shop actually asks for, capped at what it may buy.
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                for (final n in <int>{5, 10, 20, 50, _maxQty}.where((n) => n > 1 && n <= _maxQty).toList()..sort())
+                  ActionChip(
+                    label: Text('$n'),
+                    onPressed: () => Navigator.pop(ctx, n),
+                  ),
+              ],
+            ),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(ar ? 'إلغاء' : 'Cancel')),
+            FilledButton(onPressed: submit, child: Text(ar ? 'تأكيد' : 'Set')),
+          ],
+        );
+      },
+    );
+    if (picked != null && mounted) setState(() => _qty = picked);
+  }
+
   /// B-086 quantity stepper — the single entry point for a bulk sale. Starts at 1 (so a
   /// mis-tap can never escalate a sale), clamps to the server's [_maxQty], and shows the
   /// running total plus WHY the ceiling is what it is.
@@ -2061,12 +2262,37 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
             icon: const Icon(Icons.remove, size: 20),
             tooltip: ar ? 'إنقاص' : 'Decrease',
           ),
-          SizedBox(
-            width: 72,
-            child: Text(
-              '$_qty',
-              textAlign: TextAlign.center,
-              style: IntesharType.display(28, color: cs.onSurface, w: FontWeight.w900),
+          // UX-72: the number is a BUTTON, not a caption. Selling 30 cards was
+          // 29 taps on the + key, one-handed, with a customer waiting — and
+          // nothing on screen said the count could be typed. The stepper keeps
+          // ±1 for the common small adjustment; this is the way out of it.
+          Tooltip(
+            message: ar ? 'اكتب الكمية' : 'Type a quantity',
+            child: InkWell(
+              onTap: _maxQty > 1 ? () => _editQty(ar) : null,
+              borderRadius: BorderRadius.circular(IntesharRadii.md),
+              child: Container(
+                width: 88,
+                height: 52, // ≥48dp: this is a counter device, one-handed.
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(IntesharRadii.md),
+                  border: Border.all(color: cs.outlineVariant),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      '$_qty',
+                      style: IntesharType.display(28, color: cs.onSurface, w: FontWeight.w900),
+                    ),
+                    if (_maxQty > 1) ...[
+                      const SizedBox(width: 4),
+                      Icon(Icons.edit_outlined, size: 13, color: cs.onSurfaceVariant),
+                    ],
+                  ],
+                ),
+              ),
             ),
           ),
           IconButton.filledTonal(
@@ -2345,7 +2571,11 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                       const SizedBox(width: 8),
                       TextButton(
                         onPressed: () => Navigator.push<void>(ctx, MaterialPageRoute(builder: (_) => const PrinterPickerPage())),
-                        style: TextButton.styleFrom(visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 8)),
+                        // UX-119: no compact density — this is the "fix your
+                        // printer" escape hatch on the last screen before an
+                        // irreversible sale, and compact would drop its tap
+                        // target from 48dp to 40dp.
+                        style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8)),
                         child: Text(
                           ps.needsChoice
                               ? (ar ? 'اختيار' : 'Choose')
@@ -2918,10 +3148,13 @@ class _BulkCardRowState extends State<_BulkCardRow> {
           ),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              // UX-147: the serial identifies WHICH card of the batch a
+              // customer is disputing — 11px was the smallest text on a screen
+              // holding ten live sales.
               Text('#${widget.card.receiptNo}  ·  SN ${p.serialNumber}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: IntesharType.mono(11, color: cs.onSurfaceVariant)),
+                  style: IntesharType.mono(12, color: cs.onSurfaceVariant)),
               const SizedBox(height: 2),
               Text(
                 _revealed ? p.pin : '•' * (p.pin.isEmpty ? 8 : p.pin.length.clamp(6, 16)),

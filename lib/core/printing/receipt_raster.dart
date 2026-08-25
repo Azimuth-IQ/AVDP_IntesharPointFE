@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart';
 import 'package:image/image.dart' as img;
+import 'package:inteshar/app/theme.dart' show kMonoFamily, kMonoFallback;
 import 'package:qr_flutter/qr_flutter.dart';
 
 /// Renders a voucher receipt to a 1-bit-friendly raster.
@@ -75,6 +76,34 @@ bool containsArabic(String s) =>
     RegExp(r'[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]')
         .hasMatch(s);
 
+/// The face used for a PIN or a serial on paper (UX-152).
+///
+/// Same family as the on-screen voucher (`IntesharType.mono`), so a customer
+/// comparing the screen the operator just showed them with the slip in their
+/// hand sees the same letterforms. [kMonoFallback] stays attached: if a
+/// terminal somehow cannot load the bundled face, a platform MONOSPACE is a far
+/// better substitute than the proportional default, and it also supplies any
+/// glyph JetBrains Mono lacks.
+///
+/// `slashedZero` asks the face for the unambiguous zero; JetBrains Mono's
+/// default zero is already dotted, so a subset without the feature table simply
+/// keeps that — either way `0` cannot be read as `O`.
+TextStyle monoReceiptStyle({
+  required double size,
+  FontWeight weight = FontWeight.normal,
+  double letterSpacing = 0,
+}) =>
+    TextStyle(
+      color: const ui.Color(0xFF000000),
+      fontFamily: kMonoFamily,
+      fontFamilyFallback: kMonoFallback,
+      fontFeatures: const [ui.FontFeature.slashedZero()],
+      fontSize: size,
+      fontWeight: weight,
+      letterSpacing: letterSpacing,
+      height: 1.35,
+    );
+
 class TextBlock extends ReceiptBlock {
   final String text;
   final double fontSize;
@@ -98,6 +127,19 @@ class TextBlock extends ReceiptBlock {
   /// rather than wrapping — one line is the invariant.
   final double minFontSize;
 
+  /// UX-152: render this block in the bundled monospace instead of the platform
+  /// sans. ONLY for blocks that are ASCII by construction — a PIN or a serial.
+  ///
+  /// The rest of the receipt deliberately pins no family (see [_paint]) so the
+  /// platform stack can supply Arabic. But that also meant the PIN printed in
+  /// whatever proportional sans the terminal happened to ship, while the SAME
+  /// code on screen was set in JetBrains Mono: paper and screen disagreed on the
+  /// glyph shapes of the one string a customer keys into a phone. At 203 dpi a
+  /// proportional `0`/`O` or `1`/`l` is a genuine misread, and by then the card
+  /// is sold and cannot be re-issued. JetBrains Mono draws them apart (dotted
+  /// zero, seriffed one) and is bundled, so it needs no network.
+  final bool mono;
+
   TextPainter? _painter;
 
   TextBlock(
@@ -110,6 +152,7 @@ class TextBlock extends ReceiptBlock {
     this.letterSpacing = 0,
     this.singleLine = false,
     this.minFontSize = 14,
+    this.mono = false,
   });
 
   /// The size [text] was actually painted at — equals [fontSize] unless
@@ -139,7 +182,8 @@ class TextBlock extends ReceiptBlock {
 
     // Deliberately NOT pinned to the brand font: a receipt has to render Arabic
     // above all, so the platform font stack is allowed to supply glyphs the
-    // bundled face lacks.
+    // bundled face lacks. The ONE exception is [mono] — a PIN or serial, ASCII
+    // by construction, where ambiguous glyphs cost the customer their code.
     final tp = _paint(text, size, spacing, maxLines: singleLine ? 1 : null)
       ..layout(maxWidth: avail);
     _painter = tp;
@@ -151,15 +195,17 @@ class TextBlock extends ReceiptBlock {
       TextPainter(
         text: TextSpan(
           text: s,
-          style: TextStyle(
-            color: const ui.Color(0xFF000000),
-            fontSize: size,
-            fontWeight: weight,
-            letterSpacing: spacing,
-            // Thermal paper is unforgiving: leading that is fine on a screen
-            // reads as cramped once printed at 203 dpi.
-            height: 1.35,
-          ),
+          style: mono
+              ? monoReceiptStyle(size: size, weight: weight, letterSpacing: spacing)
+              : TextStyle(
+                  color: const ui.Color(0xFF000000),
+                  fontSize: size,
+                  fontWeight: weight,
+                  letterSpacing: spacing,
+                  // Thermal paper is unforgiving: leading that is fine on a
+                  // screen reads as cramped once printed at 203 dpi.
+                  height: 1.35,
+                ),
         ),
         textAlign: align,
         textDirection:
@@ -323,6 +369,12 @@ class LabelValueBlock extends ReceiptBlock {
   /// Floor for that shrinking.
   final double minValueSize;
 
+  /// UX-152: set the VALUE in the bundled monospace (see [TextBlock.mono]).
+  /// The label keeps the platform stack, because it is the half that is Arabic
+  /// (`الرقم السري`) — this block already separates the two, so the code can get
+  /// unambiguous glyphs without costing the label its shaping.
+  final bool valueMono;
+
   LabelValueBlock(
     this.label,
     this.value, {
@@ -333,6 +385,7 @@ class LabelValueBlock extends ReceiptBlock {
     this.padBottom = 8,
     this.singleLineValue = false,
     this.minValueSize = 14,
+    this.valueMono = false,
   });
 
   /// What the value was actually painted at, for tests.
@@ -349,6 +402,7 @@ class LabelValueBlock extends ReceiptBlock {
       padBottom: 0,
       singleLine: singleLineValue,
       minFontSize: minValueSize,
+      mono: valueMono,
     );
     _label.measure(width);
     _value.measure(width);
@@ -360,4 +414,65 @@ class LabelValueBlock extends ReceiptBlock {
     _label.paint(canvas, width, y);
     _value.paint(canvas, width, y + _label.height);
   }
+}
+
+/// One detail line — `الرقم التسلسلي: 10317061784` — as TWO runs on a single
+/// line: the label in the platform stack, the value in the receipt monospace.
+///
+/// UX-152: the serial is the reference a shop quotes back to its agent when a
+/// card is disputed, so it has to survive being read off thermal paper — but it
+/// shares its line with an Arabic label, and setting the whole string in a
+/// Latin-only mono would hand the label's shaping to a fallback face. Splitting
+/// the runs keeps each half in the face it needs. Bidi ordering is unaffected:
+/// style does not participate in the bidi algorithm, so the line orders exactly
+/// as the single-span version did.
+class FieldLineBlock extends ReceiptBlock {
+  final String label;
+  final String value;
+  final double fontSize;
+  final TextAlign align;
+  final double padBottom;
+
+  TextPainter? _painter;
+
+  FieldLineBlock(
+    this.label,
+    this.value, {
+    this.fontSize = 26,
+    this.align = TextAlign.start,
+    this.padBottom = 5,
+  });
+
+  @override
+  void measure(int width) {
+    final avail = width.toDouble() - 8;
+    final base = TextStyle(
+      color: const ui.Color(0xFF000000),
+      fontSize: fontSize,
+      height: 1.35,
+    );
+    final tp = TextPainter(
+      text: TextSpan(
+        style: base,
+        children: [
+          TextSpan(text: '$label: '),
+          TextSpan(
+            text: value,
+            style: monoReceiptStyle(size: fontSize, weight: FontWeight.w700),
+          ),
+        ],
+      ),
+      textAlign: align,
+      // The LABEL decides the reading direction of the line, exactly as the
+      // combined string used to.
+      textDirection:
+          containsArabic(label) ? TextDirection.rtl : TextDirection.ltr,
+    )..layout(maxWidth: avail);
+    _painter = tp;
+    _height = tp.height + padBottom;
+  }
+
+  @override
+  void paint(ui.Canvas canvas, int width, double y) =>
+      _painter?.paint(canvas, ui.Offset(4, y));
 }

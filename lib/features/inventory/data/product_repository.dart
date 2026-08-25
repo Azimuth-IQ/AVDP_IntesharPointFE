@@ -9,6 +9,7 @@ import 'package:inteshar/features/inventory/domain/batch_withdraw_result.dart';
 import 'package:inteshar/features/inventory/domain/stock_withdraw_result.dart';
 import 'package:inteshar/features/inventory/domain/voucher_batch.dart';
 import 'package:inteshar/features/inventory/domain/voucher_import.dart';
+import 'package:inteshar/features/pos/domain/pos_report_summary.dart';
 
 /// B-086 pre-flight quote for a bulk sale (no money moves, no cards claimed).
 class BulkQuote {
@@ -403,6 +404,30 @@ class ProductRepository {
           .map((e) => PrintOperation.fromJson(e as Map<String, dynamic>))
           .toList();
     });
+  }
+
+  /// UX-50: the TOTALS for one window of [printOperations] — cards, money, the
+  /// per-category breakdown and the unpriced / not-printed counts — as a single
+  /// request. Filtered and scoped identically to the feed, so the figures always
+  /// describe exactly the rows the feed would list.
+  ///
+  /// [storeId] is HQ-only; every other caller is pinned server-side to its own
+  /// store, so a POS session must not send it.
+  Future<PosReportSummary> printOperationsSummary({
+    String? storeId,
+    String? q,
+    String? from, // YYYY-MM-DD Baghdad-local day (inclusive)
+    String? to,
+  }) async {
+    final response =
+        await _api.get(Endpoints.productPrintOperationsSummary, params: {
+      if (storeId != null && storeId.isNotEmpty) 'storeId': storeId,
+      if (q != null && q.isNotEmpty) 'q': q,
+      if (from != null && from.isNotEmpty) 'from': from,
+      if (to != null && to.isNotEmpty) 'to': to,
+    });
+    return _api.unwrap(response,
+        (d) => PosReportSummary.fromJson(Map<String, dynamic>.from(d as Map)));
   }
 
   /// Resolves an in-flight print: PRINTED when [printed] is true, else

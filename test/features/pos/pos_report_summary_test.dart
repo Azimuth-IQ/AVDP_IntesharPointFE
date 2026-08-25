@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inteshar/core/printing/report_receipt.dart';
-import 'package:inteshar/features/inventory/domain/print_operation.dart';
 import 'package:inteshar/features/pos/domain/pos_report_summary.dart';
 
 /// The POS التقارير screen listed cards with no totals and no way to put the
@@ -9,69 +8,88 @@ import 'package:inteshar/features/pos/domain/pos_report_summary.dart';
 ///
 /// These assert the produced report, not the code that produces it: the text
 /// artifact is decoded and read back.
+///
+/// UX-50: the totals themselves are no longer computed here — they come from
+/// `GET /api/inventory/product/print-operations/summary`. What this file pins on
+/// that side is the DECODE of the server's real envelope, key by key: a Dart
+/// model quietly defaulting a field the server does send is exactly how three
+/// customer-visible bugs shipped once before with no error anywhere.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  PrintOperation op({
-    String name = 'Asiacell 5000',
-    String sku = 'ASC-5000',
-    double? price = 5000,
-    bool printed = true,
-  }) =>
-      PrintOperation(
-        id: 'x',
-        receiptNo: 1,
-        storeId: 's',
-        storeName: 'saad',
-        productId: 'p',
-        serialNumber: '10317061784',
-        sku: sku,
-        productName: name,
-        createdAt: '2026-07-30T14:00:00',
-        soldPrice: price,
-        printed: printed,
-      );
+  /// The literal JSON of the backend's `SalesSummary` / `SalesCategoryLine`
+  /// (Inventory/DTOs). Transcribed from the Java, not from the Dart model.
+  Map<String, dynamic> summaryJson() => {
+        'cards': 7,
+        'total': 41000.0,
+        'unpriced': 2,
+        'notPrinted': 1,
+        'byCategory': [
+          {'sku': 'ASC-5000', 'category': 'Asiacell 5000', 'cards': 5, 'total': 25000.0},
+          {'sku': 'ZN-10000', 'category': 'Zain 10000', 'cards': 2, 'total': 16000.0},
+        ],
+      };
 
-  group('totals', () {
-    test('counts cards, money, and unprinted separately', () {
-      final s = PosReportSummary.from([
-        op(),
-        op(printed: false),
-        op(name: 'Zain 10000', sku: 'ZN-10000', price: 10000),
-      ]);
-      expect(s.cards, 3);
-      expect(s.total, 20000);
+  group('decoding the server summary', () {
+    test('every figure the server sends is read, none defaulted away', () {
+      final s = PosReportSummary.fromJson(summaryJson());
+      expect(s.cards, 7);
+      expect(s.total, 41000);
+      expect(s.unpriced, 2);
       expect(s.notPrinted, 1);
-    });
-
-    test('a sale with no recorded price counts as a card but not as money', () {
-      // Otherwise a till reconciliation silently disagrees with the card count
-      // and nothing on the report explains the gap.
-      final s = PosReportSummary.from([op(), op(price: null)]);
-      expect(s.cards, 2);
-      expect(s.total, 5000);
-      expect(s.unpriced, 1);
-    });
-
-    test('groups by category, busiest first (التقارير!A4)', () {
-      final s = PosReportSummary.from([
-        op(name: 'Zain 10000', sku: 'ZN', price: 10000),
-        op(),
-        op(),
-      ]);
+      expect(s.byCategory.length, 2);
+      expect(s.byCategory.first.sku, 'ASC-5000');
       expect(s.byCategory.first.category, 'Asiacell 5000');
-      expect(s.byCategory.first.cards, 2);
-      expect(s.byCategory.first.total, 10000);
-      expect(s.byCategory.last.category, 'Zain 10000');
+      expect(s.byCategory.first.cards, 5);
+      expect(s.byCategory.first.total, 25000);
     });
 
-    test('a nameless definition groups under its SKU instead of vanishing', () {
-      final s = PosReportSummary.from([op(name: '  ', sku: 'ASC-5000')]);
+    test('the server-side order of the breakdown is preserved (busiest first)', () {
+      // The backend sorts by card count and the paper report prints the rows in
+      // the order it receives them; re-sorting here would make screen and paper
+      // disagree for ties.
+      final s = PosReportSummary.fromJson(summaryJson());
+      expect(s.byCategory.map((l) => l.category).toList(),
+          ['Asiacell 5000', 'Zain 10000']);
+    });
+
+    test('cards and total may legitimately disagree — unpriced sales explain it', () {
+      // 7 cards but only 5 priced ones make up the money. The count is what the
+      // operator reconciles the gap with, so it must survive the decode.
+      final s = PosReportSummary.fromJson(summaryJson());
+      final breakdownTotal =
+          s.byCategory.fold<double>(0, (a, l) => a + l.total);
+      expect(breakdownTotal, s.total);
+      expect(s.unpriced, greaterThan(0));
+    });
+
+    test('a nameless category falls back to its SKU instead of a blank row', () {
+      final s = PosReportSummary.fromJson({
+        'cards': 1,
+        'total': 5000.0,
+        'byCategory': [
+          {'sku': 'ASC-5000', 'category': null, 'cards': 1, 'total': 5000.0},
+        ],
+      });
       expect(s.byCategory.single.category, 'ASC-5000');
     });
 
+    test('integral JSON numbers decode as money, not as zero', () {
+      // Mongo hands back an int when a $sum lands on a whole number, and `as
+      // double` on an int is a runtime failure — the totals are money, so this
+      // is the path that matters most.
+      final s = PosReportSummary.fromJson({'cards': 1, 'total': 5000});
+      expect(s.total, 5000);
+    });
+
     test('an empty window is a real zero, not a crash', () {
-      final s = PosReportSummary.from([]);
+      final s = PosReportSummary.fromJson({
+        'cards': 0,
+        'total': 0.0,
+        'unpriced': 0,
+        'notPrinted': 0,
+        'byCategory': <dynamic>[],
+      });
       expect(s.cards, 0);
       expect(s.total, 0);
       expect(s.byCategory, isEmpty);
@@ -86,6 +104,16 @@ void main() {
       mainAgentName: 'وكيل بغداد',
     );
 
+    final oneSale = PosReportSummary.fromJson({
+      'cards': 1,
+      'total': 5000.0,
+      'unpriced': 0,
+      'notPrinted': 0,
+      'byCategory': [
+        {'sku': 'ASC-5000', 'category': 'Asiacell 5000', 'cards': 1, 'total': 5000.0},
+      ],
+    });
+
     String textOf(PosReportSummary s, {PosReportIdentity id = identity}) =>
         buildSalesReportText(
           identity: id,
@@ -97,7 +125,7 @@ void main() {
         );
 
     test('carries every identity line the spec mandates (التقارير!A1)', () {
-      final t = textOf(PosReportSummary.from([op()]));
+      final t = textOf(oneSale);
       expect(t, contains('محل سعد'));
       expect(t, contains('سعد عبد الله محمد'));
       expect(t, contains('وكيل الرصافة'));
@@ -106,32 +134,30 @@ void main() {
 
     test('omits an identity line it could not resolve, rather than printing it blank', () {
       // A shop may be refused the entity reads that name its agents.
-      final t = textOf(PosReportSummary.from([op()]),
-          id: const PosReportIdentity(shopName: 'محل سعد'));
+      final t = textOf(oneSale, id: const PosReportIdentity(shopName: 'محل سعد'));
       expect(t, contains('محل سعد'));
       expect(t, isNot(contains('الوكيل الرئيسي')));
       expect(t, isNot(contains('صاحب النقطة')));
     });
 
-    test('states the window and the totals', () {
-      final t = textOf(PosReportSummary.from([op(), op(price: 10000)]));
+    test('states the window and the totals it was given', () {
+      final t = textOf(PosReportSummary.fromJson(summaryJson()));
       expect(t, contains('2026-07-01'));
       expect(t, contains('2026-07-30'));
-      expect(t, contains('15,000'));
+      expect(t, contains('41,000'));
     });
 
-    test('a partial window says so ON THE PAPER', () {
-      // The print outlives the screen, so the caveat has to travel with it.
-      final full = textOf(PosReportSummary.from([op()]));
-      final part = textOf(PosReportSummary.from([op()], truncated: true));
-      expect(full, isNot(contains('جزئي')));
-      expect(part, contains('جزئي'));
+    test('the paper never claims a partial window any more', () {
+      // UX-50: the figure is a server-side aggregate over the whole window, so
+      // there is no page cap left for the report to have stopped at.
+      expect(textOf(PosReportSummary.fromJson(summaryJson())),
+          isNot(contains('جزئي')));
     });
 
     test('English and Arabic differ — the report is really translated', () {
       final ar = buildSalesReportText(
         identity: identity,
-        summary: PosReportSummary.from([op()]),
+        summary: oneSale,
         fromDay: '2026-07-01',
         toDay: '2026-07-30',
         printedAt: DateTime(2026, 7, 30),
@@ -139,7 +165,7 @@ void main() {
       );
       final en = buildSalesReportText(
         identity: identity,
-        summary: PosReportSummary.from([op()]),
+        summary: oneSale,
         fromDay: '2026-07-01',
         toDay: '2026-07-30',
         printedAt: DateTime(2026, 7, 30),
@@ -160,7 +186,13 @@ void main() {
         ownerName: 'سعد عبد الله محمد',
         mainAgentName: 'وكيل بغداد',
       ),
-      summary: PosReportSummary.from([op(name: 'اسيا سيل 5000')]),
+      summary: PosReportSummary.fromJson({
+        'cards': 1,
+        'total': 5000.0,
+        'byCategory': [
+          {'sku': 'ASC-5000', 'category': 'اسيا سيل 5000', 'cards': 1, 'total': 5000.0},
+        ],
+      }),
       fromDay: '2026-07-01',
       toDay: '2026-07-30',
       printedAt: DateTime(2026, 7, 30, 14, 6),

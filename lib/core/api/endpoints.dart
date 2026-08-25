@@ -71,6 +71,11 @@ class Endpoints {
   static const productDrawBulk = '/api/inventory/product/draw-bulk';
   static const productDrawRecoverBatch = '/api/inventory/product/draw/recover-batch';
   static const productPrintOperations = '/api/inventory/product/print-operations';
+  /// UX-50: the TOTALS for exactly the rows [productPrintOperations] lists —
+  /// one server-side $group instead of the client paging the window and adding
+  /// it up itself. Same scoping and same filters as the feed.
+  static const productPrintOperationsSummary =
+      '/api/inventory/product/print-operations/summary';
   static const productConfirmPrint = '/api/inventory/product/confirmPrint';
   // Correcting a single voucher. These replace the general product/update and
   // product/delete, which are disabled server-side — the row menu used to call
@@ -143,6 +148,11 @@ class Endpoints {
   // B-054 POS self endpoints (STORE-scoped server-side)
   static const posConfirmLocation = '/api/pos/confirm-location';
   static const posStatement = '/api/pos/statement';
+  /// UX-51: the same statement, one page at a time (newest first), carrying the
+  /// balances that bracket the page so the running total survives paging. The
+  /// unpaged route above is kept server-side for already-shipped APKs only —
+  /// this app must not call it.
+  static const posStatementPage = '/api/pos/statement/page';
 
   // Chat / التواصل (B-057) — pairing enforced server-side
   static const chatThreads = '/api/chat/threads';

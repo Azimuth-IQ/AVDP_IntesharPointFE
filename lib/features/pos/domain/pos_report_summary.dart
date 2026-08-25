@@ -1,31 +1,45 @@
-import 'package:inteshar/features/inventory/domain/print_operation.dart';
-
 /// One row of the spec's per-category breakdown (سستم التقارير!A4: "تقرير
 /// المبيعات يظهر … اسم الفئة وعدد الكروت").
+///
+/// [sku] is the stable key the server groups on; [category] is the operator-facing
+/// product name, which falls back to the SKU so a definition with no display name
+/// still gets a row instead of vanishing into a blank bucket.
 class PosReportLine {
+  final String sku;
   final String category;
   final int cards;
   final double total;
 
   const PosReportLine({
+    this.sku = '',
     required this.category,
     required this.cards,
     required this.total,
   });
+
+  factory PosReportLine.fromJson(Map<String, dynamic> j) {
+    final sku = j['sku'] as String? ?? '';
+    final name = (j['category'] as String? ?? '').trim();
+    return PosReportLine(
+      sku: sku,
+      category: name.isNotEmpty ? name : sku,
+      cards: (j['cards'] as num?)?.toInt() ?? 0,
+      total: (j['total'] as num?)?.toDouble() ?? 0,
+    );
+  }
 }
 
-/// Totals for the POS التقارير window (سستم A95 + التقارير!A4).
+/// Totals for the POS التقارير window (سستم A95 + التقارير!A4) — the server's
+/// `SalesSummary` for exactly the window the list under it is showing.
 ///
-/// The sales feed returns a bare list with no total, so these are derived from
-/// the rows the panel actually fetched. [truncated] says so out loud when the
-/// walk stopped at its page cap — a summary that silently describes only the
-/// first N sales would be worse than no summary at all, because it reads as
-/// authoritative.
+/// UX-50: these used to be added up on the handheld by fetching up to 40 pages of
+/// the feed, and were labelled "partial" when the walk ran out of pages. The
+/// figures now come from one `$group` over the same criteria as the feed, so the
+/// total cannot describe a different set of sales than the rows listed under it.
 class PosReportSummary {
   final int cards;
   final double total;
   final int notPrinted;
-  final bool truncated;
   final List<PosReportLine> byCategory;
 
   /// Sales whose price the backend never recorded. They count as cards but
@@ -40,7 +54,6 @@ class PosReportSummary {
     required this.notPrinted,
     required this.byCategory,
     this.unpriced = 0,
-    this.truncated = false,
   });
 
   static const empty = PosReportSummary(
@@ -50,44 +63,19 @@ class PosReportSummary {
     byCategory: [],
   );
 
-  factory PosReportSummary.from(
-    List<PrintOperation> ops, {
-    bool truncated = false,
-  }) {
-    var total = 0.0;
-    var notPrinted = 0;
-    var unpriced = 0;
-    final buckets = <String, ({int cards, double total})>{};
-
-    for (final op in ops) {
-      total += op.soldPrice ?? 0;
-      if (op.soldPrice == null) unpriced++;
-      if (!op.printed) notPrinted++;
-      // productName is what the operator recognises; sku is the fallback so a
-      // definition without a display name still groups instead of vanishing.
-      final key = op.productName.trim().isNotEmpty ? op.productName.trim() : op.sku;
-      final b = buckets[key] ?? (cards: 0, total: 0.0);
-      buckets[key] = (cards: b.cards + 1, total: b.total + (op.soldPrice ?? 0));
-    }
-
-    final lines = buckets.entries
-        .map((e) => PosReportLine(
-              category: e.key,
-              cards: e.value.cards,
-              total: e.value.total,
-            ))
-        .toList()
-      ..sort((a, b) => b.cards.compareTo(a.cards));
-
-    return PosReportSummary(
-      cards: ops.length,
-      total: total,
-      notPrinted: notPrinted,
-      byCategory: lines,
-      unpriced: unpriced,
-      truncated: truncated,
-    );
-  }
+  /// The server's `SalesSummary` envelope:
+  /// `{cards, total, unpriced, notPrinted, byCategory:[{sku, category, cards, total}]}`.
+  /// The category rows arrive busiest-first and that order is kept — it is the
+  /// order the paper report prints them in.
+  factory PosReportSummary.fromJson(Map<String, dynamic> j) => PosReportSummary(
+        cards: (j['cards'] as num?)?.toInt() ?? 0,
+        total: (j['total'] as num?)?.toDouble() ?? 0,
+        notPrinted: (j['notPrinted'] as num?)?.toInt() ?? 0,
+        unpriced: (j['unpriced'] as num?)?.toInt() ?? 0,
+        byCategory: ((j['byCategory'] as List<dynamic>?) ?? const [])
+            .map((e) => PosReportLine.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
+      );
 }
 
 /// The identity block the spec puts on EVERY report (سستم التقارير!A1: "أي تقرير

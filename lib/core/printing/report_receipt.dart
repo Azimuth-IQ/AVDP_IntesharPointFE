@@ -102,18 +102,9 @@ Future<PrintJob> buildSalesReportPrintJob({
     }
   }
 
-  // A report that covered only part of its own window must say so on the paper
-  // — it is the version that outlives the screen.
-  if (summary.truncated) {
-    blocks.add(RuleBlock());
-    blocks.add(TextBlock(
-        t('تقرير جزئي — الفترة تحتوي على مبيعات أكثر مما تم تحميله',
-            'Partial report — the window holds more sales than were loaded'),
-        fontSize: 20,
-        weight: FontWeight.w700,
-        padBottom: 4));
-  }
-
+  // UX-50: there is no longer a "partial report" caveat to print — the totals
+  // come from one server-side aggregation over the whole window instead of from
+  // however many pages the handheld managed to walk before giving up.
   blocks.add(RuleBlock());
   blocks.add(TextBlock(_stamp(printedAt), fontSize: 20));
 
@@ -182,10 +173,6 @@ String buildSalesReportText({
     for (final l in summary.byCategory) {
       line('${l.category}: ${l.cards} × ${Formatters.iqd(l.total.round())}');
     }
-  }
-  if (summary.truncated) {
-    line(t('تقرير جزئي — الفترة تحتوي على مبيعات أكثر مما تم تحميله',
-        'Partial report — the window holds more sales than were loaded'));
   }
   line('--------------------------------');
   line(_stamp(printedAt));

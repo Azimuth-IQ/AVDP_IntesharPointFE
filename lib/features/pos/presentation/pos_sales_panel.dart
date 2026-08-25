@@ -77,13 +77,19 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
   bool _notPrintedOnly = false; // end-of-day recovery filter
 
   // سستم A95/التقارير!A1: the window's own figures, and who the report belongs
-  // to. The feed returns a bare list with no total, so the summary is walked
-  // over the whole window rather than derived from the visible page — a total
-  // that silently described only the first 50 sales would read as authoritative.
-  static const int _summaryPageCap = 40; // 2,000 sales
+  // to.
+  //
+  // UX-50: the totals are ASKED FOR, not walked. This used to fetch up to 40
+  // sequential pages of the feed and add them up on the handheld, then label the
+  // figure "partial" when it ran out of pages; the server now answers the same
+  // question once, over the same filters as the list below it.
   PosReportSummary _summary = PosReportSummary.empty;
   PosReportIdentity _identity = const PosReportIdentity();
   bool _summaryLoading = false;
+  /// A summary that FAILED is not a summary of zero. An operator reads "0
+  /// cards · 0 د.ع" as "I sold nothing today", so a failed total says so
+  /// instead of quietly printing a lie.
+  Object? _summaryError;
   // UX-58: the per-category breakdown, collapsed to the busiest few by default.
   static const int _categoryPreview = 4;
   bool _categoriesExpanded = false;
@@ -173,28 +179,39 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
     }
   }
 
-  /// Walks the whole window for the totals. Stops at [_summaryPageCap] and
-  /// marks the summary truncated rather than quietly under-reporting.
+  /// The window's totals, in ONE request, over exactly the criteria the list
+  /// below is showing (`/print-operations/summary`).
+  ///
+  /// No `storeId` is sent: HQ may target a store with it, but a POS session is
+  /// pinned to its own shop server-side, and passing an id from here could only
+  /// ever narrow it wrongly.
   Future<void> _loadSummary() async {
-    setState(() => _summaryLoading = true);
-    final all = <PrintOperation>[];
-    var truncated = false;
+    setState(() {
+      _summaryLoading = true;
+      _summaryError = null;
+    });
     try {
-      for (var p = 0; p < _summaryPageCap; p++) {
-        final batch = await _fetch(p);
-        all.addAll(batch);
-        if (batch.length < _size) break;
-        if (p == _summaryPageCap - 1) truncated = true;
-      }
+      final s = await ProductRepository(ref.read(apiClientProvider))
+          .printOperationsSummary(
+        from: _day(_range.start),
+        to: _day(_range.end),
+      );
       if (!mounted) return;
       setState(() {
-        _summary = PosReportSummary.from(all, truncated: truncated);
+        _summary = s;
         _summaryLoading = false;
       });
-    } catch (_) {
-      // The list itself already surfaces load errors; a failed summary must not
-      // replace a usable report with an error screen.
-      if (mounted) setState(() => _summaryLoading = false);
+    } catch (e) {
+      // The list itself already surfaces its own load errors; a failed summary
+      // must not replace a usable report with an error screen — but it must not
+      // show zeros either, so the card says the totals are unavailable and
+      // offers a retry.
+      if (!mounted) return;
+      setState(() {
+        _summary = PosReportSummary.empty;
+        _summaryError = e;
+        _summaryLoading = false;
+      });
     }
   }
 
@@ -245,16 +262,16 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
         _loading = false;
         _reloading = false;
       });
-      // Only worth a second walk when the first page was full; otherwise the
-      // page we already hold IS the whole window. A SEARCH skips it entirely —
-      // its summary is hidden, and walking 40 pages of search hits to build a
-      // total nobody sees is exactly the cost this screen already pays too much of.
+      // The window's totals — one request, whatever the window holds. A SEARCH
+      // skips it: a result set spanning all dates is not a report of a window,
+      // so its summary is hidden anyway.
       if (!_searching) {
-        if (_hasMore) {
-          _loadSummary();
-        } else {
-          setState(() => _summary = PosReportSummary.from(ops));
-        }
+        unawaited(_loadSummary());
+      } else {
+        setState(() {
+          _summary = PosReportSummary.empty;
+          _summaryError = null;
+        });
       }
       if (jumpToReceipt) {
         final receiptNo = int.tryParse(_q);
@@ -551,14 +568,42 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
             ),
           const SizedBox(height: 10),
         ],
-        Row(children: [
-          _stat(ar ? 'عدد الكروت' : 'Cards', '${s.cards}', cs),
-          _stat(ar ? 'المجموع' : 'Total', Formatters.iqd(s.total.round()), cs),
-          if (s.notPrinted > 0)
-            _stat(ar ? 'لم تُطبع' : 'Not printed', '${s.notPrinted}', cs,
-                tint: context.status.danger),
-        ]),
-        if (s.unpriced > 0)
+        if (_summaryError != null)
+          // Not "0 cards". A total the server never sent is unknown, and on the
+          // screen a shop reconciles its till against, unknown must not look
+          // like nothing sold.
+          Row(children: [
+            Expanded(
+              child: Text(
+                ar
+                    ? 'تعذّر حساب مجموع الفترة — ${friendlyError(_summaryError!, context)}'
+                    : 'The window total could not be loaded — ${friendlyError(_summaryError!, context)}',
+                style: IntesharType.sans(12,
+                    color: context.status.danger, w: FontWeight.w600),
+              ),
+            ),
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: _summaryLoading ? null : _loadSummary,
+              child: Text(ar ? 'إعادة المحاولة' : 'Retry',
+                  style: IntesharType.sans(12, color: cs.primary, w: FontWeight.w700)),
+            ),
+          ])
+        else
+          Row(children: [
+            // While the totals are in flight they are shown as unknown, NOT as
+            // the previous window's figures: switching from الشهر to اليوم would
+            // otherwise display a month's takings under today's dates for as
+            // long as the request takes.
+            _stat(ar ? 'عدد الكروت' : 'Cards',
+                _summaryLoading ? '—' : '${s.cards}', cs),
+            _stat(ar ? 'المجموع' : 'Total',
+                _summaryLoading ? '—' : Formatters.iqd(s.total.round()), cs),
+            if (!_summaryLoading && s.notPrinted > 0)
+              _stat(ar ? 'لم تُطبع' : 'Not printed', '${s.notPrinted}', cs,
+                  tint: context.status.danger),
+          ]),
+        if (!_summaryLoading && s.unpriced > 0)
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: Text(
@@ -568,20 +613,10 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
               style: IntesharType.sans(11, color: cs.onSurfaceVariant),
             ),
           ),
-        if (s.truncated)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Text(
-              ar
-                  ? 'الفترة تحتوي على مبيعات أكثر مما تم تحميله — المجموع جزئي'
-                  : 'This window holds more sales than were loaded — the total is partial',
-              style: IntesharType.sans(11, color: context.status.danger, w: FontWeight.w600),
-            ),
-          ),
         // UX-58: "how many Asiacell 5,000 did I sell?" — the breakdown was already
         // computed here and already printed on the paper report, and was the one
         // thing the screen didn't show. It costs no extra request.
-        if (s.byCategory.isNotEmpty) ...[
+        if (!_summaryLoading && s.byCategory.isNotEmpty) ...[
           const SizedBox(height: 12),
           Divider(height: 1, color: cs.outlineVariant),
           const SizedBox(height: 8),

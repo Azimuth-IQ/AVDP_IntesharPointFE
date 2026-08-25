@@ -22,10 +22,10 @@ import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
-/// The Reports section (client spec `Docs/سستم.xlsx` → التقارير). Phase 1 (Prices #7,
+/// The Reports section (client spec `Docs/spec/سستم.xlsx` → التقارير). Phase 1 (Prices #7,
 /// Stock #8, Detailed #9) + Phase 2 (POS balances #1, Agent balances #2, Transfers #3).
 /// Sales/upload reports (#4-6) + export land in Phase 3-4 — see
-/// `Docs/REPORTING-MODULE-BUILD-MAP.md`.
+/// `Docs/plans/REPORTING-MODULE-BUILD-MAP.md`.
 class ReportsPage extends ConsumerStatefulWidget {
   const ReportsPage({super.key});
 
@@ -154,6 +154,36 @@ class _RS {
   String partialOf(int n) => p(
       'Partial — over the $n rows loaded so far. Load more, or export for the full figure.',
       'جزئي — على $n صفًا محمّلًا حتى الآن. حمّل المزيد، أو صدّر الملف للرقم الكامل.');
+  // UX-40: every figure in the app was a snapshot or a single-window sum, so
+  // "did we sell more than last week" needed two exports and Excel. The dated
+  // reports already carry a window, so the previous EQUAL window is one more
+  // request away — and the comparison is only ever stated when both ends of it
+  // are complete figures.
+  String vsPrevious(String range) =>
+      p('vs the previous period ($range)', 'مقارنة بالمدة السابقة ($range)');
+  /// "30 days" / "30 يوم" — the length of the window being compared.
+  String windowOfDays(int n) => p('$n days', '$n يوم');
+  String get comparing =>
+      p('Comparing with the previous period…', 'جارٍ المقارنة بالمدة السابقة…');
+  String get deltaUnavailable => p('Previous period could not be loaded',
+      'تعذّر تحميل بيانات المدة السابقة');
+  // The transfers total is flagged partial while more pages exist; a change
+  // computed from a partial total would be a lie, so say why there isn't one.
+  String get deltaNeedsFullTotal => p(
+      'No comparison while the total is partial — load more, or export.',
+      'لا تتوفر مقارنة على مجموع جزئي — حمّل المزيد، أو صدّر الملف.');
+  String get deltaPrevPartial => p(
+      'The previous period is larger than one page — export to compare.',
+      'المدة السابقة أكبر من صفحة واحدة — صدّر الملف للمقارنة.');
+  String get more => p('more', 'أكثر');
+  String get less => p('less', 'أقل');
+  String get unchanged => p('no change', 'بلا تغيير');
+  String get fromNothing =>
+      p('up from nothing', 'ارتفاع من لا شيء');
+  String get toNothing => p('down to nothing', 'انخفاض إلى لا شيء');
+  /// The previous window itself, so the comparison names the dates it used.
+  String previousWas(String range, String value) =>
+      p('$range: $value', '$range: $value');
 }
 
 /// B-103: the 9 reports are really three families. Flat, they wrapped to FOUR rows
@@ -177,6 +207,62 @@ class _Export {
   final List<List<XlsxCell>> rows;
   final String file;
   const _Export(this.headers, this.rows, this.file);
+}
+
+/// UX-40: the same headline figure, over the window immediately before the one on
+/// screen.
+///
+/// [value] is null when it could not be established at all (no window selected,
+/// or the request failed). [partial] means the previous window itself has more
+/// pages behind it, so the figure is a page-1 sum — the caller must NOT compare
+/// against it, for the same reason a partial current total cannot be compared.
+class _PrevTotal {
+  final num? value;
+  final bool partial;
+  const _PrevTotal(this.value, {this.partial = false});
+  const _PrevTotal.unavailable()
+      : value = null,
+        partial = false;
+}
+
+/// UX-40: everything the total strip needs to say "and that is N% more than the
+/// previous equal period" — or to say honestly why it cannot.
+///
+/// The current figure is folded by the page (it already does this for the export
+/// stamp); the previous one is a future, so a slow second request never blocks
+/// the report from rendering.
+class _DeltaSpec {
+  /// The on-screen headline total, as a number.
+  final num current;
+
+  /// The same total over the preceding window of equal length.
+  final Future<_PrevTotal> previous;
+
+  /// `yyyy-MM-dd → yyyy-MM-dd` for that preceding window.
+  final String previousRange;
+
+  /// Its length in days, for the caption ("vs the previous 30 days").
+  final int days;
+
+  /// The on-screen total is folded over loaded pages only (UX-33). A change
+  /// computed from it would be a lie, so the strip says so instead.
+  final bool currentPartial;
+
+  /// Formats a figure exactly the way the headline above it is formatted.
+  final String Function(num) fmt;
+
+  /// The strings — the strip renders several sentences about this comparison.
+  final _RS s;
+
+  const _DeltaSpec({
+    required this.current,
+    required this.previous,
+    required this.previousRange,
+    required this.days,
+    required this.currentPartial,
+    required this.fmt,
+    required this.s,
+  });
 }
 
 class _ReportsPageState extends ConsumerState<ReportsPage> {
@@ -311,7 +397,100 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         _acc.clear();
         _accPage.clear();
         _accMore.clear();
+        _prevCache.clear();
       });
+
+  // ── UX-40: change over time ────────────────────────────────────────────────
+  //
+  // The dated reports each present ONE bucket, so "did we sell more than last
+  // week" could only be answered by exporting twice and subtracting in Excel.
+  // The window is already on screen; shifting it back by its own length gives
+  // the comparison for one extra request. Deliberately no series and no chart —
+  // there is no chart package here, and a single honest delta answers the
+  // question the owner actually asks.
+
+  /// Previous-window totals, keyed by source + window + scope, so switching the
+  /// date range or the target agent can never show one window's comparison under
+  /// another window's total.
+  final Map<String, Future<_PrevTotal>> _prevCache = {};
+
+  /// The window immediately before the selected one, of equal length. Null when
+  /// the range has been cleared — "all dates" has no "before".
+  (DateTime, DateTime)? get _previousWindow {
+    final f = _from, t = _to;
+    if (f == null || t == null) return null;
+    // Inclusive span: 1 Jan → 30 Jan is 30 days, so the previous window is
+    // 2 Dec → 31 Dec. Anchored on `from - 1 day` so the two never overlap.
+    final span = t.difference(f).inDays;
+    final prevTo = f.subtract(const Duration(days: 1));
+    return (prevTo.subtract(Duration(days: span)), prevTo);
+  }
+
+  /// The headline figure for [key] as a NUMBER. `_exportTotal` returns the same
+  /// quantity already formatted; this is the one the arithmetic runs on.
+  num? _headlineValue(String key, dynamic data) => switch (key) {
+        'transfers' => ((data as List<TransferRow>?) ?? const [])
+            .fold<num>(0, (a, r) => a + r.amount),
+        'sold' || 'totalSold' => ((data as List<SalesRow>?) ?? const [])
+            .fold<int>(0, (a, r) => a + r.count),
+        'uploaded' => ((data as List<UploadsRow>?) ?? const [])
+            .fold<int>(0, (a, r) => a + r.count),
+        _ => null,
+      };
+
+  /// The same total over [_previousWindow].
+  ///
+  /// Sales and uploads come back whole, so their previous total is exact.
+  /// Transfers are paged: this reads page 0 only and reports `partial` when more
+  /// exist rather than walking up to 200 pages behind the user's back — and a
+  /// partial previous total is refused, not shown.
+  Future<_PrevTotal> _previousTotal(String key) {
+    final win = _previousWindow;
+    if (win == null) return Future.value(const _PrevTotal.unavailable());
+    final src = _sourceKey(key);
+    final id = _effectiveId;
+    final from = _ymd(win.$1), to = _ymd(win.$2);
+    return _prevCache.putIfAbsent('$src|$id|$from|$to', () async {
+      switch (src) {
+        case 'sales':
+          final rows =
+              await _repo.sales(rootId: id, from: from, to: to);
+          return _PrevTotal(rows.fold<int>(0, (a, r) => a + r.count));
+        case 'uploaded':
+          final rows =
+              await _repo.uploads(rootId: id, from: from, to: to);
+          return _PrevTotal(rows.fold<int>(0, (a, r) => a + r.count));
+        case 'transfers':
+          final page = await _repo.transfers(
+              rootId: id, from: from, to: to, page: 0, size: _pageSize);
+          return _PrevTotal(
+              page.items.fold<num>(0, (a, r) => a + r.amount),
+              partial: page.hasMore);
+        default:
+          return const _PrevTotal.unavailable();
+      }
+    });
+  }
+
+  /// The comparison to hang on [key]'s total strip, or null when the report has
+  /// no single total or the range has been cleared.
+  _DeltaSpec? _deltaFor(String key, dynamic data, _RS s, {required bool partial}) {
+    if (!_isDated(key)) return null;
+    final win = _previousWindow;
+    if (win == null) return null;
+    final current = _headlineValue(key, data);
+    if (current == null) return null;
+    final money = key == 'transfers';
+    return _DeltaSpec(
+      current: current,
+      previous: _previousTotal(key),
+      previousRange: '${_ymd(win.$1)} → ${_ymd(win.$2)}',
+      days: win.$2.difference(win.$1).inDays + 1,
+      currentPartial: partial,
+      fmt: (v) => money ? Formatters.iqd(v.round()) : Formatters.money(v),
+      s: s,
+    );
+  }
 
   static const _pageSize = 100;
 
@@ -1016,6 +1195,9 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         // over the loaded rows is PARTIAL. The reports that show a headline total
         // say so instead of presenting page 1 as the whole story.
         final more = _accMore[_sourceKey(key)] ?? false;
+        // UX-40: the "vs the previous equal period" line under the headline
+        // total. Built here because the page owns both the window and the feed.
+        final delta = _deltaFor(key, data, s, partial: more);
         final body = RefreshIndicator(
           onRefresh: () async => setState(() => _cache.remove(_sourceKey(key))),
           child: switch (key) {
@@ -1027,10 +1209,16 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                 s: s),
             'detailed' => _DetailedReport(catalog: data as PricingCatalog, s: s),
             'transfers' => _TransfersReport(
-                rows: (data as List<TransferRow>?) ?? const [], s: s, partial: more),
-            'sold' => _SalesReport(rows: (data as List<SalesRow>?) ?? const [], s: s),
-            'totalSold' => _TotalSoldReport(rows: (data as List<SalesRow>?) ?? const [], s: s),
-            'uploaded' => _UploadsReport(rows: (data as List<UploadsRow>?) ?? const [], s: s),
+                rows: (data as List<TransferRow>?) ?? const [],
+                s: s,
+                partial: more,
+                delta: delta),
+            'sold' => _SalesReport(
+                rows: (data as List<SalesRow>?) ?? const [], s: s, delta: delta),
+            'totalSold' => _TotalSoldReport(
+                rows: (data as List<SalesRow>?) ?? const [], s: s, delta: delta),
+            'uploaded' => _UploadsReport(
+                rows: (data as List<UploadsRow>?) ?? const [], s: s, delta: delta),
             _ => _RosterReport(
                 rows: (data as List<BalanceRosterRow>?) ?? const [],
                 s: s,
@@ -1233,19 +1421,22 @@ class _ReportSurfaceState extends State<_ReportSurface> {
     );
   }
 
-  Widget _partialSortNote(int n) => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-        color: IntesharColors.warn.withValues(alpha: 0.08),
-        child: Row(children: [
-          const Icon(Icons.info_outline, size: 14, color: IntesharColors.warn),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(widget.s.sortedOf(n),
-                style: IntesharType.sans(11.5, color: IntesharColors.warn, w: FontWeight.w600)),
-          ),
-        ]),
-      );
+  Widget _partialSortNote(int n) {
+    final warn = context.status.warn;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+      color: warn.withValues(alpha: 0.08),
+      child: Row(children: [
+        Icon(Icons.info_outline, size: 14, color: warn),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(widget.s.sortedOf(n),
+              style: IntesharType.sans(11.5, color: warn, w: FontWeight.w600)),
+        ),
+      ]),
+    );
+  }
 
   Widget _narrowSortBar(ColorScheme cs) {
     final i = _sortIndex;
@@ -1597,7 +1788,8 @@ class _RosterReportState extends State<_RosterReport> {
             // UX-24: an account at zero cannot buy a card — flag it rather than
             // leaving it as one more number in a column of numbers.
             _RCell(Formatters.iqd(r.available.round()),
-                value: r.available, color: r.available <= 0 ? cs.error : null),
+                value: r.available,
+                color: r.available <= 0 ? context.status.danger : null),
           ],
       ],
       emptyRows: Padding(
@@ -1621,7 +1813,12 @@ class _TransfersReport extends StatelessWidget {
   /// far — while the export walks every page and stamps the complete figure. The
   /// two legitimately disagree, so the screen must say which one it is showing.
   final bool partial;
-  const _TransfersReport({required this.rows, required this.s, this.partial = false});
+
+  /// UX-40: change against the previous equal window, or null when the range is
+  /// "all dates" (nothing to compare against).
+  final _DeltaSpec? delta;
+  const _TransfersReport(
+      {required this.rows, required this.s, this.partial = false, this.delta});
 
   @override
   Widget build(BuildContext context) {
@@ -1638,6 +1835,7 @@ class _TransfersReport extends StatelessWidget {
         subLabel: s.tabTransfers,
         subValue: Formatters.money(rows.length),
         note: partial ? s.partialOf(rows.length) : null,
+        delta: delta,
       ),
       columns: [
         _RCol(s.date, flex: 3),
@@ -1656,7 +1854,7 @@ class _TransfersReport extends StatelessWidget {
             _RCell(r.destGovernorate.isEmpty ? '' : governorateLabel(r.destGovernorate, loc)),
             _RCell(Formatters.iqd(r.balanceAfter.round()), value: r.balanceAfter),
             _RCell('+${Formatters.iqd(r.amount.round())}',
-                color: IntesharColors.sage, value: r.amount),
+                color: context.status.success, value: r.amount),
           ],
       ],
     );
@@ -1667,7 +1865,10 @@ class _TransfersReport extends StatelessWidget {
 class _SalesReport extends StatelessWidget {
   final List<SalesRow> rows;
   final _RS s;
-  const _SalesReport({required this.rows, required this.s});
+
+  /// UX-40: change against the previous equal window.
+  final _DeltaSpec? delta;
+  const _SalesReport({required this.rows, required this.s, this.delta});
 
   @override
   Widget build(BuildContext context) {
@@ -1681,6 +1882,7 @@ class _SalesReport extends StatelessWidget {
         value: Formatters.money(sold),
         subLabel: s.store,
         subValue: Formatters.money(rows.map((r) => r.storeName).toSet().length),
+        delta: delta,
       ),
       columns: [
         _RCol(s.store, flex: 4, primary: true),
@@ -1709,7 +1911,10 @@ class _SalesReport extends StatelessWidget {
 class _TotalSoldReport extends StatelessWidget {
   final List<SalesRow> rows;
   final _RS s;
-  const _TotalSoldReport({required this.rows, required this.s});
+
+  /// UX-40: change against the previous equal window.
+  final _DeltaSpec? delta;
+  const _TotalSoldReport({required this.rows, required this.s, this.delta});
 
   @override
   Widget build(BuildContext context) {
@@ -1729,6 +1934,7 @@ class _TotalSoldReport extends StatelessWidget {
         value: Formatters.money(totals.values.fold<int>(0, (a, v) => a + v)),
         subLabel: s.category,
         subValue: Formatters.money(totals.length),
+        delta: delta,
       ),
       columns: [
         _RCol('${s.company} · ${s.category}', flex: 4, primary: true),
@@ -1755,7 +1961,10 @@ class _TotalSoldReport extends StatelessWidget {
 class _UploadsReport extends StatelessWidget {
   final List<UploadsRow> rows;
   final _RS s;
-  const _UploadsReport({required this.rows, required this.s});
+
+  /// UX-40: change against the previous equal window.
+  final _DeltaSpec? delta;
+  const _UploadsReport({required this.rows, required this.s, this.delta});
 
   @override
   Widget build(BuildContext context) {
@@ -1768,6 +1977,7 @@ class _UploadsReport extends StatelessWidget {
         value: Formatters.money(rows.fold<int>(0, (a, r) => a + r.count)),
         subLabel: s.category,
         subValue: Formatters.money(rows.length),
+        delta: delta,
       ),
       columns: [
         _RCol('${s.company} · ${s.category}', flex: 4, primary: true),
@@ -1781,7 +1991,8 @@ class _UploadsReport extends StatelessWidget {
             _RCell([r.companyName, r.category].where((x) => x.isNotEmpty).join(' · ')),
             _RCell(r.agentName),
             _RCell(r.governorate.isEmpty ? '' : governorateLabel(r.governorate, loc)),
-            _RCell(Formatters.money(r.count), color: IntesharColors.sage, value: r.count),
+            _RCell(Formatters.money(r.count),
+                color: context.status.success, value: r.count),
           ],
       ],
     );
@@ -2003,6 +2214,15 @@ class _DetailedReport extends StatelessWidget {
   }
 }
 
+/// UX-40: one decimal below 10%, whole numbers above, and never a trailing `.0`
+/// — so a 12% rise reads "12%", not "12.0%". Same rule the pricing screen's
+/// margin uses, so the two never disagree on how a percentage looks.
+String _pctText(num v) {
+  if (v >= 10) return v.round().toString();
+  final one = v.toStringAsFixed(1);
+  return one.endsWith('.0') ? one.substring(0, one.length - 2) : one;
+}
+
 class _TotalStrip extends StatelessWidget {
   final String label;
   final String value;
@@ -2016,13 +2236,107 @@ class _TotalStrip extends StatelessWidget {
   /// one thing a finance user cannot recover from by reading more carefully.
   final String? note;
 
+  /// UX-40: the same figure over the previous equal window. Null on the reports
+  /// that have no window (prices, stock, detailed) and whenever the range has
+  /// been cleared to "all dates".
+  final _DeltaSpec? delta;
+
   const _TotalStrip({
     required this.label,
     required this.value,
     this.subLabel,
     this.subValue,
     this.note,
+    this.delta,
   });
+
+  /// UX-40: the change line. Every branch that cannot produce an honest number
+  /// says WHY rather than rendering nothing — a comparison that appears on three
+  /// tabs and silently not on the fourth reads as a bug.
+  Widget _deltaLine(BuildContext context, _DeltaSpec d) {
+    final cs = Theme.of(context).colorScheme;
+    Widget caption(String text, {Color? color, IconData icon = Icons.info_outline}) =>
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(icon, size: 14, color: color ?? cs.onSurfaceVariant),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(text,
+                style: IntesharType.sans(11.5,
+                    color: color ?? cs.onSurfaceVariant, w: FontWeight.w600)),
+          ),
+        ]);
+
+    // A delta off a partial total would be a lie (UX-33 flags the total itself).
+    if (d.currentPartial) {
+      return caption(d.s.deltaNeedsFullTotal, color: context.status.warn);
+    }
+    return FutureBuilder<_PrevTotal>(
+      future: d.previous,
+      builder: (context, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return caption(d.s.comparing, icon: Icons.schedule);
+        }
+        final prev = snap.data;
+        if (snap.hasError || prev == null || prev.value == null) {
+          return caption(d.s.deltaUnavailable);
+        }
+        // The previous window is itself paged past page 1 — same lie, other end.
+        if (prev.partial) return caption(d.s.deltaPrevPartial, color: context.status.warn);
+
+        final was = prev.value!;
+        final diff = d.current - was;
+        // Direction is stated in words and with an arrow, never by colour alone.
+        // "More activity than last period" is good news; less of it is the thing
+        // worth looking at, which is `warn` — not `danger`: nothing has failed.
+        final flat = diff == 0;
+        final up = diff > 0;
+        final tone = flat
+            ? context.status.neutral
+            : (up ? context.status.success : context.status.warn);
+        final icon = flat
+            ? Icons.trending_flat
+            : (up ? Icons.trending_up : Icons.trending_down);
+        // A percentage off a zero baseline is not a percentage. Say what happened
+        // instead of printing "∞%".
+        final String headline;
+        if (flat) {
+          headline = d.s.unchanged;
+        } else if (was == 0) {
+          headline = d.s.fromNothing;
+        } else if (d.current == 0) {
+          headline = d.s.toNothing;
+        } else {
+          final pct = ((diff / was) * 100).abs();
+          headline = '${_pctText(pct)}% ${up ? d.s.more : d.s.less}';
+        }
+        final absolute = flat ? '' : ' · ${up ? '+' : '−'}${d.fmt(diff.abs())}';
+        return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(icon, size: 16, color: tone),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('$headline$absolute',
+                    style: IntesharType.sans(12.5, color: tone, w: FontWeight.w800)),
+                const SizedBox(height: 1),
+                // Name the window that was compared and what it held, so the
+                // percentage is checkable rather than taken on trust.
+                Text(
+                  '${d.s.vsPrevious(d.s.windowOfDays(d.days))} · '
+                  '${d.s.previousWas(d.previousRange, d.fmt(was))}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: IntesharType.sans(11, color: cs.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+        ]);
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2102,13 +2416,21 @@ class _TotalStrip extends StatelessWidget {
       if (note != null) ...[
         const SizedBox(height: 8),
         Row(children: [
-          const Icon(Icons.info_outline, size: 14, color: IntesharColors.warn),
+          Icon(Icons.info_outline, size: 14, color: context.status.warn),
           const SizedBox(width: 6),
           Expanded(
             child: Text(note!,
-                style: IntesharType.sans(11.5, color: IntesharColors.warn, w: FontWeight.w600)),
+                style: IntesharType.sans(11.5,
+                    color: context.status.warn, w: FontWeight.w600)),
           ),
         ]),
+      ],
+      // UX-40: "…and that is 12% more than the previous 30 days".
+      if (delta case final d?) ...[
+        const SizedBox(height: 10),
+        Divider(height: 1, thickness: 1, color: cs.outlineVariant),
+        const SizedBox(height: 8),
+        _deltaLine(context, d),
       ],
       ]),
     );
@@ -2215,6 +2537,18 @@ class ReportsPreviewPage extends StatelessWidget {
         effectivePrice: 10000, available: 6924, lineValue: 69240000, priced: true),
   ]);
 
+  /// UX-40: a resolved comparison, so the change line under a headline total can
+  /// be reviewed here instead of only against a live 30-day window.
+  static _DeltaSpec _delta(_RS s, {required bool partial}) => _DeltaSpec(
+        current: 174,
+        previous: Future.value(const _PrevTotal(139)),
+        previousRange: '2026-06-25 → 2026-07-24',
+        days: 30,
+        currentPartial: partial,
+        fmt: Formatters.money,
+        s: s,
+      );
+
   @override
   Widget build(BuildContext context) {
     final s = _RS.of(context);
@@ -2223,8 +2557,11 @@ class ReportsPreviewPage extends StatelessWidget {
           _RosterReport(rows: _roster, s: s, identityLabel: s.tabPosBalances)),
       ('Agent balances',
           _RosterReport(rows: _agentRoster, s: s, identityLabel: s.tabAgentBalances)),
-      ('Transfers', _TransfersReport(rows: _transfers, s: s, partial: true)),
-      ('Sold cards', _SalesReport(rows: _sales, s: s)),
+      // Partial: the strip must refuse to compare, and say why.
+      ('Transfers',
+          _TransfersReport(
+              rows: _transfers, s: s, partial: true, delta: _delta(s, partial: true))),
+      ('Sold cards', _SalesReport(rows: _sales, s: s, delta: _delta(s, partial: false))),
       ('Total sold', _TotalSoldReport(rows: _sales, s: s)),
       ('Uploaded', _UploadsReport(rows: _uploads, s: s)),
       ('Prices', _PricesReport(catalog: _catalog, s: s, agentLabel: 'وكيل بغداد')),

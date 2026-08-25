@@ -13,7 +13,7 @@ import 'package:inteshar/features/reports/domain/report_rows.dart';
 /// inventory-summary endpoints — no new backend. Later phases add the
 /// `/api/reports/*` aggregations (balances, transfers, sales, uploads); those
 /// methods land here so every report screen has a single data entry point.
-/// See `Docs/REPORTING-MODULE-BUILD-MAP.md`.
+/// See `Docs/plans/REPORTING-MODULE-BUILD-MAP.md`.
 class ReportsRepository {
   final ApiClient _api;
   ReportsRepository(this._api);

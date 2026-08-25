@@ -44,6 +44,11 @@ class _S {
   // UX-21: "الرسمي" alone never said which side of the trade it is. For an agent
   // pricing its own account the platform default IS what it pays — its cost.
   String get officialCost => p('Official (your cost)', 'الرسمي (كلفتك)');
+  // UX-01: …except at HQ, which SETS that default on `ProductDefinition` and buys
+  // from nobody. "كلفتك" on the platform's own screen names a cost that does not
+  // exist, so HQ gets the default named as what it is.
+  String get officialDefault =>
+      p('Official (platform default)', 'الرسمي (الافتراضي)');
   String get yourPrice => p('Your price', 'سعرك');
   // UX-23: with a sub-agent selected, "سعرك" is a lie on every field and, worse,
   // on the exported sheet's column header — two agents, two sheets, one column
@@ -78,8 +83,16 @@ class _S {
   String get applyToSelf => p('Apply to me', 'تطبيق على حسابي');
   String get alsoAgents => p('Also apply to agents…', 'تطبيق على وكلاء أيضاً…');
   // B-125: apply one sheet to every sub-agent in one action.
-  String allSubAgents(int n) =>
-      p('All my sub-agents ($n)', 'كل وكلائي الفرعيين ($n)');
+  // UX-01: named for the tier actually in the list. HQ's direct children are MAIN
+  // agents, so "كل وكلائي الفرعيين" on the HQ screen would describe the wrong set
+  // of accounts the sheet is about to overwrite.
+  String allTargets(int n, EntityType? tier) => switch (tier) {
+        EntityType.AGENT1 =>
+          p('All my main agents ($n)', 'كل وكلائي الرئيسيين ($n)'),
+        EntityType.AGENT2 =>
+          p('All my sub-agents ($n)', 'كل وكلائي الفرعيين ($n)'),
+        _ => p('All my agents ($n)', 'كل وكلائي ($n)'),
+      };
   String get clearTargets => p('Clear', 'مسح');
   String get colSku => p('SKU', 'الرمز');
   String get colName => p('Name', 'الاسم');
@@ -107,12 +120,21 @@ class _S {
   String get pricingForMeHint => p(
       'Your selling prices — what your agents and shops pay you.',
       'أسعار بيعك — ما يدفعه وكلاؤك ومتاجرك لك.');
-  // UX-23: this is the price the sub-agent SELLS at — what its own shops pay it —
+  // UX-23: this is the price the target SELLS at — what its own children pay it —
   // not what it pays me. The old wording left that open, and the whole screen
   // hinges on it (`buildDebitChain` prices a shop at its parent's rate).
-  String get pricingForAgentHint => p(
-      'This sub-agent’s selling price — what its shops pay it. Export and upload follow this choice.',
-      'سعر بيع هذا الوكيل الفرعي — ما تدفعه متاجره له. التصدير والرفع يتبعان هذا الاختيار.');
+  //
+  // UX-01: HQ prices for MAIN agents, whose customers are sub-agents, so the
+  // sentence names the right buyer for the tier in hand rather than always
+  // saying "its shops".
+  String pricingForAgentHint(EntityType? tier) => switch (tier) {
+        EntityType.AGENT1 => p(
+            'This main agent’s selling price — what its sub-agents and shops pay it. Export and upload follow this choice.',
+            'سعر بيع هذا الوكيل الرئيسي — ما يدفعه وكلاؤه الفرعيون ومتاجره له. التصدير والرفع يتبعان هذا الاختيار.'),
+        _ => p(
+            'This sub-agent’s selling price — what its shops pay it. Export and upload follow this choice.',
+            'سعر بيع هذا الوكيل الفرعي — ما تدفعه متاجره له. التصدير والرفع يتبعان هذا الاختيار.'),
+      };
   String get cancel => p('Cancel', 'إلغاء');
   String get apply => p('Apply', 'تطبيق');
   // UX-69: a bare number in a box labelled "بغداد" reads as a price, a stock
@@ -146,6 +168,37 @@ bool _regionalRow(CategoryPriceRow row) =>
     row.governorates.length > 1 ||
     (row.governorates.length == 1 && row.governorates.first.governorate.isNotEmpty);
 
+/// UX-01/UX-21: how the two figures on a price card are NAMED depends on whose
+/// account is being priced.
+///
+///   * an agent pricing itself — the platform default is what it pays (its cost),
+///     so the computed difference is its margin;
+///   * **HQ** pricing itself — it *sets* that default and buys from nobody, so
+///     "your cost" would name a cost that does not exist; the difference is
+///     simply the gap from the official price;
+///   * pricing somebody else's account — the official price is not their cost
+///     (their cost is my price), so neither word applies.
+///
+/// One object so the field caption, the margin caption and the loss warning can
+/// never end up describing three different trades.
+class _PriceWording {
+  /// Caption on the platform default shown at the top of the card.
+  final String official;
+
+  /// Caption over the computed difference between the typed price and [official].
+  final String delta;
+
+  /// Warning shown when that difference is negative.
+  final String below;
+  const _PriceWording(this.official, this.delta, this.below);
+
+  factory _PriceWording.of(_S s, {required bool forSelf, required bool hq}) {
+    if (!forSelf) return _PriceWording(s.official, s.vsOfficial, s.belowOfficial);
+    if (hq) return _PriceWording(s.officialDefault, s.vsOfficial, s.belowOfficial);
+    return _PriceWording(s.officialCost, s.margin, s.belowCost);
+  }
+}
+
 class PricingPage extends ConsumerStatefulWidget {
   const PricingPage({super.key});
 
@@ -165,7 +218,10 @@ class _PricingPageState extends ConsumerState<PricingPage> {
   // picks a sub-agent and the whole screen — list, export, upload — follows it.
   String? _targetId;
   String _targetName = '';
-  List<EntitySummaryRow> _subAgents = const [];
+
+  /// UX-01: the accounts this caller may price FOR — its direct children of any
+  /// seller tier, so HQ gets its Main Agents and a Main Agent gets its Sub Agents.
+  List<EntitySummaryRow> _targets = const [];
   String _company = ''; // '' = every company
   String _gov = ''; // '' = every governorate
   Object? _error;
@@ -203,6 +259,30 @@ class _PricingPageState extends ConsumerState<PricingPage> {
 
   bool _fieldDirty(String key) =>
       parseAmount(_ctrls[key]?.text) != parseAmount(_original[key]);
+
+  /// The signed-in entity's own tier. UX-01: the page is mounted at `/hq/pricing`
+  /// as well as `/agent1/pricing`, and HQ is the one tier that has no cost.
+  EntityType? get _callerType =>
+      (ref.read(authStateProvider).valueOrNull as AuthAuthenticated?)?.entity.type;
+  bool get _callerIsHq => _callerType == EntityType.INTESHAR;
+
+  /// The tier of the account currently being priced for, or null when pricing my
+  /// own. Drives the wording — a Main Agent's customers are sub-agents, a Sub
+  /// Agent's are shops.
+  EntityType? get _targetType {
+    final id = _targetId;
+    if (id == null) return null;
+    for (final t in _targets) {
+      if (t.id == id) return t.type;
+    }
+    return null;
+  }
+
+  /// The tier the picker is offering, or null when it offers more than one.
+  EntityType? get _targetsTier {
+    final tiers = _targets.map((t) => t.type).toSet();
+    return tiers.length == 1 ? tiers.first : null;
+  }
 
   /// UX-68: anything typed and not yet written by the bottom Save. Both exits
   /// that throw it away — switching the pricing target (which reloads and
@@ -252,7 +332,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
         auth is AuthAuthenticated && auth.can({Capability.MANAGE_PRICING});
     if (_authorized) {
       _load();
-      _loadSubAgents();
+      _loadTargets();
     } else {
       _loading = false;
     }
@@ -286,14 +366,24 @@ class _PricingPageState extends ConsumerState<PricingPage> {
   /// only ever govern that store's own children — and a STORE is a leaf. Widening
   /// the picker would hand the operator a field that saves successfully, reloads
   /// with their number in it, and changes nothing anyone is ever charged.
-  Future<void> _loadSubAgents() async {
+  ///
+  /// UX-01: the filter used to be `type == AGENT2`, which is only correct for the
+  /// one tier this page was mounted for. HQ's direct children are AGENT1s, so at
+  /// `/hq/pricing` that filter produced an EMPTY picker — the platform admin could
+  /// set `ProductDefinition.defaultPrice` and nothing else, while the landing page
+  /// went on reporting main agents still on defaults. The rule is the seller axis,
+  /// not a hardcoded tier: any direct child that can itself sell (AGENT1 or
+  /// AGENT2) is a valid target; a STORE still is not, for the reason above.
+  Future<void> _loadTargets() async {
     try {
       final rows = await EntityRepository(ref.read(apiClientProvider))
           .children((ref.read(authStateProvider).valueOrNull as AuthAuthenticated?)?.entity.id ?? '',
               page: 0, size: 200);
       if (!mounted) return;
-      setState(() => _subAgents =
-          rows.items.where((e) => e.type == EntityType.AGENT2).toList());
+      setState(() => _targets = rows.items
+          .where((e) =>
+              e.type == EntityType.AGENT1 || e.type == EntityType.AGENT2)
+          .toList());
     } catch (_) {
       // No picker; the screen still prices the caller's own account.
     }
@@ -557,7 +647,10 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                       ? (ar ? 'تم التعرف على ${parsed.length} من $sheetDataRows صفًا' : 'Recognized ${parsed.length} of $sheetDataRows rows')
                       : (ar ? 'تم التعرف على ${parsed.length} صفًا' : 'Recognized ${parsed.length} rows'),
                   style: IntesharType.sans(12.5,
-                      color: sheetDataRows > parsed.length ? cs.error : cs.onSurfaceVariant, w: FontWeight.w700),
+                      color: sheetDataRows > parsed.length
+                          ? ctx.status.danger
+                          : cs.onSurfaceVariant,
+                      w: FontWeight.w700),
                 ),
                 const SizedBox(height: 8),
                 // Preview table: SKU · governorate · new price.
@@ -614,7 +707,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                         ctx,
                         repository: EntityRepository(ref.read(apiClientProvider)),
                         title: s.alsoAgents,
-                        // Sellers only — see [_loadSubAgents] for why a STORE is
+                        // Sellers only — see [_loadTargets] for why a STORE is
                         // not a meaningful pricing target (UX-30).
                         types: const [EntityType.AGENT1, EntityType.AGENT2],
                       );
@@ -626,15 +719,15 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                   // B-125: 'اريد تحديد كل الوكلاء دفعة واحدة'. Picking sub-agents
                   // one at a time was the whole complaint. The count is on the
                   // button because this writes prices to every one of them.
-                  if (_subAgents.isNotEmpty)
+                  if (_targets.isNotEmpty)
                     OutlinedButton.icon(
                       onPressed: () => setD(() {
-                        for (final a in _subAgents) {
+                        for (final a in _targets) {
                           extraAgents[a.id] = a.name;
                         }
                       }),
                       icon: const Icon(Icons.select_all, size: 16),
-                      label: Text(s.allSubAgents(_subAgents.length)),
+                      label: Text(s.allTargets(_targets.length, _targetsTier)),
                     ),
                   if (extraAgents.isNotEmpty)
                     TextButton(
@@ -746,8 +839,15 @@ class _PricingPageState extends ConsumerState<PricingPage> {
   Widget _agentPicker(_S s, String loc) {
     final cs = Theme.of(context).colorScheme;
     String labelFor(EntitySummaryRow r) {
-      final g = r.governorates.isNotEmpty ? r.governorates.first : '';
-      return g.isEmpty ? r.name : '${r.name} — ${governorateLabel(g, loc)}';
+      final gs = r.governorates.where((g) => g.isNotEmpty).toList();
+      if (gs.isEmpty) return r.name;
+      // UX-01: a SUB-agent covers exactly one governorate (B-127), but a MAIN
+      // agent may span several — and HQ's picker is all main agents. Naming only
+      // the first would file a multi-governorate agent under one region.
+      final first = governorateLabel(gs.first, loc);
+      return gs.length == 1
+          ? '${r.name} — $first'
+          : '${r.name} — $first +${gs.length - 1}';
     }
 
     return Padding(
@@ -760,13 +860,15 @@ class _PricingPageState extends ConsumerState<PricingPage> {
           labelText: s.pricingFor,
           isDense: true,
           prefixIcon: const Icon(Icons.storefront_outlined, size: 18),
-          helperText: _targetId == null ? s.pricingForMeHint : s.pricingForAgentHint,
+          helperText: _targetId == null
+              ? s.pricingForMeHint
+              : s.pricingForAgentHint(_targetType),
           helperMaxLines: 2,
           helperStyle: IntesharType.sans(11, color: cs.onSurfaceVariant),
         ),
         items: [
           DropdownMenuItem(value: null, child: Text(s.myOwnPrices)),
-          for (final a in _subAgents)
+          for (final a in _targets)
             DropdownMenuItem(
               value: a.id,
               child: Text(labelFor(a), overflow: TextOverflow.ellipsis),
@@ -786,7 +888,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
             _targetId = v;
             _targetName = v == null
                 ? ''
-                : _subAgents.firstWhere((a) => a.id == v).name;
+                : _targets.firstWhere((a) => a.id == v).name;
           });
           // Reload: the catalog IS the target's prices, so a stale list would
           // show one agent's numbers under another agent's name.
@@ -941,7 +1043,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
           unpricedOnly: _unpricedOnly,
           onToggleUnpriced: () => setState(() => _unpricedOnly = !_unpricedOnly),
         ),
-        if (_subAgents.isNotEmpty) _agentPicker(s, loc),
+        if (_targets.isNotEmpty) _agentPicker(s, loc),
         _filterBar(s, loc, companies, govs, visibleRows.length, catalog.rows.length),
         Expanded(
           child: visibleRows.isEmpty
@@ -968,9 +1070,12 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                             s: s,
                             // UX-23: whose price this column is.
                             priceLabel: _priceLabel(s),
-                            // UX-21: "margin" is only the caller's margin when the
-                            // caller is the one being priced.
-                            forSelf: _targetId == null,
+                            // UX-21/UX-01: "margin" is only the caller's margin
+                            // when the caller is the one being priced — and only
+                            // when the caller actually pays the official price,
+                            // which HQ (who sets it) does not.
+                            wording: _PriceWording.of(s,
+                                forSelf: _targetId == null, hq: _callerIsHq),
                           ),
                         ),
                       ),
@@ -1026,7 +1131,9 @@ class _BalanceHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    // This card is a BRAND fill, so its ink is the measured on-brand token — a
+    // hardcoded `IntesharColors.ink` stayed black under a dark white-label brand.
+    final onBrand = context.tones.onBrand;
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 4, 16, 4),
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
@@ -1043,7 +1150,7 @@ class _BalanceHeader extends StatelessWidget {
                 Text(
                   s.balanceLabel,
                   style: IntesharType.overline(
-                    color: IntesharColors.ink.withValues(alpha: 0.7),
+                    color: onBrand.withValues(alpha: 0.7),
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -1054,11 +1161,11 @@ class _BalanceHeader extends StatelessWidget {
                     alignment: AlignmentDirectional.centerStart,
                     child: Text(
                       Formatters.iqd(worth.round()),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'CodecPro',
                         fontSize: 26,
                         fontWeight: FontWeight.w900,
-                        color: IntesharColors.ink,
+                        color: onBrand,
                         height: 1,
                       ),
                     ),
@@ -1074,7 +1181,7 @@ class _BalanceHeader extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: IntesharType.sans(11,
-                      color: IntesharColors.ink.withValues(alpha: 0.75),
+                      color: onBrand.withValues(alpha: 0.75),
                       w: FontWeight.w600),
                 ),
               ],
@@ -1089,10 +1196,10 @@ class _BalanceHeader extends StatelessWidget {
               child: Opacity(
                 opacity: unpricedOnly ? 1 : 0.85,
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  StampPill(label: s.unpriced(unpriced), color: cs.error),
+                  StampPill(label: s.unpriced(unpriced), color: context.status.danger),
                   const SizedBox(width: 4),
                   Icon(unpricedOnly ? Icons.filter_alt : Icons.filter_alt_outlined,
-                      size: 16, color: IntesharColors.ink.withValues(alpha: 0.7)),
+                      size: 16, color: onBrand.withValues(alpha: 0.7)),
                 ]),
               ),
             ),
@@ -1114,16 +1221,16 @@ class _PriceRow extends StatelessWidget {
   /// are the caller's own prices, otherwise the target account's name.
   final String priceLabel;
 
-  /// UX-21: true when the caller is pricing its own account, so the computed
-  /// difference from the official price IS its margin.
-  final bool forSelf;
+  /// UX-21/UX-01: how the official price, the computed difference and the loss
+  /// warning are named for THIS caller and THIS target.
+  final _PriceWording wording;
   const _PriceRow({
     required this.row,
     required this.ctrls,
     required this.original,
     required this.s,
     required this.priceLabel,
-    required this.forSelf,
+    required this.wording,
   });
 
   /// The field keys this card actually RENDERS (a regional row shows only its
@@ -1155,7 +1262,7 @@ class _PriceRow extends StatelessWidget {
     final regional = _regionalRow(row);
     return InkCard(
       padding: const EdgeInsets.all(14),
-      ruleColor: row.priced ? IntesharColors.sage : cs.outline,
+      ruleColor: row.priced ? context.status.success : cs.outline,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1187,7 +1294,7 @@ class _PriceRow extends StatelessWidget {
               // pays, so name it that when the agent is pricing itself.
               Flexible(
                 child: Text(
-                  '${forSelf ? s.officialCost : s.official}: '
+                  '${wording.official}: '
                   '${Formatters.iqd(row.officialPrice.round())}',
                   maxLines: 2,
                   textAlign: TextAlign.end,
@@ -1209,7 +1316,7 @@ class _PriceRow extends StatelessWidget {
               // all of them), so one value is correct for every field here.
               officialPrice: row.officialPrice,
               priceLabel: priceLabel,
-              forSelf: forSelf,
+              wording: wording,
               s: s,
             )
           else ...[
@@ -1235,7 +1342,7 @@ class _PriceRow extends StatelessWidget {
                   lineValue: g.lineValue,
                   officialPrice: g.officialPrice,
                   priceLabel: priceLabel,
-                  forSelf: forSelf,
+                  wording: wording,
                   s: s,
                 ),
               );
@@ -1270,8 +1377,9 @@ class _PriceField extends StatelessWidget {
   /// UX-23: the editable column's name — "سعرك", or the target account's.
   final String priceLabel;
 
-  /// UX-21: whether the computed difference is the caller's own margin.
-  final bool forSelf;
+  /// UX-21/UX-01: what to call the official price, the computed difference and
+  /// the below-the-line warning for this caller/target pair.
+  final _PriceWording wording;
   final _S s;
   const _PriceField({
     this.region,
@@ -1281,7 +1389,7 @@ class _PriceField extends StatelessWidget {
     required this.lineValue,
     required this.officialPrice,
     required this.priceLabel,
-    required this.forSelf,
+    required this.wording,
     required this.s,
   });
 
@@ -1307,7 +1415,7 @@ class _PriceField extends StatelessWidget {
     // The currency rides on the caption, so the number itself stays short enough
     // to sit beside a 152px field on a POS handheld without ellipsizing.
     final label = Text(
-      '${forSelf ? s.margin : s.vsOfficial} · ${s.currency}',
+      '${wording.delta} · ${s.currency}',
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: IntesharType.overline(color: cs.onSurfaceVariant),
@@ -1331,7 +1439,7 @@ class _PriceField extends StatelessWidget {
     // unpriced SKU would otherwise divide by zero and read "∞%".
     final pct = officialPrice > 0 ? ((m / officialPrice) * 100).abs() : null;
     final pctText = pct == null ? '' : ' (${_pct(pct)}%)';
-    final color = negative ? cs.error : cs.onSurface;
+    final color = negative ? context.status.danger : cs.onSurface;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       mainAxisSize: MainAxisSize.min,
@@ -1342,7 +1450,7 @@ class _PriceField extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
             if (negative) ...[
-              Icon(Icons.trending_down, size: 14, color: cs.error),
+              Icon(Icons.trending_down, size: 14, color: context.status.danger),
               const SizedBox(width: 3),
             ],
             Flexible(
@@ -1358,10 +1466,10 @@ class _PriceField extends StatelessWidget {
         // Not colour alone.
         if (negative)
           Text(
-            forSelf ? s.belowCost : s.belowOfficial,
+            wording.below,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: IntesharType.sans(11, color: cs.error, w: FontWeight.w700),
+            style: IntesharType.sans(11, color: context.status.danger, w: FontWeight.w700),
           ),
       ],
     );

@@ -525,7 +525,12 @@ class _SkuList extends StatelessWidget {
                       child: Center(
                         child: Text(
                           def.sku,
-                          style: IntesharType.mono(10, color: IntesharColors.ink, w: FontWeight.w900, letterSpacing: 0.4),
+                          style: IntesharType.mono(10,
+                              color: isSelected
+                                  ? context.tones.onBrand
+                                  : cs.onSurface,
+                              w: FontWeight.w900,
+                              letterSpacing: 0.4),
                         ),
                       ),
                     ),
@@ -714,7 +719,7 @@ class _TemplateEditor extends StatelessWidget {
                 ),
                 child: Text(
                   def.sku,
-                  style: IntesharType.mono(12, color: IntesharColors.ink, w: FontWeight.w900),
+                  style: IntesharType.mono(12, color: context.tones.onBrand, w: FontWeight.w900),
                 ),
               ),
               const SizedBox(width: 10),
@@ -950,12 +955,13 @@ class _TemplateEditor extends StatelessWidget {
           child: ElevatedButton(
             onPressed: saving ? null : onSave,
             child: saving
-                ? const SizedBox(
+                ? SizedBox(
                     height: 20,
                     width: 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: IntesharColors.ink,
+                      // ElevatedButton is a brand fill in this theme.
+                      color: context.tones.onBrand,
                     ),
                   )
                 : Text(l.vtSave),

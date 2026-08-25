@@ -12,6 +12,7 @@ import 'package:inteshar/core/geo/maps_link.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
+import 'package:inteshar/features/chat/presentation/supply_request.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/pos_admin/data/pos_admin_repository.dart';
@@ -26,7 +27,7 @@ import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/password_field.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
-/// POS-user quota + lifecycle for the signed-in entity (POS-quota model, Docs/POS-QUOTA-PLAN.md).
+/// POS-user quota + lifecycle for the signed-in entity (POS-quota model, Docs/plans/POS-QUOTA-PLAN.md).
 /// Shows total/used/available slots, onboards POS users (consuming a slot), grants slots to a
 /// recipient agent (HQ → any main/sub agent; other tiers → a direct child), and manages each POS
 /// user (reset PIN / reset TOTP / revoke).
@@ -58,6 +59,8 @@ class _S {
   // B-068: only HQ distributes POS points (B-043) — a Main/Sub Agent's own parent
   // cannot grant them, so point the request at headquarters, not "your parent".
   String get noSlots => p('No available POS points — ask headquarters to grant more.', 'لا توجد نقاط بيع متاحة — اطلب من الإدارة (المقر) منحك المزيد.');
+  // UX-28: the action that performs that sentence.
+  String get requestSlots => p('Request points', 'طلب نقاط');
   String get resetPin => p('Reset PIN', 'إعادة تعيين الرمز');
   String get resetTotp => p('Reset 2FA', 'إعادة تعيين المصادقة');
   String get revoke => p('Archive', 'أرشفة');
@@ -184,6 +187,13 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
 
   /// HQ on its own screen shows the network oversight, not a self-management body.
   bool get _showNetwork => !_isDrill && _signedInType == EntityType.INTESHAR;
+
+  /// UX-28: whether "ask headquarters for points" is a thing THIS viewer can do.
+  ///
+  /// Not in drill mode — that viewer *is* headquarters and already has the Grant
+  /// button next to this line — and not for a root quota, which is unbounded.
+  bool _canAskForSlots(PosSlotBalance q) =>
+      !_isDrill && !q.root && _signedInType != EntityType.INTESHAR;
 
   /// A STORE *is* a POS point: it can never host one (the server only onboards
   /// under an agent), so this body — quota, onboard, list of hosted shops —
@@ -423,7 +433,30 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
           ]),
           if (q != null && q.available <= 0) ...[
             const SizedBox(height: 8),
-            Text(s.noSlots, style: IntesharType.sans(12, color: cs.error)),
+            // UX-28: this line told the manager to "ask headquarters" and then
+            // left them to work out where. Asking is the ONLY way POS points
+            // arrive (B-043: HQ distributes them, a parent agent cannot), so
+            // the sentence now carries the action that performs it — a chat
+            // message, prefilled, in the HQ thread.
+            Row(children: [
+              Expanded(
+                child: Text(s.noSlots,
+                    style: IntesharType.sans(12, color: cs.error)),
+              ),
+              if (_canAskForSlots(q)) ...[
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: () => showSupplyRequest(
+                    context,
+                    ref,
+                    kind: SupplyRequestKind.posPoints,
+                    current: q.available,
+                  ),
+                  icon: const Icon(Icons.forum_outlined, size: 16),
+                  label: Text(s.requestSlots),
+                ),
+              ],
+            ]),
           ],
           const SizedBox(height: 16),
           // B-129: find one shop without scrolling a paged list.
@@ -489,15 +522,29 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     );
   }
 
+  /// The quota card is a BRAND fill, so everything on it is `onBrand` — the
+  /// measured foreground for whatever colour the signed-in agent's white label
+  /// resolved to. Hardcoded `IntesharColors.ink` was black-on-anything.
   Widget _stat(String label, String value) => Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: IntesharType.overline(color: IntesharColors.ink.withValues(alpha: 0.7))),
+          Text(label,
+              style: IntesharType.overline(
+                  color: context.tones.onBrand.withValues(alpha: 0.7))),
           const SizedBox(height: 2),
-          Text(value, style: const TextStyle(fontFamily: 'CodecPro', fontSize: 24, fontWeight: FontWeight.w900, color: IntesharColors.ink, height: 1)),
+          Text(value,
+              style: TextStyle(
+                  fontFamily: 'CodecPro',
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                  color: context.tones.onBrand,
+                  height: 1)),
         ]),
       );
 
-  Widget _divider() => Container(width: 1, height: 34, color: IntesharColors.ink.withValues(alpha: 0.18));
+  Widget _divider() => Container(
+      width: 1,
+      height: 34,
+      color: context.tones.onBrand.withValues(alpha: 0.18));
 
   /// The shop's single POS operator (isPos) — falls back to the first user.
   /// The shop's POS operator, or null when it has none.
@@ -547,7 +594,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
           // never carried by colour alone.
           StampPill(
             label: active ? 'POS' : s.disabled,
-            color: active ? IntesharColors.sage : cs.onSurfaceVariant,
+            color: active ? context.status.success : cs.onSurfaceVariant,
             icon: active ? Icons.check_circle_outline : Icons.block,
           ),
         ]),
@@ -573,12 +620,13 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
                   style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
               Text(Formatters.iqd(balance.round()),
                   style: IntesharType.mono(12.5,
-                      color: balance <= 0 ? cs.error : cs.onSurface,
+                      color: balance <= 0 ? context.status.danger : cs.onSurface,
                       w: FontWeight.w700)),
               if (balance <= 0) ...[
                 const SizedBox(width: 6),
                 Text(s.outOfCredit,
-                    style: IntesharType.sans(11.5, color: cs.error, w: FontWeight.w700)),
+                    style: IntesharType.sans(11.5,
+                        color: context.status.danger, w: FontWeight.w700)),
               ],
             ]),
           ),

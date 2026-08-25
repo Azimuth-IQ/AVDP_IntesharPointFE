@@ -186,9 +186,14 @@ class _ChatThreadsPageState extends ConsumerState<ChatThreadsPage> {
               const SizedBox(height: 4),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(color: cs.error, borderRadius: BorderRadius.circular(999)),
+                // UX-128: unread mail is not an error. The badge is ours and
+                // deliberate — brand, so red keeps meaning something broke.
+                decoration: BoxDecoration(
+                    color: context.tones.brand,
+                    borderRadius: BorderRadius.circular(999)),
                 child: Text('${t.unread}',
-                    style: IntesharType.sans(11, color: cs.onError, w: FontWeight.w800)),
+                    style: IntesharType.sans(11,
+                        color: context.tones.onBrand, w: FontWeight.w800)),
               ),
             ],
           ]),

@@ -447,7 +447,7 @@ class _HistoryCard extends StatelessWidget {
           const SizedBox(height: 8),
           Wrap(spacing: 8, runSpacing: 6, children: [
             StampPill(label: audienceValue(), color: context.tones.brand, icon: Icons.people_outline, fontSize: 10),
-            if (n.posOnly) StampPill(label: s.posBadge, color: IntesharColors.sage, icon: Icons.point_of_sale, fontSize: 10),
+            if (n.posOnly) StampPill(label: s.posBadge, color: context.status.success, icon: Icons.point_of_sale, fontSize: 10),
           ]),
         ],
       ),

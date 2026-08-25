@@ -326,12 +326,13 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                   Text(Formatters.iqd(after.round()),
                       style: IntesharType.mono(12.5,
                           w: FontWeight.w700,
-                          color: after < 0 ? cs.error : cs.onSurface)),
+                          color: after < 0 ? ctx.status.danger : cs.onSurface)),
                 ]),
                 if (after < 0) ...[
                   const SizedBox(height: 4),
                   Text(s.overChildBalance,
-                      style: IntesharType.sans(11.5, color: cs.error, w: FontWeight.w600)),
+                      style: IntesharType.sans(11.5,
+                          color: ctx.status.danger, w: FontWeight.w600)),
                 ],
               ] else if (from != null) ...[
                 const SizedBox(height: 12),
@@ -546,7 +547,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                 Text(Formatters.iqd(after.round()),
                     style: IntesharType.mono(12.5,
                         w: FontWeight.w700,
-                        color: after < 0 ? cs.error : cs.onSurface)),
+                        color: after < 0 ? ctx.status.danger : cs.onSurface)),
               ]),
               // The OTHER side of the transfer. Sending blind to a recipient whose
               // balance you can't see is how an agent double-tops-up a shop that
@@ -569,7 +570,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                   Text(
                       Formatters.iqd((_childBal[dest!.id]! + amt).round()),
                       style: IntesharType.mono(12.5,
-                          w: FontWeight.w700, color: IntesharColors.sage)),
+                          w: FontWeight.w700, color: ctx.status.success)),
                 ]),
               ],
             ]);
@@ -769,7 +770,8 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
           child: _HistoryTotal(
             label: s.totalSent,
             amount: sent,
-            tint: cs.error,
+            // UX-128: money you SENT is the product working — brand, not error.
+            tint: context.status.brand,
           ),
         ),
         const SizedBox(width: 8),
@@ -777,7 +779,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
           child: _HistoryTotal(
             label: s.totalReceived,
             amount: received,
-            tint: IntesharColors.sage,
+            tint: context.status.success,
           ),
         ),
       ]),
@@ -834,7 +836,9 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
     final other = sent
         ? (g.destName.isNotEmpty ? g.destName : g.destId)
         : (g.sourceName.isNotEmpty ? g.sourceName : g.sourceId);
-    final tint = sent ? cs.error : IntesharColors.sage;
+    // UX-128: an outgoing transfer is not a failure. `brand` for what left,
+    // `success` for what arrived — red stays available for things that broke.
+    final tint = sent ? context.status.brand : context.status.success;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: InkCard(
@@ -887,13 +891,13 @@ class _HistoryTotal extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Container(
+    // UX-126: an `InkCard`, not a second hand-rolled card recipe painted in the
+    // page's own colour.
+    return InkCard(
+      bordered: true,
+      elevated: false,
+      borderRadius: BorderRadius.circular(IntesharRadii.md),
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: BorderRadius.circular(IntesharRadii.md),
-        border: Border.all(color: cs.outlineVariant),
-      ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label, style: IntesharType.overline(color: cs.onSurfaceVariant)),
         const SizedBox(height: 3),
@@ -923,9 +927,13 @@ class _BtnSpinner extends StatelessWidget {
 ///
 /// This card was the last solid-gold slab left in the app: brand gold carried a
 /// whole surface, which is what B-094 demoted everywhere else (dashboard balance
-/// card, POS tally, sign-in, splash). It is now a white card with a hairline
-/// border, `elev1`, and a single 3px brand rule — the number is the hero, ink on
-/// paper, and gold stays a ≤10% accent so it still means something.
+/// card, POS tally, sign-in, splash). It is now a card with a hairline border,
+/// `elev1`, and a single 3px brand rule — the number is the hero, ink on paper,
+/// and gold stays a ≤10% accent so it still means something.
+///
+/// UX-126: it is now literally an `InkCard(bordered: true)` rather than a
+/// second card recipe filled with `cs.surface` — which IS the page background,
+/// so the "card" was only ever a rectangle of border.
 ///
 /// Deliberately identical to the dashboard `_BalanceCard` treatment: the two are
 /// the same object seen from two screens, so they must not read differently.
@@ -944,14 +952,9 @@ class TransferBalanceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Container(
+    return InkCard(
+      bordered: true,
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: BorderRadius.circular(IntesharRadii.lg),
-        border: Border.all(color: cs.outlineVariant),
-        boxShadow: IntesharShadows.elev1,
-      ),
       child: Row(children: [
         // The one flash of brand colour on the card.
         Container(

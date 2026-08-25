@@ -153,7 +153,8 @@ class _BatchAddPageState extends ConsumerState<BatchAddPage>
                 ),
                 indicatorSize: TabBarIndicatorSize.tab,
                 dividerColor: Colors.transparent,
-                labelColor: IntesharColors.ink,
+                // The indicator is a brand pill — the selected label rides on it.
+                labelColor: context.tones.onBrand,
                 unselectedLabelColor: cs.onSurfaceVariant,
                 labelStyle: IntesharType.sans(13, w: FontWeight.w800),
                 unselectedLabelStyle: IntesharType.sans(13, w: FontWeight.w700),
@@ -733,7 +734,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
             Icon(
               partial != null ? Icons.warning_amber_rounded : Icons.check_circle_outline,
               size: 18,
-              color: partial != null ? cs.error : IntesharColors.sage,
+              color: partial != null ? cs.error : context.status.success,
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -778,7 +779,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
             const SizedBox(height: 6),
             Text(
               friendlyError(partial.cause, context),
-              style: IntesharType.sans(12.5, color: cs.error, w: FontWeight.w600),
+              style: IntesharType.sans(12.5, color: context.status.danger, w: FontWeight.w600),
             ),
             const SizedBox(height: 6),
             Text(
@@ -862,7 +863,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                     '(lines ${_attemptedRejected.take(10).map((r) => r.line).join(', ')}'
                     '${_attemptedRejected.length > 10 ? ' …' : ''})',
               ),
-              style: IntesharType.sans(12, color: cs.error, w: FontWeight.w600),
+              style: IntesharType.sans(12, color: context.status.danger, w: FontWeight.w600),
             ),
           ],
         ],
@@ -1020,7 +1021,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (unanswered) ...[
-                      Icon(Icons.error_outline, size: 15, color: cs.error),
+                      Icon(Icons.error_outline, size: 15, color: context.status.danger),
                       const SizedBox(width: 6),
                     ],
                     Expanded(
@@ -1028,7 +1029,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                         _scopeSummary(context),
                         style: IntesharType.sans(
                           12.5,
-                          color: unanswered ? cs.error : cs.onSurfaceVariant,
+                          color: unanswered ? context.status.danger : cs.onSurfaceVariant,
                           w: unanswered ? FontWeight.w700 : FontWeight.w500,
                         ),
                       ),
@@ -1135,7 +1136,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                         '(lines ${_rejected.take(10).map((r) => r.line).join(', ')}'
                         '${_rejected.length > 10 ? ' …' : ''})',
                   ),
-                  style: IntesharType.sans(12, color: cs.error, w: FontWeight.w600),
+                  style: IntesharType.sans(12, color: context.status.danger, w: FontWeight.w600),
                 ),
               ],
               // B-090: the primary action sits ABOVE the preview — it used to be the
@@ -1147,7 +1148,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
                     '${_tr(context, 'مطلوب: ', 'Required: ')}${_missing().join(_tr(context, '، ', ', '))}',
-                    style: IntesharType.sans(12, color: cs.error, w: FontWeight.w600),
+                    style: IntesharType.sans(12, color: context.status.danger, w: FontWeight.w600),
                   ),
                 ),
               ],
@@ -2066,7 +2067,12 @@ class _BatchCard extends StatelessWidget {
             _CountStat(
               label: _tr(context, 'مُستخدَم', 'Used'),
               value: batch.printedCount,
-              color: batch.printedCount > 0 ? cs.error : cs.onSurfaceVariant,
+              // UX-128: a USED card is a card that sold — the happy path. It is
+              // brand, and never `danger`. This exact field was gold on the
+              // inventory screen and red here, one tap apart.
+              color: batch.printedCount > 0
+                  ? context.status.brand
+                  : cs.onSurfaceVariant,
             ),
           ]),
           if (batch.createdAt.isNotEmpty) ...[  

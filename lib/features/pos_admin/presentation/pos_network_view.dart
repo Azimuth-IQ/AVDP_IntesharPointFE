@@ -304,15 +304,28 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
     );
   }
 
+  /// On the brand-filled KPI strip, so the foreground is the measured `onBrand`
+  /// rather than a hardcoded ink that a dark white-label brand swallows.
   Widget _stat(String label, String value) => Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: IntesharType.overline(color: IntesharColors.ink.withValues(alpha: 0.7))),
+          Text(label,
+              style: IntesharType.overline(
+                  color: context.tones.onBrand.withValues(alpha: 0.7))),
           const SizedBox(height: 2),
-          Text(value, style: const TextStyle(fontFamily: 'CodecPro', fontSize: 22, fontWeight: FontWeight.w900, color: IntesharColors.ink, height: 1)),
+          Text(value,
+              style: TextStyle(
+                  fontFamily: 'CodecPro',
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: context.tones.onBrand,
+                  height: 1)),
         ]),
       );
 
-  Widget _kpiDivider() => Container(width: 1, height: 30, color: IntesharColors.ink.withValues(alpha: 0.18));
+  Widget _kpiDivider() => Container(
+      width: 1,
+      height: 30,
+      color: context.tones.onBrand.withValues(alpha: 0.18));
 
   Widget _agentCard(_NS s, PosNetworkRow r, ColorScheme cs) {
     final isSub = r.tier == 'AGENT2';
@@ -327,7 +340,7 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
               Row(children: [
                 Flexible(child: Text(r.name.isNotEmpty ? r.name : r.entityId, style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w700), overflow: TextOverflow.ellipsis)),
                 const SizedBox(width: 8),
-                StampPill(label: isSub ? s.sub : s.main, color: isSub ? IntesharColors.sage : context.tones.brandInk),
+                StampPill(label: isSub ? s.sub : s.main, color: isSub ? context.status.success : context.tones.brandInk),
               ]),
               if (isSub && (r.parentName ?? '').isNotEmpty) ...[
                 const SizedBox(height: 2),

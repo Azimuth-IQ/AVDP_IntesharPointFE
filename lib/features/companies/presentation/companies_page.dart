@@ -253,7 +253,7 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
                 // an icon so the state is not carried by colour alone.
                 StampPill(
                   label: c.active ? s.active : s.inactive,
-                  color: c.active ? IntesharColors.sage : cs.onSurfaceVariant,
+                  color: c.active ? context.status.success : cs.onSurfaceVariant,
                   icon: c.active ? Icons.check_circle_outline : Icons.cancel_outlined,
                   filled: false,
                 ),

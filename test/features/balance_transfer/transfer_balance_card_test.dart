@@ -46,13 +46,18 @@ void main() {
       ))
       .toList();
 
-  testWidgets('the card is a surface, not a gold slab', (tester) async {
+  testWidgets('the card is a card, not a gold slab', (tester) async {
     for (final b in [Brightness.light, Brightness.dark]) {
       final ctx = await pumpCard(tester, brightness: b);
       final cs = Theme.of(ctx).colorScheme;
       final deco = boxes(tester).first.decoration! as BoxDecoration;
 
-      expect(deco.color, cs.surface);
+      // UX-126: the fill is the app's ONE card fill. It used to be `cs.surface`
+      // — the page background — so the card was a rectangle of border sitting
+      // next to real InkCards.
+      expect(deco.color, cs.surfaceContainer);
+      expect(deco.color, isNot(cs.surface),
+          reason: 'UX-126: a card is never the page colour');
       expect(deco.color, isNot(ctx.tones.brand),
           reason: 'B-094: brand gold no longer carries a whole surface');
       expect(deco.border, Border.all(color: cs.outlineVariant),

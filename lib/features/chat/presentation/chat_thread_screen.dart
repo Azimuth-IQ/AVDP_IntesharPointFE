@@ -23,12 +23,19 @@ class ChatThreadScreen extends ConsumerStatefulWidget {
     required this.withName,
     this.readOnly = false,
     this.embedded = false,
+    this.draft,
   });
 
   final String withId;
   final String withName;
   final bool readOnly;
   final bool embedded;
+
+  /// UX-28: text placed in the composer on open, UNSENT. The supply-request
+  /// actions (طلب رصيد / طلب كروت / طلب نقاط بيع) compose a sentence and hand it
+  /// over here so the sender reads and edits it before it goes — a request is a
+  /// message in this product, not a workflow, and nothing must leave on one tap.
+  final String? draft;
 
   @override
   ConsumerState<ChatThreadScreen> createState() => _ChatThreadScreenState();
@@ -67,6 +74,8 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
   @override
   void initState() {
     super.initState();
+    final draft = widget.draft;
+    if (draft != null && draft.isNotEmpty) _input.text = draft;
     _load();
     _poll = Timer.periodic(const Duration(seconds: 10), (_) => _refresh());
   }
@@ -224,8 +233,11 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     final when = m.createdAt.length >= 16
         ? m.createdAt.substring(11, 16)
         : '';
-    final footColor =
-        (mine ? IntesharColors.ink : cs.onSurfaceVariant).withValues(alpha: 0.6);
+    // The bubble is a BRAND fill, so its foreground is the measured on-brand
+    // ink — hardcoded `IntesharColors.ink` was black text on whatever colour a
+    // white-label agent picked, including the dark ones.
+    final onBubble = mine ? context.tones.onBrand : cs.onSurface;
+    final footColor = onBubble.withValues(alpha: 0.6);
     return Align(
       alignment: mine ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
       child: Container(
@@ -237,9 +249,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
           borderRadius: BorderRadius.circular(14),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(m.text,
-              style: IntesharType.sans(13.5,
-                  color: mine ? IntesharColors.ink : cs.onSurface)),
+          Text(m.text, style: IntesharType.sans(13.5, color: onBubble)),
           if (when.isNotEmpty || mine) ...[
             const SizedBox(height: 2),
             Row(mainAxisSize: MainAxisSize.min, children: [
@@ -261,7 +271,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
   /// A message still in flight, or one that failed and can be retried in place.
   Widget _pendingBubble(_Outgoing p, ColorScheme cs, bool ar) {
     final failed = p.state == _Delivery.failed;
-    final fg = failed ? cs.onErrorContainer : IntesharColors.ink;
+    final fg = failed ? cs.onErrorContainer : context.tones.onBrand;
     return Align(
       alignment: AlignmentDirectional.centerEnd,
       child: Container(
@@ -273,7 +283,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
               ? cs.errorContainer
               : context.tones.brand.withValues(alpha: 0.45),
           borderRadius: BorderRadius.circular(14),
-          border: failed ? Border.all(color: cs.error) : null,
+          border: failed ? Border.all(color: context.status.danger) : null,
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(p.text, style: IntesharType.sans(13.5, color: fg)),
@@ -292,14 +302,15 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
             ])
           else ...[
             Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.error_outline, size: 12, color: cs.error),
+              Icon(Icons.error_outline, size: 12, color: context.status.danger),
               const SizedBox(width: 5),
               Flexible(
                 child: Text(
                   p.reason?.isNotEmpty == true
                       ? p.reason!
                       : (ar ? 'لم تُرسل' : 'Not sent'),
-                  style: IntesharType.sans(10.5, color: cs.error, w: FontWeight.w600),
+                  style: IntesharType.sans(10.5,
+                      color: context.status.danger, w: FontWeight.w600),
                 ),
               ),
             ]),
@@ -309,7 +320,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                 style: TextButton.styleFrom(
                   visualDensity: VisualDensity.compact,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
-                  foregroundColor: cs.error,
+                  foregroundColor: context.status.danger,
                 ),
                 onPressed: () => _deliver(p),
                 icon: const Icon(Icons.refresh, size: 15),

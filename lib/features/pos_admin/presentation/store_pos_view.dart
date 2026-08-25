@@ -188,7 +188,7 @@ class _StorePosViewState extends ConsumerState<StorePosView> {
           // by the absence of green alone. Readable neutral + an icon.
           StampPill(
             label: store.active ? 'POS' : s.disabled,
-            color: store.active ? IntesharColors.sage : cs.onSurfaceVariant,
+            color: store.active ? context.status.success : cs.onSurfaceVariant,
             icon: store.active ? Icons.check_circle_outline : Icons.block,
           ),
         ]),

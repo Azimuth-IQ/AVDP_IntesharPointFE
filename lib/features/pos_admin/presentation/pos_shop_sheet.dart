@@ -292,8 +292,8 @@ class _PosShopSheetState extends State<_PosShopSheet> {
   Widget _gateRow(_Gate g, ColorScheme cs) {
     // Never colour alone: each state carries its own icon (UX-144).
     final (IconData icon, Color tint) = switch (g.ok) {
-      true => (Icons.check_circle_outline, IntesharColors.sage),
-      false => (Icons.error_outline, cs.error),
+      true => (Icons.check_circle_outline, context.status.success),
+      false => (Icons.error_outline, context.status.danger),
       _ => (Icons.remove_circle_outline, cs.onSurfaceVariant),
     };
     return Padding(
@@ -310,7 +310,7 @@ class _PosShopSheetState extends State<_PosShopSheet> {
             const SizedBox(height: 1),
             Text(g.detail,
                 style: IntesharType.sans(12,
-                    color: g.ok == false ? cs.error : cs.onSurfaceVariant)),
+                    color: g.ok == false ? context.status.danger : cs.onSurfaceVariant)),
           ]),
         ),
       ]),

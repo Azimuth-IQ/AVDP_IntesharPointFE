@@ -418,7 +418,9 @@ class _DefinitionRowState extends State<_DefinitionRow> {
                 child: monoText(
                   widget.def.sku,
                   size: 13,
-                  color: _hover ? IntesharColors.ink : cs.onSurface,
+                  // Hover paints the tile with the brand, so the SKU rides on
+                  // the measured on-brand foreground, not a fixed ink.
+                  color: _hover ? context.tones.onBrand : cs.onSurface,
                   w: FontWeight.w900,
                   letterSpacing: 0.6,
                 ),

@@ -6,6 +6,7 @@ import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/auth/capabilities.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
+import 'package:inteshar/features/chat/presentation/supply_request.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
 import 'package:inteshar/core/api/paged.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
@@ -477,7 +478,11 @@ class _KpiRow extends StatelessWidget {
                   ? 'أقل من $lowStockThreshold بطاقة'
                   : 'below $lowStockThreshold cards'),
           icon: Icons.warning_amber_rounded,
-          tint: IntesharColors.oxblood,
+          // UX-128: low stock is `warn` — it needs attention and nothing has
+          // broken yet. Danger red is kept for the account that has actually
+          // STOPPED (out of credit, below), so the two are told apart at a
+          // glance instead of both shouting.
+          tint: context.status.warn,
         ),
       // UX-25: the wallet tiers' equivalent of the stock KPIs. A Sub Agent held
       // exactly one tile ("branches: 3") on the screen they open every morning.
@@ -489,7 +494,7 @@ class _KpiRow extends StatelessWidget {
           value: Formatters.money(dry),
           caption: ar ? 'من ${credit.length} حساب' : 'of ${credit.length} accounts',
           icon: Icons.account_balance_wallet_outlined,
-          tint: dry == 0 ? IntesharColors.sage : IntesharColors.oxblood,
+          tint: dry == 0 ? context.status.success : context.status.danger,
         ),
       if (showCredit)
         _KpiTile(
@@ -686,7 +691,14 @@ class _BodyRow extends StatelessWidget {
         // Low-stock is an inventory concern — only for inventory-backed tiers.
         // Sub Agents & Stores draw-on-print and hold no cards (B-042).
         final lowCard = entity.type.inventoryBacked
-            ? _LowStockCard(lowSkus: lowSkus, threshold: lowStockThreshold, l: l)
+            ? _LowStockCard(
+                lowSkus: lowSkus,
+                threshold: lowStockThreshold,
+                // UX-28: stock only arrives when the tier above uploads a batch.
+                // HQ is that tier, so it has no one to ask.
+                canRequest: entity.type != EntityType.INTESHAR,
+                l: l,
+              )
             : null;
 
         final side = <Widget>[?creditCard, ?lowCard];
@@ -764,7 +776,9 @@ class _ChildCreditCard extends StatelessWidget {
                                 : '${dry.length} out of credit'),
                         style: IntesharType.sans(
                           11.5,
-                          color: dry.isEmpty ? IntesharColors.sage : IntesharColors.oxblood,
+                          color: dry.isEmpty
+                              ? context.status.success
+                              : context.status.danger,
                           w: FontWeight.w600,
                         ),
                       ),
@@ -796,7 +810,7 @@ class _ChildCreditCard extends StatelessWidget {
                     style: IntesharType.mono(
                       12.5,
                       color: shown[i].available <= 0
-                          ? IntesharColors.oxblood
+                          ? context.status.danger
                           : cs.onSurface,
                       w: shown[i].available <= 0 ? FontWeight.w700 : FontWeight.w400,
                     ),
@@ -880,7 +894,11 @@ class _RecentTransfersCard extends StatelessWidget {
               final other = sent
                   ? (g.destName.isNotEmpty ? g.destName : g.destId)
                   : (g.sourceName.isNotEmpty ? g.sourceName : g.sourceId);
-              final tint = sent ? cs.error : IntesharColors.sage;
+              // UX-128: sending credit down the tree is the product working, not
+              // a failure — `brand`, never `danger`. Red here spends the one
+              // signal a sales floor reacts to on a routine top-up.
+              final tint =
+                  sent ? context.status.brand : context.status.success;
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -1034,7 +1052,7 @@ class _InlineEmpty extends StatelessWidget {
 /// Stacked two-line transaction row for narrow widths (phones, side panel).
 // ─── Virtual balance card ─────────────────────────────────────────────────────
 
-class _BalanceCard extends StatelessWidget {
+class _BalanceCard extends ConsumerWidget {
   final Entity entity;
   final AgentBalance balance;
   final List<EntitySummaryRow> children;
@@ -1049,7 +1067,7 @@ class _BalanceCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final ar = Localizations.localeOf(context).languageCode == 'ar';
     // Inventory-backed tiers (HQ / Main Agent) grant balance down, so it reads as
     // transferable credit. Wallet tiers (Sub Agent / Store) only spend it on
@@ -1076,17 +1094,19 @@ class _BalanceCard extends StatelessWidget {
     // card now shows the three lines the owner thinks in:
     //   credited to me → given to my accounts → left with me.
     final showBreakdown = balance.base != 0 || balance.grantsOut != 0;
+    // UX-28: balance only enters the system when the tier above grants it after
+    // an off-system payment — so for everyone but HQ, "I need more" is a
+    // sentence someone has to type. This is the shortcut to typing it.
+    final canAsk = entity.type != EntityType.INTESHAR;
     // B-094: a WHITE card with a brand accent rule, not a solid gold slab. The
     // number is the hero — big ink numerals on paper read as money, and gold is
     // reserved for the thin accent + the label, so it stays meaningful.
-    return Container(
+    // UX-126: the card is an `InkCard` like every other card on the screen —
+    // this used to be a hand-rolled `cs.surface` (the PAGE colour) + hairline
+    // recipe sitting inches from real InkCards on the same viewport.
+    return InkCard(
+      bordered: true,
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: BorderRadius.circular(IntesharRadii.lg),
-        border: Border.all(color: cs.outlineVariant),
-        boxShadow: IntesharShadows.elev1,
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1171,6 +1191,22 @@ class _BalanceCard extends StatelessWidget {
               style: IntesharType.sans(11.5, color: cs.onSurfaceVariant),
             ),
           ],
+          if (canAsk) ...[
+            const SizedBox(height: 4),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton.icon(
+                onPressed: () => showSupplyRequest(
+                  context,
+                  ref,
+                  kind: SupplyRequestKind.balance,
+                  current: balance.available,
+                ),
+                icon: const Icon(Icons.forum_outlined, size: 16),
+                label: Text(ar ? 'طلب رصيد' : 'Request balance'),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1223,25 +1259,32 @@ class _BalanceLine extends StatelessWidget {
   }
 }
 
-class _LowStockCard extends StatelessWidget {
+class _LowStockCard extends ConsumerWidget {
   final Map<String, ({String name, int count})> lowSkus;
 
   /// UX-47: the line that decided these SKUs are "low". Without it "12 left"
   /// cannot be told apart from "nearly out" — the reader has no idea whether
   /// the bar was set at 20 or at 500.
   final int threshold;
+
+  /// UX-28: whether this account has anyone above it to ask for cards.
+  final bool canRequest;
   final AppLocalizations l;
 
   const _LowStockCard({
     required this.lowSkus,
     required this.threshold,
+    required this.canRequest,
     required this.l,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
     final ar = Localizations.localeOf(context).languageCode == 'ar';
+    // The ask is prefilled with exactly what is running out — the reader of the
+    // message should not have to ask "which cards?".
+    final lowNames = lowSkus.values.map((e) => e.name).join(ar ? '، ' : ', ');
 
     return InkCard(
       padding: EdgeInsets.zero,
@@ -1249,25 +1292,46 @@ class _LowStockCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(20, 18, 20, 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            padding: const EdgeInsetsDirectional.fromSTEB(20, 18, 12, 14),
+            child: Row(
               children: [
-                Text(
-                  l.dashLowStock,
-                  style: IntesharType.sans(
-                    14,
-                    color: cs.onSurface,
-                    w: FontWeight.w700,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l.dashLowStock,
+                        style: IntesharType.sans(
+                          14,
+                          color: cs.onSurface,
+                          w: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        ar
+                            ? 'أقل من $threshold بطاقة'
+                            : 'below $threshold cards',
+                        style: IntesharType.sans(11.5, color: cs.onSurfaceVariant),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  ar
-                      ? 'أقل من $threshold بطاقة'
-                      : 'below $threshold cards',
-                  style: IntesharType.sans(11.5, color: cs.onSurfaceVariant),
-                ),
+                if (canRequest)
+                  _ViewAllLink(
+                    label: ar ? 'طلب كروت' : 'Request cards',
+                    onTap: () => showSupplyRequest(
+                      context,
+                      ref,
+                      kind: SupplyRequestKind.stock,
+                      category: lowNames,
+                      // One SKU: the count is unambiguous and worth quoting.
+                      // Several: it would read as a total that means nothing.
+                      current: lowSkus.length == 1
+                          ? lowSkus.values.first.count
+                          : null,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -1281,13 +1345,13 @@ class _LowStockCard extends StatelessWidget {
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: IntesharColors.sage.withValues(alpha: 0.12),
+                      color: context.status.success.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.check_circle_outline_rounded,
                       size: 18,
-                      color: IntesharColors.sage,
+                      color: context.status.success,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -1296,7 +1360,7 @@ class _LowStockCard extends StatelessWidget {
                       l.dashAllHealthy,
                       style: IntesharType.sans(
                         13,
-                        color: IntesharColors.sage,
+                        color: context.status.success,
                         w: FontWeight.w600,
                       ),
                     ),
@@ -1336,7 +1400,8 @@ class _LowStockCard extends StatelessWidget {
                           '${e.value.count} ${l.dashUnitsLeft}',
                           style: IntesharType.sans(
                             12,
-                            color: IntesharColors.oxblood,
+                            // Low, not broken — same tone as the KPI tile above.
+                            color: context.status.warn,
                             w: FontWeight.w700,
                           ),
                         ),

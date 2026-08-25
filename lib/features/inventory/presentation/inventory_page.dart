@@ -157,6 +157,15 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
     final printedTotal = filtered.fold(0, (s, e) => s + e.printed);
     final damagedTotal = filtered.fold(0, (s, e) => s + e.damaged);
     final value = filtered.fold<num>(0, (s, e) => s + e.availableValue);
+    // UX-36: this figure is a CLIENT-side sum of `SkuSummary.availableValue`,
+    // while the pricing screen and the detailed report print the server's
+    // `inventoryWorth` under the same two words (قيمة المخزون). Two screens, one
+    // name, and — when a SKU arrives without governorate buckets —
+    // `available × defaultPrice` instead of the effective per-agent price. The
+    // label now states which basis produced the number rather than letting the
+    // two look interchangeable.
+    final estimatedBasis =
+        filtered.any((e) => e.governorates.isEmpty && e.available > 0);
 
     return MaxWidthBox(
       child: Column(
@@ -192,6 +201,7 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
                 value: value,
                 availableUnits: availableTotal,
                 filterNote: filterNote,
+                estimatedBasis: estimatedBasis,
               ),
             ),
           _FilterBar(
@@ -300,15 +310,23 @@ class _InventoryValueCard extends StatelessWidget {
   /// Set while a search or status filter is narrowing the list — the value below
   /// is then the value of the MATCHES, and has to say so.
   final String? filterNote;
+
+  /// UX-36: at least one SKU in the sum had no governorate buckets, so its line
+  /// fell back to `available × defaultPrice` instead of the effective per-agent
+  /// price. The caption says so — the same words on the pricing screen name the
+  /// server's `inventoryWorth`, which is a different calculation.
+  final bool estimatedBasis;
   const _InventoryValueCard({
     required this.value,
     required this.availableUnits,
     this.filterNote,
+    this.estimatedBasis = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final ar = Localizations.localeOf(context).languageCode == 'ar';
     final l = AppLocalizations.of(context)!;
     return InkCard(
       padding: const EdgeInsetsDirectional.fromSTEB(18, 16, 18, 16),
@@ -356,6 +374,23 @@ class _InventoryValueCard extends StatelessWidget {
                   Formatters.iqd(value.round()),
                   style: IntesharType.display(24, color: cs.onSurface, w: FontWeight.w900),
                   maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 3),
+                // UX-36: the basis, stated. "قيمة المخزون" names a server figure
+                // on the pricing screen and the detailed report; this one is
+                // summed here, from these rows, at these prices — so it says
+                // which, instead of borrowing their authority.
+                Text(
+                  ar
+                      ? (estimatedBasis
+                          ? 'الكروت المتاحة × السعر — بعض الفئات بالسعر الافتراضي'
+                          : 'الكروت المتاحة × سعرك الفعّال')
+                      : (estimatedBasis
+                          ? 'available cards × price — some categories at the default price'
+                          : 'available cards × your effective price'),
+                  style: IntesharType.sans(11, color: IntesharColors.inkSoft),
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
@@ -412,9 +447,9 @@ class _Tallies extends StatelessWidget {
             icon: Icons.filter_alt_outlined,
             fontSize: 10,
           ),
-        _TallyChip(label: l.inventoryStatusAvailable, value: available, color: IntesharColors.sage),
+        _TallyChip(label: l.inventoryStatusAvailable, value: available, color: context.status.success),
         _TallyChip(label: l.inventoryStatusPrinted, value: printed, color: context.tones.brandInk),
-        _TallyChip(label: l.inventoryStatusDamaged, value: damaged, color: Theme.of(context).colorScheme.error),
+        _TallyChip(label: l.inventoryStatusDamaged, value: damaged, color: context.status.danger),
       ],
     );
   }
@@ -501,9 +536,9 @@ class _StatusFilterChips extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final options = <(ProductStatus?, String, Color)>[
       (null, l.inventoryFilterAll, cs.onSurface),
-      (ProductStatus.AVAILABLE, l.inventoryStatusAvailable, IntesharColors.sage),
+      (ProductStatus.AVAILABLE, l.inventoryStatusAvailable, context.status.success),
       (ProductStatus.PRINTED, l.inventoryStatusPrinted, context.tones.brandInk),
-      (ProductStatus.DAMAGED, l.inventoryStatusDamaged, cs.error),
+      (ProductStatus.DAMAGED, l.inventoryStatusDamaged, context.status.danger),
     ];
     return Container(
       decoration: BoxDecoration(
@@ -531,7 +566,9 @@ class _StatusFilterChips extends StatelessWidget {
                   opt.$2,
                   style: IntesharType.sans(
                     12,
-                    color: active ? IntesharColors.ink : opt.$3,
+                    // Selected = a brand pill, so the label is the measured
+                    // on-brand foreground, not a hardcoded ink.
+                    color: active ? context.tones.onBrand : opt.$3,
                     w: active ? FontWeight.w800 : FontWeight.w700,
                   ),
                 ),
@@ -835,7 +872,7 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
 
     return InkCard(
       padding: EdgeInsets.zero,
-      ruleColor: s.available > 0 ? IntesharColors.sage : null,
+      ruleColor: s.available > 0 ? context.status.success : null,
       child: Column(
         children: [
           InkWell(
@@ -857,7 +894,9 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
                       s.sku,
                       style: IntesharType.mono(
                         12,
-                        color: s.available > 0 ? IntesharColors.ink : cs.onSurfaceVariant,
+                        color: s.available > 0
+                            ? context.tones.onBrand
+                            : cs.onSurfaceVariant,
                         w: FontWeight.w900,
                         letterSpacing: 0.6,
                       ),
@@ -888,7 +927,7 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
                   // Only the pills the filter is asking about (all three when
                   // there is no filter).
                   if (_showsPill(ProductStatus.AVAILABLE) && s.available > 0) ...[
-                    StampPill(label: l.inventoryAvailableCount(s.available), color: IntesharColors.sage),
+                    StampPill(label: l.inventoryAvailableCount(s.available), color: context.status.success),
                     const SizedBox(width: 6),
                   ],
                   if (_showsPill(ProductStatus.PRINTED) && s.printed > 0) ...[
@@ -896,7 +935,7 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
                     const SizedBox(width: 6),
                   ],
                   if (_showsPill(ProductStatus.DAMAGED) && s.damaged > 0) ...[
-                    StampPill(label: l.inventoryDamagedCount(s.damaged), color: cs.error),
+                    StampPill(label: l.inventoryDamagedCount(s.damaged), color: context.status.danger),
                     const SizedBox(width: 6),
                   ],
                   // C-09: pull stock back from THIS agent's warehouse — the
@@ -957,7 +996,7 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
             Expanded(
               child: Text(
                 l.inventoryLoadCodesFailed,
-                style: IntesharType.sans(13, color: cs.error, w: FontWeight.w600),
+                style: IntesharType.sans(13, color: context.status.danger, w: FontWeight.w600),
               ),
             ),
             TextButton(onPressed: _loadFirst, child: Text(l.retryButton)),
@@ -1045,7 +1084,7 @@ class _GovBreakdown extends StatelessWidget {
                     width: 6,
                     height: 6,
                     decoration: BoxDecoration(
-                      color: b.available > 0 ? IntesharColors.sage : cs.outline,
+                      color: b.available > 0 ? context.status.success : cs.outline,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -1059,12 +1098,13 @@ class _GovBreakdown extends StatelessWidget {
                     ),
                   ),
                   if (low) ...[
-                    StampPill(label: l.inventoryLow, color: cs.error, fontSize: 10),
+                    // UX-128: low stock is `warn` — attention, not a failure.
+                    StampPill(label: l.inventoryLow, color: context.status.warn, fontSize: 10),
                     const SizedBox(width: 8),
                   ],
                   Text(
                     '${b.available} / ${b.total}',
-                    style: IntesharType.mono(12, color: low ? cs.error : cs.onSurfaceVariant, w: FontWeight.w600),
+                    style: IntesharType.mono(12, color: low ? context.status.warn : cs.onSurfaceVariant, w: FontWeight.w600),
                   ),
                 ],
               ),
@@ -1160,13 +1200,12 @@ class _ProductRow extends StatelessWidget {
   });
 
   Color _statusColor(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return switch (product.status) {
-      ProductStatus.AVAILABLE => IntesharColors.sage,
+      ProductStatus.AVAILABLE => context.status.success,
       ProductStatus.SENT_FOR_PRINTING => context.tones.brand,
       ProductStatus.PRINTED => context.tones.brandInk,
-      ProductStatus.FAILED_PRINTING => cs.error,
-      ProductStatus.DAMAGED => cs.error,
+      ProductStatus.FAILED_PRINTING => context.status.danger,
+      ProductStatus.DAMAGED => context.status.danger,
     };
   }
 

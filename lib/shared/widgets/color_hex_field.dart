@@ -77,7 +77,8 @@ class ColorHexField extends StatelessWidget {
     if (color == null) {
       return Text(
         '#RRGGBB',
-        style: IntesharType.sans(11.5, color: cs.onSurfaceVariant),
+        style: IntesharText.caption(
+            color: cs.onSurfaceVariant, w: IntesharWeight.regular),
       );
     }
     final onBrand = legibleOn(color);
@@ -94,7 +95,7 @@ class ColorHexField extends StatelessWidget {
           ),
           child: Text(
             isAr ? 'زر' : 'Button',
-            style: IntesharType.sans(11.5, color: onBrand, w: FontWeight.w800),
+            style: IntesharText.caption(color: onBrand, w: IntesharWeight.heavy),
           ),
         ),
         const SizedBox(width: 8),

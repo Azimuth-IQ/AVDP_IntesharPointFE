@@ -132,7 +132,7 @@ class SheetFrame extends StatelessWidget {
                         Expanded(
                           child: Text(
                             title!,
-                            style: IntesharType.display(24, color: cs.onSurface),
+                            style: IntesharText.display(color: cs.onSurface),
                           ),
                         ),
                         if (trailing != null) ...[

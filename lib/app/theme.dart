@@ -37,6 +37,11 @@ class IntesharColors {
   /// "done" or "failed" under a white-label palette.
   static const azure      = Color(0xFF2563EB);
   static const dust       = Color(0xFFFFEAB8); // soft gold wash (tags, primaryContainer)
+  /// ROLE tint for AGENT1 (Main Agent) — an ink blue that reads as "structure"
+  /// and collides with neither the brand gold nor any semantic status colour.
+  /// UX-137: this was a bare `Color(0xFF2C3A55)` inlined in `role_badge.dart`
+  /// with no token and no dark counterpart.
+  static const slate      = Color(0xFF2C3A55);
 
   // Dark surface stack
   static const inkPaper   = Color(0xFF121110); // dark page bg — brand warm charcoal
@@ -47,6 +52,7 @@ class IntesharColors {
   static const hairlineDark = Color(0x2EF5F2EA);
 
   static const saffronOnDark = Color(0xFFECBC3F); // brand gold lifted for legibility on charcoal
+  static const slateOnDark  = Color(0xFF9DB0CE); // AGENT1 role tint, lifted for charcoal
   static const sageOnDark   = Color(0xFF7CA690);
   static const oxbloodOnDark = Color(0xFFE0625A);
 }

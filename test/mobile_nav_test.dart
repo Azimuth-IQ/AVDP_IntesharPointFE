@@ -91,14 +91,21 @@ void main() {
     expect(find.text('ADMINISTRATION'), findsOneWidget);
   });
 
-  testWidgets('Store role (4 routes) shows all tabs without a More overflow', (tester) async {
+  testWidgets('Store role (5 routes) shows all tabs without a More overflow', (tester) async {
     await _pumpShell(tester, EntityType.STORE);
 
-    // STORE has 4 destinations (Dashboard, Reports, POS points, Notifications) after the
-    // legacy voucher pages (Inventory / Transactions) were removed — under the 5-tab cap,
-    // so every destination sits on the bar and no "More" overflow is needed.
+    // STORE has 5 destinations (Dashboard, Reports, My POS, Conversations,
+    // Notifications) after the legacy voucher pages (Inventory / Transactions)
+    // were removed — exactly the 5-tab cap, so every destination sits on the bar
+    // and no "More" overflow is needed.
     final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
-    expect(bar.destinations.length, 4);
+    expect(bar.destinations.length, 5);
     expect(find.text('More'), findsNothing);
+
+    // UX-107: a shop was the only tier with no Conversations destination, so a
+    // reply from its agent was unreachable from the shop side — while the shell
+    // was already badging chat unread counts for it.
+    expect(find.text('Conversations'), findsWidgets,
+        reason: 'a shop must be able to reach its own messages');
   });
 }

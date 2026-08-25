@@ -119,7 +119,8 @@ class _LoadingStateState extends State<LoadingState> {
                 status ?? widget.message!,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: IntesharType.sans(13, color: cs.onSurfaceVariant, w: FontWeight.w600),
+                style: IntesharText.body(
+                    color: cs.onSurfaceVariant, w: IntesharWeight.semibold),
               ),
             ),
           ],
@@ -148,7 +149,8 @@ class _LoadingStateState extends State<LoadingState> {
                 Text(
                   widget.message!,
                   textAlign: TextAlign.center,
-                  style: IntesharType.sans(14.5, color: cs.onSurface, w: FontWeight.w700),
+                  style: IntesharText.bodyLg(
+                      color: cs.onSurface, w: IntesharWeight.bold),
                 ),
               ],
               if (status != null) ...[
@@ -156,7 +158,8 @@ class _LoadingStateState extends State<LoadingState> {
                 Text(
                   status,
                   textAlign: TextAlign.center,
-                  style: IntesharType.sans(13, color: cs.onSurfaceVariant, w: FontWeight.w600),
+                  style: IntesharText.body(
+                      color: cs.onSurfaceVariant, w: IntesharWeight.semibold),
                 ),
               ],
               if (stuck) ...[
@@ -164,7 +167,8 @@ class _LoadingStateState extends State<LoadingState> {
                 // The elapsed count is the proof that it has not frozen.
                 Text(
                   ar ? 'منذ $_seconds ثانية' : '${_seconds}s elapsed',
-                  style: IntesharType.mono(12, color: cs.onSurfaceVariant),
+                  style: IntesharType.mono(IntesharScale.body,
+                      color: cs.onSurfaceVariant),
                 ),
                 if (widget.onCancel != null) ...[
                   const SizedBox(height: 16),

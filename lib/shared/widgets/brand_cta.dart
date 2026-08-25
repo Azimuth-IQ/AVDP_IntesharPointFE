@@ -50,7 +50,8 @@ class BrandCTAButton extends StatelessWidget {
     this.variant = BrandCTAVariant.primary,
     this.expand = true,
     this.height = 56,
-    this.fontSize = 15,
+    // UX-127: was an off-scale 15.
+    this.fontSize = IntesharScale.title,
     this.minTapSize = const Size(48, 48),
   });
 

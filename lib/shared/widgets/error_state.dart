@@ -39,18 +39,15 @@ class ErrorState extends StatelessWidget {
                 const SizedBox(height: 16),
                 Text(
                   l.errorStateTitle,
-                  style: TextStyle(
-                    fontFamily: 'CodecPro',
-                    fontSize: 20,
+                  style: IntesharText.titleLg(
                     color: cs.onSurface,
-                    fontWeight: FontWeight.w800,
                     letterSpacing: -0.3,
                     height: 1.2,
                   ),
                 ),
                 const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(IntesharSpacing.md),
                   decoration: BoxDecoration(
                     color: cs.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(IntesharRadii.md),
@@ -59,7 +56,7 @@ class ErrorState extends StatelessWidget {
                   child: SelectableText(
                     msg,
                     style: GoogleFonts.jetBrainsMono(
-                      fontSize: 12,
+                      fontSize: IntesharScale.body,
                       color: cs.onSurface,
                       height: 1.45,
                     ),

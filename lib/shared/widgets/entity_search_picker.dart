@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
+import 'package:inteshar/shared/widgets/app_search_field.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
 import 'package:inteshar/features/entities/domain/entity_summary_row.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
@@ -79,6 +80,7 @@ class _EntityMultiSearchListState extends State<EntityMultiSearchList> {
   int _page = 0;
   String _query = '';
   Timer? _debounce;
+  final _searchCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -89,6 +91,7 @@ class _EntityMultiSearchListState extends State<EntityMultiSearchList> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -151,13 +154,12 @@ class _EntityMultiSearchListState extends State<EntityMultiSearchList> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TextField(
-          decoration: InputDecoration(
-            labelText: s.search,
-            isDense: true,
-            prefixIcon: const Icon(Icons.search, size: 18),
-          ),
+        // UX-133: the app's one search box, rather than a sixteenth variation.
+        AppSearchField(
+          controller: _searchCtrl,
+          hintText: s.search,
           onChanged: _onSearch,
+          padding: EdgeInsets.zero,
         ),
         const SizedBox(height: 6),
         Container(
@@ -179,7 +181,7 @@ class _EntityMultiSearchListState extends State<EntityMultiSearchList> {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Text(friendlyError(_error!, context),
               textAlign: TextAlign.center,
-              style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+              style: IntesharText.body(color: cs.onSurfaceVariant)),
           const SizedBox(height: 8),
           OutlinedButton(onPressed: _reload, child: Text(s.retry)),
         ]),
@@ -188,7 +190,7 @@ class _EntityMultiSearchListState extends State<EntityMultiSearchList> {
     if (_rows.isEmpty) {
       return Center(
         child: Text(s.noMatches,
-            style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+            style: IntesharText.body(color: cs.onSurfaceVariant)),
       );
     }
     return ListView.builder(
@@ -217,9 +219,11 @@ class _EntityMultiSearchListState extends State<EntityMultiSearchList> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style:
-                  IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w600)),
+                  IntesharText.body(
+                      color: cs.onSurface, w: IntesharWeight.semibold)),
           subtitle: Text(e.type.label,
-              style: IntesharType.sans(11, color: cs.onSurfaceVariant)),
+              style: IntesharText.caption(
+                  color: cs.onSurfaceVariant, w: IntesharWeight.regular)),
         );
       },
     );
@@ -252,6 +256,7 @@ class _EntitySearchDialogState extends State<_EntitySearchDialog> {
   int _page = 0;
   String _query = '';
   Timer? _debounce;
+  final _searchCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -262,6 +267,7 @@ class _EntitySearchDialogState extends State<_EntitySearchDialog> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -331,16 +337,14 @@ class _EntitySearchDialogState extends State<_EntitySearchDialog> {
       content: SizedBox(
         width: double.maxFinite,
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(
+          AppSearchField(
+            controller: _searchCtrl,
+            hintText: s.search,
             autofocus: true,
-            decoration: InputDecoration(
-              labelText: s.search,
-              isDense: true,
-              prefixIcon: const Icon(Icons.search, size: 18),
-            ),
             onChanged: _onSearch,
+            padding: EdgeInsets.zero,
           ),
-          const SizedBox(height: 8),
+          IntesharSpacing.gapSm,
           // UX-111: this was a hard SizedBox(height: 300) in a non-scrollable
           // AlertDialog column, and `autofocus` opens the keyboard on entry —
           // the content then overflowed its box and painted over the Cancel
@@ -371,7 +375,7 @@ class _EntitySearchDialogState extends State<_EntitySearchDialog> {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Text(friendlyError(_error!, context),
               textAlign: TextAlign.center,
-              style: IntesharType.sans(13, color: cs.onSurfaceVariant)),
+              style: IntesharText.body(color: cs.onSurfaceVariant)),
           const SizedBox(height: 8),
           OutlinedButton(onPressed: _reload, child: Text(s.retry)),
         ]),
@@ -380,7 +384,7 @@ class _EntitySearchDialogState extends State<_EntitySearchDialog> {
     if (_rows.isEmpty) {
       return Center(
         child: Text(s.noMatches,
-            style: IntesharType.sans(13, color: cs.onSurfaceVariant)),
+            style: IntesharText.body(color: cs.onSurfaceVariant)),
       );
     }
     return ListView.builder(
@@ -411,7 +415,8 @@ class _EntitySearchDialogState extends State<_EntitySearchDialog> {
           onTap: () => Navigator.pop(context, r),
           title: Text(r.label, overflow: TextOverflow.ellipsis),
           subtitle: Text(subtitle,
-              style: IntesharType.sans(11.5, color: cs.onSurfaceVariant),
+              style: IntesharText.caption(
+                  color: cs.onSurfaceVariant, w: IntesharWeight.regular),
               overflow: TextOverflow.ellipsis),
         );
       },

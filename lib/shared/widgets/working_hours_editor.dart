@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
 
 /// HQ editor for a per-account working-hours login window (BRD FR-03). Controlled:
@@ -54,7 +55,7 @@ class WorkingHoursEditor extends StatelessWidget {
             ar
                 ? 'يمنع تسجيل الدخول خارج النافذة (توقيت بغداد)'
                 : 'Blocks sign-in outside the window (Baghdad time)',
-            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+            style: IntesharText.body(color: cs.onSurfaceVariant),
           ),
           onChanged: (v) => onChanged(wh.copyWith(enabled: v)),
         ),
@@ -80,7 +81,7 @@ class WorkingHoursEditor extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             ar ? 'الأيام المسموحة (لا شيء = كل الأيام)' : 'Allowed days (none = every day)',
-            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+            style: IntesharText.body(color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 6),
           Wrap(

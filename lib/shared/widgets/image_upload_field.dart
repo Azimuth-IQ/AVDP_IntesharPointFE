@@ -188,7 +188,7 @@ class _MultiImageUploadFieldState extends ConsumerState<MultiImageUploadField> {
           const SizedBox(height: 4),
           Text(
             _error!,
-            style: IntesharType.sans(12, color: cs.error),
+            style: IntesharText.body(color: cs.error),
           ),
         ],
       ],
@@ -378,7 +378,7 @@ class _ImageUploadFieldState extends ConsumerState<ImageUploadField> {
           const SizedBox(height: 4),
           Text(
             _error!,
-            style: IntesharType.sans(12, color: cs.error),
+            style: IntesharText.body(color: cs.error),
           ),
         ],
       ],

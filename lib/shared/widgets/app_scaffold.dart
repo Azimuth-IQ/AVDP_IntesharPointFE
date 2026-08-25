@@ -29,12 +29,20 @@ const int _kMaxBottomTabs = 5;
 /// Used by [_GroupHeader] to render bilingual section dividers in the desktop
 /// sidebar. Keys must match the [_NavItem.group] values assigned in [_navFor].
 const Map<String, (String, String)> _kGroupLabels = {
+  // UX-100: the pinned prefix — the same destinations, in the same order, as the
+  // phone's bottom-bar primaries. See [_buildSidebarEntries].
+  'primary': ('الأساسية', 'Essentials'),
   'oversight': ('الإشراف', 'Oversight'),
   'inventory_stock': ('المخزون', 'Inventory & Stock'),
   'distribution': ('التوزيع', 'Distribution'),
   'network': ('الشبكة', 'Network'),
   'pos': ('منافذ البيع', 'Points of Sale'),
   'catalog': ('الكتالوج', 'Catalog'),
+  // UX-102: Messages and Broadcast were buried in a six-item "Administration"
+  // junk drawer at the tail of a 14-item More sheet — so the one REAL-TIME
+  // destination in the product was among the least reachable things on a phone,
+  // which flatly contradicts the unread-badge work that points at it.
+  'comms': ('التواصل', 'Communication'),
   'administration': ('الإدارة', 'Administration'),
   'operations': ('العمليات', 'Operations'),
 };
@@ -113,16 +121,46 @@ class _SidebarEntry {
 /// Builds [sidebarEntries] from [items]: injects one [_SidebarEntry.header]
 /// before the first occurrence of each distinct non-null group key, then
 /// appends an [_SidebarEntry.item] for every nav item.
-List<_SidebarEntry> _buildSidebarEntries(List<_NavItem> items) {
+///
+/// **UX-100 — [pinnedCount] makes the phone order a prefix of the desktop
+/// order.** The flat list is frequency-first (the phone bar takes the first
+/// four); the sidebar re-sections it by group. Those two orderings disagreed, so
+/// for HQ, Inventory was item 2 on a phone and item 4 on desktop — and HQ and
+/// Main Agents are exactly the roles that use both. Positional muscle memory
+/// therefore transferred for nobody.
+///
+/// The grouped sidebar and a frequency-ordered bar cannot share a prefix by
+/// accident: a group is rendered contiguously, so the moment two primaries sit
+/// in the same group the rest of that group is pulled in ahead of the third. So
+/// the first [pinnedCount] items are emitted first, verbatim, under an
+/// "Essentials" header, and only the REMAINDER is grouped. The desktop sidebar
+/// then reads exactly as "the phone's bar, then the phone's More sheet".
+///
+/// Pass 0 (the default) to group everything — that is what the More sheet does,
+/// since it is already showing only the overflow.
+List<_SidebarEntry> _buildSidebarEntries(
+  List<_NavItem> items, {
+  int pinnedCount = 0,
+}) {
   // Render one clean, contiguous section per group. Group order = first appearance
   // in the flat list; within a group, items keep their flat relative order. This
   // decouples the desktop sidebar's sectioning from the flat order the mobile bottom
   // bar consumes, so groups don't scatter when the flat list interleaves them
   // (e.g. oversight items after network ones). Ungrouped items fall to the end.
+  final entries = <_SidebarEntry>[];
+  // A pinned prefix only makes sense when something is left over to group; when
+  // every destination fits on the bar there is no "essentials vs the rest".
+  final pinned = (pinnedCount > 0 && pinnedCount < items.length) ? pinnedCount : 0;
+  if (pinned > 0) {
+    entries.add(const _SidebarEntry.header('primary'));
+    for (var i = 0; i < pinned; i++) {
+      entries.add(_SidebarEntry.item(i));
+    }
+  }
   final groupOrder = <String>[];
   final byGroup = <String, List<int>>{};
   final ungrouped = <int>[];
-  for (var i = 0; i < items.length; i++) {
+  for (var i = pinned; i < items.length; i++) {
     final g = items[i].group;
     if (g == null) {
       ungrouped.add(i);
@@ -134,7 +172,6 @@ List<_SidebarEntry> _buildSidebarEntries(List<_NavItem> items) {
     }
     byGroup[g]!.add(i);
   }
-  final entries = <_SidebarEntry>[];
   for (final g in groupOrder) {
     entries.add(_SidebarEntry.header(g));
     for (final i in byGroup[g]!) {
@@ -160,16 +197,21 @@ class _GroupHeader extends StatelessWidget {
     final labels = _kGroupLabels[groupKey];
     final label = labels != null ? (isAr ? labels.$1 : labels.$2) : groupKey;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 18, 14, 4),
+      padding: const EdgeInsets.fromLTRB(
+        IntesharSpacing.lg,
+        IntesharSpacing.lg,
+        IntesharSpacing.lg,
+        IntesharSpacing.xs,
+      ),
       child: Text(
         label.toUpperCase(),
-        style: TextStyle(
-          fontFamily: 'CodecPro',
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
+        // UX-127: was an off-scale 10. UX-141: `overline` drops the tracking on
+        // a cursive locale, so these bilingual headers keep their Latin look
+        // without breaking Arabic joins.
+        style: IntesharType.overline(
           color: cs.onSurfaceVariant,
           letterSpacing: 1.2,
-        ),
+        ).copyWith(fontWeight: IntesharWeight.heavy),
       ),
     );
   }
@@ -254,7 +296,6 @@ class AppShell extends ConsumerWidget {
             required: Capability.VIEW_REPORTS,
             group: 'network',
           ),
-          // ── More sheet below ─────────────────────────────────────────────
           _NavItem(
             Icons.assessment_outlined,
             Icons.assessment,
@@ -262,6 +303,24 @@ class AppShell extends ConsumerWidget {
             '/hq/reports',
             required: Capability.VIEW_REPORTS,
             group: 'oversight',
+          ),
+          // ── More sheet below ─────────────────────────────────────────────
+          // (Reports above is the FOURTH primary and sits ON the phone bar —
+          // the old marker was one entry too early.)
+          //
+          // UX-102: Conversations LEADS the overflow. It used to sit at position
+          // 12 of 15, inside a six-item "Administration" drawer at the very tail
+          // of the sheet — the only real-time destination in the product, and the
+          // hardest one on a phone to reach. Its group is first-seen here, so the
+          // COMMUNICATION section also heads the desktop sidebar's grouped
+          // remainder.
+          _NavItem(
+            Icons.forum_outlined,
+            Icons.forum,
+            chatLabel,
+            '/hq/chat',
+            required: Capability.AGENT_ADMIN,
+            group: 'comms',
           ),
           _NavItem(
             Icons.fact_check_outlined,
@@ -355,29 +414,28 @@ class AppShell extends ConsumerWidget {
             required: Capability.AGENT_ADMIN,
             group: 'administration',
           ),
-          _NavItem(
-            Icons.forum_outlined,
-            Icons.forum,
-            chatLabel,
-            '/hq/chat',
-            required: Capability.AGENT_ADMIN,
-            group: 'administration',
-          ),
+          // UX-102: Broadcast is the send side of the same concept as
+          // Conversations, so it joins COMMUNICATION rather than padding out
+          // Administration.
           _NavItem(
             Icons.campaign_outlined,
             Icons.campaign,
             broadcastLabel,
             '/hq/notifications',
             required: Capability.AGENT_ADMIN,
-            group: 'administration',
+            group: 'comms',
           ),
+          // UX-101: both are POS provisioning — the slider is the carousel a
+          // SHOP sees on its home screen, and Get-the-app is the QR a shop scans
+          // to install the POS build. They were filed under Administration while
+          // a "Points of Sale" group sat one section above holding a single item.
           _NavItem(
             Icons.view_carousel_outlined,
             Icons.view_carousel,
             sliderLabel,
             '/hq/slider',
             required: Capability.AGENT_ADMIN,
-            group: 'administration',
+            group: 'pos',
           ),
           _NavItem(
             Icons.qr_code_2_outlined,
@@ -385,7 +443,7 @@ class AppShell extends ConsumerWidget {
             appDownloadLabel,
             '/hq/app-download',
             required: Capability.AGENT_ADMIN,
-            group: 'administration',
+            group: 'pos',
           ),
         ];
 
@@ -446,15 +504,21 @@ class AppShell extends ConsumerWidget {
             required: Capability.MANAGE_PRICING,
             group: 'operations',
           ),
-          // After the 4 primaries (Dashboard/Transactions/Inventory/Children) so it lands
-          // in the More overflow, not on the phone bar.
+          // After the 4 primaries (Dashboard/Transfers/Inventory/Hierarchy) so it
+          // lands in the More overflow, not on the phone bar.
+          //
+          // UX-101: Reports, POS points and Conversations were all tagged
+          // `network` — the group that means "the agents under me". Reports is
+          // oversight, POS points is what the "Points of Sale" group is for, and
+          // Conversations is communication. Three destinations under a heading
+          // that described none of them, on both agent tiers.
           _NavItem(
             Icons.assessment_outlined,
             Icons.assessment,
             reportsLabel,
             '/agent1/reports',
             required: Capability.VIEW_REPORTS,
-            group: 'network',
+            group: 'oversight',
           ),
           _NavItem(
             Icons.storefront_outlined,
@@ -462,21 +526,21 @@ class AppShell extends ConsumerWidget {
             posLabel,
             '/agent1/pos-users',
             required: Capability.MANAGE_POS,
-            group: 'network',
+            group: 'pos',
           ),
-          // Pricing is runtime-inserted at (length-1) so it lands before Notifications.
           _NavItem(
             Icons.forum_outlined,
             Icons.forum,
             chatLabel,
             '/agent1/chat',
-            group: 'network',
+            group: 'comms',
           ),
           _NavItem(
             Icons.notifications_outlined,
             Icons.notifications,
             l.navNotifications,
             '/agent1/notifications',
+            group: 'comms',
           ),
         ];
 
@@ -510,14 +574,15 @@ class AppShell extends ConsumerWidget {
             '/agent2/entities',
             group: 'network',
           ),
-          // After the 4 primaries so it lands in the More overflow, not on the phone bar.
+          // After the 4 primaries so it lands in the More overflow, not on the
+          // phone bar. UX-101: see the AGENT1 note — same three mis-filed groups.
           _NavItem(
             Icons.assessment_outlined,
             Icons.assessment,
             reportsLabel,
             '/agent2/reports',
             required: Capability.VIEW_REPORTS,
-            group: 'network',
+            group: 'oversight',
           ),
           _NavItem(
             Icons.storefront_outlined,
@@ -525,20 +590,21 @@ class AppShell extends ConsumerWidget {
             posLabel,
             '/agent2/pos-users',
             required: Capability.MANAGE_POS,
-            group: 'network',
+            group: 'pos',
           ),
           _NavItem(
             Icons.forum_outlined,
             Icons.forum,
             chatLabel,
             '/agent2/chat',
-            group: 'network',
+            group: 'comms',
           ),
           _NavItem(
             Icons.notifications_outlined,
             Icons.notifications,
             l.navNotifications,
             '/agent2/notifications',
+            group: 'comms',
           ),
         ];
 
@@ -566,6 +632,17 @@ class AppShell extends ConsumerWidget {
             Icons.storefront,
             storePosLabel,
             '/store/pos-users',
+          ),
+          // UX-107: a shop had NO Conversations destination at all — the only
+          // tier without one — so a reply from its agent was unreachable from
+          // the shop side even though `chatUnreadCountProvider` was already
+          // wired to badge it. Five destinations still fits the bar, so it needs
+          // no More overflow.
+          _NavItem(
+            Icons.forum_outlined,
+            Icons.forum,
+            chatLabel,
+            '/store/chat',
           ),
           _NavItem(
             Icons.notifications_outlined,
@@ -867,13 +944,10 @@ class _MoreSheet extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
+            padding: const EdgeInsets.fromLTRB(20, IntesharSpacing.xs, 20, IntesharSpacing.sm2),
             child: Text(
               l.navMore,
-              style: TextStyle(
-                fontFamily: 'CodecPro',
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
+              style: IntesharText.titleLg(
                 color: cs.onSurface,
                 letterSpacing: -0.2,
               ),
@@ -932,11 +1006,15 @@ class _MoreRow extends StatelessWidget {
     // fails contrast. Mirrors the sidebar's active _NavRow.
     final fg = active ? cs.onSurface : cs.onSurfaceVariant;
     return Material(
-      color: active ? cs.primary.withValues(alpha: 0.16) : Colors.transparent,
+      // UX-138: the canonical brand wash, not a hand-rolled `primary` alpha.
+      color: active ? context.tones.brandWash : Colors.transparent,
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          padding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: IntesharSpacing.lg,
+          ),
           child: Row(
             children: [
               _wrapBadge(
@@ -952,11 +1030,11 @@ class _MoreRow extends StatelessWidget {
               Expanded(
                 child: Text(
                   item.label,
-                  style: TextStyle(
-                    fontFamily: 'CodecPro',
-                    fontSize: 15,
-                    fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                  // UX-127: was an off-scale 15. A sheet row is a primary tap
+                  // target on a phone, so it takes the `title` step.
+                  style: IntesharText.title(
                     color: fg,
+                    w: active ? IntesharWeight.heavy : IntesharWeight.semibold,
                     letterSpacing: 0.1,
                   ),
                 ),
@@ -1057,7 +1135,7 @@ class _TabletLayout extends StatelessWidget {
                         labelType: NavigationRailLabelType.all,
                         minWidth: 88,
                         backgroundColor: Colors.transparent,
-                        indicatorColor: cs.primary.withValues(alpha: 0.22),
+                        indicatorColor: context.tones.brandWash,
                         indicatorShape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(IntesharRadii.md),
                         ),
@@ -1179,7 +1257,14 @@ class _Sidebar extends StatelessWidget {
     // Sidebar entries: interleave group headers (non-interactive) before the
     // first occurrence of each distinct group key. Item indices remain unchanged
     // so activeIndex / onSelect are unaffected by the header rows.
-    final sidebarEntries = _buildSidebarEntries(items);
+    //
+    // UX-100: the first `pinnedCount` entries are the phone bar's primaries, in
+    // the phone's order. This mirrors `_MobileLayout._buildBottomBar` exactly —
+    // if that cap ever changes, both sides move together.
+    final pinnedCount =
+        items.length > _kMaxBottomTabs ? _kMaxBottomTabs - 1 : 0;
+    final sidebarEntries =
+        _buildSidebarEntries(items, pinnedCount: pinnedCount);
 
     return SizedBox(
       width: 280,
@@ -1292,7 +1377,9 @@ class _EntityChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return InkCard(
-      padding: const EdgeInsets.all(14),
+      // UX-135: was a bespoke `all(14)` — off every scale, and the app's single
+      // most repeated padding value. `normal` density is the same 16 the card
+      // already defaults to, so the override simply goes away.
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1301,11 +1388,8 @@ class _EntityChip extends StatelessWidget {
               Expanded(
                 child: Text(
                   AppLocalizations.of(context)!.appShellActiveEntity,
-                  style: TextStyle(
-                    fontFamily: 'CodecPro',
+                  style: IntesharText.caption(
                     color: cs.onSurfaceVariant,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
                     letterSpacing: 0.3,
                   ),
                 ),
@@ -1316,11 +1400,10 @@ class _EntityChip extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             entity.meta.name.isNotEmpty ? entity.meta.name : entity.id,
-            style: TextStyle(
-              fontFamily: 'CodecPro',
+            // UX-127: was an off-scale 17.
+            style: IntesharText.title(
               color: cs.onSurface,
-              fontSize: 17,
-              fontWeight: FontWeight.w800,
+              w: IntesharWeight.heavy,
               height: 1.15,
             ),
             overflow: TextOverflow.ellipsis,
@@ -1329,7 +1412,7 @@ class _EntityChip extends StatelessWidget {
           Text(
             entity.id,
             style: GoogleFonts.jetBrainsMono(
-              fontSize: 11,
+              fontSize: IntesharScale.caption,
               color: cs.onSurfaceVariant,
               letterSpacing: 0.4,
             ),
@@ -1386,8 +1469,11 @@ class _NavRowState extends State<_NavRow> {
     // onSurface (ink in light, bone in dark) keeps the active label legible on
     // the brand-tint highlight in both themes; cs.primary tracks white-label.
     final fg = (active || _hover) ? cs.onSurface : cs.onSurfaceVariant;
+    // UX-138: one wash token for the "brand-tinted container" role. This was
+    // 0.22 while the More sheet's identical active row used 0.16 — the same
+    // state, two shades, on two surfaces a tap apart.
     final bg = active
-        ? cs.primary.withValues(alpha: 0.22)
+        ? context.tones.brandWash
         : (_hover ? cs.surfaceContainerHighest : Colors.transparent);
 
     final route = widget.item?.route ?? '';
@@ -1419,8 +1505,8 @@ class _NavRowState extends State<_NavRow> {
                 onTap: widget.onTap,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
+                    horizontal: IntesharSpacing.lg,
+                    vertical: IntesharSpacing.md,
                   ),
                   child: Row(
                     children: [
@@ -1441,13 +1527,14 @@ class _NavRowState extends State<_NavRow> {
                       Expanded(
                         child: Text(
                           label,
-                          style: TextStyle(
-                            fontFamily: 'CodecPro',
+                          // UX-127: was a half-point 13.5 at `w500`, which is
+                          // Codec Pro's News — LIGHTER than the w400 body it sat
+                          // beside. Inactive rows now read as regular weight.
+                          style: IntesharText.bodyLg(
                             color: fg,
-                            fontSize: 13.5,
-                            fontWeight: active
-                                ? FontWeight.w800
-                                : FontWeight.w500,
+                            w: active
+                                ? IntesharWeight.heavy
+                                : IntesharWeight.regular,
                             letterSpacing: 0.2,
                           ),
                         ),
@@ -1491,7 +1578,7 @@ void _showAboutSheet(BuildContext context) {
               Text(
                 l.aboutVersion,
                 style: GoogleFonts.jetBrainsMono(
-                  fontSize: 12,
+                  fontSize: IntesharScale.body,
                   color: cs.onSurfaceVariant,
                   letterSpacing: 0.6,
                 ),
@@ -1518,7 +1605,7 @@ void _showAboutSheet(BuildContext context) {
                       Text(
                         '${m.paperMm} mm',
                         style: GoogleFonts.jetBrainsMono(
-                          fontSize: 11,
+                          fontSize: IntesharScale.caption,
                           color: cs.onSurfaceVariant,
                           letterSpacing: 0.4,
                         ),
@@ -1584,7 +1671,7 @@ class _AboutDrawer extends StatelessWidget {
                       // On-brand surface: track onPrimary so it stays legible
                       // under a dark white-label brand (B-085).
                       color: cs.onPrimary.withValues(alpha: 0.65),
-                      fontSize: 11,
+                      fontSize: IntesharScale.caption,
                       letterSpacing: 1.4,
                     ),
                   ),

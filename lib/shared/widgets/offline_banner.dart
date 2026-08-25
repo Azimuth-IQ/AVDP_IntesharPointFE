@@ -73,7 +73,7 @@ class OfflineStrip extends ConsumerWidget {
                       ar ? 'لا يوجد اتصال بالخادم' : 'No connection to the server',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: IntesharType.sans(13.5, color: fg, w: FontWeight.w800),
+                      style: IntesharText.bodyLg(color: fg, w: IntesharWeight.heavy),
                     ),
                     Text(
                       ar
@@ -97,7 +97,7 @@ class OfflineStrip extends ConsumerWidget {
                       ref.read(connectivityProvider.notifier).checkNow(),
                   style: TextButton.styleFrom(
                     foregroundColor: fg,
-                    textStyle: IntesharType.sans(13, w: FontWeight.w700),
+                    textStyle: IntesharText.body(w: IntesharWeight.bold),
                   ),
                   child: Text(ar ? 'إعادة المحاولة' : 'Retry'),
                 ),

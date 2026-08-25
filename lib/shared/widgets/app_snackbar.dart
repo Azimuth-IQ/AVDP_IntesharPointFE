@@ -153,7 +153,10 @@ ScaffoldFeatureController<SnackBar, SnackBarClosedReason>? _show(
           Expanded(
             child: Text(
               message,
-              style: IntesharType.sans(14, color: foreground, w: FontWeight.w600),
+              style: IntesharText.bodyLg(
+                color: foreground,
+                w: IntesharWeight.semibold,
+              ),
             ),
           ),
         ],

@@ -80,13 +80,18 @@ class EmptyState extends StatelessWidget {
                 Text(
                   heading,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'CodecPro',
-                    fontSize: dense ? 15 : 17,
-                    fontWeight: FontWeight.w800,
-                    color: cs.onSurface,
-                    letterSpacing: -0.2,
-                  ),
+                  // UX-127: was an off-scale 15 / 17.
+                  style: dense
+                      ? IntesharText.bodyLg(
+                          color: cs.onSurface,
+                          w: IntesharWeight.heavy,
+                          letterSpacing: -0.2,
+                        )
+                      : IntesharText.title(
+                          color: cs.onSurface,
+                          w: IntesharWeight.heavy,
+                          letterSpacing: -0.2,
+                        ),
                 ),
                 const SizedBox(height: 8),
               ],

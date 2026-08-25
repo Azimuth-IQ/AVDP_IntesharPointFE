@@ -137,7 +137,7 @@ class _SliderCropDialogState extends State<_SliderCropDialog> {
                 isAr
                     ? 'اسحب وكبّر لضبط الإطار — تُحفظ الصورة أفقية بحجم ١ م.ب كحد أقصى.'
                     : 'Drag and zoom to frame the slide — saved landscape, 1 MB max.',
-                style: IntesharType.sans(12, color: cs.onSurfaceVariant),
+                style: IntesharText.body(color: cs.onSurfaceVariant),
               ),
               const SizedBox(height: 14),
               // UX-118: a hard height: 300 in a non-scrollable column pushed the
@@ -163,7 +163,7 @@ class _SliderCropDialogState extends State<_SliderCropDialog> {
               ),
               if (_error != null) ...[
                 const SizedBox(height: 8),
-                Text(_error!, style: IntesharType.sans(12, color: cs.error)),
+                Text(_error!, style: IntesharText.body(color: cs.error)),
               ],
               const SizedBox(height: 16),
               Row(

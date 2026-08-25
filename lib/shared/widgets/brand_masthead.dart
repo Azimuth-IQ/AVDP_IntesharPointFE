@@ -61,7 +61,8 @@ class BrandMasthead extends ConsumerWidget {
         // pinned so the masthead does not jump while the image loads.
         Flexible(
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            // UX-135: raw 8 is the PRE-B-094 value; the scale's small step is 10.
+            borderRadius: BorderRadius.circular(IntesharRadii.sm),
             child: ConstrainedBox(
               constraints: BoxConstraints(
                 minHeight: h,

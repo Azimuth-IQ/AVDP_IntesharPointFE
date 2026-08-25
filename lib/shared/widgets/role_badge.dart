@@ -12,7 +12,11 @@ class RoleBadge extends StatelessWidget {
   static Color colorFor(BuildContext context, EntityType type) {
     return switch (type) {
       EntityType.INTESHAR => context.tones.brandInk, // brand amber
-      EntityType.AGENT1   => const Color(0xFF2C3A55),    // ink blue
+      // UX-137: was a bare `Color(0xFF2C3A55)` — off-palette, untokenised, and
+      // with no dark counterpart.
+      EntityType.AGENT1   => Theme.of(context).brightness == Brightness.dark
+          ? IntesharColors.slateOnDark
+          : IntesharColors.slate,
       EntityType.AGENT2   => IntesharColors.oxblood,
       EntityType.STORE    => IntesharColors.sage,
     };

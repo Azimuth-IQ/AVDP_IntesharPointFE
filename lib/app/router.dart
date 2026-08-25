@@ -178,6 +178,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/store/home', builder: (_, _) => const DashboardPage()),
           GoRoute(path: '/store/reports', builder: (_, _) => const ReportsPage()),
           GoRoute(path: '/store/pos-users', builder: (_, _) => const PosAdminPage()),
+          // UX-107: a shop was the only tier with no Conversations route, so a
+          // reply from its agent had nowhere to land — even though the shell was
+          // already badging chat unread counts for every tier.
+          GoRoute(path: '/store/chat', builder: (_, _) => const ChatThreadsPage()),
           GoRoute(path: '/store/notifications', builder: (_, _) => const NotificationsInboxPage()),
         ],
       ),

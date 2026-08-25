@@ -60,6 +60,7 @@ const Map<String, (String, String)> _routes = {
   '/product/draw': ('Voucher drawn', 'سحب كرت'),
   '/product/bulk-quote': ('Bulk sale quote', 'تسعير بيع متعدد'),
   '/product/confirmprint': ('Print confirmed', 'تأكيد الطباعة'),
+  '/product/print-operations/summary': ('Sales totals', 'إجماليات المبيعات'),
   '/product/print-operations': ('Print history', 'سجل الطباعة'),
 
   // ── stock ───────────────────────────────────────────────────────────────
@@ -124,6 +125,7 @@ const Map<String, (String, String)> _routes = {
   '/pos-users/list/page': ('POS points list', 'قائمة نقاط البيع'),
   '/pos-users/list': ('POS points list', 'قائمة نقاط البيع'),
   '/pos/confirm-location': ('POS location confirmed', 'تأكيد موقع نقطة البيع'),
+  '/pos/statement/page': ('POS statement page', 'صفحة كشف حساب نقطة البيع'),
   '/pos/statement': ('POS statement', 'كشف حساب نقطة البيع'),
 
   // ── accounts ────────────────────────────────────────────────────────────

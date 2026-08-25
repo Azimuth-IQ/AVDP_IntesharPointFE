@@ -40,17 +40,35 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _totpCtrl = TextEditingController();
   final _newPassCtrl = TextEditingController();
   final _confirmPassCtrl = TextEditingController();
+  // UX-65: the sign-in form is the most-executed form in the product and had no
+  // deliberate focus order at all — nothing was focused on open and Enter did
+  // nothing, so every operator reached for the mouse (or the tap) twice before
+  // typing. These drive both: phone → password → submit.
+  final _phoneFocus = FocusNode(debugLabel: 'login.phone');
+  final _passFocus = FocusNode(debugLabel: 'login.password');
 
   @override
   void initState() {
     super.initState();
     // G17: restore a remembered phone so a daily operator doesn't retype it.
     sessionStorage.getRememberedPhone().then((phone) {
-      if (!mounted || phone == null || phone.isEmpty) return;
-      setState(() {
-        _phoneCtrl.text = phone;
-        _remember = true;
-      });
+      if (!mounted) return;
+      final restored = phone != null && phone.isNotEmpty;
+      if (restored) {
+        setState(() {
+          _phoneCtrl.text = phone;
+          _remember = true;
+        });
+      }
+      // UX-65: focus the first field that still needs typing. `autofocus` can't
+      // decide this — the remembered phone arrives from storage AFTER the first
+      // build — so the choice is made here, once the answer is known. Skipped if
+      // the operator already tapped a field: this callback lands a beat late and
+      // must never yank the caret out from under them.
+      final busy = _phoneFocus.hasFocus || _passFocus.hasFocus;
+      if (_totpStep == _TotpStep.credentials && !busy) {
+        (restored ? _passFocus : _phoneFocus).requestFocus();
+      }
     });
   }
 
@@ -61,6 +79,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     _totpCtrl.dispose();
     _newPassCtrl.dispose();
     _confirmPassCtrl.dispose();
+    _phoneFocus.dispose();
+    _passFocus.dispose();
     super.dispose();
   }
 
@@ -321,6 +341,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             formKey: _formKey,
             phoneCtrl: _phoneCtrl,
             passCtrl: _passCtrl,
+            phoneFocus: _phoneFocus,
+            passFocus: _passFocus,
             obscure: _obscure,
             onToggleObscure: () => setState(() => _obscure = !_obscure),
             remember: _remember,
@@ -480,11 +502,11 @@ class _TotpChallenge extends StatelessWidget {
             const SizedBox(height: 4),
             SelectableText(
               secret,
-              style: const TextStyle(
-                fontFamily: 'JetBrainsMono',
-                letterSpacing: 1.5,
-                fontSize: 13,
-              ),
+              // UX-125: was a bare `fontFamily: 'JetBrainsMono'` literal naming a
+              // family nothing had registered, so the secret the user has to
+              // transcribe into an authenticator rendered PROPORTIONAL. Goes
+              // through the helper now, which carries the mono fallback chain.
+              style: IntesharType.mono(13, w: FontWeight.w400, letterSpacing: 1.5),
             ),
             const SizedBox(height: 10),
             Text(
@@ -536,11 +558,11 @@ class _TotpChallenge extends StatelessWidget {
             maxLength: 6,
             autofocus: true,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 24,
-              letterSpacing: 10,
-              fontFamily: 'JetBrainsMono',
-            ),
+            // UX-125: `letterSpacing: 10` only reads as six evenly-spaced digit
+            // cells if the face actually has fixed advance widths — and the old
+            // `fontFamily: 'JetBrainsMono'` literal named an unregistered family,
+            // so it never did.
+            style: IntesharType.mono(24, w: FontWeight.w500, letterSpacing: 10),
             decoration: InputDecoration(
               labelText: ar ? 'رمز التحقق' : 'Verification code',
               counterText: '',
@@ -806,6 +828,8 @@ class _LoginForm extends ConsumerWidget {
   final GlobalKey<FormState> formKey;
   final TextEditingController phoneCtrl;
   final TextEditingController passCtrl;
+  final FocusNode phoneFocus;
+  final FocusNode passFocus;
   final bool obscure;
   final VoidCallback onToggleObscure;
   final bool remember;
@@ -821,6 +845,8 @@ class _LoginForm extends ConsumerWidget {
     required this.formKey,
     required this.phoneCtrl,
     required this.passCtrl,
+    required this.phoneFocus,
+    required this.passFocus,
     required this.obscure,
     required this.onToggleObscure,
     required this.remember,
@@ -870,7 +896,13 @@ class _LoginForm extends ConsumerWidget {
           const SizedBox(height: 28),
           TextFormField(
             controller: phoneCtrl,
+            focusNode: phoneFocus,
             keyboardType: TextInputType.phone,
+            // UX-65: the phone is the username here, so the platform can offer
+            // the saved credential instead of the operator retyping it.
+            autofillHints: const [AutofillHints.username, AutofillHints.telephoneNumber],
+            textInputAction: TextInputAction.next,
+            onFieldSubmitted: (_) => passFocus.requestFocus(),
             style: IntesharType.mono(
               14,
               color: cs.onSurface,
@@ -887,7 +919,16 @@ class _LoginForm extends ConsumerWidget {
           const SizedBox(height: 14),
           TextFormField(
             controller: passCtrl,
+            focusNode: passFocus,
             obscureText: obscure,
+            autofillHints: const [AutofillHints.password],
+            // UX-65: Enter on the last field submits — the same thing the "Sign
+            // in" button does, guarded by the same `loading` check so a double
+            // Enter can't fire two logins.
+            textInputAction: TextInputAction.done,
+            onFieldSubmitted: (_) {
+              if (!loading) onSignIn();
+            },
             style: IntesharType.mono(
               14,
               color: cs.onSurface,

@@ -72,7 +72,40 @@ flutter:
   generate: true
   assets:
     - assets/images/
+    # UX-125: the mono faces are declared as ASSETS as well as a font family.
+    # `google_fonts` resolves a bundled face by scanning the ASSET manifest for a
+    # path ending in `<Family>-<Variant>.ttf` — files listed only under `fonts:`
+    # are not in that manifest. With this folder declared, the ~18 direct
+    # `GoogleFonts.jetBrainsMono(...)` call sites load from the bundle instead of
+    # the network, which is what lets `allowRuntimeFetching` be turned off.
+    - assets/fonts/mono/
   fonts:
+    # UX-125: JetBrains Mono, bundled. It used to be fetched at RUNTIME by
+    # `google_fonts` with nothing bundled, so on a Sunmi POS with a poor link
+    # every serial, PIN, price and balance rendered in the PROPORTIONAL default
+    # until the fetch landed — permanently if it never did — and the two bare
+    # `fontFamily: 'JetBrainsMono'` literals on the login screen named a family
+    # that was not registered at all.
+    #
+    # Only the 5 weights the app actually asks for are shipped (400/500/600/700/
+    # 800; `w900` call sites resolve to ExtraBold, the heaviest face JetBrains
+    # Mono has). Each is subset to Latin-1 + punctuation + currency — 83 KB
+    # instead of 275 KB; the family carries no Arabic, so nothing is lost that
+    # was ever rendered from it. Licensed OFL 1.1 (JetBrainsMono-OFL.txt).
+    # Filenames MUST keep the `JetBrainsMono-<Variant>` form — google_fonts
+    # matches bundled faces by that exact suffix.
+    - family: JetBrainsMono
+      fonts:
+        - asset: assets/fonts/mono/JetBrainsMono-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/mono/JetBrainsMono-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/mono/JetBrainsMono-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/mono/JetBrainsMono-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/mono/JetBrainsMono-ExtraBold.ttf
+          weight: 800
     - family: CodecPro
       fonts:
         - asset: assets/fonts/CodecPro-Light.ttf

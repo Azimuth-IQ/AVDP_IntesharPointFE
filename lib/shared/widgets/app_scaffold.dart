@@ -319,6 +319,18 @@ class AppShell extends ConsumerWidget {
             required: Capability.MANAGE_CATALOG,
             group: 'catalog',
           ),
+          // UX-01: HQ had no pricing destination at all — the page was mounted
+          // only under /agent1 — while the HQ landing page permanently reports
+          // "N agents with unpriced cards". Filed under Catalog, next to the SKUs
+          // whose prices it sets.
+          _NavItem(
+            Icons.sell_outlined,
+            Icons.sell,
+            l.navPrices,
+            '/hq/pricing',
+            required: Capability.MANAGE_PRICING,
+            group: 'catalog',
+          ),
           _NavItem(
             Icons.receipt_long_outlined,
             Icons.receipt_long,

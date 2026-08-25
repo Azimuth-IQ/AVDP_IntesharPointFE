@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
 /// "Inteshar Sunburst" — the brand-led design language.
@@ -434,19 +433,21 @@ extension StatusToneContext on BuildContext {
       );
 }
 
-/// Platform monospace families to fall back to when the JetBrains Mono webfont
-/// has not been fetched yet — or never will be (UX-125).
+/// The bundled JetBrains Mono family (see `pubspec.yaml`, `assets/fonts/mono/`).
+/// Weights 400–800 ship; a `w900` request resolves to ExtraBold, the heaviest
+/// face the family has.
+const String kMonoFamily = 'JetBrainsMono';
+
+/// Platform monospace families to fall back to if the bundled face is somehow
+/// unavailable — and, more usefully, for the glyphs it does not carry (UX-125).
 ///
-/// `google_fonts` fetches at RUNTIME and nothing is bundled, so on a POS
-/// handheld with a poor link every serial, PIN, price and balance renders in the
-/// PROPORTIONAL default until the fetch lands — permanently if it never does.
-/// That breaks column alignment and any `letterSpacing` tuned for fixed advance
-/// widths. Falling back to a real platform monospace degrades gracefully instead.
-///
-/// The first entry is the resolved google_fonts family name, so a loaded
-/// JetBrains Mono still wins.
+/// This used to be the whole defence: `google_fonts` fetched JetBrains Mono at
+/// RUNTIME with nothing bundled, so on a POS handheld with a poor link every
+/// serial, PIN, price and balance rendered in the PROPORTIONAL default until the
+/// fetch landed — permanently if it never did. That breaks column alignment and
+/// any `letterSpacing` tuned for fixed advance widths. The face is bundled now,
+/// so this chain is a safety net rather than the normal path.
 const List<String> kMonoFallback = <String>[
-  'JetBrains Mono', // google_fonts, once the fetch has landed
   'RobotoMono', // Android
   'monospace', // Android / Linux / web generic
   'Menlo', // macOS / iOS
@@ -496,12 +497,20 @@ class IntesharType {
 
   /// True monospace — reserved for serials, PINs, MAC addresses, hex dumps.
   ///
-  /// UX-125: `google_fonts` overwrites `fontFamilyFallback` with just its own
-  /// family, so the fallback chain is re-applied here. Without it an unfetched
-  /// webfont drops these to the proportional default — see [kMonoFallback].
+  /// UX-125: resolves the BUNDLED [kMonoFamily] synchronously. It used to call
+  /// `GoogleFonts.jetBrainsMono`, which returns a style naming a font that may
+  /// not have been downloaded yet — every one of these ~110 call sites rendered
+  /// proportional until the fetch landed. [kMonoFallback] stays attached for the
+  /// glyphs JetBrains Mono does not carry (e.g. Arabic).
   static TextStyle mono(double size, {Color? color, FontWeight w = FontWeight.w500, double? letterSpacing}) =>
-      GoogleFonts.jetBrainsMono(fontSize: size, fontWeight: w, color: color, letterSpacing: letterSpacing ?? 0)
-          .copyWith(fontFamilyFallback: kMonoFallback);
+      TextStyle(
+        fontFamily: kMonoFamily,
+        fontFamilyFallback: kMonoFallback,
+        fontSize: size,
+        fontWeight: w,
+        color: color,
+        letterSpacing: letterSpacing ?? 0,
+      );
 
   /// Tracking-wide editorial overline. Reads like "DEPARTMENT — SECTION".
   static TextStyle overline({Color? color, double size = 11}) => TextStyle(

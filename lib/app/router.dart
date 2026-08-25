@@ -133,6 +133,11 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/hq/companies', builder: (_, _) => const CompaniesPage()),
           GoRoute(path: '/hq/entities', builder: (_, _) => const EntityTreePage()),
           GoRoute(path: '/hq/definitions', builder: (_, _) => const DefinitionsPage()),
+          // UX-01: PricingPage used to be mounted at /agent1/pricing ONLY, so HQ —
+          // the tier that publishes the default price and the tier the landing
+          // page nags about "N agents with unpriced cards" — had no screen to set
+          // an agent's price on. Same page; it resolves the caller's tier itself.
+          GoRoute(path: '/hq/pricing', builder: (_, _) => const PricingPage()),
           GoRoute(path: '/hq/templates', builder: (_, _) => const VoucherTemplatesPage()),
           GoRoute(path: '/hq/inventory', builder: (_, _) => const InventoryPage()),
           GoRoute(path: '/hq/batch', builder: (_, _) => const BatchAddPage()),

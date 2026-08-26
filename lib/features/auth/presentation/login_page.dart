@@ -938,6 +938,12 @@ class _LoginForm extends ConsumerWidget {
               labelText: l.loginPassword,
               prefixIcon: const Icon(Icons.lock_outline, size: 18),
               suffixIcon: IconButton(
+                // UX-150: an icon-only control that toggles whether a secret is
+                // on screen has to say which way it will go — and this is the
+                // first control anyone meets, on the sign-in screen.
+                tooltip: obscure
+                    ? (ar ? 'إظهار كلمة المرور' : 'Show password')
+                    : (ar ? 'إخفاء كلمة المرور' : 'Hide password'),
                 icon: Icon(
                   obscure
                       ? Icons.visibility_outlined

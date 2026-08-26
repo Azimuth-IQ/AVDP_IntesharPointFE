@@ -216,6 +216,13 @@ class _Thumb extends StatelessWidget {
             width: 72,
             height: 72,
             fit: BoxFit.cover,
+            // Each thumbnail is a removable item, not decoration — without a
+            // name a screen reader reads a row of ✕ buttons with nothing
+            // attached to them (UX-150).
+            semanticLabel:
+                Localizations.localeOf(context).languageCode == 'ar'
+                    ? 'صورة مرفوعة'
+                    : 'Uploaded image',
             errorBuilder: (context, error, stackTrace) => Container(
               width: 72,
               height: 72,
@@ -347,6 +354,15 @@ class _ImageUploadFieldState extends ConsumerState<ImageUploadField> {
                 child: Image.network(
                   widget.value!,
                   fit: BoxFit.contain,
+                  // UX-150: this preview IS the content being managed — the
+                  // logo or slide the operator just uploaded — so unlike the
+                  // decorative brand art it needs a name. Flutter announces
+                  // nothing for an Image with no semanticLabel, which is right
+                  // for a backdrop and wrong here.
+                  semanticLabel: widget.label ??
+                      (Localizations.localeOf(context).languageCode == 'ar'
+                          ? 'الصورة المرفوعة'
+                          : 'Uploaded image'),
                   errorBuilder: (context, error, stackTrace) => Icon(
                     Icons.broken_image_outlined,
                     size: 22,

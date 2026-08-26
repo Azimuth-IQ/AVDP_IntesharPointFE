@@ -1886,6 +1886,9 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
                   suffixIcon: _query.isEmpty
                       ? null
                       : IconButton(
+                          // UX-150: a bare × beside a search box is the one
+                          // control a screen reader announces as just "button".
+                          tooltip: _tr(context, 'مسح البحث', 'Clear search'),
                           icon: const Icon(Icons.close, size: 18),
                           onPressed: () => setState(() {
                             _searchCtrl.clear();

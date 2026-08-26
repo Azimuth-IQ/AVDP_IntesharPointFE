@@ -699,21 +699,20 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
     );
   }
 
-  Widget _stat(String label, String value, ColorScheme cs, {Color? tint}) => Expanded(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: IntesharType.sans(11, color: cs.onSurfaceVariant)),
-          const SizedBox(height: 2),
-          // Money SHRINKS, it never ellipsizes. A daily total of 25,876,000 IQD
-          // clipped to "25,876…" is worse than small type — it reads as a
-          // different number. Same rule as the POS balance tally.
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: AlignmentDirectional.centerStart,
-            child: Text(value,
-                maxLines: 1,
-                style: IntesharType.mono(15, color: tint ?? cs.onSurface, w: FontWeight.w700)),
-          ),
-        ]),
+  /// UX-130: was a hand-rolled label+figure column. `FigureBlock` renders the
+  /// same thing — including the scale-down that keeps a 25,876,000 IQD total a
+  /// NUMBER rather than "25,876…" — so this is now a thin adapter that supplies
+  /// the Expanded these sit in.
+  Widget _stat(String label, String value, ColorScheme cs, {Color? tint}) =>
+      Expanded(
+        child: FigureBlock(
+          label: label,
+          value: value,
+          size: FigureSize.small,
+          monoValue: true,
+          showDot: false,
+          valueColor: tint,
+        ),
       );
 
   Future<void> _printReport() async {

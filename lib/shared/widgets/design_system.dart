@@ -423,7 +423,15 @@ class FigureBlock extends StatelessWidget {
   final String label;
   final String value;
   final String? note;
+
+  /// Colour of the 6px dot before the label. Defaults to `tones.brand`.
   final Color? accent;
+
+  /// Colour of the figure itself. Defaults to `onSurface` — set it only when the
+  /// NUMBER carries a status the reader must not miss (a non-zero "not printed"
+  /// count in danger, say). Distinct from [accent], which decorates; this one
+  /// means something.
+  final Color? valueColor;
   final bool monoValue;
 
   /// Hero-numeral size. Defaults to [FigureSize.medium].
@@ -439,6 +447,7 @@ class FigureBlock extends StatelessWidget {
     required this.value,
     this.note,
     this.accent,
+    this.valueColor,
     this.monoValue = false,
     this.size = FigureSize.medium,
     this.showDot = true,
@@ -489,9 +498,9 @@ class FigureBlock extends StatelessWidget {
             maxLines: 1,
             style: monoValue
                 ? IntesharType.mono(size.value,
-                    color: cs.onSurface, w: IntesharWeight.bold)
+                    color: valueColor ?? cs.onSurface, w: IntesharWeight.bold)
                 : IntesharType.display(size.value,
-                    color: cs.onSurface, w: IntesharWeight.black),
+                    color: valueColor ?? cs.onSurface, w: IntesharWeight.black),
           ),
         ),
         if (note != null) ...[

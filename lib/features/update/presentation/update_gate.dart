@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/features/update/application/update_controller.dart';
 import 'package:inteshar/features/update/domain/app_release.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
@@ -242,7 +243,7 @@ class _ReleaseSummary extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: cs.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(IntesharRadii.md),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

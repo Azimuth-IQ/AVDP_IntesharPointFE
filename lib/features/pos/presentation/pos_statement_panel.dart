@@ -285,7 +285,7 @@ class _PosStatementPanelState extends ConsumerState<PosStatementPanel> {
             height: 32,
             decoration: BoxDecoration(
               color: tint.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(IntesharRadii.sm),
             ),
             alignment: Alignment.center,
             child: Icon(grant ? Icons.south_west : Icons.receipt_long,

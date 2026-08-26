@@ -917,7 +917,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
             height: 32,
             decoration: BoxDecoration(
               color: tint.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(IntesharRadii.sm),
             ),
             alignment: Alignment.center,
             child: Icon(sent ? Icons.north_east : Icons.south_west,

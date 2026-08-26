@@ -166,7 +166,7 @@ Future<String?> showArchivePosDialog(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: downloaded ? cs.primaryContainer : cs.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(IntesharRadii.md),
                   ),
                   child: Row(children: [
                     Icon(
@@ -354,7 +354,7 @@ class _PosArchiveViewState extends ConsumerState<PosArchiveView> {
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: blocked ? cs.errorContainer : cs.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(IntesharRadii.md),
                 ),
                 child: Row(children: [
                   Icon(blocked ? Icons.block : Icons.confirmation_number_outlined,

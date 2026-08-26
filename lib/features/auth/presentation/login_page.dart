@@ -489,7 +489,7 @@ class _TotpChallenge extends StatelessWidget {
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(IntesharRadii.md),
                 ),
                 child: QrImageView(data: otpauthUri, size: 184),
               ),
@@ -523,7 +523,7 @@ class _TotpChallenge extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
                 color: cs.primaryContainer.withValues(alpha: 0.45),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(IntesharRadii.sm),
                 border: Border.all(color: cs.primary.withValues(alpha: 0.3)),
               ),
               child: Row(
@@ -955,7 +955,7 @@ class _LoginForm extends ConsumerWidget {
             alignment: AlignmentDirectional.centerStart,
             child: InkWell(
               onTap: () => onToggleRemember(!remember),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(IntesharRadii.sm),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Row(

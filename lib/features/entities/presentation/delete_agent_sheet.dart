@@ -350,7 +350,7 @@ class DeleteAgentSheetBody extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: done ? cs.primaryContainer : cs.errorContainer,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(IntesharRadii.md),
       ),
       child: Row(children: [
         Icon(done ? Icons.check_circle_outline : Icons.info_outline,

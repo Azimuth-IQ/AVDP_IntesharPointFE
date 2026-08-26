@@ -717,7 +717,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                   constraints: const BoxConstraints(maxHeight: 220),
                   decoration: BoxDecoration(
                     border: Border.all(color: cs.outlineVariant),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(IntesharRadii.sm),
                   ),
                   child: Scrollbar(
                     child: SingleChildScrollView(

@@ -180,7 +180,12 @@ List<EntityRowAction> availableActions(
     if (canManage && row.type != EntityType.INTESHAR) EntityRowAction.visibleProducts,
     if (canDrillIn) EntityRowAction.viewInventory,
     if (canManage && childTypeOf(row.type) != null) EntityRowAction.addChild,
-    if (canManage) EntityRowAction.delete,
+    // The platform root is never deletable. On 2026-08-25 an operator cleared the
+    // tree bottom-up and finished on `inteshar-root`; the server accepted it, and
+    // with no entity left holding anyone's phone, nobody could authenticate and
+    // no account existed that could create one — recovery needed database access.
+    // The server refuses this now; the menu should not offer it either.
+    if (canManage && row.type != EntityType.INTESHAR) EntityRowAction.delete,
   ];
 }
 

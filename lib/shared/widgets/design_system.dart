@@ -7,6 +7,23 @@ import 'package:inteshar/shared/widgets/brand_star.dart';
 /// shadows, status reads as friendly chips (not rubber stamps), titles are
 /// chunky sans (not editorial italic serif), brand identity is the angular
 /// flying-star mark (not a publisher monogram).
+///
+/// ## Icon style (UX-139)
+///
+/// **Outlined is the default.** A UI icon — in a button, a row, a chip, a list
+/// tile — is `Icons.x_outlined`.
+///
+/// Filled is reserved for three cases, and they are the only ones:
+/// * the **selected** half of a navigation pair (`_NavItem(icon, selectedIcon)`),
+///   where the weight change IS the selection signal;
+/// * a **brand mark** rendered large (see `pos_brand.dart` at 40–64px), where an
+///   outline reads as a diagram rather than a logo;
+/// * a **glyph under ~12px** (a `StampPill` badge), where the outline's interior
+///   collapses and the shape stops being legible.
+///
+/// The drift this replaced was not aesthetic: `printer_picker_page` used
+/// `Icons.print_disabled_outlined : Icons.print` inside a single ternary, so one
+/// control changed weight as well as meaning when a printer went unreachable.
 
 // ─── Hairline ───────────────────────────────────────────────────────────────
 

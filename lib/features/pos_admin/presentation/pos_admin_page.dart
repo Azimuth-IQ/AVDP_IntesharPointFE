@@ -412,7 +412,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
                 icon: _isBusy('page:onboard')
                     ? const SizedBox(
                         width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.point_of_sale, size: 18),
+                    : const Icon(Icons.point_of_sale_outlined, size: 18),
                 label: Text(s.onboard),
               ),
             ),

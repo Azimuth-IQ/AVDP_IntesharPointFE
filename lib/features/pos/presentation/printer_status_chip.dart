@@ -55,7 +55,7 @@ PrinterStatusInfo printerStatusInfo(PrinterState s, {required bool ar}) {
     case PrinterStatus.connected:
       return PrinterStatusInfo(
         label: name.isNotEmpty ? name : (ar ? 'الطابعة متصلة' : 'Printer connected'),
-        icon: Icons.print,
+        icon: Icons.print_outlined,
         tone: PrinterChipTone.ready,
       );
 

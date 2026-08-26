@@ -934,7 +934,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
             Wrap(spacing: 8, runSpacing: 8, children: [
               OutlinedButton.icon(
                 onPressed: _saving ? null : () => _exportXlsx(s),
-                icon: const Icon(Icons.download, size: 16),
+                icon: const Icon(Icons.download_outlined, size: 16),
                 label: Text(s.exportXlsx),
               ),
               FilledButton.tonalIcon(

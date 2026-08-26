@@ -629,7 +629,7 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
                   borderRadius: BorderRadius.circular(IntesharRadii.xs),
                 ),
                 child: Icon(
-                  unreachable ? Icons.print_disabled_outlined : Icons.print,
+                  unreachable ? Icons.print_disabled_outlined : Icons.print_outlined,
                   color: tint,
                   size: 18,
                 ),

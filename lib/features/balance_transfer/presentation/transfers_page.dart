@@ -1025,14 +1025,7 @@ class TransferBalanceCard extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
       child: Row(children: [
         // The one flash of brand colour on the card.
-        Container(
-          width: 3,
-          height: 40,
-          decoration: BoxDecoration(
-            color: context.tones.brand,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
+        BrandRule(width: 3, height: 40),
         const SizedBox(width: 14),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

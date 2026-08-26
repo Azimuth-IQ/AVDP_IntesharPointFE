@@ -378,7 +378,7 @@ class _InventoryValueCard extends StatelessWidget {
                       child: Text(
                         l.inventoryValueLabel,
                         style: IntesharType.sans(12,
-                            color: IntesharColors.inkSoft, w: FontWeight.w600),
+                            color: cs.onSurfaceVariant, w: FontWeight.w600),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -414,7 +414,7 @@ class _InventoryValueCard extends StatelessWidget {
                       : (estimatedBasis
                           ? 'available cards × price — some categories at the default price'
                           : 'available cards × your effective price'),
-                  style: IntesharType.sans(11, color: IntesharColors.inkSoft),
+                  style: IntesharType.sans(11, color: cs.onSurfaceVariant),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -431,7 +431,7 @@ class _InventoryValueCard extends StatelessWidget {
               ),
               Text(
                 l.inventoryValueUnits,
-                style: IntesharType.sans(11, color: IntesharColors.inkSoft),
+                style: IntesharType.sans(11, color: cs.onSurfaceVariant),
               ),
             ],
           ),
@@ -1152,7 +1152,7 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
                         const SizedBox(height: 2),
                         Text(
                           '${Formatters.iqd(s.defaultPrice.round())}  ·  ${l.inventoryUnitCount(s.total)}',
-                          style: IntesharType.sans(12, color: IntesharColors.inkSoft),
+                          style: IntesharType.sans(12, color: cs.onSurfaceVariant),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -1411,7 +1411,9 @@ class _LoadMoreRow extends StatelessWidget {
 class _ProductRowHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final style = IntesharType.sans(11, color: IntesharColors.inkSoft, w: FontWeight.w700);
+    final style = IntesharType.sans(11,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+        w: FontWeight.w700);
     final l = AppLocalizations.of(context)!;
     return Row(
       children: [

@@ -2456,14 +2456,7 @@ class _TotalStrip extends StatelessWidget {
       Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Container(
-            width: 3,
-            height: 38,
-            decoration: BoxDecoration(
-              color: context.tones.brand,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
+          BrandRule(width: 3, height: 38),
           const SizedBox(width: 12),
           // Grouped at the start rather than flung to opposite edges — on a wide
           // screen an Expanded main column left the sub-figure stranded ~900px away.

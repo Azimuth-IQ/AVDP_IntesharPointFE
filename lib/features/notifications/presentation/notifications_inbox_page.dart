@@ -464,7 +464,7 @@ Widget _kvRow(BuildContext context, String label, String value) {
             label,
             style: IntesharType.sans(
               11.5,
-              color: IntesharColors.inkSoft,
+              color: cs.onSurfaceVariant,
               w: FontWeight.w600,
             ),
           ),

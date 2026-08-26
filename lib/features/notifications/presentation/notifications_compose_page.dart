@@ -340,7 +340,7 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
           const SizedBox(height: 12),
           TextField(controller: _bodyCtrl, decoration: InputDecoration(labelText: s.fieldBody), maxLines: 4, minLines: 3),
           const SizedBox(height: 16),
-          Text(s.kindLabel, style: IntesharType.sans(12, color: IntesharColors.inkSoft, w: FontWeight.w600)),
+          Text(s.kindLabel, style: IntesharType.sans(12, color: cs.onSurfaceVariant, w: FontWeight.w600)),
           const SizedBox(height: 8),
           SegmentedButton<bool>(
             showSelectedIcon: false,
@@ -352,7 +352,7 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
             onSelectionChanged: (sel) => setState(() => _isAlert = sel.first),
           ),
           const SizedBox(height: 16),
-          Text(s.audienceLabel, style: IntesharType.sans(12, color: IntesharColors.inkSoft, w: FontWeight.w600)),
+          Text(s.audienceLabel, style: IntesharType.sans(12, color: cs.onSurfaceVariant, w: FontWeight.w600)),
           const SizedBox(height: 8),
           SegmentedButton<_Mode>(
             showSelectedIcon: false,

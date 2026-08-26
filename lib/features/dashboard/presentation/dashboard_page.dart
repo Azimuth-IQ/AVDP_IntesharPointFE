@@ -356,7 +356,7 @@ class _SlimHeader extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 subtitle,
-                style: IntesharType.sans(13, color: IntesharColors.inkSoft),
+                style: IntesharType.sans(13, color: cs.onSurfaceVariant),
               ),
             ],
           ),
@@ -490,7 +490,7 @@ class _KpiRow extends StatelessWidget {
           value: Formatters.money(availableCount),
           caption: l.dashKpiSkusCount(availableSkuCount),
           icon: Icons.inventory_2_outlined,
-          tint: const Color(0xFF2563EB),
+          tint: IntesharColors.azure,
         ),
       if (showInventory)
         _KpiTile(
@@ -528,7 +528,7 @@ class _KpiRow extends StatelessWidget {
           value: Formatters.money(grantedThisMonth),
           caption: ar ? 'هذا الشهر' : 'this month',
           icon: Icons.north_east,
-          tint: const Color(0xFF2563EB),
+          tint: IntesharColors.azure,
         ),
     ];
 
@@ -641,7 +641,7 @@ class _KpiTile extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: IntesharType.sans(
                     12,
-                    color: IntesharColors.inkSoft,
+                    color: cs.onSurfaceVariant,
                     w: FontWeight.w600,
                   ),
                 ),
@@ -658,7 +658,7 @@ class _KpiTile extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 caption,
-                style: IntesharType.sans(12, color: IntesharColors.inkSoft),
+                style: IntesharType.sans(12, color: cs.onSurfaceVariant),
               ),
             ],
           ),
@@ -1111,7 +1111,6 @@ class _BalanceCard extends ConsumerWidget {
     final showTransfer =
         canTransfer && children.isNotEmpty && transfersRoute != null;
     final cs = Theme.of(context).colorScheme;
-    final tones = context.tones;
     // UX-20: `available` is `base − grantsOut`, and the card rendered only the
     // result — while the pricing screen shows `قيمة المخزون` (stock × price) on a
     // completely different basis. Neither stated what it was, so two money
@@ -1139,14 +1138,7 @@ class _BalanceCard extends ConsumerWidget {
           Row(
             children: [
               // The one flash of brand colour on the card.
-              Container(
-                width: 3,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: tones.brand,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              BrandRule(width: 3, height: 40),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(

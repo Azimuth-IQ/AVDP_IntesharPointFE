@@ -356,6 +356,69 @@ enum FigureSize {
 /// figures are stacked in a column and must align on the digit — a balance
 /// ledger, a serial count — and wrong for a single standalone KPI, where the
 /// proportional brand face reads better.
+/// The brand-filled KPI strip: two or more figures in a row on a brand slab.
+///
+/// Distinct from [FigureBlock] on purpose, and not a variant of it. FigureBlock
+/// is a figure on PAPER — its label is `onSurfaceVariant` and its value
+/// `onSurface`. This one sits on `tones.brand`, so every foreground is the
+/// MEASURED `onBrand`; passing paper colours here is how a dark white-label
+/// brand (navy, maroon) ends up with near-black text on a near-black slab.
+///
+/// It exists because `pos_admin_page` and `pos_network_view` had built it twice,
+/// identically, down to the 18/16 padding and the `alpha: 0.18` divider —
+/// differing only in a numeral at 24 vs 22 and a divider at 34 vs 30, which is
+/// drift rather than intent. Standardised on [IntesharScale.display].
+class BrandKpiStrip extends StatelessWidget {
+  /// Label/value pairs, laid out left to right with a hairline between each.
+  final List<(String label, String value)> stats;
+
+  const BrandKpiStrip({super.key, required this.stats});
+
+  @override
+  Widget build(BuildContext context) {
+    final tones = context.tones;
+    final children = <Widget>[];
+    for (var i = 0; i < stats.length; i++) {
+      if (i > 0) {
+        children.add(Container(
+          width: 1,
+          height: 34,
+          color: tones.onBrand.withValues(alpha: 0.18),
+        ));
+      }
+      final (label, value) = stats[i];
+      children.add(Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: IntesharType.overline(
+                  color: tones.onBrand.withValues(alpha: 0.7))),
+          const SizedBox(height: 2),
+          // FittedBox so an unbounded figure (a money total, or the root's "∞")
+          // shrinks rather than overflowing a fixed-width column.
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: AlignmentDirectional.centerStart,
+            child: Text(value,
+                maxLines: 1,
+                style: IntesharText.display(color: tones.onBrand)
+                    .copyWith(height: 1)),
+          ),
+        ]),
+      ));
+    }
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+      decoration: BoxDecoration(
+        color: tones.brand,
+        borderRadius: BorderRadius.circular(IntesharRadii.lg),
+      ),
+      child: Row(children: children),
+    );
+  }
+}
+
 class FigureBlock extends StatelessWidget {
   final String label;
   final String value;

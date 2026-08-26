@@ -510,43 +510,13 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     );
   }
 
-  Widget _quotaCard(_S s, PosSlotBalance q) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-      decoration: BoxDecoration(color: context.tones.brand, borderRadius: BorderRadius.circular(IntesharRadii.lg)),
-      child: Row(children: [
-        _stat(s.available, q.root ? '∞' : Formatters.money(q.available)),
-        _divider(),
-        _stat(s.used, Formatters.money(q.used)),
-        _divider(),
-        _stat(s.total, q.root ? '∞' : Formatters.money(q.total)),
-      ]),
-    );
-  }
+  Widget _quotaCard(_S s, PosSlotBalance q) => BrandKpiStrip(stats: [
+        (s.available, q.root ? '∞' : Formatters.money(q.available)),
+        (s.used, Formatters.money(q.used)),
+        (s.total, q.root ? '∞' : Formatters.money(q.total)),
+      ]);
 
-  /// The quota card is a BRAND fill, so everything on it is `onBrand` — the
-  /// measured foreground for whatever colour the signed-in agent's white label
-  /// resolved to. Hardcoded `IntesharColors.ink` was black-on-anything.
-  Widget _stat(String label, String value) => Expanded(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label,
-              style: IntesharType.overline(
-                  color: context.tones.onBrand.withValues(alpha: 0.7))),
-          const SizedBox(height: 2),
-          Text(value,
-              style: TextStyle(
-                  fontFamily: 'CodecPro',
-                  fontSize: 24,
-                  fontWeight: FontWeight.w900,
-                  color: context.tones.onBrand,
-                  height: 1)),
-        ]),
-      );
 
-  Widget _divider() => Container(
-      width: 1,
-      height: 34,
-      color: context.tones.onBrand.withValues(alpha: 0.18));
 
   /// The shop's single POS operator (isPos) — falls back to the first user.
   /// The shop's POS operator, or null when it has none.

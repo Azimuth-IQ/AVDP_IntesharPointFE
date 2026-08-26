@@ -288,44 +288,14 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
     );
   }
 
-  Widget _kpiStrip(_NS s, PosNetworkSummary q) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-      decoration: BoxDecoration(color: context.tones.brand, borderRadius: BorderRadius.circular(IntesharRadii.lg)),
-      child: Row(children: [
-        _stat(s.points, '${q.totalUsed}'),
-        _kpiDivider(),
-        _stat(s.unused, '${q.unused}'),
-        _kpiDivider(),
-        _stat(s.issued, '${q.totalIssued}'),
-        _kpiDivider(),
-        _stat(s.agents, '${q.agents}'),
-      ]),
-    );
-  }
+  Widget _kpiStrip(_NS s, PosNetworkSummary q) => BrandKpiStrip(stats: [
+        (s.points, '${q.totalUsed}'),
+        (s.unused, '${q.unused}'),
+        (s.issued, '${q.totalIssued}'),
+        (s.agents, '${q.agents}'),
+      ]);
 
-  /// On the brand-filled KPI strip, so the foreground is the measured `onBrand`
-  /// rather than a hardcoded ink that a dark white-label brand swallows.
-  Widget _stat(String label, String value) => Expanded(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label,
-              style: IntesharType.overline(
-                  color: context.tones.onBrand.withValues(alpha: 0.7))),
-          const SizedBox(height: 2),
-          Text(value,
-              style: TextStyle(
-                  fontFamily: 'CodecPro',
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  color: context.tones.onBrand,
-                  height: 1)),
-        ]),
-      );
 
-  Widget _kpiDivider() => Container(
-      width: 1,
-      height: 30,
-      color: context.tones.onBrand.withValues(alpha: 0.18));
 
   Widget _agentCard(_NS s, PosNetworkRow r, ColorScheme cs) {
     final isSub = r.tier == 'AGENT2';

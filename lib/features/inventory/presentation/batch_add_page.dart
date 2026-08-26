@@ -17,6 +17,7 @@ import 'package:inteshar/core/geo/governorates.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
 import 'package:inteshar/features/entities/domain/entity_summary_row.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
+import 'package:inteshar/shared/widgets/entity_search_picker.dart';
 import 'package:inteshar/features/inventory/data/definition_repository.dart';
 import 'package:inteshar/features/inventory/data/product_repository.dart';
 import 'package:inteshar/features/inventory/domain/product_definition.dart';
@@ -64,6 +65,61 @@ enum BatchRowAction {
 
   /// The row has an empty serial or PIN — skip silently.
   invalid,
+}
+
+/// A question the operator must answer before a batch import can go out.
+enum BatchImportRequirement {
+  category,
+
+  /// Which Main Agent's warehouse receives the codes.
+  warehouse,
+  vouchers,
+
+  /// Region-locked formats only: whether these are for one governorate or
+  /// deliberately region-free.
+  saleScope,
+
+  /// Region-locked and scoped to one governorate: which one.
+  governorate,
+}
+
+/// What is still unanswered on the batch-import screen, in the order it is shown.
+///
+/// Extracted from widget state deliberately. Two customer-visible incidents came
+/// from this gate rather than from the import itself:
+///
+/// - **C-08** — the sale scope defaulted to "answered", so an operator uploading
+///   "for Karbala" produced stock sellable in all 18 governorates and was never
+///   told. Fixed by making an unanswered scope block the import; then found again
+///   in `_canImport`, which re-stated three of the four checks and dropped the
+///   scope, so the button stayed pressable. The gate and the button must be the
+///   same rule — hence one function with one caller.
+/// - **UX-14** — the warehouse defaulted to the first agent in a truncated list,
+///   which made [warehouse] unreachable and quietly sent thousands of codes to
+///   whoever sorted first.
+///
+/// Both were a required question that did not look required. That is the class of
+/// bug this function exists to make testable.
+List<BatchImportRequirement> batchImportMissing({
+  required bool hasCategory,
+  required bool hasWarehouse,
+  required bool hasVouchers,
+  required bool regionLockedFormat,
+  required bool? regionLockedScope,
+  required bool hasGovernorate,
+}) {
+  final missing = <BatchImportRequirement>[];
+  if (!hasCategory) missing.add(BatchImportRequirement.category);
+  if (!hasWarehouse) missing.add(BatchImportRequirement.warehouse);
+  if (!hasVouchers) missing.add(BatchImportRequirement.vouchers);
+  if (regionLockedFormat) {
+    if (regionLockedScope == null) {
+      missing.add(BatchImportRequirement.saleScope);
+    } else if (regionLockedScope && !hasGovernorate) {
+      missing.add(BatchImportRequirement.governorate);
+    }
+  }
+  return missing;
 }
 
 /// Decide what to do with a single batch-import row.
@@ -256,7 +312,9 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
           _defs = defs;
           _entities = agent1s;
           if (defs.isNotEmpty) _selectedDef = defs.first;
-          _target = agent1s.isNotEmpty ? agent1s.first : null;
+          // Deliberately NOT defaulted (UX-14) — see the picker below. The
+          // category may default; the warehouse thousands of codes land in
+          // may not.
           _loading = false;
         });
       }
@@ -382,23 +440,30 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
   }
 
   /// Required fields not yet satisfied — drives the pre-upload guard + hint.
-  List<String> _missing() {
-    final m = <String>[];
-    if (_selectedDef == null) m.add(_tr(context, 'الفئة', 'Category'));
-    if (_target == null) m.add(_tr(context, 'الوكيل الرئيسي', 'Main Agent'));
-    if (_preview == null || _preview!.isEmpty) {
-      m.add(_tr(context, 'قسائم صالحة', 'valid vouchers'));
-    }
-    // C-08: an unanswered scope is what silently produced sell-anywhere stock.
-    if (_format.regionLocked) {
-      if (_regionLockedScope == null) {
-        m.add(_tr(context, 'نطاق البيع', 'sale scope'));
-      } else if (_regionLockedScope == true && _selectedGovernorate == null) {
-        m.add(_tr(context, 'المحافظة', 'governorate'));
-      }
-    }
-    return m;
-  }
+  ///
+  /// The decision itself lives in [batchImportMissing], a pure function, for the
+  /// same reason [batchRowDecide] does: this gate is the only thing standing
+  /// between a mistyped screen and thousands of codes in the wrong warehouse,
+  /// and a rule buried in widget state cannot be tested without driving the
+  /// whole page. This method only turns the answer into words.
+  List<String> _missing() => batchImportMissing(
+        hasCategory: _selectedDef != null,
+        hasWarehouse: _target != null,
+        hasVouchers: _preview != null && _preview!.isNotEmpty,
+        regionLockedFormat: _format.regionLocked,
+        regionLockedScope: _regionLockedScope,
+        hasGovernorate: _selectedGovernorate != null,
+      ).map((r) => switch (r) {
+        BatchImportRequirement.category => _tr(context, 'الفئة', 'Category'),
+        BatchImportRequirement.warehouse =>
+          _tr(context, 'الوكيل الرئيسي', 'Main Agent'),
+        BatchImportRequirement.vouchers =>
+          _tr(context, 'قسائم صالحة', 'valid vouchers'),
+        BatchImportRequirement.saleScope =>
+          _tr(context, 'نطاق البيع', 'sale scope'),
+        BatchImportRequirement.governorate =>
+          _tr(context, 'المحافظة', 'governorate'),
+      }).toList();
 
   /// Says in words what the chosen scope will do, because the consequence lands
   /// weeks later at a POS counter rather than here.
@@ -950,15 +1015,44 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                 ),
               )
             else
-              DropdownButtonFormField<EntitySummaryRow>(
-                initialValue: _target,
-                isExpanded: true,
-                decoration: InputDecoration(
-                    labelText: _tr(context, 'تُرفع إلى الوكيل الرئيسي', 'Hand to Main Agent')),
-                items: _entities
-                    .map((e) => DropdownMenuItem(value: e, child: Text(e.label)))
-                    .toList(),
-                onChanged: (v) => setState(() => _target = v),
+              // UX-14: was a flat dropdown over a `listAll(size: 200)` snapshot —
+              // the weakest picker in the app on the screen where picking wrong is
+              // most expensive. Now the shared server-searched picker, which does
+              // not truncate and can be typed into.
+              //
+              // And it starts EMPTY. It used to default to `agent1s.first`, which
+              // made the `_target == null` guard below unreachable: an operator who
+              // never touched this field handed thousands of vouchers to whichever
+              // agent happened to sort first. Same failure C-08 fixed for the sale
+              // scope — an unanswered question has to look unanswered.
+              InkWell(
+                onTap: () async {
+                  final picked = await showEntitySearchPicker(
+                    context,
+                    repository: EntityRepository(ref.read(apiClientProvider)),
+                    title: _tr(context, 'اختر الوكيل الرئيسي', 'Pick the Main Agent'),
+                    types: const [EntityType.AGENT1],
+                  );
+                  if (picked != null && mounted) setState(() => _target = picked);
+                },
+                child: InputDecorator(
+                  decoration: InputDecoration(
+                    labelText:
+                        _tr(context, 'تُرفع إلى الوكيل الرئيسي', 'Hand to Main Agent'),
+                    suffixIcon: const Icon(Icons.manage_search),
+                    errorText: _target == null
+                        ? _tr(context, 'اختر الوكيل المستلم', 'Choose the receiving agent')
+                        : null,
+                  ),
+                  child: Text(
+                    _target?.label ??
+                        _tr(context, 'لم يُختر بعد', 'Not chosen yet'),
+                    style: IntesharType.sans(
+                      14,
+                      color: _target == null ? cs.onSurfaceVariant : cs.onSurface,
+                    ),
+                  ),
+                ),
               ),
             const SizedBox(height: 22),
 

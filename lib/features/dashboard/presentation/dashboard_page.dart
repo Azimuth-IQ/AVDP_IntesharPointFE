@@ -261,10 +261,23 @@ class _DashContent extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(0, 0, 0, 40),
       children: [
-        // ── Slim header ──────────────────────────────────────────────────
-        Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(24, 28, 24, 0),
-          child: _SlimHeader(entity: entity),
+        // UX-136: this is the landing route for /agent1, /agent2 AND /store —
+        // three of the four roles — and it was the one screen that hand-rolled
+        // its header: display 28 against PageHeader's 32, no brand underline,
+        // no eyebrow, and its own 24/28 padding against the shared 16. So most
+        // people's first screen was the one that looked least like the product.
+        // The role badge moves into PageHeader's `trailing` slot; the eyebrow is
+        // what the nav itself calls this destination, and PageHeader suppresses
+        // it automatically if it ever reads as redundant against the title.
+        PageHeader(
+          eyebrow: l.navDashboard,
+          title: entity.meta.name,
+          subtitle: entity.type == EntityType.INTESHAR
+              ? l.dashPlatformOverview
+              : entity.meta.slogan.isNotEmpty
+                  ? entity.meta.slogan
+                  : entity.type.label,
+          trailing: RoleBadge(type: entity.type),
         ),
 
         // ── Store-admin note: selling is a SEPARATE POS login ────────────
@@ -324,49 +337,6 @@ class _DashContent extends StatelessWidget {
 
 // ─── Slim header ─────────────────────────────────────────────────────────────
 
-class _SlimHeader extends StatelessWidget {
-  final Entity entity;
-  const _SlimHeader({required this.entity});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final l = AppLocalizations.of(context)!;
-    final subtitle = entity.type == EntityType.INTESHAR
-        ? l.dashPlatformOverview
-        : entity.meta.slogan.isNotEmpty
-        ? entity.meta.slogan
-        : entity.type.label;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                entity.meta.name,
-                style: IntesharType.display(
-                  28,
-                  color: cs.onSurface,
-                  w: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: IntesharType.sans(13, color: cs.onSurfaceVariant),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 12),
-        RoleBadge(type: entity.type),
-      ],
-    );
-  }
-}
 
 // ─── Store-admin POS note ──────────────────────────────────────────────────────
 

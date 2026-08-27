@@ -784,15 +784,28 @@ SelectableText monoText(
 
 /// Provides a haptic + scale press feedback on tiles used as primary action
 /// buttons (POS tiles, quick actions, etc.).
+///
+/// UX-149: this was a bare [GestureDetector], which is invisible to everything
+/// that is not a finger. Tab skipped these tiles, Enter did nothing, and a
+/// screen reader announced no control at all — on the POS selling tiles, which
+/// are the most-used control in the product. It stays a GestureDetector (the
+/// feedback here is a scale, deliberately not an ink ripple) but is now
+/// focusable, keyboard-activatable and announced as a button.
 class PressableScale extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
   final double scale;
+
+  /// Corner radius of the keyboard focus ring. Match the tile it wraps —
+  /// the ring is painted OVER the child, so it cannot be inferred.
+  final double focusRadius;
+
   const PressableScale({
     super.key,
     required this.child,
     this.onTap,
     this.scale = 0.97,
+    this.focusRadius = IntesharRadii.lg,
   });
 
   @override
@@ -801,23 +814,56 @@ class PressableScale extends StatefulWidget {
 
 class _PressableScaleState extends State<PressableScale> {
   bool _down = false;
+  bool _focused = false;
+
+  void _activate() {
+    HapticFeedback.selectionClick();
+    widget.onTap?.call();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => setState(() => _down = true),
-      onTapUp: (_) => setState(() => _down = false),
-      onTapCancel: () => setState(() => _down = false),
-      onTap: () {
-        HapticFeedback.selectionClick();
-        widget.onTap?.call();
-      },
-      child: AnimatedScale(
-        scale: _down ? widget.scale : 1.0,
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeOutCubic,
-        child: widget.child,
+    final cs = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      enabled: widget.onTap != null,
+      child: Focus(
+        // A tile with no action is not a tab stop.
+        canRequestFocus: widget.onTap != null,
+        onFocusChange: (f) => setState(() => _focused = f),
+        onKeyEvent: (node, event) {
+          if (event is KeyDownEvent &&
+              (event.logicalKey == LogicalKeyboardKey.enter ||
+                  event.logicalKey == LogicalKeyboardKey.space)) {
+            _activate();
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (_) => setState(() => _down = true),
+          onTapUp: (_) => setState(() => _down = false),
+          onTapCancel: () => setState(() => _down = false),
+          onTap: _activate,
+          child: AnimatedScale(
+            scale: _down ? widget.scale : 1.0,
+            duration: const Duration(milliseconds: 120),
+            curve: Curves.easeOutCubic,
+            // Foreground decoration: the ring paints over the tile without
+            // taking layout space, so focusing one cannot reflow the grid.
+            child: DecoratedBox(
+              position: DecorationPosition.foreground,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(widget.focusRadius),
+                border: _focused
+                    ? Border.all(color: cs.primary, width: 2)
+                    : const Border.fromBorderSide(BorderSide.none),
+              ),
+              child: widget.child,
+            ),
+          ),
+        ),
       ),
     );
   }

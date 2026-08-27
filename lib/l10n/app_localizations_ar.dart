@@ -30,7 +30,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get navBatchAdd => 'إضافة مجمّعة';
 
   @override
-  String get navPrintOps => 'عمليات الطباعة';
+  String get navPrintOps => 'سجل الطباعة';
 
   @override
   String get navUsers => 'المستخدمون';
@@ -43,9 +43,6 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get navTransactions => 'المعاملات';
-
-  @override
-  String get navPos => 'نقطة البيع';
 
   @override
   String get navTemplates => 'القوالب';
@@ -373,8 +370,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get entityTypeUser => 'مستخدم';
 
   @override
-  String get entityTreeSubtitle =>
-      'عرض شامل للجهات التابعة لك وفق ترتيب العرض على المستويات.';
+  String get entityTreeSubtitle => 'كل الحسابات التابعة لك، مستوى بمستوى.';
 
   @override
   String get entityTreeLevels => 'مستويات';
@@ -1504,9 +1500,6 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get navCompanies => 'الشركات';
-
-  @override
-  String get navStores => 'المتاجر';
 
   @override
   String get navPrices => 'الأسعار';

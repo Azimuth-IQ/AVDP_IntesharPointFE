@@ -30,7 +30,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navBatchAdd => 'Batch Add';
 
   @override
-  String get navPrintOps => 'Print Ops';
+  String get navPrintOps => 'Print history';
 
   @override
   String get navUsers => 'Users';
@@ -43,9 +43,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get navTransactions => 'Transactions';
-
-  @override
-  String get navPos => 'POS';
 
   @override
   String get navTemplates => 'Templates';
@@ -374,8 +371,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get entityTypeUser => 'User';
 
   @override
-  String get entityTreeSubtitle =>
-      'A breadth-first view of every entity beneath you.';
+  String get entityTreeSubtitle => 'Every account under you, level by level.';
 
   @override
   String get entityTreeLevels => 'Levels';
@@ -1513,9 +1509,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get navCompanies => 'Companies';
-
-  @override
-  String get navStores => 'Stores';
 
   @override
   String get navPrices => 'Prices';

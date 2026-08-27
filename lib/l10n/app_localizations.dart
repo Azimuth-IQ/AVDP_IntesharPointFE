@@ -143,7 +143,7 @@ abstract class AppLocalizations {
   /// No description provided for @navPrintOps.
   ///
   /// In en, this message translates to:
-  /// **'Print Ops'**
+  /// **'Print history'**
   String get navPrintOps;
 
   /// No description provided for @navUsers.
@@ -169,12 +169,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Transactions'**
   String get navTransactions;
-
-  /// No description provided for @navPos.
-  ///
-  /// In en, this message translates to:
-  /// **'POS'**
-  String get navPos;
 
   /// No description provided for @navTemplates.
   ///
@@ -779,7 +773,7 @@ abstract class AppLocalizations {
   /// No description provided for @entityTreeSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'A breadth-first view of every entity beneath you.'**
+  /// **'Every account under you, level by level.'**
   String get entityTreeSubtitle;
 
   /// No description provided for @entityTreeLevels.
@@ -2809,12 +2803,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Companies'**
   String get navCompanies;
-
-  /// No description provided for @navStores.
-  ///
-  /// In en, this message translates to:
-  /// **'Stores'**
-  String get navStores;
 
   /// No description provided for @navPrices.
   ///

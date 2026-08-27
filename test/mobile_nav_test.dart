@@ -62,13 +62,15 @@ void main() {
 
     // Primary four are present; the three setup routes are NOT on the bar.
     // (HQ home/index-0 is the System Activity oversight screen, not a dashboard.)
-    // B-112: Reports holds the 4th slot, not Print Ops. A platform admin opens
-    // Reports daily; Print Ops is an investigation tool for when something looks
-    // wrong, so it sits one tap deeper.
+    // B-112: Reports holds the 4th slot, not Print history. A platform admin
+    // opens Reports daily; Print history is an investigation tool for when
+    // something looks wrong, so it sits one tap deeper.
+    // UX-106 renamed the label from "Print Ops" — "Ops" was an abbreviation of
+    // an internal noun, and the activity log already called it Print history.
     for (final label in ['System Activity', 'Hierarchy', 'Inventory', 'Reports', 'More']) {
       expect(find.text(label), findsWidgets, reason: '$label should be on the bar');
     }
-    for (final hidden in ['Catalog', 'Voucher Templates', 'Add vouchers', 'Print Ops']) {
+    for (final hidden in ['Catalog', 'Voucher Templates', 'Add vouchers', 'Print history']) {
       expect(find.text(hidden), findsNothing, reason: '$hidden belongs in the More sheet');
     }
   });
@@ -82,7 +84,7 @@ void main() {
     expect(find.text('Catalog'), findsOneWidget);
     expect(find.text('Voucher Templates'), findsOneWidget);
     expect(find.text('Add vouchers'), findsOneWidget);
-    expect(find.text('Print Ops'), findsOneWidget, reason: 'demoted, not deleted');
+    expect(find.text('Print history'), findsOneWidget, reason: 'demoted, not deleted');
 
     // B-112 (retracted finding): the overflow is NOT a flat list — it carries the
     // same bilingual section headers as the desktop sidebar. Pin that, because I

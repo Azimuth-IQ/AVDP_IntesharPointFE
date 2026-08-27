@@ -133,7 +133,21 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
       context: context,
       builder: (_) => _CompanyDialog(existing: existing, repo: _repo),
     );
-    if (ok == true) _load();
+    if (ok != true) return;
+    // UX-88: the dialog closed and the list quietly reloaded. On a list where
+    // rows are ordered by displayOrder rather than recency, a newly added
+    // company can land anywhere — so "it worked" was left to be inferred from
+    // spotting it. Name what happened, and say which one.
+    if (mounted) {
+      final s = _S.of(context);
+      showOk(
+        context,
+        existing == null
+            ? s.p('Company added', 'تمت إضافة الشركة')
+            : s.p('Saved "${existing.name}"', 'تم حفظ "${existing.name}"'),
+      );
+    }
+    _load();
   }
 
   Future<void> _confirmDelete(Company c) async {
@@ -171,6 +185,18 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
       if (!mounted) return;
       setState(() => _deleting.remove(c.id));
       if (failure == null) {
+        // UX-88: a deletion that can CASCADE (the force path below removes the
+        // company's restrictions with it) must say what it took, not just make
+        // a row disappear.
+        if (mounted) {
+          showOk(
+            context,
+            force
+                ? s.p('Deleted "${c.name}" and its restrictions',
+                    'تم حذف "${c.name}" والقيود المرتبطة بها')
+                : s.p('Deleted "${c.name}"', 'تم حذف "${c.name}"'),
+          );
+        }
         await _load();
         return;
       }

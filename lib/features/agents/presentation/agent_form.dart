@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
+import 'package:go_router/go_router.dart';
 import 'package:inteshar/core/api/api_client.dart';
+import 'package:inteshar/features/settings/data/settings_repository.dart';
 import 'package:inteshar/core/auth/capabilities.dart';
 import 'package:inteshar/core/geo/governorate_picker.dart';
 import 'package:inteshar/features/agents/domain/governorate_choice.dart';
@@ -100,6 +102,15 @@ class _AgentFormState extends ConsumerState<AgentForm> {
   Set<String> _governorates = {};
   WorkingHours? _workingHours;
 
+  /// UX-04: whether the PLATFORM-WIDE login-hours gate is switched on.
+  ///
+  /// The window edited below is per-account, but it is only enforced while
+  /// `auth.workinghours.enabled` is true — and that switch lives on a different
+  /// screen entirely. Without this, an admin sets closing hours, saves, is told
+  /// it saved, and the account keeps letting people in. Null while the setting
+  /// is in flight, so a slow fetch never claims "not enforced" before it knows.
+  bool? _hoursGloballyOn;
+
   /// B-055 section ceiling. The 4 agent-facing sections; all-on = unrestricted
   /// (persisted as {AGENT_ADMIN} so "no restriction" round-trips explicitly).
   static const List<Capability> _sectionChoices = [
@@ -186,6 +197,20 @@ class _AgentFormState extends ConsumerState<AgentForm> {
     }
     if (tier.requiresParentPicker) {
       _loadParents();
+    }
+    _loadHoursGate();
+  }
+
+  /// UX-04. Best-effort: if the setting cannot be read we leave [_hoursGloballyOn]
+  /// null and say nothing, rather than warning that hours are unenforced when we
+  /// do not actually know.
+  Future<void> _loadHoursGate() async {
+    try {
+      final on = await SettingsRepository(ref.read(apiClientProvider))
+          .getGlobalWorkingHoursEnabled();
+      if (mounted) setState(() => _hoursGloballyOn = on);
+    } catch (_) {
+      // Leave null — no claim either way.
     }
   }
 
@@ -779,6 +804,53 @@ class _AgentFormState extends ConsumerState<AgentForm> {
               : 'Login hours',
         ),
         const SizedBox(height: 8),
+        // UX-04: the window below is enforced only while the PLATFORM-WIDE gate
+        // is on, and that switch is on another screen. Saying nothing made this
+        // silently no-op configuration: visibly saved, visibly ignored, with the
+        // account still letting people in at midnight. Shown only when we know
+        // the gate is off — an unknown state claims nothing.
+        if (_hoursGloballyOn == false) ...[
+          InkCard(
+            bordered: true,
+            ruleColor: context.status.warn,
+            padding: const EdgeInsets.all(IntesharSpacing.md),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(Icons.info_outlined,
+                  size: 18, color: context.status.warn),
+              const SizedBox(width: IntesharSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      Localizations.localeOf(context).languageCode == 'ar'
+                          ? 'ساعات الدخول غير مفعّلة حالياً على مستوى المنصة، لذلك '
+                              'سيُحفظ هذا التوقيت ولن يُطبَّق.'
+                          : 'Login hours are switched off platform-wide right now, '
+                              'so this window will be saved but not enforced.',
+                      style: IntesharText.body(color: cs.onSurface),
+                    ),
+                    const SizedBox(height: IntesharSpacing.sm),
+                    // The fix is one screen away; make it one tap away too.
+                    InkWell(
+                      onTap: () => context.push('/hq/working-hours'),
+                      child: Text(
+                        Localizations.localeOf(context).languageCode == 'ar'
+                            ? 'فتح إعدادات ساعات الدخول'
+                            : 'Open login-hours settings',
+                        style: IntesharText.body(
+                          color: context.tones.brandInk,
+                          w: IntesharWeight.semibold,
+                        ).copyWith(decoration: TextDecoration.underline),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ]),
+          ),
+          const SizedBox(height: IntesharSpacing.md),
+        ],
         WorkingHoursEditor(
           value: _workingHours,
           onChanged: (v) => setState(() => _workingHours = v),

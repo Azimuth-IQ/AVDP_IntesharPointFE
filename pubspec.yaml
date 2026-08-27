@@ -123,11 +123,11 @@ flutter:
     - family: CodecPro
       fonts:
         - asset: assets/fonts/CodecPro-Light.ttf
-          weight: 300
+          weight: 200
         - asset: assets/fonts/CodecPro-Regular.ttf
           weight: 400
         - asset: assets/fonts/CodecPro-News.ttf
-          weight: 500
+          weight: 300
         - asset: assets/fonts/CodecPro-Bold.ttf
           weight: 700
         - asset: assets/fonts/CodecPro-ExtraBold.ttf

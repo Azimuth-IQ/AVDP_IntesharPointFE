@@ -165,38 +165,54 @@ class IntesharScale {
 
 /// The CodecPro weights that actually have a face registered in `pubspec.yaml`.
 ///
-/// **There is no 600 face** — the family ships Light/News/Regular/Bold/ExtraBold/
-/// Heavy and nothing between Regular and Bold. `FontWeight.w600` was written at
-/// ~100 sites anyway, so the intended "semibold" tier does not exist and each
-/// platform invents a different answer for it:
+/// UX-160 fixed the registration. Codec Pro ships six upright faces and
+/// `pubspec.yaml` had declared five of them at the wrong weight — only Regular
+/// was right. Measured normalised ink area, which agrees with each face's own
+/// `OS/2.usWeightClass`:
 ///
-/// * **Android** (minikin, nearest-match, ties to the first declared face)
-///   resolves 600 to **News** — which, measured, is *lighter than Regular*
-///   (normalised ink area 0.376 vs 0.420). So on the Sunmi POS the semibold tier
-///   renders **lighter than body text**.
-/// * **Web** (CSS font matching, "≥ target first") resolves 600 to **Bold**.
+/// ```
+///   Light      0.0878   (font says 200)
+///   News       0.1130   (font says 300)   <- was registered at 500
+///   Regular    0.1254   (font says 400)
+///   Bold       0.1666   (font says 500)
+///   ExtraBold  0.2016   (font says 600)
+///   Heavy      0.2295   (font says 700)
+/// ```
 ///
-/// Same widget, opposite weight, depending on which half of the fleet you are
-/// looking at. There is no SemiBold TTF to ship, so [semibold] is an explicit
-/// **alias of [bold]**: the nearest real face, and already what the browser
-/// shows.
+/// News registered at 500 was the damaging one: it sits BELOW Regular, so every
+/// `FontWeight.w500` in the app rendered *lighter* than the `w400` body text it
+/// was written to emphasise. Light at 300 hid it, because the ramp still looked
+/// ascending. Now Light is 200 and News is 300, so the declared order is
+/// monotonic and no weight can render lighter than a smaller number.
 ///
-/// **[news] is a trap and is not used by this file.** Codec Pro's News sits
-/// between Light and Regular, but `pubspec.yaml` registers it at weight 500, so
-/// every `FontWeight.w500` in the app renders *lighter* than the `w400` body it
-/// is meant to emphasise. Fixing that means re-registering the face (a
-/// whole-app rendering change) — see the follow-up note; until then, do not
-/// reach for 500 to mean "slightly bolder".
+/// The bold end deliberately keeps its existing numbers (Bold 700, ExtraBold
+/// 800, Heavy 900) rather than moving to the font's 500/600/700. Those are the
+/// weights ~100 call sites already ask for, and re-numbering them would swap
+/// every heading in the app for a heavier face.
+///
+/// **There is still no 600 face**, and nothing between Regular and Bold at all.
+/// That gap used to resolve differently per platform — Android's nearest-match
+/// picked News (lighter than body) while web's "≥ target first" picked Bold, so
+/// the same widget rendered opposite weights across the fleet. With the ramp
+/// fixed both platforms now land on Bold for 600 and on Regular for 500, so the
+/// divergence is gone. [semibold] remains an explicit alias of [bold]: the
+/// nearest real face, and what both halves of the fleet were already showing.
+///
+/// A literal `FontWeight.w500` now resolves to **Regular** — no longer inverted,
+/// but no longer emphasis either. There is no face between body and Bold, so a
+/// site that wants "slightly bolder" has to choose one of them deliberately.
 class IntesharWeight {
-  /// CodecPro-Light.
-  static const FontWeight light = FontWeight.w300;
+  /// CodecPro-Light — registered at 200, the face's own declared weight.
+  static const FontWeight light = FontWeight.w200;
 
   /// CodecPro-Regular — body text.
   static const FontWeight regular = FontWeight.w400;
 
-  /// CodecPro-News. **Lighter than [regular]** despite the higher number; see
-  /// the class note. Present for completeness, not for use.
-  static const FontWeight news = FontWeight.w500;
+  /// CodecPro-News — one step BELOW [regular], which is what the face actually
+  /// is. Registered at 300 now, so this token finally selects it; it used to say
+  /// 500 and quietly made everything lighter. Use it when you want lighter than
+  /// body, never to emphasise.
+  static const FontWeight news = FontWeight.w300;
 
   /// CodecPro-Bold.
   static const FontWeight bold = FontWeight.w700;

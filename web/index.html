@@ -1,5 +1,17 @@
 <!DOCTYPE html>
-<html>
+<!--
+  UX-154: `lang` and `dir` on the document, not just inside the Flutter canvas.
+  Arabic is this product's primary locale, and with neither attribute a screen
+  reader announces Arabic with an English voice and browsers offer to translate
+  the page. Flutter manages direction for its own widgets, so this is about the
+  document the browser sees.
+
+  Static `ar`/`rtl` because that is what almost every session is. A viewer who
+  switches to English gets correct text either way — Flutter re-lays out its own
+  tree — the attribute just stops matching until reload. Making it follow the
+  in-app locale needs a JS bridge, which is not worth it for that.
+-->
+<html lang="ar" dir="rtl">
 <head>
   <!--
     If you are serving your web app in a path other than the root, change the

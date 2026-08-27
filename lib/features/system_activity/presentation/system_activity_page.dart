@@ -1615,8 +1615,14 @@ Widget _logStatusPill(BuildContext context, OperationLog log) {
       fontSize: 10,
     );
   }
+  // UX-154: `_logVisual` computes an icon AND a colour, and this dropped the
+  // icon on the floor — so error/warn/info were told apart by hue alone, on the
+  // one screen an admin opens when something has gone wrong. StampPill already
+  // takes an icon; the shape is the cue that survives colour blindness and a
+  // sunlit handheld screen.
+  final visual = _logVisual(context, log);
   return StampPill(
-      label: log.level, color: _logVisual(context, log).color, fontSize: 10);
+      label: log.level, color: visual.color, icon: visual.icon, fontSize: 10);
 }
 
 /// B-108: the headline is a sentence, not a route. `POST /api/auth/login` next

@@ -47,6 +47,17 @@ class _S {
 
   // Per-entity card
   String get entitySection => p('Per-Account Window', 'نافذة الحساب');
+
+  /// UX-108: this window is also editable on the agent's own form, through a
+  /// different endpoint. Two screens writing one setting, with neither
+  /// mentioning the other, reads as two independent settings — and then as a
+  /// bug when a change made in one place "reappears" in the other.
+  String get entitySectionSameAsForm => p(
+        'This is the same window that appears on the account\'s own form. '
+        'Setting it here or there changes one setting, not two.',
+        'هذه هي نفس النافذة الظاهرة في صفحة الحساب نفسه. '
+        'تعديلها هنا أو هناك يغيّر الإعداد ذاته، لا إعدادين.',
+      );
   String get selectEntityHint => p('Select an account', 'اختر الحساب');
   String get noEntitySelected =>
       p('Choose an account above to configure its login window.',
@@ -396,6 +407,11 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SectionLabel(s.entitySection),
+          Text(
+            s.entitySectionSameAsForm,
+            style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant, height: 1.5),
+          ),
+          const SizedBox(height: 14),
 
           // Entity picker — server-searched (B-023): tap to search instead of a
           // dropdown fed by downloading every entity.

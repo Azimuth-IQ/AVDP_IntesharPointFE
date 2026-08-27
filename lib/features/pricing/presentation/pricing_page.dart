@@ -1312,15 +1312,19 @@ class _BalanceHeader extends StatelessWidget {
             InkWell(
               borderRadius: BorderRadius.circular(999),
               onTap: onToggleUnpriced,
-              child: Opacity(
-                opacity: unpricedOnly ? 1 : 0.85,
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  StampPill(label: s.unpriced(unpriced), color: context.status.danger),
-                  const SizedBox(width: 4),
-                  Icon(unpricedOnly ? Icons.filter_alt : Icons.filter_alt_outlined,
-                      size: 16, color: onBrand.withValues(alpha: 0.7)),
-                ]),
-              ),
+              // UX-154: this used to be wrapped in `Opacity(0.85)` when the
+              // filter was off, which dropped the pill to 3.38:1 — and the pill
+              // is a DANGER count of categories with no price, i.e. the thing on
+              // this screen most worth reading. The filter's on/off state is
+              // already carried by the icon swapping filled/outlined beside it,
+              // so the opacity was paying contrast for a cue that was already
+              // there.
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                StampPill(label: s.unpriced(unpriced), color: context.status.danger),
+                const SizedBox(width: 4),
+                Icon(unpricedOnly ? Icons.filter_alt : Icons.filter_alt_outlined,
+                    size: 16, color: onBrand.withValues(alpha: 0.7)),
+              ]),
             ),
         ],
       ),

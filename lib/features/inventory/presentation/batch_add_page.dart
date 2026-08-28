@@ -122,6 +122,49 @@ List<BatchImportRequirement> batchImportMissing({
   return missing;
 }
 
+/// What a bulk action leaves behind (UX-11).
+///
+/// Extracted for the same reason as [batchRowDecide] and [batchImportMissing]:
+/// this rule decides what happens after a RECALL half-succeeded, and a rule
+/// living in widget state cannot be tested without driving the page.
+///
+/// The rule: a bulk run over independent server calls does not stop at the
+/// first refusal and does not roll back. There is no transaction to roll back
+/// INTO — a "rollback" would be more mutations that can themselves fail — and
+/// stopping early leaves an arbitrary prefix applied while doing less work. So
+/// it finishes, then reports.
+///
+/// The failures stay SELECTED. That is not a convenience: it is the only record
+/// of which rows still need attention, and it makes "retry the three that
+/// failed" one tap instead of a hunt.
+class BulkOutcome {
+  /// Rows still needing attention. Empty on a clean run.
+  final Set<String> stillSelected;
+
+  /// Whether the list should remain in selection mode.
+  final bool keepSelecting;
+
+  /// How many succeeded — reported first, because a recall that moved 7 of 10
+  /// HAS changed the world, and a message that only counts failures reads as
+  /// "nothing happened", which is the reading that gets it run twice.
+  final int succeeded;
+
+  const BulkOutcome({
+    required this.stillSelected,
+    required this.keepSelecting,
+    required this.succeeded,
+  });
+
+  bool get clean => stillSelected.isEmpty;
+}
+
+BulkOutcome bulkOutcome({required int attempted, required Set<String> failedIds}) =>
+    BulkOutcome(
+      stillSelected: {...failedIds},
+      keepSelecting: failedIds.isNotEmpty,
+      succeeded: attempted - failedIds.length,
+    );
+
 /// Decide what to do with a single batch-import row.
 ///
 /// [serial] and [pin] are the raw values from the file (trimming is applied
@@ -1686,39 +1729,52 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
       _bulkTotal = targets.length;
     });
     final repo = ProductRepository(ref.read(apiClientProvider));
-    var failed = 0;
+    // The ids that refused. Kept rather than counted, because they are what the
+    // operator does next: on a partial run they stay SELECTED, so "which three
+    // failed?" is answered by the list itself and one more tap retries exactly
+    // those. Clearing the selection here — which this used to do — threw away
+    // the only record of which rows still need attention.
+    final failedIds = <String>{};
     Object? lastError;
     for (final b in targets) {
       try {
         await action(repo, b);
       } catch (e) {
-        failed++;
+        failedIds.add(b.id);
         lastError = e;
       }
       if (!mounted) return;
       setState(() => _bulkDone++);
     }
     if (!mounted) return;
+    final outcome =
+        bulkOutcome(attempted: targets.length, failedIds: failedIds);
     setState(() {
       _bulkLabel = null;
-      _selecting = false;
-      _selected.clear();
+      _selecting = outcome.keepSelecting;
+      _selected
+        ..clear()
+        ..addAll(outcome.stillSelected);
     });
     await _load();
     if (!mounted) return;
-    if (failed == 0) {
+    if (outcome.clean) {
       showOk(
           context,
           _tr(context, 'تم على ${targets.length} دفعة',
               'Done on ${targets.length} batches'));
     } else {
+      final done = outcome.succeeded;
       final why = friendlyError(lastError!, context);
+      // Lead with what DID happen: a recall that moved 7 of 10 has changed the
+      // world, and a message that only says "3 failed" reads as "nothing
+      // happened" — which is the reading that gets it run twice.
       showError(
         context,
         _tr(
           context,
-          'فشل $failed من ${targets.length}: $why',
-          '$failed of ${targets.length} failed: $why',
+          'تم على $done من ${targets.length}. بقيت ${failedIds.length} محددة لإعادة المحاولة: $why',
+          'Done on $done of ${targets.length}. The ${failedIds.length} that failed stay selected to retry: $why',
         ),
       );
     }

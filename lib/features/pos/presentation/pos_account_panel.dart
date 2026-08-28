@@ -69,11 +69,15 @@ class PosAccountPanel extends ConsumerWidget {
               const SizedBox(height: 16),
               Text(shop.isEmpty ? l.posHome : shop,
                   textAlign: TextAlign.center,
-                  style: IntesharType.display(22, color: cs.onSurface, w: FontWeight.w900)),
+                  // UX-127: was an off-scale 22. Centred, wrapping, in a 460dp
+                  // column — `display` (24) is the nearest step and cannot clip.
+                  style: IntesharType.display(IntesharScale.display,
+                      color: cs.onSurface, w: IntesharWeight.black)),
               const SizedBox(height: 20),
               // A92: profile details are set by the agent/HQ — read-only here.
               InkCard(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                // UX-135: `fromLTRB(16, 10, 16, 10)` — the vertical was on no
+                // scale. The card scrolls, so the 6px it gains cannot clip.
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   row(Icons.badge_outlined, ar ? 'اسم المالك' : 'Owner', profile?.ownerName ?? ''),
                   row(Icons.phone_outlined, ar ? 'هاتف الدخول' : 'Login phone', phone),
@@ -94,10 +98,9 @@ class PosAccountPanel extends ConsumerWidget {
               // B-096: the POS shell never imports the agent scaffold, so until now
               // an operator had NO way to change the language and was stuck on the
               // default. This panel is where they'd look for it.
-              const InkCard(
-                padding: EdgeInsets.fromLTRB(16, 12, 16, 12),
-                child: LanguageSwitcherRow(),
-              ),
+              // UX-135: was `fromLTRB(16, 12, 16, 12)` — 16 all round is the
+              // default density.
+              const InkCard(child: LanguageSwitcherRow()),
               const SizedBox(height: 20),
               BrandCTAButton(
                 label: ar ? 'تغيير كلمة المرور' : 'Change password',

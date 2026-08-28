@@ -149,7 +149,8 @@ class _OpCard extends StatelessWidget {
                     style: IntesharType.sans(12, color: cs.onSurfaceVariant))),
             Expanded(
               child: mono
-                  ? monoText(v, size: 12.5, color: cs.onSurface)
+                  // UX-127: was an off-scale 12.5.
+                  ? monoText(v, size: IntesharScale.body, color: cs.onSurface)
                   : Text(v,
                       style: IntesharType.sans(12,
                           color: cs.onSurface, w: FontWeight.w600)),
@@ -158,7 +159,7 @@ class _OpCard extends StatelessWidget {
         );
 
     return InkCard(
-      padding: const EdgeInsets.all(14),
+      // UX-135: was `all(14)`.
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

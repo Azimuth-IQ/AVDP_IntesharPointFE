@@ -173,14 +173,12 @@ class _AgentDetailPageState extends ConsumerState<AgentDetailPage> {
       },
       child: Scaffold(
         appBar: AppBar(
+          // UX-127: was a hand-built TextStyle at 18 — a size on no scale.
+          // AppBar ellipsizes its title, so the step up cannot overflow.
           title: Text(
             title,
-            style: TextStyle(
-              fontFamily: 'CodecPro',
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: cs.onSurface,
-            ),
+            style: IntesharText.titleLg(
+                color: cs.onSurface, w: IntesharWeight.heavy),
           ),
           actions: [
             if (e != null)
@@ -598,7 +596,7 @@ class _AgentDetailPageState extends ConsumerState<AgentDetailPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label, style: IntesharType.sans(11, color: cs.onSurfaceVariant, w: FontWeight.w600)),
+        Text(label, style: IntesharType.sans(11, color: cs.onSurfaceVariant, w: IntesharWeight.semibold)),
         const SizedBox(height: 2),
         Text(
           value ?? '—',
@@ -661,7 +659,9 @@ class _ChildRow extends ConsumerWidget {
             : null,
         borderRadius: BorderRadius.circular(IntesharRadii.sm),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
+          // UX-119: a two-line row at 6dp of padding is ~45dp; this is a
+          // navigation target into a child account.
+          padding: const EdgeInsets.symmetric(vertical: IntesharSpacing.sm),
           child: Row(
             children: [
               Expanded(
@@ -778,7 +778,7 @@ class _StepRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(label,
-                    style: IntesharType.sans(12, color: cs.onSurfaceVariant, w: FontWeight.w600)),
+                    style: IntesharType.sans(12, color: cs.onSurfaceVariant, w: IntesharWeight.semibold)),
                 Text(value,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

@@ -307,9 +307,10 @@ class _LockForm extends StatelessWidget {
               width: 44,
               height: 44,
               alignment: Alignment.center,
+              // UX-135: `circular(22)` was only ever "half of 44".
               decoration: BoxDecoration(
                 color: context.tones.brand,
-                borderRadius: BorderRadius.circular(22),
+                shape: BoxShape.circle,
               ),
               child: Icon(Icons.lock_outline, color: context.tones.onBrand, size: 22),
             ),
@@ -319,8 +320,12 @@ class _LockForm extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
+                    // UX-127: was an off-scale 22. The heading wraps rather than
+                    // clipping (no maxLines) inside a 460dp-capped column, so
+                    // `display` (24) is safe in both locales.
                     ar ? 'أدخل رمز نقطة البيع' : 'Enter POS PIN',
-                    style: IntesharType.display(22, color: cs.onSurface, w: FontWeight.w900),
+                    style: IntesharType.display(IntesharScale.display,
+                        color: cs.onSurface, w: IntesharWeight.black),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -374,7 +379,8 @@ class _LockForm extends StatelessWidget {
         if (error != null) ...[
           const SizedBox(height: 14),
           Container(
-            padding: const EdgeInsets.all(14),
+            // UX-135: `all(14)` is on no scale.
+            padding: const EdgeInsets.all(IntesharSpacing.lg),
             decoration: BoxDecoration(
               color: cs.errorContainer,
               borderRadius: BorderRadius.circular(IntesharRadii.md),
@@ -516,7 +522,8 @@ class _NumericPad extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget key(String label, {VoidCallback? onTap, IconData? icon}) => Expanded(
           child: Padding(
-            padding: const EdgeInsets.all(5),
+            // UX-135: was an off-scale 5.
+            padding: const EdgeInsets.all(IntesharSpacing.xs),
             child: Material(
               color: icon == null ? cs.surfaceContainerHighest : Colors.transparent,
               borderRadius: BorderRadius.circular(IntesharRadii.md),
@@ -528,9 +535,12 @@ class _NumericPad extends StatelessWidget {
                   child: Center(
                     child: icon != null
                         ? Icon(icon, size: 22, color: cs.onSurfaceVariant)
+                        // UX-127: was an off-scale 22. A pad KEY is a button
+                        // label, not the PIN readout, and it sits alone in a
+                        // 54dp key — `display` (24) cannot crowd it.
                         : Text(label,
-                            style: IntesharType.mono(22,
-                                color: cs.onSurface, w: FontWeight.w700)),
+                            style: IntesharType.mono(IntesharScale.display,
+                                color: cs.onSurface, w: IntesharWeight.bold)),
                   ),
                 ),
               ),

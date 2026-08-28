@@ -579,14 +579,15 @@ class _SkuList extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
+                            // UX-127: was an off-scale 13.5 at a `w500` that has
+                            // no registered face. `bodyLg` is the list-row step,
+                            // and the row already ellipsizes.
                             def.name,
-                            style: TextStyle(
-                              fontFamily: 'CodecPro',
-                              fontSize: 13.5,
+                            style: IntesharText.bodyLg(
                               color: cs.onSurface,
-                              fontWeight: isSelected
-                                  ? FontWeight.w800
-                                  : FontWeight.w500,
+                              w: isSelected
+                                  ? IntesharWeight.heavy
+                                  : IntesharWeight.regular,
                               height: 1.2,
                             ),
                             overflow: TextOverflow.ellipsis,
@@ -886,19 +887,21 @@ class _TemplateEditor extends StatelessWidget {
                     children: [
                       Text(
                         l.vtQrSource,
-                        style: TextStyle(
-                          fontFamily: 'CodecPro',
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
+                        // UX-127: was an off-scale 13 at `w600`, which has no
+                        // registered face.
+                        style: IntesharText.bodyLg(
                           color: cs.onSurfaceVariant,
+                          w: IntesharWeight.semibold,
                         ),
                       ),
                       const SizedBox(height: 8),
                       SegmentedButton<String>(
                         showSelectedIcon: false,
                         style: ButtonStyle(
-                          visualDensity: VisualDensity.compact,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          // UX-119: `compact` + `shrinkWrap` shrank this pair
+                          // below 48dp. It chooses what the QR on every printed
+                          // voucher encodes — PIN or serial — so it is not a
+                          // control to make hard to hit.
                           textStyle: WidgetStatePropertyAll(
                             Theme.of(context).textTheme.labelSmall,
                           ),

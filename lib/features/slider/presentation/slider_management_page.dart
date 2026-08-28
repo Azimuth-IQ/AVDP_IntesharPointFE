@@ -13,6 +13,7 @@ import 'package:inteshar/features/slider/domain/pos_slider.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/entity_search_picker.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
+import 'package:inteshar/shared/widgets/sheet_frame.dart';
 import 'package:inteshar/shared/widgets/slider_image_crop_dialog.dart';
 
 String _t(BuildContext c, String ar, String en) =>
@@ -456,30 +457,17 @@ class _SliderEditorSheetState extends ConsumerState<_SliderEditorSheet> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final hasImg = _imageUrl.isNotEmpty;
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-        left: 20,
-        right: 20,
-        top: 18,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
+    // UX-131: this sheet re-typed the 36×4 grab pill, its own keyboard inset and
+    // its own title treatment, and had no height cap at all — so on a phone with
+    // the governorate multi-select open it could run past the viewport. The
+    // shared frame owns the handle (the call site does NOT pass
+    // `showDragHandle`), the inset, the 0.85 cap and the scroll.
+    return SheetFrame(
+      title: _isEdit ? _t(context, 'تعديل الصورة', 'Edit slide') : _t(context, 'إضافة صورة', 'Add slide'),
+      child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(color: cs.outline, borderRadius: BorderRadius.circular(2)),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(_isEdit ? _t(context, 'تعديل الصورة', 'Edit slide') : _t(context, 'إضافة صورة', 'Add slide'),
-                style: IntesharType.sans(16, color: cs.onSurface, w: FontWeight.w800)),
-            const SizedBox(height: 14),
-
             // Image (16:9 crop on upload)
             if (hasImg)
               ClipRRect(
@@ -544,7 +532,7 @@ class _SliderEditorSheetState extends ConsumerState<_SliderEditorSheet> {
               const SizedBox(height: 10),
               Text(_error!, style: IntesharType.sans(12, color: cs.error)),
             ],
-            const SizedBox(height: 16),
+            IntesharSpacing.gapLg,
             SizedBox(
               width: double.infinity,
               child: FilledButton(
@@ -554,10 +542,8 @@ class _SliderEditorSheetState extends ConsumerState<_SliderEditorSheet> {
                     : Text(_t(context, 'حفظ', 'Save')),
               ),
             ),
-            const SizedBox(height: 20),
           ],
         ),
-      ),
     );
   }
 

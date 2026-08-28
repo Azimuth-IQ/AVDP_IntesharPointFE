@@ -16,6 +16,7 @@ import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/entities/presentation/entity_row_actions.dart';
 import 'package:inteshar/features/reports/data/reports_repository.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
+import 'package:inteshar/shared/widgets/app_search_field.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
@@ -424,32 +425,25 @@ class _EntityTreePageState extends ConsumerState<EntityTreePage> {
                 subtitle: l.entityTreeSubtitle,
               ),
             ),
+            // UX-93/UX-133: the hierarchy, the two tier directories and the
+            // oversight tab each hand-rolled their own search toolbar — the
+            // magnifier at a different size, `isDense` on some, a clear button
+            // on some. This is the shared one. Its clear button also listens to
+            // the controller itself, so it no longer depends on this page
+            // happening to rebuild on every keystroke.
             SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 12),
-                child: TextField(
-                  controller: _searchCtrl,
-                  onChanged: _onSearchChanged,
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: (_) => _runSearch(),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    prefixIcon: const Icon(Icons.search, size: 20),
-                    hintText: ar
-                        ? 'ابحث بالاسم أو المعرّف في شبكتك'
-                        : 'Search your network by name or id',
-                    suffixIcon: _searchCtrl.text.isEmpty
-                        ? null
-                        : IconButton(
-                            tooltip: ar ? 'مسح' : 'Clear',
-                            icon: const Icon(Icons.close, size: 18),
-                            onPressed: () {
-                              _searchCtrl.clear();
-                              _onSearchChanged('');
-                            },
-                          ),
-                  ),
-                ),
+              child: AppSearchField(
+                controller: _searchCtrl,
+                hintText: ar
+                    ? 'ابحث بالاسم أو المعرّف في شبكتك'
+                    : 'Search your network by name or id',
+                clearTooltip: ar ? 'مسح البحث' : 'Clear search',
+                onChanged: _onSearchChanged,
+                onSubmitted: (_) => _runSearch(),
+                // Only once the whole hit list is in hand: while a page is still
+                // outstanding this would count the page, not the matches.
+                resultCount:
+                    (_query.isEmpty || _resultsMore) ? null : _results.length,
               ),
             ),
             SliverToBoxAdapter(
@@ -908,16 +902,17 @@ class _TreeNode extends ConsumerWidget {
               height: 30,
               decoration: BoxDecoration(
                 color: roleColor.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(7),
+                borderRadius: BorderRadius.circular(IntesharRadii.xs),
               ),
               alignment: Alignment.center,
               child: Text(
                 _typeInitial(entity.type),
-                style: TextStyle(
-                  fontFamily: 'CodecPro',
-                  fontSize: 13,
-                  fontWeight: FontWeight.w900,
+                // UX-127/135: was 13px at radius 7, neither of which is on a
+                // scale. One glyph in a 30dp box — the step up cannot overflow.
+                style: IntesharType.sans(
+                  IntesharScale.bodyLg,
                   color: roleColor,
+                  w: IntesharWeight.black,
                   height: 1,
                 ),
               ),

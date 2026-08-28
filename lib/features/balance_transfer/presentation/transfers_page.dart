@@ -517,9 +517,13 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
               // already overflows on a phone (UX-26). With one kind present the
               // list below IS that kind and needs no filter above it.
               if (showKind) ...[
+                // UX-119: `visualDensity: compact` put the segments under the
+                // 48dp floor. The ~8dp it saved is not load-bearing — the whole
+                // form scrolls in both of `showMoneyDialog`'s layouts (a
+                // full-screen route on a phone, `scrollable: true` elsewhere),
+                // which is what UX-26 fixed; nothing here is clipped by height.
                 SegmentedButton<_DestKind>(
                   showSelectedIcon: false,
-                  style: const ButtonStyle(visualDensity: VisualDensity.compact),
                   segments: [
                     ButtonSegment(
                         value: _DestKind.subAgents,
@@ -560,7 +564,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                   clipBehavior: Clip.antiAlias,
                   child: rows.isEmpty
                       ? Padding(
-                          padding: const EdgeInsets.all(20),
+                          padding: const EdgeInsets.all(IntesharSpacing.xl),
                           child: Center(
                               child: Text(ar ? 'لا توجد حسابات مطابقة' : 'No matching accounts',
                                   style: IntesharType.sans(12, color: cs.onSurfaceVariant))),

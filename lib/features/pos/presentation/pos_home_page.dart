@@ -46,6 +46,7 @@ import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
+import 'package:inteshar/shared/widgets/sheet_frame.dart';
 
 class PosHomePage extends ConsumerStatefulWidget {
   const PosHomePage({super.key});
@@ -695,7 +696,10 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
                   padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
                   child: Text(
                     _ar ? 'اختر الشركة' : 'Choose a company',
-                    style: IntesharType.display(18, color: cs.onSurface, w: FontWeight.w800),
+                    // UX-127: was an off-scale 18. `titleLg` (20) is the scale's
+                    // section-title step and the nearest one up.
+                    style: IntesharType.display(IntesharScale.titleLg,
+                        color: cs.onSurface, w: IntesharWeight.heavy),
                   ),
                 ),
               ),
@@ -997,7 +1001,15 @@ class _BalanceTally extends StatelessWidget {
             children: [
               Text(
                 ar ? 'الرصيد' : 'BALANCE',
-                style: TextStyle(fontFamily: 'CodecPro', fontSize: 10, color: cs.onSurfaceVariant, letterSpacing: 1.4, fontWeight: FontWeight.w800),
+                // UX-147: 10px, below the app's floor, on the label that names
+                // the number a cashier checks before every sale. `caption` (11)
+                // is the smallest step; the tally's measured width budget still
+                // holds — "BALANCE" is ~68px of a ~114px column at 360dp.
+                style: IntesharText.caption(
+                  color: cs.onSurfaceVariant,
+                  w: IntesharWeight.heavy,
+                  letterSpacing: 1.4,
+                ),
                 maxLines: 1,
               ),
               const SizedBox(height: 3),
@@ -1276,10 +1288,15 @@ class _CompanyCard extends StatelessWidget {
         width: 52,
         height: 52,
         alignment: Alignment.center,
-        decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(26)),
+        // UX-135: a raw `circular(26)` that only ever meant "half of 52" — say
+        // the shape instead of re-deriving it if the disc is ever resized.
+        decoration: BoxDecoration(color: cs.primary, shape: BoxShape.circle),
         child: Text(
           name.trim().isEmpty ? '?' : name.trim().substring(0, 1).toUpperCase(),
-          style: IntesharType.display(22, color: context.tones.onBrand, w: FontWeight.w900),
+          // UX-127: was an off-scale 22; one letter in a 52dp disc, so `display`
+          // (24) cannot overflow it.
+          style: IntesharType.display(IntesharScale.display,
+              color: context.tones.onBrand, w: IntesharWeight.black),
         ),
       );
 }
@@ -2018,11 +2035,12 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(color: cs.outline, borderRadius: BorderRadius.circular(2)),
-            ),
+            // UX-131: was a hand-typed copy of the shared 36x4 grab pill. The
+            // sheet itself deliberately stays hand-built rather than moving to
+            // SheetFrame — see the note on _showVoucher: this is the sale path,
+            // whose PopScope + enableDrag:false contract is what stops a swipe
+            // discarding a sold, unprinted code.
+            const SheetHandle(),
             const SizedBox(height: 20),
             // Receipt preview tile — wrapped so a Rovo/intent print can snapshot it to a PNG.
             RepaintBoundary(
@@ -2324,11 +2342,8 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
         constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const SizedBox(height: 12),
-          Container(
-            width: 36,
-            height: 4,
-            decoration: BoxDecoration(color: cs.outline, borderRadius: BorderRadius.circular(2)),
-          ),
+          // UX-131: the shared grab pill, not a fourth copy of it.
+          const SheetHandle(),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
             child: Row(children: [
@@ -2454,11 +2469,12 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(color: cs.outline, borderRadius: BorderRadius.circular(2)),
-            ),
+            // UX-131: was a hand-typed copy of the shared 36x4 grab pill. The
+            // sheet itself deliberately stays hand-built rather than moving to
+            // SheetFrame — see the note on _showVoucher: this is the sale path,
+            // whose PopScope + enableDrag:false contract is what stops a swipe
+            // discarding a sold, unprinted code.
+            const SheetHandle(),
             const SizedBox(height: 20),
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 360),
@@ -2913,7 +2929,10 @@ class _LockedQr extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             label,
-            style: TextStyle(fontFamily: 'CodecPro', fontSize: 10.5, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant),
+            // UX-147: 10.5px, and NOT covered by the printed-receipt exemption
+            // — the paper never says "PIN hidden"; this is a screen affordance
+            // sitting where the QR will be. `caption` (11) is the floor.
+            style: IntesharText.caption(color: cs.onSurfaceVariant),
           ),
         ],
       ),
@@ -3139,7 +3158,8 @@ class _BulkCardRowState extends State<_BulkCardRow> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: InkCard(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        // UX-135: `symmetric(12, 10)` — the vertical was on no scale.
+        density: CardDensity.dense,
         child: Row(children: [
           SizedBox(
             width: 26,

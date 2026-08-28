@@ -365,7 +365,7 @@ class DeleteAgentSheetBody extends StatelessWidget {
                     'Still attached: ${parts.join(' and ')}'),
             style: TextStyle(
                 color: done ? cs.onPrimaryContainer : cs.onErrorContainer,
-                fontWeight: FontWeight.w600),
+                fontWeight: IntesharWeight.semibold),
           ),
         ),
       ]),

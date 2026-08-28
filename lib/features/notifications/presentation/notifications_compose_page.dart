@@ -330,7 +330,6 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
     final ar = Localizations.localeOf(context).languageCode == 'ar';
     return InkCard(
       ruleColor: context.tones.brand,
-      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -461,7 +460,7 @@ class _HistoryCard extends StatelessWidget {
     }
 
     return InkCard(
-      padding: const EdgeInsetsDirectional.fromSTEB(14, 12, 14, 12),
+      density: CardDensity.dense,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -481,8 +480,8 @@ class _HistoryCard extends StatelessWidget {
           ],
           const SizedBox(height: 8),
           Wrap(spacing: 8, runSpacing: 6, children: [
-            StampPill(label: audienceValue(), color: context.tones.brand, icon: Icons.people_outline, fontSize: 10),
-            if (n.posOnly) StampPill(label: s.posBadge, color: context.status.success, icon: Icons.point_of_sale, fontSize: 10),
+            StampPill(label: audienceValue(), color: context.tones.brand, icon: Icons.people_outline),
+            if (n.posOnly) StampPill(label: s.posBadge, color: context.status.success, icon: Icons.point_of_sale),
           ]),
         ],
       ),

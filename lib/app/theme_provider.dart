@@ -14,7 +14,11 @@ const Set<String> kCursiveLanguageCodes = {'ar', 'fa', 'ur'};
 ///
 /// UX-141: the themes are also locale-dependent now — a cursive locale drops
 /// every baked letter-spacing, so switching language rebuilds them.
-final brandThemeProvider = Provider<({ThemeData light, ThemeData dark})>((ref) {
+/// UX-153 adds [highContrast] to the record. It is built from the same
+/// white-label seed as the other two, so an agent's brand survives the switch
+/// rather than being replaced by a generic black-and-white theme.
+final brandThemeProvider =
+    Provider<({ThemeData light, ThemeData dark, ThemeData highContrast})>((ref) {
   final cursive = kCursiveLanguageCodes.contains(
     ref.watch(localeControllerProvider).languageCode,
   );

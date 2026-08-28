@@ -21,6 +21,7 @@ import 'package:inteshar/features/pos/domain/pos_report_summary.dart';
 import 'package:inteshar/features/pos/presentation/print_queue_indicator.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
+import 'package:inteshar/shared/widgets/sheet_frame.dart';
 import 'package:share_plus/share_plus.dart';
 
 /// التقارير (سستم A95): the shop's purchased cards over a date window, with
@@ -547,7 +548,8 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
   Widget _summaryCard(bool ar, ColorScheme cs) {
     final s = _summary;
     return InkCard(
-      padding: const EdgeInsets.all(14),
+      // UX-135: `all(14)` is on no scale; `CardDensity.normal` (16) is what a
+      // summary card asks for.
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         if (!_identity.isEmpty) ...[
           if (_identity.shopName.trim().isNotEmpty)
@@ -770,7 +772,8 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: InkCard(
-        padding: const EdgeInsets.all(12),
+        // UX-135: 12 named, not spelled — this is a repeated report row.
+        density: CardDensity.dense,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Expanded(
@@ -917,34 +920,26 @@ class _ReprintSheetState extends ConsumerState<_ReprintSheet> {
     final ar = Localizations.localeOf(context).languageCode == 'ar';
     final cs = Theme.of(context).colorScheme;
     final p = widget.recovered.product;
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-        left: 20,
-        right: 20,
-        top: 16,
-      ),
+    // UX-131: this sheet hand-rolled the 36×4 grab pill, its own title block, its
+    // own keyboard inset and no height cap — the four things SheetFrame decides
+    // once. It is safe to migrate where the voucher sheets in pos_home_page are
+    // not: this card is ALREADY sold, so there is no PopScope / enableDrag:false
+    // contract here that a change in sheet chrome could undermine.
+    return SheetFrame(
+      eyebrow: ar ? 'إعادة الطباعة' : 'Reprint',
+      title: widget.recovered.categoryName ?? p.productDefinition.name,
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Center(
-          child: Container(
-            width: 36,
-            height: 4,
-            decoration: BoxDecoration(color: cs.outline, borderRadius: BorderRadius.circular(2)),
-          ),
-        ),
-        const SizedBox(height: 14),
-        Text(widget.recovered.categoryName ?? p.productDefinition.name,
-            textAlign: TextAlign.center,
-            style: IntesharType.sans(16, color: cs.onSurface, w: FontWeight.w800)),
-        const SizedBox(height: 4),
+        // Kept mono and in the body rather than passed as SheetFrame's
+        // `subtitle`: a serial is transcribed digit by digit onto a dispute, and
+        // the subtitle slot is proportional body text.
         Text('SN ${p.serialNumber}',
             textAlign: TextAlign.center,
-            style: IntesharType.mono(12, color: cs.onSurfaceVariant)),
+            style: IntesharType.mono(IntesharScale.body, color: cs.onSurfaceVariant)),
         const SizedBox(height: 6),
         SelectableText(p.pin,
             textAlign: TextAlign.center,
             style: IntesharType.mono(22, color: cs.onSurface, letterSpacing: 2)),
-        const SizedBox(height: 16),
+        const SizedBox(height: IntesharSpacing.lg),
         // UX-91: a retry looks exactly like a hang unless it says so.
         const PrintQueueLine(),
         FilledButton.icon(

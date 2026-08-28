@@ -616,7 +616,7 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
         : context.status.success;
     return InkCard(
       ruleColor: tint,
-      padding: const EdgeInsets.all(16),
+      // UX-135: `all(16)` restated the default; `CardDensity.normal` IS 16.
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -643,10 +643,15 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
                       printerState.deviceName ?? l.printerPickerUnknown,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
+                      // UX-127: was an off-scale 18. Snapped DOWN rather than up
+                      // on purpose — this line is `maxLines: 1, ellipsis` and
+                      // shares its row with the Test print / Disconnect buttons,
+                      // so 20 would just truncate a MAC-named printer sooner.
+                      // 16 is the scale's card-title step.
                       style: IntesharType.serif(
-                        18,
+                        IntesharScale.title,
                         color: cs.onSurface,
-                        w: FontWeight.w600,
+                        w: IntesharWeight.semibold,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -753,7 +758,8 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
   }) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 4),
     child: InkCard(
-      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+      // UX-135: `fromLTRB(14, 12, 12, 12)` was 12 everywhere except one edge.
+      density: CardDensity.dense,
       onTap: _busyId == null ? () => _use(target) : null,
       child: Row(
         children: [

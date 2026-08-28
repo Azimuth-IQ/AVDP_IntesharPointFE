@@ -17,6 +17,7 @@ import 'package:inteshar/shared/widgets/brand_band.dart';
 import 'package:inteshar/shared/widgets/brand_masthead.dart';
 import 'package:inteshar/shared/widgets/brand_star.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
+import 'package:inteshar/shared/widgets/high_contrast_row.dart';
 import 'package:inteshar/shared/widgets/language_switcher_row.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 import 'package:inteshar/shared/widgets/role_badge.dart';
@@ -1053,6 +1054,37 @@ class _MoreRow extends StatelessWidget {
 // Tablet
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Width of the tablet navigation rail — **UX-116, the second attempt.**
+///
+/// The first attempt bounded the rail with
+/// `IntrinsicHeight(child: ConstrainedBox(maxWidth: 116, child: NavigationRail))`
+/// inside a `SingleChildScrollView`, and that combination is what cut the
+/// labels. `RenderConstrainedBox` does **not** clamp the width it is asked
+/// about when computing an intrinsic height — it forwards it untouched
+/// (`rendering/proxy_box.dart`, `computeMaxIntrinsicHeight` calls
+/// `super.computeMaxIntrinsicHeight(width)`). The scroll view offers an
+/// unbounded width, so `IntrinsicHeight` measured the rail **as if every label
+/// were on one line**, then tightened the rail to that height. Layout then
+/// applied the real 116dp cap, the labels wrapped to two lines, and the column
+/// no longer fitted the height it had been forced into — so the rail overflowed
+/// and the bottom of it was clipped away by the viewport. The labels were not
+/// ellipsized; they were physically cut off, which is exactly what the report
+/// described.
+///
+/// The fix is structural, not cosmetic: bound the width with a real
+/// `SizedBox` (nothing downstream has to guess it) and let the rail do its own
+/// scrolling via `NavigationRail.scrollable`, so no intrinsic pass happens at
+/// all. Nothing about the label rendering had to change for the cut to stop.
+///
+/// The width itself scales with the viewport instead of being a flat 116: the
+/// tablet band is 600–1199dp, and at the top of it a 116dp rail was starving
+/// the labels while ~1080dp of body sat unused. [_kRailMin] keeps the narrow end
+/// where it was; [_kRailMax] stops the rail from eating the content it navigates.
+const double _kRailMin = 112;
+const double _kRailMax = 152;
+double _railWidth(BuildContext context) =>
+    (context.screenWidth * 0.16).clamp(_kRailMin, _kRailMax);
+
 class _TabletLayout extends StatelessWidget {
   final List<_NavItem> items;
   final int activeIndex;
@@ -1116,55 +1148,55 @@ class _TabletLayout extends StatelessWidget {
                 ),
               ],
             ),
-            // A rail listing every destination can exceed a short or landscape
-            // viewport; let it scroll rather than overflow.
-            child: LayoutBuilder(
-              builder: (context, constraints) => SingleChildScrollView(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: IntrinsicHeight(
-                    // UX-116: a Row lays out a non-flex child with unbounded
-                    // width, so a long RTL label ("الوكلاء الرئيسيون") made the
-                    // rail as wide as the label and ate the body. Bounded here,
-                    // the labels wrap to two centred lines instead.
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 116),
-                      child: NavigationRail(
-                        selectedIndex: activeIndex,
-                        onDestinationSelected: onSelect,
-                        labelType: NavigationRailLabelType.all,
-                        minWidth: 88,
-                        backgroundColor: Colors.transparent,
-                        indicatorColor: context.tones.brandWash,
-                        indicatorShape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(IntesharRadii.md),
-                        ),
-                        destinations: items
-                            .map(
-                              (e) => NavigationRailDestination(
-                                icon: _wrapBadge(
-                                  Icon(e.icon),
-                                  e.route,
-                                  unreadCount,
-                                ),
-                                selectedIcon: _wrapBadge(
-                                  Icon(e.selectedIcon),
-                                  e.route,
-                                  unreadCount,
-                                ),
-                                label: Text(
-                                  e.label,
-                                  maxLines: 2,
-                                  textAlign: TextAlign.center,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                    ),
-                  ),
+            child: SizedBox(
+              width: _railWidth(context),
+              child: NavigationRail(
+                // The rail lists EVERY destination — 19 of them for HQ — so on
+                // a short or landscape viewport it has to scroll. The rail's own
+                // flag does this; the hand-rolled scroll view it replaces is
+                // what broke the labels (see [_railWidth]).
+                scrollable: true,
+                selectedIndex: activeIndex,
+                onDestinationSelected: onSelect,
+                labelType: NavigationRailLabelType.all,
+                // Every destination fills the rail, so the tap target is the
+                // full width and the indicator sits on one centreline.
+                minWidth: _railWidth(context),
+                backgroundColor: Colors.transparent,
+                indicatorColor: context.tones.brandWash,
+                indicatorShape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(IntesharRadii.md),
                 ),
+                destinations: items
+                    .map(
+                      (e) => NavigationRailDestination(
+                        icon: _wrapBadge(
+                          Icon(e.icon),
+                          e.route,
+                          unreadCount,
+                        ),
+                        selectedIcon: _wrapBadge(
+                          Icon(e.selectedIcon),
+                          e.route,
+                          unreadCount,
+                        ),
+                        // Two lines fit every current label at 100% text scale.
+                        // Above that (the app allows up to 1.3×, see app.dart)
+                        // the longest ones do ellipsize — so the full label is
+                        // always recoverable from the tooltip. That is the
+                        // honest degradation: shortened on screen, never lost.
+                        label: Tooltip(
+                          message: e.label,
+                          child: Text(
+                            e.label,
+                            maxLines: 2,
+                            textAlign: TextAlign.center,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(),
               ),
             ),
           ),
@@ -1619,10 +1651,14 @@ void _showAboutSheet(BuildContext context) {
                 l.aboutPrinterNote,
                 style: Theme.of(ctx).textTheme.bodySmall,
               ),
-              const SizedBox(height: 16),
+              IntesharSpacing.gapLg,
               const Divider(height: 1),
-              const SizedBox(height: 12),
+              IntesharSpacing.gapMd,
               const LanguageSwitcherRow(),
+              IntesharSpacing.gapMd,
+              // UX-153: the display setting sits with the language one because
+              // that is where an operator already found "change how this looks".
+              const HighContrastRow(),
             ],
           ),
         ),
@@ -1700,8 +1736,14 @@ class _AboutDrawer extends StatelessWidget {
             ),
             const Divider(height: 1),
             const Padding(
-              padding: EdgeInsets.fromLTRB(20, 16, 20, 16),
+              padding: EdgeInsets.fromLTRB(IntesharSpacing.lg, IntesharSpacing.lg,
+                  IntesharSpacing.lg, IntesharSpacing.sm),
               child: LanguageSwitcherRow(),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(IntesharSpacing.lg, 0,
+                  IntesharSpacing.lg, IntesharSpacing.lg),
+              child: HighContrastRow(),
             ),
           ],
         ),

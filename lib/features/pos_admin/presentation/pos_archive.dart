@@ -531,7 +531,7 @@ class PosArchiveList extends StatelessWidget {
 
     return InkCard(
       ruleColor: row.purgeable ? cs.error : cs.outline,
-      padding: const EdgeInsets.all(14),
+      density: CardDensity.dense,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(
@@ -545,7 +545,6 @@ class PosArchiveList extends StatelessWidget {
                 ? _t(context, 'جاهزة للحذف', 'Ready to delete')
                 : daysLeftLabel(context, row.daysRemaining),
             color: row.purgeable ? cs.error : cs.onSurfaceVariant,
-            fontSize: 10,
           ),
         ]),
         if (subtitle.isNotEmpty) ...[

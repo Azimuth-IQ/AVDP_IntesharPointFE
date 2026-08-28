@@ -14,6 +14,7 @@ import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/password_field.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
+import 'package:inteshar/shared/widgets/sheet_frame.dart';
 
 String _tr(BuildContext c, String ar, String en) =>
     Localizations.localeOf(c).languageCode == 'ar' ? ar : en;
@@ -376,7 +377,7 @@ class _ArchivedUserCard extends StatelessWidget {
     final when = user.archivedAt?.toLocal().toString().substring(0, 16) ?? '';
     return InkCard(
       ruleColor: cs.outline,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(IntesharSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -385,10 +386,12 @@ class _ArchivedUserCard extends StatelessWidget {
               child: monoText(user.phone,
                   size: 14, color: cs.onSurfaceVariant, w: FontWeight.w800),
             ),
+            // UX-127: this asked for 10, which is on no scale — and StampPill
+            // has clamped to its 12 floor since UX-142, so the argument only
+            // ever misdescribed what shipped.
             StampPill(
               label: _tr(context, 'مؤرشف', 'Archived'),
               color: cs.onSurfaceVariant,
-              fontSize: 10,
             ),
           ]),
           if (when.isNotEmpty) ...[
@@ -438,7 +441,7 @@ class _UserCard extends StatelessWidget {
     final caps = user.capabilities;
     final full = caps.isEmpty || caps.contains(Capability.AGENT_ADMIN);
     return InkCard(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(IntesharSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -565,25 +568,28 @@ class _UserFormSheetState extends ConsumerState<_UserFormSheet> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final loc = Localizations.localeOf(context).languageCode;
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-        left: 20,
-        right: 20,
-        top: 20,
+    // UX-131: this sheet had NO grab handle while still being drag-dismissible,
+    // and hand-rolled its own title, keyboard inset and (missing) height cap.
+    return SheetFrame(
+      title: _isEdit
+          ? _tr(context, 'تعديل الصلاحيات', 'Edit capabilities')
+          : _tr(context, 'مشرف جديد', 'New supervisor'),
+      footer: SizedBox(
+        width: double.infinity,
+        child: FilledButton(
+          onPressed: _saving ? null : _save,
+          child: _saving
+              ? const SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2))
+              : Text(_tr(context, 'حفظ', 'Save')),
+        ),
       ),
-      child: SingleChildScrollView(
-        child: Column(
+      child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              _isEdit
-                  ? _tr(context, 'تعديل الصلاحيات', 'Edit capabilities')
-                  : _tr(context, 'مشرف جديد', 'New supervisor'),
-              style: IntesharType.display(20, color: cs.onSurface, w: FontWeight.w900),
-            ),
-            const SizedBox(height: 16),
             TextField(
               controller: _phone,
               enabled: !_isEdit,
@@ -649,23 +655,8 @@ class _UserFormSheetState extends ConsumerState<_UserFormSheet> {
               const SizedBox(height: 8),
               Text(_error!, style: TextStyle(color: cs.error)),
             ],
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: _saving ? null : _save,
-                child: _saving
-                    ? const SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2))
-                    : Text(_tr(context, 'حفظ', 'Save')),
-              ),
-            ),
-            const SizedBox(height: 16),
           ],
         ),
-      ),
     );
   }
 }

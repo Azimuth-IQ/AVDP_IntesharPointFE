@@ -302,7 +302,7 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: InkCard(
-        padding: const EdgeInsets.all(14),
+        density: CardDensity.dense,
         onTap: () => _openAgent(r),
         child: Row(children: [
           Expanded(
@@ -321,8 +321,17 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
                   style: IntesharType.mono(12, color: cs.onSurfaceVariant)),
             ]),
           ),
+          // UX-130: NOT a FigureBlock — the label sits UNDER the figure and the
+          // pair is end-aligned against the row's chevron, neither of which
+          // FigureBlock offers, and inverting it here would leave this card
+          // reading differently from every other figure on the screen for the
+          // sake of the migration. What it did need was to stop hand-rolling
+          // the numeral: the raw `TextStyle(fontFamily: 'CodecPro', 24, w900)`
+          // bypassed the display helper and with it the Arabic tracking guard.
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text(Formatters.money(r.used), style: const TextStyle(fontFamily: 'CodecPro', fontSize: 24, fontWeight: FontWeight.w900, height: 1)),
+            Text(Formatters.money(r.used),
+                style: IntesharText.display(
+                    color: cs.onSurface, w: IntesharWeight.black)),
             Text(s.points, style: IntesharType.overline(color: cs.onSurfaceVariant)),
           ]),
           const SizedBox(width: 6),

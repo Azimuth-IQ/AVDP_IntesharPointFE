@@ -233,8 +233,14 @@ class _PricingPageState extends ConsumerState<PricingPage> {
   String _query = '';
   // B-121: WHICH account these prices belong to. Null = my own. A Main Agent
   // picks a sub-agent and the whole screen — list, export, upload — follows it.
-  String? _targetId;
-  String _targetName = '';
+  //
+  // UX-14: the whole ROW is kept, not an id + a name, because the picker can now
+  // return any descendant seller — including one that is not among [_targets] —
+  // and the tier and governorate on the row are what the wording below reads.
+  EntitySummaryRow? _targetRow;
+
+  String? get _targetId => _targetRow?.id;
+  String get _targetName => _targetRow?.name ?? '';
 
   /// UX-01: the accounts this caller may price FOR — its direct children of any
   /// seller tier, so HQ gets its Main Agents and a Main Agent gets its Sub Agents.
@@ -258,12 +264,6 @@ class _PricingPageState extends ConsumerState<PricingPage> {
   /// route pop; otherwise [PopScope] would veto its own retry forever.
   bool _allowPop = false;
 
-  /// Rebuilds the target dropdown from scratch after a REJECTED change, so it
-  /// snaps back to the account still being edited — `DropdownButtonFormField`
-  /// takes `initialValue` only on first build, so its internal state would
-  /// otherwise keep showing the account we refused to switch to (UX-68).
-  int _pickerEpoch = 0;
-
   final Map<String, TextEditingController> _ctrls = {};
 
   /// UX-69: the value each field was LOADED with, so an edited row can be marked
@@ -283,17 +283,16 @@ class _PricingPageState extends ConsumerState<PricingPage> {
       (ref.read(authStateProvider).valueOrNull as AuthAuthenticated?)?.entity.type;
   bool get _callerIsHq => _callerType == EntityType.INTESHAR;
 
+  /// The signed-in entity's id — the account the prices belong to when no target
+  /// is picked, and the one row the agent picker must not offer as a "target".
+  String get _myId =>
+      (ref.read(authStateProvider).valueOrNull as AuthAuthenticated?)?.entity.id ??
+      '';
+
   /// The tier of the account currently being priced for, or null when pricing my
   /// own. Drives the wording — a Main Agent's customers are sub-agents, a Sub
   /// Agent's are shops.
-  EntityType? get _targetType {
-    final id = _targetId;
-    if (id == null) return null;
-    for (final t in _targets) {
-      if (t.id == id) return t.type;
-    }
-    return null;
-  }
+  EntityType? get _targetType => _targetRow?.type;
 
   /// The tier the picker is offering, or null when it offers more than one.
   EntityType? get _targetsTier {
@@ -391,11 +390,15 @@ class _PricingPageState extends ConsumerState<PricingPage> {
   /// went on reporting main agents still on defaults. The rule is the seller axis,
   /// not a hardcoded tier: any direct child that can itself sell (AGENT1 or
   /// AGENT2) is a valid target; a STORE still is not, for the reason above.
+  ///
+  /// UX-14: these are the caller's DIRECT children, and since the agent picker
+  /// became a server search they are no longer the set you can price for — they
+  /// are the set "All my agents (N)" writes to in one go, and the test for
+  /// whether this account has anyone below it at all.
   Future<void> _loadTargets() async {
     try {
       final rows = await EntityRepository(ref.read(apiClientProvider))
-          .children((ref.read(authStateProvider).valueOrNull as AuthAuthenticated?)?.entity.id ?? '',
-              page: 0, size: 200);
+          .children(_myId, page: 0, size: 200);
       if (!mounted) return;
       setState(() => _targets = rows.items
           .where((e) =>
@@ -681,7 +684,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
     }
 
     final ar = Localizations.localeOf(context).languageCode == 'ar';
-    final myId = (ref.read(authStateProvider).valueOrNull as AuthAuthenticated?)?.entity.id ?? '';
+    final myId = _myId;
 
     // Confirm with a PREVIEW of exactly what will change + an explicit target.
     final extraAgents = <String, String>{}; // id -> name
@@ -952,8 +955,18 @@ class _PricingPageState extends ConsumerState<PricingPage> {
 
   /// B-121: whose prices am I editing? B-126 puts each agent's governorate on the
   /// row, so the one-governorate rule is legible instead of assumed.
+  ///
+  /// UX-14: this was the last ad-hoc "pick an agent" control in the app — a flat
+  /// `DropdownButtonFormField` over a `children(size: 200)` snapshot. It could
+  /// not be typed into, it silently truncated at 200, and it only ever offered
+  /// DIRECT children even though `/api/pricing/{catalog,set,set-bulk}` all accept
+  /// **self or any descendant** (`PricingController.isSelfOrDescendant`). It is
+  /// the shared server-searched picker now — the same one the "Also apply to
+  /// agents…" button in the upload dialog on this very screen already used, so
+  /// the two controls that resolve an agent here finally resolve it the same way.
   Widget _agentPicker(_S s, String loc) {
     final cs = Theme.of(context).colorScheme;
+    final row = _targetRow;
     String labelFor(EntitySummaryRow r) {
       final gs = r.governorates.where((g) => g.isNotEmpty).toList();
       if (gs.isEmpty) return r.name;
@@ -966,50 +979,64 @@ class _PricingPageState extends ConsumerState<PricingPage> {
           : '${r.name} — $first +${gs.length - 1}';
     }
 
+    // UX-68: _load() disposes and clears every controller, so an unguarded
+    // switch silently threw away a screenful of typed prices. Both ways of
+    // changing the target go through the same prompt; refusing it simply leaves
+    // the field on the account still being edited, so nothing has to be undone.
+    Future<void> retarget(EntitySummaryRow? picked) async {
+      if (picked?.id == _targetId) return;
+      if (!await _confirmDiscard(s) || !mounted) return;
+      setState(() => _targetRow = picked);
+      // Reload: the catalog IS the target's prices, so a stale list would show
+      // one agent's numbers under another agent's name.
+      _load();
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: DropdownButtonFormField<String?>(
-        key: ValueKey('pricing-target-${_targetId ?? ''}-$_pickerEpoch'),
-        initialValue: _targetId,
-        isExpanded: true,
-        decoration: InputDecoration(
-          labelText: s.pricingFor,
-          isDense: true,
-          prefixIcon: const Icon(Icons.storefront_outlined, size: 18),
-          helperText: _targetId == null
-              ? s.pricingForMeHint
-              : s.pricingForAgentHint(_targetType),
-          helperMaxLines: 2,
-          helperStyle: IntesharType.sans(11, color: cs.onSurfaceVariant),
-        ),
-        items: [
-          DropdownMenuItem(value: null, child: Text(s.myOwnPrices)),
-          for (final a in _targets)
-            DropdownMenuItem(
-              value: a.id,
-              child: Text(labelFor(a), overflow: TextOverflow.ellipsis),
-            ),
-        ],
-        onChanged: (v) async {
-          if (v == _targetId) return;
-          // UX-68: _load() disposes and clears every controller, so an unguarded
-          // switch silently threw away a screenful of typed prices.
-          if (!await _confirmDiscard(s)) {
-            // Put the dropdown back on the account still being edited.
-            if (mounted) setState(() => _pickerEpoch++);
-            return;
-          }
-          if (!mounted) return;
-          setState(() {
-            _targetId = v;
-            _targetName = v == null
-                ? ''
-                : _targets.firstWhere((a) => a.id == v).name;
-          });
-          // Reload: the catalog IS the target's prices, so a stale list would
-          // show one agent's numbers under another agent's name.
-          _load();
+      child: InkWell(
+        borderRadius: BorderRadius.circular(IntesharRadii.sm),
+        onTap: () async {
+          final picked = await showEntitySearchPicker(
+            context,
+            repository: EntityRepository(ref.read(apiClientProvider)),
+            title: s.pricingFor,
+            // Sellers only — see [_loadTargets] for why a STORE is not a
+            // meaningful pricing target (UX-30).
+            types: const [EntityType.AGENT1, EntityType.AGENT2],
+            // My own account is the "Clear" below, not a row in the list.
+            where: (r) => r.id != _myId,
+          );
+          if (picked != null) await retarget(picked);
         },
+        child: InputDecorator(
+          decoration: InputDecoration(
+            labelText: s.pricingFor,
+            isDense: true,
+            prefixIcon: const Icon(Icons.storefront_outlined, size: 18),
+            // Dismissing the picker means "changed my mind", so going BACK to my
+            // own prices needs its own control — the old dropdown had it as a
+            // list row.
+            suffixIcon: row == null
+                ? const Icon(Icons.manage_search)
+                : IconButton(
+                    tooltip: s.myOwnPrices,
+                    icon: const Icon(Icons.close, size: 18),
+                    onPressed: () => retarget(null),
+                  ),
+            helperText: row == null
+                ? s.pricingForMeHint
+                : s.pricingForAgentHint(_targetType),
+            helperMaxLines: 2,
+            helperStyle: IntesharType.sans(11, color: cs.onSurfaceVariant),
+          ),
+          child: Text(
+            row == null ? s.myOwnPrices : labelFor(row),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: IntesharText.bodyLg(color: cs.onSurface),
+          ),
+        ),
       ),
     );
   }
@@ -1280,13 +1307,11 @@ class _BalanceHeader extends StatelessWidget {
                     alignment: AlignmentDirectional.centerStart,
                     child: Text(
                       Formatters.iqd(worth.round()),
-                      style: TextStyle(
-                        fontFamily: 'CodecPro',
-                        fontSize: 26,
-                        fontWeight: FontWeight.w900,
-                        color: onBrand,
-                        height: 1,
-                      ),
+                      // UX-127: was a hand-typed 26. `display` (24) is the step
+                      // `BrandKpiStrip` paints its figures at, and this sits in a
+                      // scale-down box, so the change cannot cost a digit.
+                      style: IntesharText.display(color: onBrand)
+                          .copyWith(height: 1),
                     ),
                   ),
                 ),
@@ -1384,7 +1409,7 @@ class _PriceRow extends StatelessWidget {
     final loc = Localizations.localeOf(context).languageCode;
     final regional = _regionalRow(row);
     return InkCard(
-      padding: const EdgeInsets.all(14),
+      // UX-135: was `all(14)`.
       ruleColor: row.priced ? context.status.success : cs.outline,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -45,12 +45,33 @@ enum _WithdrawDestination {
   retire,
 }
 
+/// The one stock screen, reached through four doors:
+///
+///   * `/hq/inventory` — HQ's own holding, with a picker onto any Main Agent's;
+///   * `/hq/entities/:id/inventory` — HQ drilling into a child from the tree;
+///   * `/agent1/inventory` — a Main Agent's own warehouse;
+///   * `/agent1|/agent2/entities/:id/inventory` — an agent drilling downstream.
+///
+/// UX-104: no two of them used to grant the same powers. HQ could withdraw and
+/// correct codes through the dropdown but not through the tree drill-in — the
+/// same person, looking at the same warehouse, with different buttons depending
+/// on which link they had clicked, and nothing on either screen saying which
+/// mode they were in.
+///
+/// What the viewer may do is now decided from **who is signed in** and **whose
+/// warehouse is on screen** (see `_canEditProducts` / `_canWithdrawFrom`), never
+/// from the route. The only thing the route still decides is navigation: the
+/// standalone screen carries the "viewing inventory of" picker, the pushed
+/// drill-in carries a back-aware AppBar naming one account.
 class InventoryPage extends ConsumerStatefulWidget {
   /// When set, browses this entity's inventory instead of the signed-in
-  /// entity's — used for read-only drill-in to a child's stock.
+  /// entity's — used for the drill-in to a child's stock.
   final String? entityId;
 
-  /// Hides all mutating controls (per-product status changes).
+  /// Forces browse-only regardless of the viewer's tier. A floor, not the rule:
+  /// the powers themselves come from the viewer/target pair, so a caller that
+  /// leaves this `false` still gets read-only unless the viewer actually has
+  /// authority over the warehouse on screen.
   final bool readOnly;
 
   const InventoryPage({super.key, this.entityId, this.readOnly = false});
@@ -67,13 +88,20 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
   ProductStatus? _statusFilter;
   String? _entityId;
 
-  // HQ-only "view a Main Agent's inventory" picker. Conceptually only Main Agents
-  // hold stock, so HQ can inspect its own holding or any AGENT1 pool. Only shown on
-  // HQ's own inventory screen (widget.entityId == null), not the read-only drill-in.
-  bool _isHqRoot = false;
-  String? _selfId; // signed-in HQ entity id (the default "HQ holding" option)
+  /// UX-104: the signed-in tier. Together with [_selfId] and the account being
+  /// viewed it decides every power on this screen.
+  EntityType? _viewerType;
+  String? _selfId; // signed-in entity id (the default "own holding" option)
   String? _selectedId; // chosen entity to view (null => self)
   List<EntitySummaryRow> _mainAgents = [];
+
+  bool get _viewerIsHq => _viewerType == EntityType.INTESHAR;
+
+  /// The "view a Main Agent's inventory" picker. Conceptually only HQ and the
+  /// Main Agents hold stock, so HQ can inspect its own holding or any AGENT1
+  /// pool. Navigation, not authority: the pushed drill-in already names one
+  /// account in its AppBar, so it does not carry a control for switching away.
+  bool get _showOwnerPicker => widget.entityId == null && _viewerIsHq;
 
   @override
   void initState() {
@@ -91,10 +119,8 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
       _selfId = (auth is AuthAuthenticated)
           ? auth.entity.id
           : await sessionStorage.getCurrentEntityId();
-      _isHqRoot = widget.entityId == null &&
-          auth is AuthAuthenticated &&
-          auth.entity.type == EntityType.INTESHAR;
-      if (_isHqRoot && _mainAgents.isEmpty) {
+      _viewerType = auth is AuthAuthenticated ? auth.entity.type : null;
+      if (_showOwnerPicker && _mainAgents.isEmpty) {
         try {
           _mainAgents =
               await AgentRepository(ref.read(apiClientProvider)).listAll('AGENT1');
@@ -117,11 +143,19 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
     }
   }
 
-  /// Withdraw is HQ pulling stock back from SOMEBODY ELSE's warehouse. Not on
-  /// HQ's own holding (there is nowhere to pull it to) and not on the read-only
-  /// drill-in, where every other control is hidden too.
+  /// UX-104: may this viewer change a card's status or correct its code here?
+  ///
+  /// HQ publishes the catalog and loads the codes, so it may do both in any
+  /// warehouse it can see — its own or an agent's, reached through the picker or
+  /// through the tree. Every other tier browses: a Main Agent's stock is fed and
+  /// recalled by HQ, and a sub-agent/shop holds no cards at all (draw-on-print).
+  bool get _canEditProducts => !widget.readOnly && _viewerIsHq;
+
+  /// Withdraw is pulling stock back out of SOMEBODY ELSE's warehouse — the same
+  /// authority as [_canEditProducts], minus the case where there is nowhere to
+  /// pull it to (your own holding).
   bool _canWithdrawFrom(String entityId) =>
-      _isHqRoot && !widget.readOnly && entityId != _selfId;
+      _canEditProducts && entityId != _selfId;
 
   int _statusCount(SkuSummary s, ProductStatus status) => switch (status) {
         ProductStatus.AVAILABLE => s.available,
@@ -206,7 +240,7 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
               filterNote: filterNote,
             ),
           ),
-          if (_isHqRoot)
+          if (_showOwnerPicker)
             Padding(
               padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 8),
               child: _InventoryOwnerPicker(
@@ -257,7 +291,8 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
                             key: ValueKey(s.sku),
                             summary: s,
                             entityId: _entityId!,
-                            readOnly: widget.readOnly,
+                            // UX-104: the viewer's authority, not the route's.
+                            readOnly: !_canEditProducts,
                             lowStock: lowStock,
                             statusFilter: _statusFilter,
                             canWithdraw: _canWithdrawFrom(_entityId!),
@@ -354,7 +389,9 @@ class _InventoryValueCard extends StatelessWidget {
     final ar = Localizations.localeOf(context).languageCode == 'ar';
     final l = AppLocalizations.of(context)!;
     return InkCard(
-      padding: const EdgeInsetsDirectional.fromSTEB(18, 16, 18, 16),
+      // UX-135: was a hand-typed 18/16 inset. `normal` is the 16 every other
+      // content card in the app carries.
+      density: CardDensity.normal,
       child: Row(
         children: [
           Container(
@@ -367,7 +404,7 @@ class _InventoryValueCard extends StatelessWidget {
             ),
             child: Icon(Icons.savings_outlined, size: 22, color: context.tones.brandInk),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: IntesharSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -499,7 +536,11 @@ class _TallyChip extends StatelessWidget {
         children: [
           Text(
             Formatters.money(value),
-            style: IntesharType.display(18, color: color, w: FontWeight.w900),
+            // UX-127: was an off-scale 18. `title` (16) rather than the next step
+            // up: three of these ride in the header's capped trailing slot beside
+            // a 12px word each, and a seven-digit tally at 20 stops fitting.
+            style: IntesharType.display(IntesharScale.title,
+                color: color, w: IntesharWeight.black),
           ),
           const SizedBox(width: 6),
           Text(
@@ -571,7 +612,7 @@ class _StatusFilterChips extends StatelessWidget {
         color: cs.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(999),
       ),
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(IntesharSpacing.xs),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: options.map((opt) {
@@ -581,9 +622,19 @@ class _StatusFilterChips extends StatelessWidget {
             child: InkWell(
               borderRadius: BorderRadius.circular(999),
               onTap: () => onChanged(opt.$1),
+              // UX-119: the painted pill was ~31dp tall — five of them side by
+              // side, on a handheld. It is floored at the 48dp target, and the
+              // PILL itself grows rather than a transparent hit box around it:
+              // the brand fill is the selection indicator, so slack between it
+              // and the track would read as a control that missed.
+              //
+              // Height only. Widening these would push the fifth chip out of the
+              // filter row, which is already tight beside the search field.
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 160),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                constraints: const BoxConstraints(minHeight: 48),
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
                   color: active ? context.tones.brand : Colors.transparent,
                   borderRadius: BorderRadius.circular(999),
@@ -595,7 +646,7 @@ class _StatusFilterChips extends StatelessWidget {
                     // Selected = a brand pill, so the label is the measured
                     // on-brand foreground, not a hardcoded ink.
                     color: active ? context.tones.onBrand : opt.$3,
-                    w: active ? FontWeight.w800 : FontWeight.w700,
+                    w: active ? IntesharWeight.heavy : IntesharWeight.bold,
                   ),
                 ),
               ),
@@ -1124,7 +1175,9 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: s.available > 0 ? context.tones.brand : cs.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(22),
+                      // UX-135: was `circular(22)` — a raw half-of-44 that reads
+                      // as an off-scale radius. It is a circle; say so.
+                      shape: BoxShape.circle,
                     ),
                     child: Text(
                       s.sku,
@@ -1376,7 +1429,10 @@ class _LoadMoreRow extends StatelessWidget {
     return InkWell(
       onTap: loading ? null : onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+        // UX-119/UX-135: was an off-scale `vertical: 14`, which made the row a
+        // ~46dp target. `lg` is on the scale and clears 48.
+        padding: const EdgeInsets.symmetric(
+            vertical: IntesharSpacing.lg, horizontal: IntesharSpacing.md),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -1493,10 +1549,10 @@ class _ProductRow extends StatelessWidget {
                     const SizedBox(width: 8),
                     Flexible(
                       child: monoText(
+                        // UX-127: was an off-scale 13 at a raw `w500` that has
+                        // no registered face — both are monoText's defaults now.
                         product.serialNumber,
-                        size: 13,
                         color: cs.onSurface,
-                        w: FontWeight.w500,
                         letterSpacing: 0.4,
                       ),
                     ),

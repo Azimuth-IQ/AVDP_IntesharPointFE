@@ -315,27 +315,32 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
               ),
             ]),
             const SizedBox(height: 2),
+            // UX-119: "Discard" throws away a message the server never took —
+            // there is no undo and no copy of it anywhere else. Both buttons
+            // carried `visualDensity: compact`, which drops Material's padded
+            // tap target from 48dp to 40dp, and they sit side by side, so the
+            // irreversible one was the smaller-than-floor target next to the
+            // recoverable one. Density removed; the horizontal padding stays
+            // tight so the pair still fits a narrow bubble.
             Row(mainAxisSize: MainAxisSize.min, children: [
               TextButton.icon(
                 style: TextButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.sm),
                   foregroundColor: context.status.danger,
                 ),
                 onPressed: () => _deliver(p),
                 icon: const Icon(Icons.refresh, size: 15),
                 label: Text(ar ? 'إعادة المحاولة' : 'Retry',
-                    style: IntesharType.sans(12, w: FontWeight.w700)),
+                    style: IntesharText.body(w: IntesharWeight.bold)),
               ),
               TextButton(
                 style: TextButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.sm),
                   foregroundColor: cs.onSurfaceVariant,
                 ),
                 onPressed: () => setState(() => _outgoing.remove(p)),
                 child: Text(ar ? 'تجاهل' : 'Discard',
-                    style: IntesharType.sans(12, w: FontWeight.w600)),
+                    style: IntesharText.body(w: IntesharWeight.semibold)),
               ),
             ]),
           ],

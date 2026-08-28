@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:inteshar/app/display_prefs.dart';
 import 'package:inteshar/app/router.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/app/theme_provider.dart';
@@ -29,6 +30,9 @@ class IntesharApp extends ConsumerWidget {
     final router = ref.watch(routerProvider);
     final locale = ref.watch(localeControllerProvider);
     final brandThemes = ref.watch(brandThemeProvider);
+    // UX-153: the in-app high-contrast switch (About → Display). See
+    // `display_prefs.dart` for why this exists and dark mode still does not.
+    final highContrast = ref.watch(highContrastProvider);
     // UX-57: the money formatter is a context-free static with ~53 call sites,
     // so the currency unit (د.ع vs IQD) follows the locale from here. Same value
     // the app is about to rebuild with — the two can never disagree for a frame.
@@ -44,11 +48,27 @@ class IntesharApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'Inteshar',
       debugShowCheckedModeBanner: false,
-      theme: brandThemes.light,
+      // UX-153: the in-app switch beats the OS one, so `theme` itself swaps.
+      // `highContrastTheme` is still set so an iOS "Increase Contrast" user gets
+      // it without finding the switch — Android does not report that flag, which
+      // is precisely why the in-app switch had to exist for the POS fleet.
+      theme: highContrast ? brandThemes.highContrast : brandThemes.light,
+      highContrastTheme: brandThemes.highContrast,
       darkTheme: brandThemes.dark,
       // B-078: lock to the polished light style. Much of the UI paints fixed light
       // inks (IntesharColors.ink/lichen/…), so honouring the OS dark setting left
       // low-contrast text on charcoal. Light is the team's intended look.
+      //
+      // UX-153 re-examined this and it STANDS, for a reason that outlived the
+      // hardcoded inks: the app separates surfaces with a black drop shadow on a
+      // near-white tile, and in dark mode `inkPaper` vs `inkCard` measures
+      // 1.09:1 with the shadow invisible — every card, sheet, sidebar and nav bar
+      // loses its edge at once. `SurfaceTreatment` (theme.dart) is the fix and is
+      // wired here, but ~13 feature-local card re-implementations still paint
+      // `IntesharShadows.elev1` directly and would stay edgeless. Dark mode ships
+      // when those adopt it; until then this stays pinned and the accessibility
+      // need is served by high contrast, which is the better answer for an
+      // outdoor POS anyway.
       themeMode: ThemeMode.light,
       routerConfig: router,
       // App-wide update gate: a mandatory update replaces the whole UI; an

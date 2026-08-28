@@ -11,6 +11,7 @@ import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
+import 'package:inteshar/shared/widgets/sheet_frame.dart';
 
 // ─── Local strings (inline ar/en — no .arb dependency) ───────────────────────
 
@@ -237,7 +238,8 @@ class NotificationsUnreadBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(
+          horizontal: IntesharSpacing.md, vertical: IntesharSpacing.sm2),
       decoration: BoxDecoration(
         color: context.tones.brand.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(IntesharRadii.md),
@@ -287,7 +289,7 @@ class _NotifCard extends StatelessWidget {
     final unread = !n.isRead;
     return InkCard(
       ruleColor: unread ? context.tones.brand : null,
-      padding: const EdgeInsetsDirectional.fromSTEB(14, 12, 14, 12),
+      density: CardDensity.dense,
       onTap: onTap,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -397,53 +399,35 @@ class _DetailSheet extends StatelessWidget {
       return s.audienceAll;
     }
 
-    return SafeArea(
-      top: false,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.sizeOf(context).height * 0.75,
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                n.title,
-                style: IntesharType.display(
-                  22,
-                  color: cs.onSurface,
-                  w: FontWeight.w800,
-                ),
-              ),
-              Container(
-                margin: const EdgeInsets.only(top: 8, bottom: 16),
-                width: 38,
-                height: 3,
-                decoration: BoxDecoration(
-                  color: context.tones.brand,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              Text(
-                n.body,
-                style: IntesharType.sans(16, color: cs.onSurface)
-                    .copyWith(height: 1.55),
-              ),
-              const SizedBox(height: 20),
-              if (n.senderName.isNotEmpty)
-                _kvRow(context, s.from, n.senderName),
-              _kvRow(context, s.to, audienceValue()),
-              if (n.sentAt != null)
-                _kvRow(
-                  context,
-                  s.sent,
-                  DateFormat('yyyy-MM-dd HH:mm').format(n.sentAt!),
-                ),
-            ],
+    // UX-131: this sheet hand-rolled its own shell — a third max-height (0.75),
+    // an off-scale 22 title and a re-typed copy of the brand rule — while the
+    // call site already asks the framework for the grab handle. The shared
+    // frame owns all of that now (`handle: false` so there is exactly one pill).
+    return SheetFrame(
+      handle: false,
+      title: n.title,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            n.body,
+            style: IntesharText.title(
+              color: cs.onSurface,
+              w: IntesharWeight.regular,
+              height: 1.55,
+            ),
           ),
-        ),
+          IntesharSpacing.gapXl,
+          if (n.senderName.isNotEmpty) _kvRow(context, s.from, n.senderName),
+          _kvRow(context, s.to, audienceValue()),
+          if (n.sentAt != null)
+            _kvRow(
+              context,
+              s.sent,
+              DateFormat('yyyy-MM-dd HH:mm').format(n.sentAt!),
+            ),
+        ],
       ),
     );
   }
@@ -454,7 +438,7 @@ class _DetailSheet extends StatelessWidget {
 Widget _kvRow(BuildContext context, String label, String value) {
   final cs = Theme.of(context).colorScheme;
   return Padding(
-    padding: const EdgeInsets.only(bottom: 9),
+    padding: const EdgeInsets.only(bottom: IntesharSpacing.sm),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

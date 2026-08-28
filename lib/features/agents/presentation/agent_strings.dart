@@ -91,6 +91,9 @@ class AgentStrings {
       'Select the main agent this sub agent reports to — its coverage limits the governorates below.',
       'اختر الوكيل الرئيسي الذي يتبعه هذا الوكيل الفرعي — تغطيته تحدد المحافظات أدناه.');
   String get errParentRequired => pick('Select a parent main agent', 'اختر الوكيل الرئيسي التابع له');
+  /// Placeholder in the parent field before anything is picked (UX-14). It must
+  /// read as unanswered — the old dropdown showed nothing at all there.
+  String get parentNotChosen => pick('Not chosen yet', 'لم يُختر بعد');
   String get noMainAgents => pick('No main agents exist yet — create one first.', 'لا يوجد وكلاء رئيسيون — أنشئ واحداً أولاً.');
 
   String get sectionIdentity => pick('Identity', 'الهوية');

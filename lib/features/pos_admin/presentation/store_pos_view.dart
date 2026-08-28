@@ -147,7 +147,7 @@ class _StorePosViewState extends ConsumerState<StorePosView> {
 
   /// Says plainly why there is no "add a POS point" button here.
   Widget _note(_S s, ColorScheme cs) => Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(IntesharSpacing.lg),
         decoration: BoxDecoration(
           color: context.tones.brand.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(IntesharRadii.md),

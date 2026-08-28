@@ -188,10 +188,18 @@ class PrinterStatusChip extends StatelessWidget {
     );
 
     if (onTap == null) return clamped;
+    // UX-119: the flat app-bar treatment is 6px of vertical padding around a
+    // 16px icon — a 28dp tap target on the control that leads to printer setup,
+    // i.e. the way out of "no printer" on a counter device operated one-handed.
+    // The padded target is raised to 48dp; `widthFactor: 1` keeps the Center
+    // sized to the chip, so the app-bar row's horizontal budget is unchanged.
     return InkWell(
       borderRadius: BorderRadius.circular(999),
       onTap: onTap,
-      child: clamped,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 48),
+        child: Center(widthFactor: 1, child: clamped),
+      ),
     );
   }
 }

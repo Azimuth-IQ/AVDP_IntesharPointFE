@@ -8,6 +8,7 @@ import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/password_field.dart';
+import 'package:inteshar/shared/widgets/sheet_frame.dart';
 
 /// "Archive N users" in Arabic, which does not simply take a number and a
 /// plural: two is its own dual form, 3–10 take the plural, and 11+ go back to
@@ -329,7 +330,8 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
                       padding: const EdgeInsets.symmetric(vertical: 2),
                       child: Text(p,
                           style: GoogleFonts.jetBrainsMono(
-                              fontSize: 13, letterSpacing: 0.4)),
+                              fontSize: IntesharScale.bodyLg,
+                              letterSpacing: 0.4)),
                     )),
               ],
             ),
@@ -373,43 +375,30 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
         ? widget.entity.meta.name
         : widget.entity.id;
 
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-        left: 24,
-        right: 24,
-        top: 20,
+    // UX-131/127: handle, title (display **26** against the canonical 24),
+    // keyboard inset and height cap were all hand-rolled here. SheetFrame owns
+    // them; Save is pinned so it stays reachable while a long roster scrolls.
+    return SheetFrame(
+      eyebrow: l.manageUsersSectionLabel,
+      title: l.manageUsersTitle,
+      subtitle: entityName,
+      footer: SizedBox(
+        width: double.infinity,
+        child: FilledButton(
+          onPressed: _saving ? null : _save,
+          child: _saving
+              ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(l.manageUsersSave),
+        ),
       ),
-      child: SingleChildScrollView(
-        child: Column(
+      child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: cs.outline,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            SectionLabel(l.manageUsersSectionLabel),
-            Text(
-              l.manageUsersTitle,
-              style: IntesharType.display(26, color: cs.onSurface),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              entityName,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
-            ),
-            const SizedBox(height: 18),
-
             // Existing users
             if (_users.isEmpty)
               Padding(
@@ -438,10 +427,10 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
             // to it and not to the sheet. Two bare buttons stacked in one column
             // both looked like "the" commit, and the wrong one was pressed.
             Container(
-              padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+              padding: const EdgeInsets.all(IntesharSpacing.lg),
               decoration: BoxDecoration(
                 color: cs.surfaceContainerHighest.withValues(alpha: 0.35),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(IntesharRadii.md),
                 border: Border.all(color: cs.outlineVariant),
               ),
               child: Column(
@@ -565,24 +554,8 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
                 ],
               ),
             ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: _saving ? null : _save,
-                child: _saving
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(l.manageUsersSave),
-              ),
-            ),
-            const SizedBox(height: 24),
           ],
         ),
-      ),
     );
   }
 }
@@ -627,7 +600,7 @@ class _UserRow extends StatelessWidget {
               child: SelectableText(
                 user.phone,
                 style: GoogleFonts.jetBrainsMono(
-                  fontSize: 13,
+                  fontSize: IntesharScale.bodyLg,
                   color: markedForRemoval ? cs.onSurfaceVariant : cs.onSurface,
                   letterSpacing: 0.4,
                   decoration:

@@ -15,11 +15,13 @@ import 'package:inteshar/features/agents/data/agent_repository.dart';
 import 'package:inteshar/features/agents/domain/agent_tier.dart';
 import 'package:inteshar/features/agents/presentation/agent_strings.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
+import 'package:inteshar/features/entities/data/entity_repository.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/shared/widgets/color_hex_field.dart';
 import 'package:inteshar/features/system_activity/domain/feed_rows.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
+import 'package:inteshar/shared/widgets/entity_search_picker.dart';
 import 'package:inteshar/shared/widgets/image_upload_field.dart';
 import 'package:inteshar/shared/widgets/map_location_picker.dart';
 import 'package:inteshar/shared/widgets/password_field.dart';
@@ -121,10 +123,26 @@ class _AgentFormState extends ConsumerState<AgentForm> {
   ];
   Set<Capability> _allowedSections = _sectionChoices.toSet();
 
-  // Sub-agent parent (Main Agent) selection
-  List<EntitySummaryRow> _parentOptions = [];
+  // ── Sub-agent parent (Main Agent) selection ────────────────────────────────
+  //
+  // UX-14: this was a `DropdownButtonFormField` over `listAll('AGENT1')` — one
+  // page of 200, silently truncated. Two failures, not one: the right parent
+  // could be absent from the list entirely, and in EDIT mode a parent missing
+  // from that page also made [_applyParentCoverage] find nothing, so the
+  // governorate lock silently lifted and a sub agent could be moved outside its
+  // main agent's coverage. It is the shared server-searched picker now, which
+  // does not truncate and can be typed into.
   String? _parentId;
+
+  /// The chosen parent as a row — its name for the field, its governorates for
+  /// the coverage lock. Resolved from the server in edit mode.
+  EntitySummaryRow? _parentRow;
   bool _loadingParents = false;
+
+  /// False only when the server confirms no Main Agent exists at all, so the
+  /// "create one first" hint never appears merely because a fetch failed.
+  bool _anyMainAgents = true;
+
   Set<String>?
   _allowedGovernorates; // limits the governorate choices to the parent's
 
@@ -196,7 +214,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
       _users.add(_UserDraft.blank(AgentUserPreset.admin));
     }
     if (tier.requiresParentPicker) {
-      _loadParents();
+      _loadParentContext();
     }
     _loadHoursGate();
   }
@@ -254,35 +272,65 @@ class _AgentFormState extends ConsumerState<AgentForm> {
     super.dispose();
   }
 
-  Future<void> _loadParents() async {
+  /// Resolves what the parent field needs to render, without ever listing a
+  /// tier: the CURRENT parent by id in edit mode, or a one-row probe in create
+  /// mode purely to know whether any Main Agent exists.
+  Future<void> _loadParentContext() async {
     setState(() => _loadingParents = true);
+    final entities = EntityRepository(ref.read(apiClientProvider));
     try {
-      final repo = AgentRepository(ref.read(apiClientProvider));
-      final parents = await repo.listAll('AGENT1');
-      if (!mounted) return;
-      setState(() {
-        _parentOptions = parents;
-        _loadingParents = false;
-        if (_parentId != null) _applyParentCoverage();
-      });
+      final current = _parentId;
+      if (current != null && current.isNotEmpty) {
+        // Read-only: this document is never written back (C-10).
+        final parent = await entities.read(current);
+        if (!mounted) return;
+        setState(() {
+          _parentRow = EntitySummaryRow(
+            id: parent.id,
+            name: parent.meta.name,
+            type: parent.type,
+            governorates: parent.meta.governorates,
+          );
+          _applyParentCoverage();
+        });
+      } else {
+        final probe =
+            await entities.search(types: const [EntityType.AGENT1], size: 1);
+        if (!mounted) return;
+        setState(() => _anyMainAgents = probe.items.isNotEmpty);
+      }
     } catch (_) {
+      // Leave the field usable; the picker itself reports its own failures.
+    } finally {
       if (mounted) setState(() => _loadingParents = false);
     }
   }
 
   void _applyParentCoverage() {
-    EntitySummaryRow? row;
-    for (final p in _parentOptions) {
-      if (p.id == _parentId) {
-        row = p;
-        break;
-      }
-    }
-    final allowed = row?.governorates.toSet();
+    final allowed = _parentRow?.governorates.toSet();
     _allowedGovernorates = allowed;
     if (allowed != null && allowed.isNotEmpty) {
       _governorates = _governorates.where(allowed.contains).toSet();
     }
+  }
+
+  /// Opens the shared server-searched picker for the parent Main Agent.
+  Future<void> _pickParent() async {
+    final picked = await showEntitySearchPicker(
+      context,
+      repository: EntityRepository(ref.read(apiClientProvider)),
+      title: AgentStrings.of(context, tier).sectionParent,
+      types: const [EntityType.AGENT1],
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _parentId = picked.id;
+      _parentRow = picked;
+      _parentError = null;
+      // A different parent means a different coverage: anything the new one
+      // does not cover is dropped rather than silently saved out of area.
+      _applyParentCoverage();
+    });
   }
 
   /// Effective capabilities for a preset on this tier — pricing is stripped on tiers
@@ -662,32 +710,37 @@ class _AgentFormState extends ConsumerState<AgentForm> {
           const SizedBox(height: 10),
           if (_loadingParents)
             const Padding(
-              padding: EdgeInsets.all(8),
+              padding: EdgeInsets.all(IntesharSpacing.sm),
               child: LinearProgressIndicator(),
             )
-          else if (_parentOptions.isEmpty)
+          else if (!_anyMainAgents && _parentRow == null)
             Text(s.noMainAgents, style: IntesharType.sans(14, color: cs.error))
           else
-            DropdownButtonFormField<String>(
+            // UX-14: the shared server-searched picker, like the batch-add
+            // screen. It starts EMPTY in create mode — an unanswered question
+            // has to look unanswered, and `_validateStep1` refuses to advance
+            // without it.
+            InkWell(
               key: _kParent,
-              initialValue: _parentId,
-              isExpanded: true,
-              decoration: InputDecoration(
-                labelText: s.fieldParent,
-                errorText: _parentError,
+              onTap: _pickParent,
+              child: InputDecorator(
+                decoration: InputDecoration(
+                  labelText: s.fieldParent,
+                  suffixIcon: const Icon(Icons.manage_search),
+                  errorText: _parentError,
+                ),
+                child: Text(
+                  _parentRow?.label ?? s.parentNotChosen,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: IntesharType.sans(
+                    14,
+                    color: _parentRow == null ? cs.onSurfaceVariant : cs.onSurface,
+                  ),
+                ),
               ),
-              items: _parentOptions
-                  .map(
-                    (p) => DropdownMenuItem(value: p.id, child: Text(p.label)),
-                  )
-                  .toList(),
-              onChanged: (v) => setState(() {
-                _parentId = v;
-                _parentError = null;
-                _applyParentCoverage();
-              }),
             ),
-          const SizedBox(height: 22),
+          const SizedBox(height: IntesharSpacing.xl),
         ],
         // Identity first — who the agent is, before any advanced access config (B-073).
         SectionLabel(s.sectionIdentity),
@@ -723,7 +776,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
           label: s.fieldLogo,
           onChanged: (u) => setState(() => _logo.text = u),
         ),
-        const SizedBox(height: 22),
+        const SizedBox(height: IntesharSpacing.xl),
         // B-055 + B-073: which sections this agent — and its ENTIRE subtree — may
         // see. Server-enforced; the nav mirrors it. All-on by default, so it lives
         // in a collapsed "Advanced access" expander instead of a wall of chips up top.
@@ -768,7 +821,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
             ],
           ),
         ),
-        const SizedBox(height: 22),
+        const SizedBox(height: IntesharSpacing.xl),
         SectionLabel(s.sectionGovernorates),
         const SizedBox(height: 4),
         Text(
@@ -797,7 +850,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
           const SizedBox(height: 6),
           Text(_govError!, style: IntesharType.sans(12, color: cs.error)),
         ],
-        const SizedBox(height: 22),
+        const SizedBox(height: IntesharSpacing.xl),
         SectionLabel(
           Localizations.localeOf(context).languageCode == 'ar'
               ? 'ساعات الدخول'
@@ -855,7 +908,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
           value: _workingHours,
           onChanged: (v) => setState(() => _workingHours = v),
         ),
-        const SizedBox(height: 22),
+        const SizedBox(height: IntesharSpacing.xl),
 
         // ── Operational limits (UX-03) ───────────────────────────────────────
         // Folded in from the hierarchy tree's edit sheet, which was the only
@@ -907,11 +960,11 @@ class _AgentFormState extends ConsumerState<AgentForm> {
             value: !_bulkLocked,
             onChanged: (v) => setState(() => _bulkLocked = !v),
             title: Text(s.bulkUnlockLabel,
-                style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w600)),
+                style: IntesharType.sans(14, color: cs.onSurface, w: IntesharWeight.semibold)),
             subtitle: Text(s.bulkUnlockHint,
                 style: IntesharType.sans(11, color: cs.onSurfaceVariant)),
           ),
-        const SizedBox(height: 22),
+        const SizedBox(height: IntesharSpacing.xl),
         SectionLabel(s.sectionOwner),
         const SizedBox(height: 8),
         TextField(
@@ -1010,7 +1063,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
           },
         ),
         if (tier == AgentTier.main) ...[
-          const SizedBox(height: 22),
+          const SizedBox(height: IntesharSpacing.xl),
           SectionLabel(s.sectionBranding),
           const SizedBox(height: 4),
           Text(s.brandingHint, style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
@@ -1196,7 +1249,7 @@ class _UserCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final locale = s.ar ? 'ar' : 'en';
     return InkCard(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(IntesharSpacing.lg),
       ruleColor: draft.preset == AgentUserPreset.admin
           ? context.tones.brand
           : cs.outline,

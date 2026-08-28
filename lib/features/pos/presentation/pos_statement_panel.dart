@@ -261,7 +261,9 @@ class _PosStatementPanelState extends ConsumerState<PosStatementPanel> {
           ]),
         );
     return InkCard(
-      padding: const EdgeInsets.all(14),
+      // UX-135: `all(14)` is on no scale; `CardDensity.normal` (16) is the
+      // default this summary card wanted. The figures are in FittedBoxes, so
+      // the 2px does not move a number.
       child: Row(children: [
         cell(ar ? 'الرصيد الافتتاحي' : 'Opening balance', money(_windowOpening)),
         cell(ar ? 'الرصيد الختامي' : 'Closing balance', money(_windowClosing)),
@@ -278,7 +280,8 @@ class _PosStatementPanelState extends ConsumerState<PosStatementPanel> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: InkCard(
-        padding: const EdgeInsets.all(12),
+        // UX-135: 12 named, not spelled — this is a repeated ledger row.
+        density: CardDensity.dense,
         child: Row(children: [
           Container(
             width: 32,

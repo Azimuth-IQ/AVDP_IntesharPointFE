@@ -224,7 +224,8 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
               title: l.navCatalog,
               subtitle: l.defsSubtitle,
               trailing: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: IntesharSpacing.lg, vertical: IntesharSpacing.sm2),
                 decoration: BoxDecoration(
                   color: context.tones.brand.withValues(alpha: 0.16),
                   borderRadius: BorderRadius.circular(999),
@@ -430,7 +431,10 @@ class _DefinitionRowState extends State<_DefinitionRow> {
                 alignment: Alignment.center,
                 child: monoText(
                   widget.def.sku,
-                  size: 13,
+                  // UX-127: was an off-scale 13. `body` is monoText's own step
+                  // and the size the identical SKU tile on the inventory screen
+                  // uses — a longer SKU also has to fit this 42px tile.
+                  size: IntesharScale.body,
                   // Hover paints the tile with the brand, so the SKU rides on
                   // the measured on-brand foreground, not a fixed ink.
                   color: _hover ? context.tones.onBrand : cs.onSurface,
@@ -481,10 +485,12 @@ class _DefinitionRowState extends State<_DefinitionRow> {
                       ),
                       const SizedBox(height: 2),
                       monoText(
+                        // UX-127: was an off-scale 13; this is the row's figure
+                        // and it has a 120px column to itself.
                         Formatters.iqd(widget.def.defaultPrice),
-                        size: 13,
+                        size: IntesharScale.bodyLg,
                         color: cs.onSurface,
-                        w: FontWeight.w700,
+                        w: IntesharWeight.bold,
                       ),
                     ],
                   ),

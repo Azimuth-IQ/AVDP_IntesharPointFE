@@ -383,7 +383,7 @@ class _StorePosNote extends StatelessWidget {
         );
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(IntesharSpacing.lg),
       decoration: BoxDecoration(
         color: context.tones.brand.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(IntesharRadii.md),
@@ -612,18 +612,19 @@ class _KpiTile extends StatelessWidget {
                   style: IntesharType.sans(
                     12,
                     color: cs.onSurfaceVariant,
-                    w: FontWeight.w600,
+                    w: IntesharWeight.semibold,
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
-              Text(
-                value,
-                style: IntesharType.display(
-                  30,
-                  color: cs.onSurface,
-                  w: FontWeight.w900,
-                ),
+              const SizedBox(height: IntesharSpacing.sm2),
+              // UX-127: 30 is on no scale. Snapping to the 32 step is only safe
+              // because the numeral now scales down inside its own tile — a
+              // four-column desktop tile is ~190dp wide and a month's granted
+              // credit is a long number, so it could already clip at 30.
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: AlignmentDirectional.centerStart,
+                child: Text(value, style: IntesharText.displayLg(color: cs.onSurface)),
               ),
               const SizedBox(height: 4),
               Text(
@@ -775,7 +776,7 @@ class _ChildCreditCard extends StatelessWidget {
                           color: dry.isEmpty
                               ? context.status.success
                               : context.status.danger,
-                          w: FontWeight.w600,
+                          w: IntesharWeight.semibold,
                         ),
                       ),
                     ],
@@ -797,7 +798,7 @@ class _ChildCreditCard extends StatelessWidget {
                       shown[i].name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w600),
+                      style: IntesharType.sans(14, color: cs.onSurface, w: IntesharWeight.semibold),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -908,7 +909,7 @@ class _RecentTransfersCard extends StatelessWidget {
                           height: 30,
                           decoration: BoxDecoration(
                             color: tint.withValues(alpha: 0.14),
-                            borderRadius: BorderRadius.circular(7),
+                            borderRadius: BorderRadius.circular(IntesharRadii.xs),
                           ),
                           alignment: Alignment.center,
                           child: Icon(
@@ -931,7 +932,7 @@ class _RecentTransfersCard extends StatelessWidget {
                                 style: IntesharType.sans(
                                   14,
                                   color: cs.onSurface,
-                                  w: FontWeight.w600,
+                                  w: IntesharWeight.semibold,
                                 ),
                               ),
                               const SizedBox(height: 1),
@@ -976,8 +977,13 @@ class _ViewAllLink extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(IntesharRadii.sm),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      // UX-119: "View all" / "Top up" / "Request cards" are the only outbound
+      // links on the dashboard cards, and 12px text with 6px of padding made
+      // them ~28dp tall.
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 48),
+        child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.sm),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -997,6 +1003,7 @@ class _ViewAllLink extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -1035,7 +1042,7 @@ class _InlineEmpty extends StatelessWidget {
               style: IntesharType.sans(
                 14,
                 color: cs.onSurfaceVariant,
-                w: FontWeight.w500,
+                w: IntesharWeight.regular,
               ),
             ),
           ),
@@ -1349,7 +1356,7 @@ class _LowStockCard extends ConsumerWidget {
                       style: IntesharType.sans(
                         14,
                         color: context.status.success,
-                        w: FontWeight.w600,
+                        w: IntesharWeight.semibold,
                       ),
                     ),
                   ),
@@ -1377,7 +1384,7 @@ class _LowStockCard extends ConsumerWidget {
                             style: IntesharType.sans(
                               14,
                               color: cs.onSurface,
-                              w: FontWeight.w600,
+                              w: IntesharWeight.semibold,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,

@@ -266,7 +266,8 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
           final cs = Theme.of(context).colorScheme;
           return InkCard(
             ruleColor: context.tones.brand,
-            padding: const EdgeInsets.all(16),
+            // UX-135: `normal` IS the 16 this card was typing by hand.
+            density: CardDensity.normal,
             onTap: _deleting.contains(c.id) ? null : () => _openForm(existing: c),
             child: Row(
               children: [
@@ -544,7 +545,11 @@ class _CompanyDialogState extends State<_CompanyDialog> {
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12.5)),
+                // UX-127: was an off-scale 12.5 — a half-point step no screen
+                // renders as distinct from `body`.
+                child: Text(_error!,
+                    style: IntesharText.body(
+                        color: Theme.of(context).colorScheme.error)),
               ),
             ],
           ),

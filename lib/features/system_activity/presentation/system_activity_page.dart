@@ -27,8 +27,10 @@ import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
+import 'package:inteshar/shared/widgets/min_tap_target.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 import 'package:inteshar/shared/widgets/role_badge.dart';
+import 'package:inteshar/shared/widgets/sheet_frame.dart';
 
 const double _hPad = 16;
 
@@ -1055,7 +1057,7 @@ class _AllClearCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+      padding: const EdgeInsets.all(IntesharSpacing.lg),
       decoration: BoxDecoration(
         color: context.status.success.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(IntesharRadii.md),
@@ -1072,7 +1074,7 @@ class _AllClearCard extends StatelessWidget {
           ),
           child: Icon(Icons.check_circle_outline_rounded, size: 22, color: context.status.success),
         ),
-        const SizedBox(width: 14),
+        const SizedBox(width: IntesharSpacing.md),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(ar ? 'كل شيء يعمل بشكل سليم' : 'Everything is running clean',
@@ -1104,7 +1106,8 @@ class _ExceptionsCard extends StatelessWidget {
       padding: EdgeInsets.zero,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(18, 14, 18, 12),
+          padding: const EdgeInsetsDirectional.fromSTEB(
+              IntesharSpacing.lg, IntesharSpacing.md, IntesharSpacing.lg, IntesharSpacing.md),
           child: Text(
             ar ? 'يحتاج إلى إجراء' : 'Needs your attention',
             style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w800),
@@ -1116,7 +1119,8 @@ class _ExceptionsCard extends StatelessWidget {
           InkWell(
             onTap: rows[i].onTap,
             child: Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(18, 12, 14, 12),
+              padding: const EdgeInsetsDirectional.fromSTEB(
+                  IntesharSpacing.lg, IntesharSpacing.md, IntesharSpacing.md, IntesharSpacing.md),
               child: Row(children: [
                 Container(
                   width: 34,
@@ -1200,7 +1204,7 @@ class _SiblingSectionLink extends StatelessWidget {
       bordered: true,
       elevated: false,
       onTap: onTap,
-      padding: const EdgeInsets.all(14),
+      density: CardDensity.dense,
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Icon(icon, size: 20, color: context.tones.brandInk),
         const SizedBox(width: 12),
@@ -1348,6 +1352,17 @@ class _StatStrip extends StatelessWidget {
   }
 }
 
+/// UX-130: deliberately **not** a [FigureBlock].
+///
+/// FigureBlock is a figure on paper — a dot, a label, a numeral, an optional
+/// note, stacked, inert. This is a horizontal navigation control: a 38dp tinted
+/// icon square that carries the KPI's semantic colour, a numeral, a label, a
+/// *period* line ("all time" vs "last 24h" — the thing that stops a windowed
+/// count reading like an all-time one), and an `onTap` that focuses the feed
+/// below on that KPI. Four of those six have no FigureBlock equivalent, and
+/// adding them would turn the shared widget into a kitchen sink for the sake of
+/// one caller. The tile keeps its own class; only its type/spacing tokens were
+/// brought onto the scale.
 class _StatTile extends StatelessWidget {
   final IconData icon;
   final Color tint;
@@ -1371,7 +1386,7 @@ class _StatTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return InkCard(
-      padding: const EdgeInsetsDirectional.fromSTEB(14, 13, 14, 13),
+      density: CardDensity.dense,
       onTap: onTap,
       child: Row(
         children: [
@@ -1381,27 +1396,34 @@ class _StatTile extends StatelessWidget {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: tint.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(11),
+              borderRadius: BorderRadius.circular(IntesharRadii.sm),
             ),
             child: Icon(icon, size: 20, color: tint),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: IntesharSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(value, style: IntesharType.display(22, color: cs.onSurface, w: FontWeight.w900)),
+                // UX-127: was an off-scale 22. The figure shares a 176dp tile
+                // with a 38dp icon square, so it snaps DOWN to the 20 step —
+                // `IntesharScale.snap` would tie upward to 24 and a
+                // money-formatted count has ~98dp of column to live in.
+                Text(value,
+                    style: IntesharType.display(IntesharScale.titleLg,
+                        color: cs.onSurface, w: IntesharWeight.black)),
                 const SizedBox(height: 1),
                 Text(label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: IntesharType.sans(11, color: context.status.neutral, w: FontWeight.w600)),
+                    style: IntesharText.caption(color: context.status.neutral)),
                 const SizedBox(height: 2),
                 Text(period,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: IntesharType.sans(11, color: cs.onSurfaceVariant, w: FontWeight.w500)),
+                    style: IntesharText.caption(
+                        color: cs.onSurfaceVariant, w: IntesharWeight.regular)),
               ],
             ),
           ),
@@ -1458,40 +1480,50 @@ class _TabChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final fg = active ? cs.onSurface : cs.onSurfaceVariant;
-    return Material(
-      color: active ? cs.primary.withValues(alpha: 0.18) : cs.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(999),
-      child: InkWell(
-        onTap: onTap,
+    // UX-119: the page's primary navigation, hand-built from a raw InkWell — so
+    // it shipped whatever height the padding happened to give it (~37dp) with
+    // none of the `MaterialTapTargetSize.padded` floor a real chip would carry.
+    // MinTapTarget floors the HIT box at 48 without repainting the pill, so the
+    // strip keeps its slim look.
+    return MinTapTarget(
+      minSize: const Size(0, 48),
+      child: Material(
+        color: active ? cs.primary.withValues(alpha: 0.18) : cs.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(999),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(spec.icon, size: 16, color: fg),
-              const SizedBox(width: 7),
-              Text(spec.label,
-                  style: IntesharType.sans(14, color: fg, w: active ? FontWeight.w800 : FontWeight.w600)),
-              const SizedBox(width: 7),
-              Tooltip(
-                message: spec.hint,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: active
-                        ? cs.onSurface.withValues(alpha: 0.12)
-                        : cs.onSurfaceVariant.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(999),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(999),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: IntesharSpacing.md, vertical: IntesharSpacing.sm2),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(spec.icon, size: 16, color: fg),
+                const SizedBox(width: 7),
+                Text(spec.label,
+                    style: IntesharType.sans(14,
+                        color: fg, w: active ? FontWeight.w800 : FontWeight.w600)),
+                const SizedBox(width: 7),
+                Tooltip(
+                  message: spec.hint,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: active
+                          ? cs.onSurface.withValues(alpha: 0.12)
+                          : cs.onSurfaceVariant.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                        spec.approxCount
+                            ? '${Formatters.money(spec.count)}+'
+                            : Formatters.money(spec.count),
+                        style: IntesharType.mono(11, color: fg, w: FontWeight.w700)),
                   ),
-                  child: Text(
-                      spec.approxCount
-                          ? '${Formatters.money(spec.count)}+'
-                          : Formatters.money(spec.count),
-                      style: IntesharType.mono(11, color: fg, w: FontWeight.w700)),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -1521,21 +1553,32 @@ class _FilterPill extends StatelessWidget {
     final accent = tint ?? cs.primary;
     final bg = selected ? accent.withValues(alpha: 0.16) : cs.surfaceContainerHighest;
     final fg = selected ? accent : cs.onSurfaceVariant;
-    return Material(
-      color: bg,
-      borderRadius: BorderRadius.circular(999),
-      child: InkWell(
-        onTap: onTap,
+    // UX-119: same raw-InkWell problem as _TabChip, one step smaller (~32dp).
+    // These sit 8px apart in a horizontal strip and each one re-queries the
+    // server, so a mis-tap costs a round trip and a changed result set.
+    return MinTapTarget(
+      minSize: const Size(0, 48),
+      child: Material(
+        color: bg,
         borderRadius: BorderRadius.circular(999),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (icon != null) ...[Icon(icon, size: 14, color: fg), const SizedBox(width: 5)],
-              Text(label,
-                  style: IntesharType.sans(12, color: fg, w: selected ? FontWeight.w800 : FontWeight.w600)),
-            ],
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(999),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: IntesharSpacing.md, vertical: IntesharSpacing.sm),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 14, color: fg),
+                  const SizedBox(width: 5),
+                ],
+                Text(label,
+                    style: IntesharType.sans(12,
+                        color: fg, w: selected ? FontWeight.w800 : FontWeight.w600)),
+              ],
+            ),
           ),
         ),
       ),
@@ -1612,7 +1655,6 @@ Widget _logStatusPill(BuildContext context, OperationLog log) {
     return StampPill(
       label: '${log.httpStatus}',
       color: log.success ? context.status.success : context.status.danger,
-      fontSize: 10,
     );
   }
   // UX-154: `_logVisual` computes an icon AND a colour, and this dropped the
@@ -1622,7 +1664,7 @@ Widget _logStatusPill(BuildContext context, OperationLog log) {
   // sunlit handheld screen.
   final visual = _logVisual(context, log);
   return StampPill(
-      label: log.level, color: visual.color, icon: visual.icon, fontSize: 10);
+      label: log.level, color: visual.color, icon: visual.icon);
 }
 
 /// B-108: the headline is a sentence, not a route. `POST /api/auth/login` next
@@ -1652,7 +1694,7 @@ class _LogRow extends StatelessWidget {
     ].where((p) => p.isNotEmpty).join(' · ');
 
     return InkCard(
-      padding: const EdgeInsetsDirectional.fromSTEB(14, 12, 12, 12),
+      density: CardDensity.dense,
       onTap: onTap,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1830,7 +1872,7 @@ class _TxnRow extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final shortId = row.id.length > 8 ? row.id.substring(0, 8) : row.id;
     return InkCard(
-      padding: const EdgeInsetsDirectional.fromSTEB(14, 12, 14, 12),
+      density: CardDensity.dense,
       onTap: onTap,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1855,7 +1897,7 @@ class _TxnRow extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              StampPill(label: _txnStatusLabel(l, row.statusEnum), color: _txnStatusColor(context, row.statusEnum), fontSize: 10),
+              StampPill(label: _txnStatusLabel(l, row.statusEnum), color: _txnStatusColor(context, row.statusEnum)),
               const SizedBox(height: 5),
               Text(Formatters.iqd(row.totalAmount),
                   style: IntesharType.mono(12, color: cs.onSurface, w: FontWeight.w700)),
@@ -1928,7 +1970,7 @@ class _TxnDetailSheet extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Container(
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          padding: const EdgeInsets.all(IntesharSpacing.md),
           decoration: BoxDecoration(
             color: context.tones.brand.withValues(alpha: 0.16),
             borderRadius: BorderRadius.circular(IntesharRadii.md),
@@ -1983,7 +2025,7 @@ class _EntityRow extends ConsumerWidget {
     ].join(' · ');
 
     return InkCard(
-      padding: const EdgeInsetsDirectional.fromSTEB(14, 12, 14, 12),
+      density: CardDensity.dense,
       onTap: onTap,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2119,7 +2161,6 @@ class _EntityDetailSheet extends StatelessWidget {
 Widget _roleChip(BuildContext context, UserRole role, AppLocalizations l) => StampPill(
       label: role == UserRole.ADMIN ? l.sysActRoleAdmin : l.entityTypeUser,
       color: role == UserRole.ADMIN ? context.tones.brandInk : context.status.neutral,
-      fontSize: 10,
     );
 
 class _UserRow extends StatelessWidget {
@@ -2133,7 +2174,7 @@ class _UserRow extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final type = row.entityTypeEnum;
     return InkCard(
-      padding: const EdgeInsetsDirectional.fromSTEB(14, 12, 14, 12),
+      density: CardDensity.dense,
       onTap: onTap,
       child: Row(
         children: [
@@ -2201,6 +2242,15 @@ class _MiniTypeTag extends StatelessWidget {
 
 // ─── Shared sheet primitives ───────────────────────────────────────────────────
 
+/// UX-131: the three detail sheets on this page used to share a *local* frame
+/// that re-decided the height cap, the title size (an off-scale 22) and the
+/// brand rule, and forgot the keyboard inset entirely. This is the shared
+/// [SheetFrame] with the same call shape, so the three call sites are untouched.
+///
+/// `handle: false` because every one of the four `showModalBottomSheet` calls on
+/// this page already passes `showDragHandle: true` — the framework draws the
+/// grab pill, and letting SheetFrame draw a second one is the affordance lie in
+/// the other direction.
 class _SheetFrame extends StatelessWidget {
   final String title;
   final Widget? titleTrailing;
@@ -2209,33 +2259,14 @@ class _SheetFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return SafeArea(
-      top: false,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.85),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Expanded(child: Text(title, style: IntesharType.display(22, color: cs.onSurface, w: FontWeight.w800))),
-                  ?titleTrailing,
-                ],
-              ),
-              Container(
-                margin: const EdgeInsets.only(top: 8, bottom: 16),
-                width: 38,
-                height: 3,
-                decoration: BoxDecoration(color: context.tones.brand, borderRadius: BorderRadius.circular(2)),
-              ),
-              ...children,
-            ],
-          ),
-        ),
+    return SheetFrame(
+      handle: false,
+      title: title,
+      trailing: titleTrailing,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: children,
       ),
     );
   }
@@ -2250,7 +2281,7 @@ Widget _kv(BuildContext context, String label, String value, {bool mono = false}
         : IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w500),
   );
   return Padding(
-    padding: const EdgeInsets.only(bottom: 9),
+    padding: const EdgeInsets.only(bottom: IntesharSpacing.sm),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2356,7 +2387,7 @@ class _UnpricedAgentsCard extends StatelessWidget {
     final ar = Localizations.localeOf(context).languageCode == 'ar';
     final cs = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      padding: const EdgeInsets.all(IntesharSpacing.md),
       decoration: BoxDecoration(
         color: context.tones.brand.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(IntesharRadii.md),
@@ -2377,9 +2408,12 @@ class _UnpricedAgentsCard extends StatelessWidget {
         ]),
         const SizedBox(height: 6),
         Wrap(spacing: 8, runSpacing: 6, children: [
+          // UX-119: `compact` dropped these below the 48dp floor, and they are
+          // laid out in a Wrap so neighbours sit 8px apart in both axes — the
+          // worst case for a shrunken target. Each one navigates to a different
+          // agent, so a mis-tap opens the wrong account.
           for (final r in rows)
             ActionChip(
-              visualDensity: VisualDensity.compact,
               avatar: onTapAgent == null
                   ? null
                   : Icon(Icons.open_in_new, size: 14, color: cs.onSurfaceVariant),

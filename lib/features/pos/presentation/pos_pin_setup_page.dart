@@ -202,9 +202,10 @@ class _PinSetupForm extends StatelessWidget {
               width: 44,
               height: 44,
               alignment: Alignment.center,
+              // UX-135: `circular(22)` was only ever "half of 44".
               decoration: BoxDecoration(
                 color: context.tones.brand,
-                borderRadius: BorderRadius.circular(22),
+                shape: BoxShape.circle,
               ),
               child: Icon(Icons.lock_outline, color: context.tones.onBrand, size: 22),
             ),
@@ -217,7 +218,10 @@ class _PinSetupForm extends StatelessWidget {
                     ar
                         ? (requireCurrent ? 'تغيير رمز نقطة البيع' : 'إعداد رمز نقطة البيع')
                         : (requireCurrent ? 'Change POS PIN' : 'Set POS PIN'),
-                    style: IntesharType.display(22, color: cs.onSurface, w: FontWeight.w900),
+                    // UX-127: was an off-scale 22; wraps rather than clipping in
+                    // a 460dp-capped column, so `display` (24) is safe.
+                    style: IntesharType.display(IntesharScale.display,
+                        color: cs.onSurface, w: IntesharWeight.black),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -364,7 +368,9 @@ class _ErrorBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      // UX-135: `all(14)` is on no scale — the token doc names it as the app's
+      // single most common off-scale padding.
+      padding: const EdgeInsets.all(IntesharSpacing.lg),
       decoration: BoxDecoration(
         color: cs.errorContainer,
         borderRadius: BorderRadius.circular(IntesharRadii.md),

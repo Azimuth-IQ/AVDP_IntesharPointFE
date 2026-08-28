@@ -35,34 +35,45 @@ class AlertBanner extends ConsumerWidget {
       ref.invalidate(notificationsUnreadCountProvider);
     }
 
+    // UX-154: the banner used to fade its own text — body at white 92% (4.28:1
+    // on the oxblood fill) and the "+N" counter at 70% (2.98:1), both under the
+    // 4.5:1 body floor, on the one surface in the app that only appears when
+    // something is wrong. There is no alpha that clears the bar here: measured
+    // against this fill, FULL white is 4.83:1 and every step down falls short
+    // (90% → 4.13:1). So the alphas go and the hierarchy comes from size and
+    // weight instead, which is what it should have been on a saturated fill.
+    const fill = IntesharColors.oxblood;
+    final onFill = legibleOn(fill); // white — 4.83:1, vs 4.35:1 for ink.
     return Material(
-      color: IntesharColors.oxblood,
+      color: fill,
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(16, 10, 8, 10),
+          padding: const EdgeInsetsDirectional.fromSTEB(
+              IntesharSpacing.lg, IntesharSpacing.sm2, IntesharSpacing.sm, IntesharSpacing.sm2),
           child: Row(children: [
-            const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
-            const SizedBox(width: 10),
+            Icon(Icons.warning_amber_rounded, color: onFill, size: 20),
+            const SizedBox(width: IntesharSpacing.sm2),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 if (alert.title.isNotEmpty)
                   Text(alert.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: IntesharType.sans(14, color: Colors.white, w: FontWeight.w800)),
+                      style: IntesharText.bodyLg(color: onFill, w: IntesharWeight.heavy)),
                 Text(alert.body,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: IntesharType.sans(12, color: Colors.white.withValues(alpha: 0.92))),
+                    style: IntesharText.body(color: onFill)),
                 if (alerts.length > 1)
                   Text('+${alerts.length - 1}',
-                      style: IntesharType.mono(11, color: Colors.white.withValues(alpha: 0.7))),
+                      style: IntesharType.mono(IntesharScale.caption,
+                          color: onFill, w: IntesharWeight.bold)),
               ]),
             ),
             IconButton(
               onPressed: dismiss,
-              icon: const Icon(Icons.close, color: Colors.white, size: 18),
+              icon: Icon(Icons.close, color: onFill, size: 18),
               tooltip: MaterialLocalizations.of(context).closeButtonLabel,
             ),
           ]),

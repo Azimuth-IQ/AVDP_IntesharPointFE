@@ -196,7 +196,7 @@ class _BatchAddPageState extends ConsumerState<BatchAddPage>
           Padding(
             padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 12),
             child: Container(
-              padding: const EdgeInsets.all(4),
+              padding: const EdgeInsets.all(IntesharSpacing.xs),
               decoration: BoxDecoration(
                 color: cs.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(999),
@@ -791,7 +791,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
     final ids = res.batchIds;
     return InkCard(
       ruleColor: partial != null ? cs.error : context.tones.brandInk,
-      padding: const EdgeInsets.all(14),
+      // UX-135: was `all(14)`.
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -987,7 +987,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                       'serial,pin,expiry,label — region-free'),
               style: IntesharType.mono(12, color: cs.onSurfaceVariant),
             ),
-            const SizedBox(height: 22),
+            IntesharSpacing.gapXl,
 
             // ── Category (definition) ────────────────────────────────────
             SectionLabel(_tr(context, 'الفئة', 'Category')),
@@ -1001,14 +1001,14 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                   .toList(),
               onChanged: (v) => setState(() => _selectedDef = v),
             ),
-            const SizedBox(height: 22),
+            IntesharSpacing.gapXl,
 
             // ── Target Main Agent ────────────────────────────────────────
             SectionLabel(_tr(context, 'الوكيل الرئيسي', 'Main Agent')),
             if (_entities.isEmpty)
               InkCard(
                 ruleColor: cs.error,
-                padding: const EdgeInsets.all(12),
+                density: CardDensity.dense,
                 child: Text(
                   _tr(context, 'أنشئ وكيلاً رئيسياً أولاً', 'Create a Main Agent first'),
                   style: IntesharType.sans(14, color: cs.onSurface),
@@ -1054,7 +1054,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                   ),
                 ),
               ),
-            const SizedBox(height: 22),
+            IntesharSpacing.gapXl,
 
             // ── City / governorate (NEW only) ────────────────────────────
             //
@@ -1131,7 +1131,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                   ],
                 );
               }),
-              const SizedBox(height: 22),
+              IntesharSpacing.gapXl,
             ],
 
             // ── File pick + template ─────────────────────────────────────
@@ -1181,7 +1181,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
               const SizedBox(height: 14),
               InkCard(
                 ruleColor: cs.error,
-                padding: const EdgeInsets.all(12),
+                density: CardDensity.dense,
                 child: Text(_error!,
                     style: IntesharType.sans(14, color: cs.onSurface)),
               ),
@@ -1198,7 +1198,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
               const SizedBox(height: 14),
               InkCard(
                 ruleColor: cs.error,
-                padding: const EdgeInsets.all(12),
+                density: CardDensity.dense,
                 child: Text(
                   _tr(context, 'لا توجد صفوف صالحة — تحقّق من الصيغة',
                       'No valid rows found — check the format'),
@@ -1372,7 +1372,7 @@ class _ProgressBlock extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return InkCard(
       ruleColor: cs.onPrimaryContainer,
-      padding: const EdgeInsets.all(14),
+      // UX-135: was `all(14)`.
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1998,7 +1998,7 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
             const SizedBox(height: 8),
             InkCard(
               ruleColor: context.tones.brandInk,
-              padding: const EdgeInsets.all(10),
+              density: CardDensity.dense,
               child: Wrap(
                 spacing: 8,
                 runSpacing: 6,
@@ -2087,7 +2087,7 @@ class _BatchCard extends StatelessWidget {
       ruleColor: selected
           ? context.tones.brand
           : (paused ? cs.outline : context.tones.brandInk),
-      padding: const EdgeInsets.all(14),
+      // UX-135: was `all(14)`, the app's most-repeated off-scale padding.
       onTap: selecting ? onSelect : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2095,12 +2095,14 @@ class _BatchCard extends StatelessWidget {
           // Header: product name + status badge
           Row(children: [
             if (selecting) ...[
+              // UX-119: `VisualDensity.compact` shrank this to ~40dp. It is the
+              // control a supplier recall is driven from — one tap per batch,
+              // several batches, on a handheld — so it keeps the 48dp target.
               Checkbox(
                 value: selected,
                 onChanged: busy ? null : (_) => onSelect(),
-                visualDensity: VisualDensity.compact,
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: IntesharSpacing.xs),
             ],
             Expanded(
               child: Text(
@@ -2154,13 +2156,13 @@ class _BatchCard extends StatelessWidget {
               value: batch.totalCount,
               color: cs.onSurfaceVariant,
             ),
-            const SizedBox(width: 24),
+            const SizedBox(width: IntesharSpacing.xl),
             _CountStat(
               label: _tr(context, 'متاح', 'Available'),
               value: batch.availableCount,
               color: cs.onSurface,
             ),
-            const SizedBox(width: 24),
+            const SizedBox(width: IntesharSpacing.xl),
             _CountStat(
               label: _tr(context, 'مُستخدَم', 'Used'),
               value: batch.printedCount,
@@ -2253,7 +2255,7 @@ class _BatchTag extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: cs.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(IntesharRadii.xs),
       ),
       child: monoText(text, size: 11, color: cs.onSurfaceVariant),
     );
@@ -2287,6 +2289,11 @@ class _BatchStatusChip extends StatelessWidget {
   }
 }
 
+/// UX-130: was one of the thirteen hand-rolled figure+label columns.
+/// [FigureBlock] renders exactly this (and scales a seven-digit count down
+/// instead of overflowing), so this is now the thin adapter that supplies the
+/// [Expanded] these three sit in: `FigureBlock`'s label row uses a `Flexible`,
+/// which cannot live under the unbounded width a plain Row child is handed.
 class _CountStat extends StatelessWidget {
   final String label;
   final int value;
@@ -2296,17 +2303,15 @@ class _CountStat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          Formatters.money(value),
-          style: IntesharType.sans(16, color: color, w: FontWeight.w800),
-        ),
-        Text(label,
-            style: IntesharType.sans(11, color: cs.onSurfaceVariant)),
-      ],
+    return Expanded(
+      child: FigureBlock(
+        label: label,
+        value: Formatters.money(value),
+        size: FigureSize.small,
+        monoValue: true,
+        showDot: false,
+        valueColor: color,
+      ),
     );
   }
 }

@@ -45,11 +45,12 @@ class PrintQueueLine extends ConsumerWidget {
                 child: Text(
                   text,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'CodecPro',
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
+                  // UX-127: was a half-point 11.5 — a step no screen renders as
+                  // distinct from either neighbour. Snapped up, per the scale's
+                  // tie rule (shrinking text on a handheld is the worse mistake).
+                  style: IntesharText.body(
                     color: s.isRetrying ? context.status.warn : cs.onSurfaceVariant,
+                    w: IntesharWeight.bold,
                   ),
                 ),
               ),

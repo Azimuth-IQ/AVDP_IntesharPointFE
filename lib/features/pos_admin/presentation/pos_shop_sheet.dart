@@ -10,6 +10,7 @@ import 'package:inteshar/features/inventory/data/product_repository.dart';
 import 'package:inteshar/features/pos_admin/data/pos_admin_repository.dart';
 import 'package:inteshar/features/pos_admin/domain/pos_stats.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
+import 'package:inteshar/shared/widgets/sheet_frame.dart';
 
 /// UX-07 — one shop, one screen: "why can't this shop sell?".
 ///
@@ -228,23 +229,19 @@ class _PosShopSheetState extends State<_PosShopSheet> {
     final gov = store.meta.governorates.isNotEmpty ? store.meta.governorates.first : '';
     final name = store.meta.name.isNotEmpty ? store.meta.name : (_operator?.phone ?? '');
 
-    return SafeArea(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(name, style: IntesharType.sans(18, color: cs.onSurface, w: FontWeight.w800)),
-            const SizedBox(height: 2),
-            Text(
-              [
-                if (store.profile?.ownerName.isNotEmpty ?? false) store.profile!.ownerName,
-                if (gov.isNotEmpty) governorateLabel(gov, loc),
-                if (store.profile?.address.isNotEmpty ?? false) store.profile!.address,
-              ].join(' · '),
-              style: IntesharType.sans(12, color: cs.onSurfaceVariant),
-            ),
-            const SizedBox(height: 16),
+    // UX-131/127: the shell (height cap, padding, an off-scale 18 title over a
+    // hand-placed subtitle) was re-decided here. `SheetFrame` owns it — and the
+    // call site already asks the framework for the grab handle, so `handle:
+    // false` keeps there being exactly one.
+    return SheetFrame(
+      handle: false,
+      title: name,
+      subtitle: [
+        if (store.profile?.ownerName.isNotEmpty ?? false) store.profile!.ownerName,
+        if (gov.isNotEmpty) governorateLabel(gov, loc),
+        if (store.profile?.address.isNotEmpty ?? false) store.profile!.address,
+      ].join(' · '),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             if (_loading)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 48),
@@ -283,9 +280,7 @@ class _PosShopSheetState extends State<_PosShopSheet> {
                   cs,
                 ),
             ],
-          ]),
-        ),
-      ),
+      ]),
     );
   }
 

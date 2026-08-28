@@ -8,6 +8,7 @@ import 'package:inteshar/features/inventory/data/definition_repository.dart';
 import 'package:inteshar/features/inventory/data/definition_restriction_repository.dart';
 import 'package:inteshar/features/inventory/domain/product_definition.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
+import 'package:inteshar/shared/widgets/sheet_frame.dart';
 
 /// B-081: HQ picks which voucher definitions an account (and its whole subtree)
 /// can see & sell — a "Visible products" checklist over the full catalog. Ticked =
@@ -27,18 +28,34 @@ Future<bool> showVisibleProductsSheet(
   required String entityId,
   required String entityName,
 }) async {
+  // UX-131: the sheet is drag-dismissible (and now says so with a grab handle),
+  // and a drag/scrim dismissal pops null — which would report "nothing changed"
+  // after a write. Tracked out here, the same way the clear-out sheet does it.
+  var dismissedAfterWrite = false;
   final changed = await showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
-    builder: (_) => _VisibleProductsSheet(entityId: entityId, entityName: entityName),
+    builder: (_) => _VisibleProductsSheet(
+      entityId: entityId,
+      entityName: entityName,
+      onChanged: () => dismissedAfterWrite = true,
+    ),
   );
-  return changed ?? false;
+  return changed ?? dismissedAfterWrite;
 }
 
 class _VisibleProductsSheet extends ConsumerStatefulWidget {
-  const _VisibleProductsSheet({required this.entityId, required this.entityName});
+  const _VisibleProductsSheet({
+    required this.entityId,
+    required this.entityName,
+    required this.onChanged,
+  });
   final String entityId;
   final String entityName;
+
+  /// Fired on the first successful write, so a drag/scrim dismissal — which
+  /// pops no result at all — still tells the caller to refresh.
+  final VoidCallback onChanged;
 
   @override
   ConsumerState<_VisibleProductsSheet> createState() => _VisibleProductsSheetState();
@@ -118,6 +135,7 @@ class _VisibleProductsSheetState extends ConsumerState<_VisibleProductsSheet> {
     try {
       await _repo.setRestricted(sku: sku, entityId: widget.entityId, restricted: hidden);
       _changed = true;
+      widget.onChanged();
     } catch (e) {
       if (!mounted) return;
       setState(() => _restricted = prev); // revert on failure
@@ -143,7 +161,10 @@ class _VisibleProductsSheetState extends ConsumerState<_VisibleProductsSheet> {
       }
       // A partial run still changed something — report it, or a failure halfway
       // through would leave the caller believing nothing happened.
-      if (list.isNotEmpty) _changed = true;
+      if (list.isNotEmpty) {
+        _changed = true;
+        widget.onChanged();
+      }
       await _load();
     } catch (e) {
       if (mounted) {
@@ -158,49 +179,33 @@ class _VisibleProductsSheetState extends ConsumerState<_VisibleProductsSheet> {
   Widget build(BuildContext context) {
     final ar = Localizations.localeOf(context).languageCode == 'ar';
     final cs = Theme.of(context).colorScheme;
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 16, 4),
-                child: Row(children: [
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(ar ? 'المنتجات المتاحة' : 'Visible products',
-                          style: IntesharType.sans(16, color: cs.onSurface, w: FontWeight.w800)),
-                      Text(widget.entityName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
-                    ]),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context, _changed),
-                    tooltip: MaterialLocalizations.of(context).closeButtonLabel,
-                  ),
-                ]),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                child: Text(
-                  ar
-                      ? 'أزل العلامة لإخفاء المنتج عن هذا الحساب وكل ما تحته.'
-                      : 'Untick to hide a product for this account and everything under it.',
-                  style: IntesharType.sans(12, color: cs.onSurfaceVariant),
-                ),
-              ),
-              Flexible(child: _body(ar, cs)),
-              if (!_loading && _error == null) _footer(ar),
-            ],
+    // UX-131: the handle (absent, on a drag-dismissible sheet), the title block,
+    // the keyboard inset and the 0.85 height cap were all hand-rolled here.
+    return SheetFrame(
+      title: ar ? 'المنتجات المتاحة' : 'Visible products',
+      subtitle: widget.entityName,
+      trailing: IconButton(
+        icon: const Icon(Icons.close),
+        onPressed: () => Navigator.pop(context, _changed),
+        tooltip: MaterialLocalizations.of(context).closeButtonLabel,
+      ),
+      // The body is its own ListView — SheetFrame must not wrap it in a second
+      // scrollable.
+      scrollable: false,
+      footer: (!_loading && _error == null) ? _footer(ar) : null,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            ar
+                ? 'أزل العلامة لإخفاء المنتج عن هذا الحساب وكل ما تحته.'
+                : 'Untick to hide a product for this account and everything under it.',
+            style: IntesharText.body(color: cs.onSurfaceVariant),
           ),
-        ),
+          IntesharSpacing.gapSm,
+          Flexible(child: _body(ar, cs)),
+        ],
       ),
     );
   }
@@ -238,7 +243,9 @@ class _VisibleProductsSheetState extends ConsumerState<_VisibleProductsSheet> {
       children: [
         for (final k in keys) ...[
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 2),
+            // Horizontal gutter comes from SheetFrame now — adding 20 here too
+            // would double it.
+            padding: const EdgeInsets.only(top: IntesharSpacing.md, bottom: 2),
             child: Text(label(k).toUpperCase(),
                 style: IntesharType.sans(11, color: cs.onSurfaceVariant, w: FontWeight.w800)),
           ),
@@ -254,6 +261,7 @@ class _VisibleProductsSheetState extends ConsumerState<_VisibleProductsSheet> {
     final pending = _pendingSkus.contains(d.sku);
     return CheckboxListTile(
       dense: true,
+      contentPadding: EdgeInsets.zero,
       controlAffinity: ListTileControlAffinity.leading,
       value: inherited ? false : visible,
       // Inherited (parent-hidden) rows are locked here — they're managed higher
@@ -265,7 +273,7 @@ class _VisibleProductsSheetState extends ConsumerState<_VisibleProductsSheet> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: IntesharType.sans(14,
-              color: inherited ? cs.onSurfaceVariant : cs.onSurface, w: FontWeight.w600)),
+              color: inherited ? cs.onSurfaceVariant : cs.onSurface, w: IntesharWeight.semibold)),
       subtitle: inherited
           ? Text(ar ? 'مخفي من قِبل حساب أعلى' : 'Hidden by a parent account',
               style: IntesharType.sans(11, color: cs.onSurfaceVariant))
@@ -289,25 +297,23 @@ class _VisibleProductsSheetState extends ConsumerState<_VisibleProductsSheet> {
             width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
         : Icon(rest, size: 16);
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
-      child: Row(children: [
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: _bulkRunning ? null : () => _setAll(false),
-            icon: icon(false, Icons.done_all),
-            label: Text(ar ? 'إظهار الكل' : 'Show all'),
-          ),
+    // No padding of its own: SheetFrame pins and pads the footer.
+    return Row(children: [
+      Expanded(
+        child: OutlinedButton.icon(
+          onPressed: _bulkRunning ? null : () => _setAll(false),
+          icon: icon(false, Icons.done_all),
+          label: Text(ar ? 'إظهار الكل' : 'Show all'),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: _bulkRunning ? null : () => _setAll(true),
-            icon: icon(true, Icons.block),
-            label: Text(ar ? 'إخفاء الكل' : 'Hide all'),
-          ),
+      ),
+      const SizedBox(width: IntesharSpacing.md),
+      Expanded(
+        child: OutlinedButton.icon(
+          onPressed: _bulkRunning ? null : () => _setAll(true),
+          icon: icon(true, Icons.block),
+          label: Text(ar ? 'إخفاء الكل' : 'Hide all'),
         ),
-      ]),
-    );
+      ),
+    ]);
   }
 }

@@ -24,6 +24,45 @@ import 'package:inteshar/shared/widgets/brand_star.dart';
 /// The drift this replaced was not aesthetic: `printer_picker_page` used
 /// `Icons.print_disabled_outlined : Icons.print` inside a single ternary, so one
 /// control changed weight as well as meaning when a printer went unreachable.
+///
+/// ## Where a page's actions go (UX-17)
+///
+/// **One rule: a page's actions live in the page header, rendered by
+/// [PageActions], and nowhere else.**
+///
+/// Today the same job is done in four places — the catalog floats a FAB, agents
+/// and companies use header buttons, batch-add puts its action inline in the
+/// content, and pricing pins Save to the bottom edge while its Export and Upload
+/// sit in the header. That last one is the tell: it is a single toolbar split
+/// across two opposite edges of one screen. An operator who has learned where
+/// "the button" is on one screen has learned nothing about the next.
+///
+/// The header wins for reasons, not taste:
+/// * it is the only slot that exists on **every** screen already — [PageHeader]
+///   is on all ~24 routed pages, so adopting the rule removes code rather than
+///   adding chrome;
+/// * it is the only slot that survives **RTL**: it anchors to the end edge, the
+///   same edge the eye lands on first in Arabic, and it moves automatically;
+/// * a **FAB** cannot be that slot. It floats over the content it acts on, it
+///   collides with the phone bottom bar and the POS on-screen keyboard, and it
+///   can hold exactly one action — so the moment a screen grows a second one
+///   (export, upload, refresh) the FAB has to be abandoned anyway;
+/// * a **bottom-pinned Save** cannot be it either: it is invisible above the
+///   fold on desktop, and it competes with the bottom nav on a phone.
+///
+/// Three exceptions, and only these:
+/// 1. an action that belongs to a **row** belongs in that row (delete this
+///    agent, reveal this voucher) — it is not the page's action;
+/// 2. a **sheet or dialog's** confirm belongs in that sheet's own footer
+///    (`SheetFrame`), because it commits the sheet, not the page;
+/// 3. the **POS sell CTA** keeps its full-width pinned pill. It is the entire
+///    purpose of that screen, it is used one-handed on a handheld, and thumb
+///    reach beats consistency on exactly one screen.
+///
+/// [PageActions] handles the narrow case so no screen has to invent its own:
+/// secondary actions collapse into an overflow menu, and below that the primary
+/// becomes icon-only with its label as the tooltip — the title never gets
+/// squeezed by a button pair again (see UX-115 on [PageHeader]).
 
 // ─── Hairline ───────────────────────────────────────────────────────────────
 
@@ -177,6 +216,11 @@ class InkCard extends StatelessWidget {
 
   /// Adds the 1px `outlineVariant` hairline around the tile (UX-126). The fill
   /// stays `surfaceContainer` — a card is never the page colour.
+  ///
+  /// UX-153: this is now a FLOOR, not a switch. Modes where a drop shadow cannot
+  /// carry an edge (dark, high contrast) turn the hairline on for every card via
+  /// `SurfaceTreatment`, so passing `false` never means "no edge" — it means "no
+  /// edge beyond what the theme needs".
   final bool bordered;
 
   const InkCard({
@@ -223,12 +267,19 @@ class InkCard extends StatelessWidget {
       ),
     );
 
+    // UX-153: how a card is separated from the page is a THEME decision now —
+    // a 5%-black shadow needs a light page and ambient contrast, and neither
+    // dark mode nor daylight provides them. In the stock light theme this is
+    // byte-identical to the previous `IntesharShadows.elev1` + no border.
+    final surfaces = context.surfaces;
     final tile = Container(
       decoration: BoxDecoration(
         color: bg,
         borderRadius: radius,
-        border: bordered ? Border.all(color: cs.outlineVariant) : null,
-        boxShadow: elevated ? IntesharShadows.elev1 : const [],
+        border: (bordered || surfaces.hairline)
+            ? Border.all(color: cs.outlineVariant)
+            : null,
+        boxShadow: elevated ? surfaces.shadow : const [],
       ),
       child: content,
     );
@@ -540,6 +591,175 @@ class BrandRule extends StatelessWidget {
   }
 }
 
+// ─── Page actions (UX-17) ──────────────────────────────────────────────────
+
+/// One action a page offers. See the "Where a page's actions go" rule at the
+/// top of this file.
+@immutable
+class PageAction {
+  final String label;
+  final IconData icon;
+
+  /// `null` disables the control. A disabled action still renders — an action
+  /// that disappears when it is unavailable teaches the operator it was never
+  /// there (UX-146 made the same argument for the POS CTA).
+  final VoidCallback? onPressed;
+
+  /// Swaps the icon for a spinner and blocks the tap. The label stays, so the
+  /// button does not change width mid-submit.
+  final bool busy;
+
+  /// Paints the action in `status.danger`. For destructive page-level actions
+  /// only — a row's delete belongs in the row (exception 1 of the rule).
+  final bool danger;
+
+  const PageAction({
+    required this.label,
+    required this.icon,
+    this.onPressed,
+    this.busy = false,
+    this.danger = false,
+  });
+
+  bool get enabled => onPressed != null && !busy;
+}
+
+/// **The** action cluster for a page — one primary, any number of secondaries,
+/// always in [PageHeader]'s trailing slot.
+///
+/// Degrades by available width rather than by screen size, because the slot it
+/// lives in is capped at 55% of the header (UX-115):
+///
+/// | width      | rendering |
+/// |------------|-----------|
+/// | ≥ [_wide]  | secondaries as outlined buttons, then the primary filled |
+/// | ≥ [_icons] | secondaries collapse into a `⋮` menu, primary keeps its label |
+/// | below      | primary becomes icon-only, label moves to its tooltip |
+///
+/// The primary is **last** so it sits against the end edge — the edge the eye
+/// reaches first in Arabic, and the same place on every screen.
+class PageActions extends StatelessWidget {
+  final PageAction? primary;
+  final List<PageAction> secondary;
+
+  const PageActions({
+    super.key,
+    this.primary,
+    this.secondary = const <PageAction>[],
+  });
+
+  /// Below this the secondaries fold into an overflow menu.
+  static const double _wide = 340;
+
+  /// Below this the primary drops its label too.
+  static const double _icons = 168;
+
+  Widget _spinner(Color color) => SizedBox(
+        width: IntesharScale.title,
+        height: IntesharScale.title,
+        child: CircularProgressIndicator(strokeWidth: 2, color: color),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return LayoutBuilder(
+      builder: (context, c) {
+        // An unbounded slot (a bare Row) counts as wide — nothing is squeezing.
+        final width = c.maxWidth.isFinite ? c.maxWidth : double.maxFinite;
+        final inline = width >= _wide;
+        final labelled = width >= _icons;
+        final children = <Widget>[];
+
+        if (inline) {
+          for (final a in secondary) {
+            children.add(_secondaryButton(context, a));
+            children.add(const SizedBox(width: IntesharSpacing.sm));
+          }
+        } else if (secondary.isNotEmpty) {
+          children.add(_overflow(context));
+          children.add(const SizedBox(width: IntesharSpacing.sm));
+        }
+
+        final p = primary;
+        if (p != null) {
+          final fg = p.danger ? cs.onError : cs.onPrimary;
+          final bg = p.danger ? context.status.danger : cs.primary;
+          children.add(
+            labelled
+                ? FilledButton.icon(
+                    onPressed: p.enabled ? p.onPressed : null,
+                    style: FilledButton.styleFrom(
+                        backgroundColor: bg, foregroundColor: fg),
+                    icon: p.busy ? _spinner(fg) : Icon(p.icon, size: 18),
+                    label: Text(p.label,
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                  )
+                : Tooltip(
+                    message: p.label,
+                    child: IconButton.filled(
+                      onPressed: p.enabled ? p.onPressed : null,
+                      style: IconButton.styleFrom(
+                          backgroundColor: bg, foregroundColor: fg),
+                      icon: p.busy ? _spinner(fg) : Icon(p.icon),
+                    ),
+                  ),
+          );
+        }
+
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: children,
+        );
+      },
+    );
+  }
+
+  Widget _secondaryButton(BuildContext context, PageAction a) {
+    final fg = a.danger
+        ? context.status.danger
+        : Theme.of(context).colorScheme.onSurface;
+    return OutlinedButton.icon(
+      onPressed: a.enabled ? a.onPressed : null,
+      style: OutlinedButton.styleFrom(foregroundColor: fg),
+      icon: a.busy ? _spinner(fg) : Icon(a.icon, size: 18),
+      label: Text(a.label, maxLines: 1, overflow: TextOverflow.ellipsis),
+    );
+  }
+
+  Widget _overflow(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return PopupMenuButton<int>(
+      position: PopupMenuPosition.under,
+      // The menu is the page's own actions, so name it as such for a screen
+      // reader instead of leaving a bare "show menu".
+      tooltip: Localizations.localeOf(context).languageCode == 'ar'
+          ? 'إجراءات الصفحة'
+          : 'Page actions',
+      icon: Icon(Icons.more_vert, color: cs.onSurfaceVariant),
+      onSelected: (i) => secondary[i].onPressed?.call(),
+      itemBuilder: (_) => [
+        for (var i = 0; i < secondary.length; i++)
+          PopupMenuItem<int>(
+            value: i,
+            enabled: secondary[i].enabled,
+            child: Row(
+              children: [
+                Icon(secondary[i].icon, size: 18, color: cs.onSurfaceVariant),
+                const SizedBox(width: IntesharSpacing.md),
+                Flexible(
+                  child: Text(secondary[i].label,
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 // ─── Page header ───────────────────────────────────────────────────────────
 
 /// Friendly page header: muted section overline + bold sans title + muted
@@ -562,7 +782,16 @@ class PageHeader extends StatelessWidget {
   final String eyebrow;
   final String title;
   final String? subtitle;
+
+  /// Free-form trailing slot. Prefer [actions] — see the UX-17 rule at the top
+  /// of this file. This stays for the trailing widgets that are genuinely not
+  /// actions (a live status chip, a period selector).
   final Widget? trailing;
+
+  /// **The** slot for this page's actions (UX-17). Renders at the end edge, and
+  /// degrades to an overflow menu / icon-only primary as the header narrows, so
+  /// a button pair can never squeeze the title again.
+  final PageActions? actions;
   final EdgeInsetsGeometry padding;
   final bool showEyebrow;
   const PageHeader({
@@ -571,6 +800,7 @@ class PageHeader extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.trailing,
+    this.actions,
     this.padding = const EdgeInsets.fromLTRB(
       IntesharSpacing.lg,
       IntesharSpacing.lg,
@@ -598,6 +828,10 @@ class PageHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final withEyebrow = showEyebrow && !_eyebrowIsRedundant(eyebrow, title);
+    // UX-17: `actions` is the rule; `trailing` is the escape hatch. When both
+    // are given the actions win, because a screen that passes both has almost
+    // certainly grown a second toolbar — the thing the rule exists to stop.
+    final end = actions ?? trailing;
     return Padding(
       padding: padding,
       child: Column(
@@ -640,13 +874,13 @@ class PageHeader extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (trailing != null) ...[
+                if (end != null) ...[
                   const SizedBox(width: IntesharSpacing.md),
                   ConstrainedBox(
                     constraints: BoxConstraints(
                       maxWidth: constraints.maxWidth * 0.55,
                     ),
-                    child: trailing!,
+                    child: end,
                   ),
                 ],
               ],

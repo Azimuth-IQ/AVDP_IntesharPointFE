@@ -553,7 +553,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     // sends a manager to top up a shop that is already funded.
     final balance = _balances?[store.id];
     return InkCard(
-      padding: const EdgeInsets.all(14),
+      density: CardDensity.dense,
       // UX-07: the whole card opens the shop's diagnostics. The row buttons keep
       // their own taps — they sit in a Wrap below and swallow theirs first.
       onTap: () => showPosShopSheet(context, ref, store: store),

@@ -298,7 +298,7 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
         const SizedBox(height: 8),
         if (_totpLoading)
           const Padding(
-            padding: EdgeInsets.symmetric(vertical: 18),
+            padding: EdgeInsets.symmetric(vertical: IntesharSpacing.lg),
             child: Center(child: CircularProgressIndicator()),
           )
         else
@@ -330,9 +330,9 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
           SectionLabel(s.globalSection),
           Text(
             s.globalDesc,
-            style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant, height: 1.5),
+            style: IntesharText.bodyLg(color: cs.onSurfaceVariant, height: 1.5),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: IntesharSpacing.lg),
           if (_globalLoading)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
@@ -344,7 +344,7 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
                 Expanded(
                   child: Text(
                     friendlyError(_globalError!, context),
-                    style: TextStyle(color: cs.error, fontSize: 13),
+                    style: IntesharText.bodyLg(color: cs.error),
                   ),
                 ),
                 IconButton(
@@ -359,7 +359,7 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
               contentPadding: EdgeInsets.zero,
               title: Text(
                 s.globalToggle,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                style: IntesharText.bodyLg(w: IntesharWeight.semibold),
               ),
               value: _globalEnabled,
               onChanged: _globalSaving ? null : _toggleGlobal,
@@ -409,9 +409,9 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
           SectionLabel(s.entitySection),
           Text(
             s.entitySectionSameAsForm,
-            style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant, height: 1.5),
+            style: IntesharText.bodyLg(color: cs.onSurfaceVariant, height: 1.5),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: IntesharSpacing.lg),
 
           // Entity picker — server-searched (B-023): tap to search instead of a
           // dropdown fed by downloading every entity.
@@ -459,7 +459,7 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
               padding: const EdgeInsets.only(top: 4, bottom: 8),
               child: Text(
                 s.noEntitySelected,
-                style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
+                style: IntesharText.bodyLg(color: cs.onSurfaceVariant),
               ),
             )
           else ...[
@@ -473,7 +473,7 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
                 padding: const EdgeInsets.only(top: 12),
                 child: Text(
                   _windowError!,
-                  style: TextStyle(color: cs.error, fontSize: 12.5),
+                  style: IntesharText.body(color: cs.error),
                 ),
               ),
 

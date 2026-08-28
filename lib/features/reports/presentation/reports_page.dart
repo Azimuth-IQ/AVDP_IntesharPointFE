@@ -1008,9 +1008,13 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     final current = tabs[_tab].family;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 2),
+      // UX-119: this is the page's primary navigation — the only way to reach
+      // six of the nine reports — and `visualDensity: compact` took each
+      // segment below the 48dp floor. It buys ~8dp of height and costs nothing
+      // in lines: the bar's one-line guarantee comes from there being at most
+      // three segments, not from the density.
       child: SegmentedButton<_Family>(
         showSelectedIcon: false,
-        style: const ButtonStyle(visualDensity: VisualDensity.compact),
         segments: [
           for (final f in present)
             ButtonSegment(value: f, label: Text(_familyLabel(f, s), maxLines: 1)),
@@ -1499,7 +1503,8 @@ class _ReportSurfaceState extends State<_ReportSurface> {
     final warn = context.status.warn;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+      padding: const EdgeInsets.symmetric(
+          horizontal: IntesharSpacing.md, vertical: IntesharSpacing.sm),
       color: warn.withValues(alpha: 0.08),
       child: Row(children: [
         Icon(Icons.info_outline, size: 14, color: warn),
@@ -1650,7 +1655,8 @@ class _ReportSurfaceState extends State<_ReportSurface> {
   }
 
   Widget _wideRow(ColorScheme cs, List<_RCell> cells) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        padding: const EdgeInsets.symmetric(
+            horizontal: IntesharSpacing.md, vertical: IntesharSpacing.md),
         child: Row(
           children: [
             for (var i = 0; i < widget.columns.length; i++)
@@ -1716,7 +1722,8 @@ class _ReportSurfaceState extends State<_ReportSurface> {
     ];
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      padding: const EdgeInsets.symmetric(
+          horizontal: IntesharSpacing.md, vertical: IntesharSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2444,8 +2451,8 @@ class _TotalStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      margin: const EdgeInsets.only(bottom: IntesharSpacing.sm2),
+      padding: const EdgeInsets.all(IntesharSpacing.lg),
       decoration: BoxDecoration(
         color: cs.surface,
         borderRadius: BorderRadius.circular(IntesharRadii.lg),
@@ -2457,52 +2464,38 @@ class _TotalStrip extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           BrandRule(width: 3, height: 38),
-          const SizedBox(width: 12),
+          const SizedBox(width: IntesharSpacing.md),
+          // UX-130: both figures are exactly what `FigureBlock` is — a label
+          // over a hero numeral, with its own FittedBox so a ten-digit dinar total
+          // shrinks rather than clips. They were hand-built with a raw
+          // `TextStyle(fontFamily: 'CodecPro', fontSize: 24, w900)` that bypassed
+          // the type helpers entirely. The dot is off because the brand mark on
+          // this card is the 3×38 rule to the left; two brand marks on one row
+          // is noise.
+          //
+          // The note and the delta line stay OUTSIDE the block: they span the
+          // full card width, carry their own icon and semantic tone, and folding
+          // them into FigureBlock's plain `note` would lose all three.
+          //
           // Grouped at the start rather than flung to opposite edges — on a wide
           // screen an Expanded main column left the sub-figure stranded ~900px away.
           Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: IntesharType.overline(color: cs.onSurfaceVariant)),
-                const SizedBox(height: 3),
-                // Totals are the widest numbers on the screen — shrink, never clip.
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: AlignmentDirectional.centerStart,
-                  child: Text(
-                    value,
-                    maxLines: 1,
-                    style: TextStyle(
-                        fontFamily: 'CodecPro',
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        color: cs.onSurface,
-                        height: 1),
-                  ),
-                ),
-              ],
+            child: FigureBlock(
+              label: label,
+              value: value,
+              showDot: false,
             ),
           ),
           if (subValue != null) ...[
-            const SizedBox(width: 24),
+            const SizedBox(width: IntesharSpacing.xl),
             Container(width: 1, height: 30, color: cs.outlineVariant),
-            const SizedBox(width: 24),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (subLabel != null)
-                  Text(subLabel!, style: IntesharType.overline(color: cs.onSurfaceVariant)),
-                const SizedBox(height: 3),
-                Text(subValue!,
-                    maxLines: 1,
-                    style: IntesharType.mono(16, color: cs.onSurface, w: FontWeight.w800)),
-              ],
+            const SizedBox(width: IntesharSpacing.xl),
+            FigureBlock(
+              label: subLabel ?? '',
+              value: subValue!,
+              size: FigureSize.small,
+              monoValue: true,
+              showDot: false,
             ),
           ],
           const Spacer(),

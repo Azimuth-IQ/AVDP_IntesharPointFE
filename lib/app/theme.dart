@@ -262,6 +262,81 @@ class IntesharShadows {
   ];
 }
 
+/// How a raised surface is separated from the page it sits on (UX-153).
+///
+/// The whole surface hierarchy of this app is carried by a **black drop shadow**
+/// on a near-white tile: `paper` #F6F7F9 against `card` #FFFFFF measures
+/// **1.03:1**, so with the shadow removed a card has no edge at all. On paper,
+/// in an office, that works. It fails in exactly two places:
+///
+/// * **dark mode** — `inkPaper` #121110 against `inkCard` #1C1A18 is **1.09:1**,
+///   and a 5%-black shadow on charcoal is invisible. Every card, sheet, sidebar
+///   and nav bar loses its outline at the same instant. This is the single
+///   biggest thing standing between the dark theme and being switchable.
+/// * **daylight on a POS handheld** — a 5% shadow is the first thing to wash
+///   out, which is the case the high-contrast mode is actually for.
+///
+/// So "what gives a surface its edge" is a THEME decision, not a per-widget one.
+/// [InkCard] and the shell containers read this instead of hard-coding
+/// [IntesharShadows.elev1], which means a mode that cannot use shadows gets
+/// hairlines everywhere, in one place, instead of 60 call sites disagreeing.
+@immutable
+class SurfaceTreatment extends ThemeExtension<SurfaceTreatment> {
+  /// Every raised surface carries a 1px `outlineVariant` edge. On whenever a
+  /// shadow cannot do the job (dark mode, high contrast).
+  final bool hairline;
+
+  /// Shadow under an ordinary raised surface. Empty when [hairline] carries it.
+  final List<BoxShadow> shadow;
+
+  /// Shadow under an emphasised surface (sheets, hero tiles).
+  final List<BoxShadow> shadowRaised;
+
+  const SurfaceTreatment({
+    required this.hairline,
+    required this.shadow,
+    required this.shadowRaised,
+  });
+
+  /// The stock light treatment — the app's historical behaviour, unchanged.
+  static const paper = SurfaceTreatment(
+    hairline: false,
+    shadow: IntesharShadows.elev1,
+    shadowRaised: IntesharShadows.elev2,
+  );
+
+  @override
+  SurfaceTreatment copyWith({
+    bool? hairline,
+    List<BoxShadow>? shadow,
+    List<BoxShadow>? shadowRaised,
+  }) =>
+      SurfaceTreatment(
+        hairline: hairline ?? this.hairline,
+        shadow: shadow ?? this.shadow,
+        shadowRaised: shadowRaised ?? this.shadowRaised,
+      );
+
+  @override
+  SurfaceTreatment lerp(covariant SurfaceTreatment? other, double t) {
+    if (other == null) return this;
+    return SurfaceTreatment(
+      // A boolean cannot be half-on; snap at the midpoint.
+      hairline: t < 0.5 ? hairline : other.hairline,
+      shadow: BoxShadow.lerpList(shadow, other.shadow, t) ?? shadow,
+      shadowRaised:
+          BoxShadow.lerpList(shadowRaised, other.shadowRaised, t) ?? shadowRaised,
+    );
+  }
+}
+
+/// Ergonomic access to the session's [SurfaceTreatment]. Falls back to the
+/// stock light treatment when no extension is registered (bare test pumps).
+extension SurfaceTreatmentContext on BuildContext {
+  SurfaceTreatment get surfaces =>
+      Theme.of(this).extension<SurfaceTreatment>() ?? SurfaceTreatment.paper;
+}
+
 /// CTA gradient stops (top → middle → bottom) for the glossy yellow pill.
 class IntesharGradients {
   static const List<Color> ctaPill = [
@@ -540,11 +615,14 @@ class StatusTones extends ThemeExtension<StatusTones> {
   /// Derives the set for [surface], correcting each semantic hue to ≥4.5:1
   /// against it. [brand] is passed in already-measured (the theme's
   /// `brandOnSurface`) so a white-label primary carries through.
+  /// [minRatio] is the contrast floor each hue is corrected to — 4.5:1 (AA) by
+  /// default, 7:1 (AAA) in high-contrast mode (UX-153).
   factory StatusTones.forSurface({
     required Color surface,
     required bool isDark,
     required Color brand,
     required Color neutral,
+    double minRatio = 4.5,
   }) =>
       StatusTones(
         // NOT the theme's `secondary`: see the UX-124 note on `_build`. A
@@ -552,14 +630,17 @@ class StatusTones extends ThemeExtension<StatusTones> {
         success: contrastAdjusted(
           isDark ? IntesharColors.sageOnDark : IntesharColors.sage,
           surface,
+          minRatio: minRatio,
         ),
-        warn: contrastAdjusted(IntesharColors.warn, surface),
+        warn: contrastAdjusted(IntesharColors.warn, surface, minRatio: minRatio),
         danger: contrastAdjusted(
           isDark ? IntesharColors.oxbloodOnDark : IntesharColors.oxblood,
           surface,
+          minRatio: minRatio,
         ),
         neutral: neutral,
-        inFlight: contrastAdjusted(IntesharColors.azure, surface),
+        inFlight:
+            contrastAdjusted(IntesharColors.azure, surface, minRatio: minRatio),
         brand: brand,
       );
 
@@ -844,20 +925,47 @@ class IntesharText {
 /// control; those edits are outside this file — see the follow-up list for
 /// `agent_form.dart`, `entity_tree_page.dart`, `entity.dart`, `branding.dart`
 /// and `theme_provider.dart`.
+///
+/// **UX-153 — [highContrast].** Not a colour scheme of its own: the same
+/// palette, with every soft-focus device that daylight kills turned off.
+/// Concretely — secondary text stops being grey and becomes full ink, hairlines
+/// go from a 1.1:1 whisper to a visible rule, every measured foreground is
+/// corrected to **7:1 (AAA)** instead of 4.5:1, field/focus borders thicken, and
+/// surfaces are separated by an outline instead of a 5%-black shadow (see
+/// [SurfaceTreatment]). It is deliberately preferred over dark mode for the
+/// outdoor POS: a shopkeeper in Baghdad sun needs *more* contrast, and a dark
+/// theme gives less.
 ThemeData _build(
   Brightness b, {
   Color? brandPrimary,
   Color? brandSecondary,
   bool cursive = false,
+  bool highContrast = false,
 }) {
   final isDark = b == Brightness.dark;
+  // The floor every measured foreground is corrected to. AA normally, AAA in
+  // high contrast — one number, so nothing can opt out of the mode by accident.
+  final minRatio = highContrast ? 7.0 : 4.5;
 
   final paper       = isDark ? IntesharColors.inkPaper : IntesharColors.paper;
   final card        = isDark ? IntesharColors.inkCard  : IntesharColors.card;
   final sunk        = isDark ? IntesharColors.inkSunk  : IntesharColors.sunk;
   final onPaper     = isDark ? IntesharColors.bone     : IntesharColors.ink;
-  final onPaperSoft = isDark ? IntesharColors.boneSoft : IntesharColors.inkSoft;
-  final outline     = isDark ? IntesharColors.hairlineDark : IntesharColors.hairline;
+  // High contrast collapses the secondary tier into the primary one. This is
+  // the single highest-value line in the mode: `cs.onSurfaceVariant` is what
+  // every caption, meta line, label and placeholder in the app now reads, and
+  // at #5A616C it is 5.9:1 — legible indoors, gone in sunlight.
+  final onPaperSoft = highContrast
+      ? onPaper
+      : (isDark ? IntesharColors.boneSoft : IntesharColors.inkSoft);
+  // A hairline at 1.1:1 is decoration, not a boundary. In high contrast the
+  // rule has to be seen, because it is also what separates surfaces once the
+  // drop shadow is dropped.
+  final outline = highContrast
+      ? (isDark ? _darken(IntesharColors.bone, 0.35) : _lighten(IntesharColors.ink, 0.35))
+      : (isDark ? IntesharColors.hairlineDark : IntesharColors.hairline);
+  final borderWidth = highContrast ? 1.5 : 1.0;
+  final focusWidth = highContrast ? 2.4 : 1.6;
   // Brand accents — overridable per Main Agent (white-label, FR-28). With no
   // override the default Sunburst gold/sage are used unchanged.
   final saffron     = brandPrimary   ?? (isDark ? IntesharColors.saffronOnDark : IntesharColors.saffron);
@@ -873,12 +981,18 @@ ThemeData _build(
   // Brand-toned foreground with a measured ≥4.5:1 against the page surface —
   // used wherever the brand acts as INK rather than as a fill (nav label/icon,
   // focus ring, switch, progress, slider). Raw `saffron` on white is 2.05:1.
-  final brandOnSurface = contrastAdjusted(saffron, paper);
+  final brandOnSurface = contrastAdjusted(saffron, paper, minRatio: minRatio);
   // Brand-toned colour for TEXT/labels ON a surface — raw `saffron` (bright gold,
   // or a pale white-label primary) fails contrast on paper (B-078). Use the deep
   // amber by default; a white-label brand goes through the measured correction.
+  final stockBrandInk =
+      isDark ? IntesharColors.saffronOnDark : IntesharColors.saffronDeep;
   final brandInk = brandPrimary == null
-      ? (isDark ? IntesharColors.saffronOnDark : IntesharColors.saffronDeep)
+      // The stock deep amber is 4.9:1 on paper — fine for AA, short of the AAA
+      // floor high contrast promises, so it is corrected there too.
+      ? (highContrast
+          ? contrastAdjusted(stockBrandInk, paper, minRatio: minRatio)
+          : stockBrandInk)
       : brandOnSurface;
 
   // Soft brand wash used for chips/tags/containers — derived so it tracks a
@@ -994,6 +1108,16 @@ ThemeData _build(
         isDark: isDark,
         brand: brandOnSurface,
         neutral: onPaperSoft,
+        minRatio: minRatio,
+      ),
+      // UX-153: what gives a surface its edge, decided once per mode. A shadow
+      // needs a light page behind it and enough ambient contrast to be seen;
+      // dark mode has neither and daylight kills the second, so both fall back
+      // to a hairline. See [SurfaceTreatment].
+      SurfaceTreatment(
+        hairline: isDark || highContrast,
+        shadow: (isDark || highContrast) ? const [] : IntesharShadows.elev1,
+        shadowRaised: (isDark || highContrast) ? const [] : IntesharShadows.elev2,
       ),
     ],
     scaffoldBackgroundColor: paper,
@@ -1016,46 +1140,53 @@ ThemeData _build(
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(IntesharRadii.md),
-        side: BorderSide(color: outline, width: 1),
+        side: BorderSide(color: outline, width: borderWidth),
       ),
-      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
+      margin: const EdgeInsets.symmetric(
+          vertical: IntesharSpacing.xs, horizontal: 0),
     ),
     chipTheme: ChipThemeData(
       backgroundColor: sunk,
-      side: BorderSide(color: outline, width: 1),
+      side: BorderSide(color: outline, width: borderWidth),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(IntesharRadii.xs)),
       labelStyle: codec(size: IntesharScale.caption, w: IntesharWeight.bold, c: onPaper, tracking: 1.0),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(
+          horizontal: IntesharSpacing.sm2, vertical: IntesharSpacing.xs),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: card,
       isDense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.lg, vertical: IntesharSpacing.lg),
-      hintStyle: codec(size: IntesharScale.bodyLg, w: IntesharWeight.regular, c: onPaperSoft.withValues(alpha: 0.55)),
+      // A placeholder at 55% of an already-soft grey is the least legible text
+      // in the product; high contrast keeps it a hint but stops hiding it.
+      hintStyle: codec(
+          size: IntesharScale.bodyLg,
+          w: IntesharWeight.regular,
+          c: onPaperSoft.withValues(alpha: highContrast ? 0.9 : 0.55)),
       labelStyle: codec(size: IntesharScale.bodyLg, w: IntesharWeight.regular, c: onPaperSoft),
       floatingLabelStyle: codec(size: IntesharScale.body, w: IntesharWeight.semibold, c: brandInk),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(IntesharRadii.sm),
-        borderSide: BorderSide(color: outline, width: 1),
+        borderSide: BorderSide(color: outline, width: borderWidth),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(IntesharRadii.sm),
-        borderSide: BorderSide(color: outline, width: 1),
+        borderSide: BorderSide(color: outline, width: borderWidth),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(IntesharRadii.sm),
         // The focus ring is the only "which field am I in" cue — it has to be
         // visible against the white fill, which raw brand gold is not.
-        borderSide: BorderSide(color: brandOnSurface, width: 1.6),
+        borderSide: BorderSide(color: brandOnSurface, width: focusWidth),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(IntesharRadii.sm),
-        borderSide: BorderSide(color: oxblood, width: 1),
+        borderSide: BorderSide(color: oxblood, width: borderWidth),
       ),
       focusedErrorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(IntesharRadii.sm),
-        borderSide: BorderSide(color: oxblood, width: 1.6),
+        borderSide: BorderSide(color: oxblood, width: focusWidth),
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
@@ -1064,7 +1195,8 @@ ThemeData _build(
         foregroundColor: paper,
         textStyle: codec(size: IntesharScale.bodyLg, w: IntesharWeight.bold, tracking: 0.4),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(IntesharRadii.sm)),
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+        padding: const EdgeInsets.symmetric(
+            horizontal: IntesharSpacing.xl, vertical: IntesharSpacing.lg),
         minimumSize: const Size(0, 48),
       ),
     ),
@@ -1077,16 +1209,21 @@ ThemeData _build(
         foregroundColor: onSaffron,
         textStyle: codec(size: IntesharScale.bodyLg, w: IntesharWeight.heavy, tracking: 0.4),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(IntesharRadii.sm)),
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+        padding: const EdgeInsets.symmetric(
+            horizontal: IntesharSpacing.xl, vertical: IntesharSpacing.lg),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: onPaper,
-        side: BorderSide(color: outline, width: 1),
+        side: BorderSide(color: outline, width: borderWidth),
         textStyle: codec(size: IntesharScale.bodyLg, w: IntesharWeight.semibold, tracking: 0.3),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(IntesharRadii.sm)),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        // UX-135: was an off-scale 18/14. Snapped UP on the vertical axis on
+        // purpose — an outlined button carries no `minimumSize`, so rounding 14
+        // down to 12 would have taken it under the 48dp tap floor.
+        padding: const EdgeInsets.symmetric(
+            horizontal: IntesharSpacing.lg, vertical: IntesharSpacing.lg),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
@@ -1135,7 +1272,7 @@ ThemeData _build(
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(IntesharRadii.md),
-        side: BorderSide(color: outline, width: 1),
+        side: BorderSide(color: outline, width: borderWidth),
       ),
       titleTextStyle: codec(size: IntesharScale.titleLg, w: IntesharWeight.bold, c: onPaper, tracking: -0.3),
       contentTextStyle: codec(size: IntesharScale.bodyLg, w: IntesharWeight.regular, c: onPaper, height: 1.45),
@@ -1198,8 +1335,11 @@ ThemeData _build(
 
 final intesharLightTheme = _build(Brightness.light);
 final intesharDarkTheme = _build(Brightness.dark);
+final intesharHighContrastTheme = _build(Brightness.light, highContrast: true);
 final _intesharLightThemeCursive = _build(Brightness.light, cursive: true);
 final _intesharDarkThemeCursive = _build(Brightness.dark, cursive: true);
+final _intesharHighContrastCursive =
+    _build(Brightness.light, cursive: true, highContrast: true);
 
 /// Parses `#RRGGBB`, `RRGGBB`, or `#AARRGGBB`. Returns null on null/empty/invalid.
 Color? parseHexColor(String? hex) {
@@ -1221,7 +1361,12 @@ Color? parseHexColor(String? hex) {
 /// cursive locale active every letter-spacing in the theme is dropped, because
 /// tracking breaks the joins of Arabic. It mirrors [IntesharType.cursiveScript],
 /// which does the same for the styles widgets build directly.
-({ThemeData light, ThemeData dark}) buildBrandThemes({
+/// `highContrast` is the accessibility variant of `light` (UX-153) — see the
+/// note on [_build]. It is a THIRD theme rather than a flag on the other two
+/// because `MaterialApp` selects it two different ways: the OS accessibility
+/// setting (`MaterialApp.highContrastTheme`, which only iOS actually reports)
+/// and the in-app switch, which is the one an Android POS needs.
+({ThemeData light, ThemeData dark, ThemeData highContrast}) buildBrandThemes({
   String? primaryHex,
   String? secondaryHex,
   bool cursiveScript = false,
@@ -1230,13 +1375,26 @@ Color? parseHexColor(String? hex) {
   final secondary = parseHexColor(secondaryHex);
   if (primary == null && secondary == null) {
     return cursiveScript
-        ? (light: _intesharLightThemeCursive, dark: _intesharDarkThemeCursive)
-        : (light: intesharLightTheme, dark: intesharDarkTheme);
+        ? (
+            light: _intesharLightThemeCursive,
+            dark: _intesharDarkThemeCursive,
+            highContrast: _intesharHighContrastCursive,
+          )
+        : (
+            light: intesharLightTheme,
+            dark: intesharDarkTheme,
+            highContrast: intesharHighContrastTheme,
+          );
   }
   return (
     light: _build(Brightness.light,
         brandPrimary: primary, brandSecondary: secondary, cursive: cursiveScript),
     dark: _build(Brightness.dark,
         brandPrimary: primary, brandSecondary: secondary, cursive: cursiveScript),
+    highContrast: _build(Brightness.light,
+        brandPrimary: primary,
+        brandSecondary: secondary,
+        cursive: cursiveScript,
+        highContrast: true),
   );
 }

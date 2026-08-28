@@ -19,8 +19,8 @@ import 'package:inteshar/features/entities/presentation/manage_users_sheet.dart'
 import 'package:inteshar/features/entities/presentation/visible_products_sheet.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/color_hex_field.dart';
-import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/image_upload_field.dart';
+import 'package:inteshar/shared/widgets/sheet_frame.dart';
 
 // ─── UX-93: one action set for one object ────────────────────────────────────
 //
@@ -594,32 +594,56 @@ class _EntityMetaFormSheetState extends State<EntityMetaFormSheet> {
     final cs = Theme.of(context).colorScheme;
     final ar = Localizations.localeOf(context).languageCode == 'ar';
 
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-        left: 24,
-        right: 24,
-        top: 20,
+    // UX-131/127: the handle, the title block, the keyboard inset and the
+    // height cap were all hand-rolled here — including a display **28** title
+    // against the canonical 24. SheetFrame owns all five now.
+    return SheetFrame(
+      eyebrow: l.entityTreeSectionLabel,
+      title: widget.title,
+      // Save/Cancel stay reachable while the (long) field list scrolls.
+      footer: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: _saving ? null : () => Navigator.pop(context),
+              child: Text(l.entityTreeCancel),
+            ),
+          ),
+          const SizedBox(width: IntesharSpacing.md),
+          Expanded(
+            child: FilledButton(
+              onPressed: _saving
+                  ? null
+                  : () async {
+                      if (!_validate(ar)) return;
+                      setState(() => _saving = true);
+                      try {
+                        await widget.onSave();
+                      } catch (e) {
+                        if (mounted) {
+                          // ignore: use_build_context_synchronously
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(l.entityTreeErrorSaving)),
+                          );
+                        }
+                      } finally {
+                        if (mounted) setState(() => _saving = false);
+                      }
+                    },
+              child: _saving
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : Text(l.entityTreeSave),
+            ),
+          ),
+        ],
       ),
-      child: SingleChildScrollView(
-        child: Column(
+      child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Drag handle
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                    color: cs.outline, borderRadius: BorderRadius.circular(2)),
-              ),
-            ),
-            const SizedBox(height: 16),
-            SectionLabel(l.entityTreeSectionLabel),
-            Text(widget.title, style: IntesharType.display(28, color: cs.onSurface)),
-            const SizedBox(height: 20),
-
             // ── Core fields ──────────────────────────────────────────────
             TextField(
               controller: widget.nameCtrl,
@@ -689,7 +713,8 @@ class _EntityMetaFormSheetState extends State<EntityMetaFormSheet> {
                 onChanged: (v) => setState(() => widget.onBulkLockChanged(!v)),
                 title: Text(
                   ar ? 'السماح للوكيل بتعديل الحد' : 'Let this agent edit the limit',
-                  style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w600),
+                  style: IntesharText.bodyLg(
+                      color: cs.onSurface, w: IntesharWeight.semibold),
                 ),
                 subtitle: Text(
                   ar
@@ -712,52 +737,8 @@ class _EntityMetaFormSheetState extends State<EntityMetaFormSheet> {
                 if (_thresholdError != null) setState(() => _thresholdError = null);
               },
             ),
-            const SizedBox(height: 20),
-
-            // ── Action buttons ───────────────────────────────────────────
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _saving ? null : () => Navigator.pop(context),
-                    child: Text(l.entityTreeCancel),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: _saving
-                        ? null
-                        : () async {
-                            if (!_validate(ar)) return;
-                            setState(() => _saving = true);
-                            try {
-                              await widget.onSave();
-                            } catch (e) {
-                              if (mounted) {
-                                // ignore: use_build_context_synchronously
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(l.entityTreeErrorSaving)),
-                                );
-                              }
-                            } finally {
-                              if (mounted) setState(() => _saving = false);
-                            }
-                          },
-                    child: _saving
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2))
-                        : Text(l.entityTreeSave),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
           ],
         ),
-      ),
     );
   }
 }

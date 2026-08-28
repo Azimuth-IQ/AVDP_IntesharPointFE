@@ -17,6 +17,7 @@ import 'package:inteshar/features/pos_admin/data/pos_admin_repository.dart';
 import 'package:inteshar/features/pos_admin/domain/pos_network.dart';
 import 'package:inteshar/features/pricing/data/pricing_repository.dart';
 import 'package:inteshar/features/system_activity/domain/feed_rows.dart';
+import 'package:inteshar/shared/widgets/app_search_field.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
@@ -203,17 +204,18 @@ class _AgentsPageState extends ConsumerState<AgentsPage> {
                   )
                 : null,
           ),
-          Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 12),
-            child: TextField(
-              controller: _searchCtrl,
-              onChanged: _onSearchChanged,
-              decoration: InputDecoration(
-                prefixIcon: const Icon(Icons.search, size: 20),
-                hintText: s.searchHint,
-                isDense: true,
-              ),
-            ),
+          // UX-93/UX-133: the same search box the hierarchy uses — this one had
+          // no clear button at all, so backing out of a query on a phone meant
+          // fifteen backspaces under the keyboard.
+          AppSearchField(
+            controller: _searchCtrl,
+            hintText: s.searchHint,
+            clearTooltip: s.ar ? 'مسح البحث' : 'Clear search',
+            onChanged: _onSearchChanged,
+            // Only when the list is complete — otherwise this counts the page.
+            resultCount: (_loading || _hasMore || _searchCtrl.text.trim().isEmpty)
+                ? null
+                : _items.length,
           ),
           Expanded(child: _buildBody(s, canManage: canManage)),
         ],
@@ -475,7 +477,13 @@ class _ReadyChip extends StatelessWidget {
             ? context.status.success
             : context.status.warn;
     final chip = Container(
-      padding: const EdgeInsetsDirectional.fromSTEB(10, 7, 10, 7),
+      // UX-119: three of these four chips are the only route to their setup
+      // screen, and the two-line body left them ~44dp tall — under the 48dp
+      // minimum, on a control an admin taps on a phone. Applied to all four so
+      // the strip does not go ragged.
+      constraints: const BoxConstraints(minHeight: 48),
+      padding: const EdgeInsets.symmetric(
+          horizontal: IntesharSpacing.sm2, vertical: IntesharSpacing.sm),
       decoration: BoxDecoration(
         color: tone.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(IntesharRadii.sm),
@@ -506,7 +514,7 @@ class _ReadyChip extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: IntesharType.sans(11,
-                        color: cs.onSurfaceVariant, w: FontWeight.w600)),
+                        color: cs.onSurfaceVariant, w: IntesharWeight.semibold)),
                 Text(value,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

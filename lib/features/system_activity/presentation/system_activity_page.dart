@@ -439,7 +439,11 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
             : (o == null || o.entityByType.isEmpty ? null : (o.entityByType[_entityType!.name] ?? 0));
     final userTotal = _userSearchCtrl.text.trim().isNotEmpty ? null : o?.userTotal;
 
-    return MaxWidthBox(
+    // UX-13: five paged feeds of logs, transactions, entities and users —
+    // scanned and compared down a column, never read as prose. The prose cap
+    // was throwing away ~360dp of a 1080p console on the one screen whose job
+    // is to show a lot of rows at once.
+    return MaxWidthBox.wide(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

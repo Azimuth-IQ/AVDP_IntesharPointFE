@@ -9,7 +9,7 @@ import 'package:inteshar/shared/widgets/responsive.dart';
 /// wraps and the layout is worse than the single column it replaced. These
 /// assert the boundaries rather than the middle of each band.
 void main() {
-  const w = AdaptiveColumns(children: [], minColumnWidth: 360, spacing: 12);
+  const w = AdaptiveColumns(minColumnWidth: 360, spacing: 12, children: []);
 
   group('column count', () {
     test('a phone gets one column', () {

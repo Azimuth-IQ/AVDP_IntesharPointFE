@@ -226,7 +226,9 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
     final estimatedBasis =
         filtered.any((e) => e.governorates.isEmpty && e.available > 0);
 
-    return MaxWidthBox(
+    // UX-13: a stock list is compared down a column (which SKU is low, where),
+    // not read. It takes the data cap rather than the prose one.
+    return MaxWidthBox.wide(
       child: Column(
         children: [
           PageHeader(

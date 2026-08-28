@@ -547,7 +547,7 @@ class _EntityTreePageState extends ConsumerState<EntityTreePage> {
                   ? 'لا توجد حسابات مطابقة لـ "$_query"'
                   : 'No accounts match "$_query"',
               textAlign: TextAlign.center,
-              style: IntesharType.sans(13, color: IntesharColors.lichen),
+              style: IntesharType.sans(14, color: IntesharColors.lichen),
             ),
           ),
         ),
@@ -930,7 +930,7 @@ class _TreeNode extends ConsumerWidget {
                 children: [
                   Text(
                     entity.label,
-                    style: IntesharType.sans(13,
+                    style: IntesharType.sans(14,
                         color: cs.onSurface, w: FontWeight.w700),
                     maxLines: wide ? 1 : 2,
                     overflow: TextOverflow.ellipsis,

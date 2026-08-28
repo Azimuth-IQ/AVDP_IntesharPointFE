@@ -175,7 +175,7 @@ class _PosStatementPanelState extends ConsumerState<PosStatementPanel> {
                 selected: _preset == p,
                 onSelected: (_) => _applyPreset(p),
                 label: Text(label),
-                labelStyle: IntesharType.sans(12.5,
+                labelStyle: IntesharType.sans(12,
                     color: _preset == p ? cs.onSecondaryContainer : cs.onSurfaceVariant,
                     w: FontWeight.w700),
               ),
@@ -256,7 +256,7 @@ class _PosStatementPanelState extends ConsumerState<PosStatementPanel> {
               alignment: AlignmentDirectional.centerStart,
               child: Text(value,
                   maxLines: 1,
-                  style: IntesharType.mono(15, color: cs.onSurface, w: FontWeight.w700)),
+                  style: IntesharType.mono(16, color: cs.onSurface, w: FontWeight.w700)),
             ),
           ]),
         );
@@ -301,7 +301,7 @@ class _PosStatementPanelState extends ConsumerState<PosStatementPanel> {
                         (r.receiptNo != null ? '  ·  #${r.receiptNo}' : ''),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: IntesharType.sans(13.5, color: cs.onSurface, w: FontWeight.w600),
+                style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w600),
               ),
               const SizedBox(height: 1),
               // UX-147: 11px was below the app's floor for text a cashier
@@ -312,7 +312,7 @@ class _PosStatementPanelState extends ConsumerState<PosStatementPanel> {
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Text(
               r.amount == null ? '—' : '${grant ? '+' : ''}${Formatters.iqd(r.amount!.round())}',
-              style: IntesharType.mono(13, color: tint),
+              style: IntesharType.mono(14, color: tint),
             ),
             const SizedBox(height: 1),
             // A93: show the balance BEFORE → AFTER this event (before is derived

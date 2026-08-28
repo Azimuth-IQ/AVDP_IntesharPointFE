@@ -705,7 +705,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                   sheetDataRows > parsed.length
                       ? (ar ? 'تم التعرف على ${parsed.length} من $sheetDataRows صفًا' : 'Recognized ${parsed.length} of $sheetDataRows rows')
                       : (ar ? 'تم التعرف على ${parsed.length} صفًا' : 'Recognized ${parsed.length} rows'),
-                  style: IntesharType.sans(12.5,
+                  style: IntesharType.sans(12,
                       color: sheetDataRows > parsed.length
                           ? ctx.status.danger
                           : cs.onSurfaceVariant,
@@ -727,12 +727,12 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                             child: Row(children: [
                               Expanded(flex: 3, child: Text('${p['sku']}',
-                                  style: IntesharType.mono(11.5, color: cs.onSurface), overflow: TextOverflow.ellipsis)),
+                                  style: IntesharType.mono(12, color: cs.onSurface), overflow: TextOverflow.ellipsis)),
                               Expanded(flex: 2, child: Text(
                                   (p['governorate'] as String).isEmpty ? '—' : '${p['governorate']}',
-                                  style: IntesharType.sans(11.5, color: cs.onSurfaceVariant), overflow: TextOverflow.ellipsis)),
+                                  style: IntesharType.sans(12, color: cs.onSurfaceVariant), overflow: TextOverflow.ellipsis)),
                               Text(Formatters.iqd((p['price'] as num).round()),
-                                  style: IntesharType.mono(11.5, color: cs.onSurface)),
+                                  style: IntesharType.mono(12, color: cs.onSurface)),
                             ]),
                           ),
                       ]),
@@ -750,7 +750,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                   value: applyToSelf,
                   onChanged: (v) => setD(() => applyToSelf = v ?? false),
                   title: Text(ar ? 'تطبيق على حسابي' : 'Apply to my account',
-                      style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w600)),
+                      style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w600)),
                 ),
                 Wrap(spacing: 6, runSpacing: 6, children: [
                   for (final e in extraAgents.entries)
@@ -918,7 +918,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                     Flexible(
                       child: Text(
                         s.bulkTitle,
-                        style: IntesharType.sans(13,
+                        style: IntesharType.sans(14,
                             color: cs.onSurface, w: FontWeight.w800),
                       ),
                     ),
@@ -926,7 +926,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                   const SizedBox(height: 2),
                   Text(
                     s.bulkHint,
-                    style: IntesharType.sans(11.5, color: cs.onSurfaceVariant),
+                    style: IntesharType.sans(12, color: cs.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -1077,7 +1077,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
             alignment: AlignmentDirectional.centerStart,
             child: Text(
               s.scopedTo(_scopeLabel(s, loc)),
-              style: IntesharType.sans(11.5, color: cs.onSurfaceVariant, w: FontWeight.w600),
+              style: IntesharType.sans(12, color: cs.onSurfaceVariant, w: FontWeight.w600),
             ),
           ),
         ],
@@ -1395,7 +1395,7 @@ class _PriceRow extends StatelessWidget {
                 child: Text(
                   row.name,
                   style: IntesharType.sans(
-                    15,
+                    16,
                     color: cs.onSurface,
                     w: FontWeight.w700,
                   ),
@@ -1421,7 +1421,7 @@ class _PriceRow extends StatelessWidget {
                   '${Formatters.iqd(row.officialPrice.round())}',
                   maxLines: 2,
                   textAlign: TextAlign.end,
-                  style: IntesharType.mono(11.5, color: cs.onSurfaceVariant),
+                  style: IntesharType.mono(12, color: cs.onSurfaceVariant),
                 ),
               ),
             ],
@@ -1551,7 +1551,7 @@ class _PriceField extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           label,
-          Text('—', style: IntesharType.mono(12.5, color: cs.onSurfaceVariant)),
+          Text('—', style: IntesharType.mono(12, color: cs.onSurfaceVariant)),
         ],
       );
     }
@@ -1581,7 +1581,7 @@ class _PriceField extends StatelessWidget {
                 '$sign${Formatters.money(m.abs())}$pctText',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: IntesharType.mono(12.5, color: color, w: FontWeight.w800),
+                style: IntesharType.mono(12, color: color, w: FontWeight.w800),
               ),
             ),
           ],
@@ -1640,7 +1640,7 @@ class _PriceField extends StatelessWidget {
                   labelText: priceLabel,
                   isDense: true,
                   suffixText: s.currency,
-                  suffixStyle: IntesharType.sans(11.5, color: cs.onSurfaceVariant),
+                  suffixStyle: IntesharType.sans(12, color: cs.onSurfaceVariant),
                 ),
               ),
             ),

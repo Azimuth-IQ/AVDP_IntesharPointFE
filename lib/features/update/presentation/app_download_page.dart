@@ -69,7 +69,7 @@ class _AppDownloadPageState extends State<AppDownloadPage> {
                       Text(
                         ar ? 'امسح بكاميرا الهاتف للتثبيت' : 'Scan with your phone camera to install',
                         textAlign: TextAlign.center,
-                        style: IntesharType.sans(14.5, color: cs.onSurface, w: FontWeight.w700),
+                        style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700),
                       ),
                       const SizedBox(height: 18),
                       Container(
@@ -94,7 +94,7 @@ class _AppDownloadPageState extends State<AppDownloadPage> {
                         SelectableText(
                           _url!,
                           textAlign: TextAlign.center,
-                          style: IntesharType.mono(12.5, color: cs.onSurfaceVariant),
+                          style: IntesharType.mono(12, color: cs.onSurfaceVariant),
                         ),
                       const SizedBox(height: 12),
                       Row(
@@ -111,7 +111,7 @@ class _AppDownloadPageState extends State<AppDownloadPage> {
                       Text(
                         ar ? 'أندرويد فقط · يتم دائماً تنزيل أحدث إصدار' : 'Android only · always downloads the newest version',
                         textAlign: TextAlign.center,
-                        style: IntesharType.sans(11.5, color: cs.onSurfaceVariant),
+                        style: IntesharType.sans(12, color: cs.onSurfaceVariant),
                       ),
                     ],
                   ),

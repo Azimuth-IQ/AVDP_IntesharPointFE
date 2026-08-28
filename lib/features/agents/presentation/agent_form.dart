@@ -593,7 +593,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
                 padding: const EdgeInsets.all(12),
                 child: Text(
                   _error!,
-                  style: IntesharType.sans(13, color: cs.onSurface),
+                  style: IntesharType.sans(14, color: cs.onSurface),
                 ),
               ),
             ),
@@ -657,7 +657,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
           const SizedBox(height: 4),
           Text(
             s.parentHint,
-            style: IntesharType.sans(12.5, color: cs.onSurfaceVariant),
+            style: IntesharType.sans(12, color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 10),
           if (_loadingParents)
@@ -666,7 +666,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
               child: LinearProgressIndicator(),
             )
           else if (_parentOptions.isEmpty)
-            Text(s.noMainAgents, style: IntesharType.sans(13, color: cs.error))
+            Text(s.noMainAgents, style: IntesharType.sans(14, color: cs.error))
           else
             DropdownButtonFormField<String>(
               key: _kParent,
@@ -742,7 +742,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
                   Localizations.localeOf(context).languageCode == 'ar'
                       ? 'الأقسام المخفية تختفي عن الوكيل وكل حساباته الفرعية ونقاط بيعه.'
                       : 'Hidden sections disappear for this agent and its whole subtree (sub-agents, POS).',
-                  style: IntesharType.sans(12.5, color: cs.onSurfaceVariant),
+                  style: IntesharType.sans(12, color: cs.onSurfaceVariant),
                 ),
               ),
               const SizedBox(height: 8),
@@ -773,7 +773,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         const SizedBox(height: 4),
         Text(
           s.governoratesHint,
-          style: IntesharType.sans(12.5, color: cs.onSurfaceVariant),
+          style: IntesharType.sans(12, color: cs.onSurfaceVariant),
         ),
         const SizedBox(height: 10),
         GovernorateMultiSelect(
@@ -864,7 +864,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         // admin opened, half the settings were invisible and unguessable.
         SectionLabel(s.sectionLimits, key: _kLimits),
         const SizedBox(height: 4),
-        Text(s.limitsHint, style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+        Text(s.limitsHint, style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
         const SizedBox(height: 10),
         TextField(
           controller: _lowStock,
@@ -907,7 +907,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
             value: !_bulkLocked,
             onChanged: (v) => setState(() => _bulkLocked = !v),
             title: Text(s.bulkUnlockLabel,
-                style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w600)),
+                style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w600)),
             subtitle: Text(s.bulkUnlockHint,
                 style: IntesharType.sans(11, color: cs.onSurfaceVariant)),
           ),
@@ -928,7 +928,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         const SizedBox(height: 4),
         Text(
           s.documentsHint,
-          style: IntesharType.sans(12.5, color: cs.onSurfaceVariant),
+          style: IntesharType.sans(12, color: cs.onSurfaceVariant),
         ),
         const SizedBox(height: 12),
         TextField(
@@ -1013,7 +1013,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
           const SizedBox(height: 22),
           SectionLabel(s.sectionBranding),
           const SizedBox(height: 4),
-          Text(s.brandingHint, style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+          Text(s.brandingHint, style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
           const SizedBox(height: 10),
           Row(
             children: [
@@ -1054,7 +1054,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
       children: [
         Text(
           s.usersSubtitle,
-          style: IntesharType.sans(13, color: cs.onSurfaceVariant),
+          style: IntesharType.sans(14, color: cs.onSurfaceVariant),
         ),
         const SizedBox(height: 14),
         ..._users.asMap().entries.map(
@@ -1162,7 +1162,7 @@ class _StepPill extends StatelessWidget {
         Text(
           label,
           style: IntesharType.sans(
-            13,
+            14,
             w: FontWeight.w700,
             color: on ? cs.onSurface : cs.onSurfaceVariant,
           ),
@@ -1208,7 +1208,7 @@ class _UserCard extends StatelessWidget {
               Text(
                 showPreset ? s.userN(index + 1) : s.adminUserLabel,
                 style: IntesharType.sans(
-                  13,
+                  14,
                   w: FontWeight.w800,
                   color: cs.onSurface,
                 ),

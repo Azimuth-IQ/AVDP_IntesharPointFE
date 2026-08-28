@@ -371,11 +371,11 @@ class _StorePosNote extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(title,
-                      style: IntesharType.sans(13.5,
+                      style: IntesharType.sans(14,
                           color: cs.onSurface, w: FontWeight.w800)),
                   const SizedBox(height: 3),
                   Text(body,
-                      style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+                      style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
                 ],
               ),
             ),
@@ -771,7 +771,7 @@ class _ChildCreditCard extends StatelessWidget {
                                 ? '${dry.length} حساب بلا رصيد'
                                 : '${dry.length} out of credit'),
                         style: IntesharType.sans(
-                          11.5,
+                          12,
                           color: dry.isEmpty
                               ? context.status.success
                               : context.status.danger,
@@ -797,14 +797,14 @@ class _ChildCreditCard extends StatelessWidget {
                       shown[i].name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w600),
+                      style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w600),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Text(
                     Formatters.iqd(shown[i].available.round()),
                     style: IntesharType.mono(
-                      12.5,
+                      12,
                       color: shown[i].available <= 0
                           ? context.status.danger
                           : cs.onSurface,
@@ -822,7 +822,7 @@ class _ChildCreditCard extends StatelessWidget {
                 ar
                     ? 'و${rows.length - shown.length} حساب آخر'
                     : 'and ${rows.length - shown.length} more',
-                style: IntesharType.sans(11.5, color: cs.onSurfaceVariant),
+                style: IntesharType.sans(12, color: cs.onSurfaceVariant),
               ),
             ),
         ],
@@ -929,7 +929,7 @@ class _RecentTransfersCard extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: IntesharType.sans(
-                                  13,
+                                  14,
                                   color: cs.onSurface,
                                   w: FontWeight.w600,
                                 ),
@@ -948,7 +948,7 @@ class _RecentTransfersCard extends StatelessWidget {
                         Text(
                           '${sent ? '−' : '+'}${Formatters.iqd(g.amount.round())}',
                           style: IntesharType.mono(
-                            13,
+                            14,
                             color: tint,
                           ),
                         ),
@@ -1033,7 +1033,7 @@ class _InlineEmpty extends StatelessWidget {
             child: Text(
               message,
               style: IntesharType.sans(
-                13,
+                14,
                 color: cs.onSurfaceVariant,
                 w: FontWeight.w500,
               ),
@@ -1176,7 +1176,7 @@ class _BalanceCard extends ConsumerWidget {
                   : (ar
                       ? 'المُضاف = الرصيد الممنوح لك'
                       : 'Credited = the balance granted to you'),
-              style: IntesharType.sans(11.5, color: cs.onSurfaceVariant),
+              style: IntesharType.sans(12, color: cs.onSurfaceVariant),
             ),
           ],
           if (canAsk) ...[
@@ -1227,7 +1227,7 @@ class _BalanceLine extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: IntesharType.sans(
-              12.5,
+              12,
               color: strong ? cs.onSurface : cs.onSurfaceVariant,
               w: strong ? FontWeight.w700 : FontWeight.w400,
             ),
@@ -1237,7 +1237,7 @@ class _BalanceLine extends StatelessWidget {
         Text(
           '${negative && amount != 0 ? '−' : ''}${Formatters.iqd(amount.round())}',
           style: IntesharType.mono(
-            12.5,
+            12,
             color: strong ? cs.onSurface : cs.onSurfaceVariant,
             w: strong ? FontWeight.w700 : FontWeight.w400,
           ),
@@ -1300,7 +1300,7 @@ class _LowStockCard extends ConsumerWidget {
                         ar
                             ? 'أقل من $threshold بطاقة'
                             : 'below $threshold cards',
-                        style: IntesharType.sans(11.5, color: cs.onSurfaceVariant),
+                        style: IntesharType.sans(12, color: cs.onSurfaceVariant),
                       ),
                     ],
                   ),
@@ -1347,7 +1347,7 @@ class _LowStockCard extends ConsumerWidget {
                     child: Text(
                       l.dashAllHealthy,
                       style: IntesharType.sans(
-                        13,
+                        14,
                         color: context.status.success,
                         w: FontWeight.w600,
                       ),
@@ -1375,7 +1375,7 @@ class _LowStockCard extends ConsumerWidget {
                           child: Text(
                             e.value.name,
                             style: IntesharType.sans(
-                              13,
+                              14,
                               color: cs.onSurface,
                               w: FontWeight.w600,
                             ),

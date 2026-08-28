@@ -334,7 +334,7 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(s.composeHeading, style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w800)),
+          Text(s.composeHeading, style: IntesharType.sans(16, color: cs.onSurface, w: FontWeight.w800)),
           const SizedBox(height: 14),
           TextField(controller: _titleCtrl, decoration: InputDecoration(labelText: s.fieldTitle), textInputAction: TextInputAction.next),
           const SizedBox(height: 12),
@@ -372,12 +372,12 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
             dense: true,
             value: _posOnly,
             onChanged: (v) => setState(() => _posOnly = v),
-            title: Text(s.posOnly, style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w600)),
+            title: Text(s.posOnly, style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w600)),
             subtitle: Text(s.posOnlyHint, style: IntesharType.sans(11, color: cs.onSurfaceVariant)),
           ),
           if (_error != null) ...[
             const SizedBox(height: 6),
-            Text(_error!, style: IntesharType.sans(12.5, color: cs.error)),
+            Text(_error!, style: IntesharType.sans(12, color: cs.error)),
           ],
           const SizedBox(height: 12),
           FilledButton.icon(
@@ -421,7 +421,7 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (_entityIds.isNotEmpty) ...[
-            Text(s.selected(_entityIds.length), style: IntesharType.sans(11.5, color: context.tones.brandInk, w: FontWeight.w700)),
+            Text(s.selected(_entityIds.length), style: IntesharType.sans(12, color: context.tones.brandInk, w: FontWeight.w700)),
             const SizedBox(height: 6),
           ],
           EntityMultiSearchList(
@@ -471,13 +471,13 @@ class _HistoryCard extends StatelessWidget {
                   style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700))),
               if (n.sentAt != null) ...[
                 const SizedBox(width: 8),
-                Text(DateFormat('MM-dd HH:mm').format(n.sentAt!), style: IntesharType.mono(10, color: IntesharColors.lichen)),
+                Text(DateFormat('MM-dd HH:mm').format(n.sentAt!), style: IntesharType.mono(11, color: IntesharColors.lichen)),
               ],
             ],
           ),
           if (n.body.isNotEmpty) ...[
             const SizedBox(height: 4),
-            Text(n.body, maxLines: 2, overflow: TextOverflow.ellipsis, style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+            Text(n.body, maxLines: 2, overflow: TextOverflow.ellipsis, style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
           ],
           const SizedBox(height: 8),
           Wrap(spacing: 8, runSpacing: 6, children: [

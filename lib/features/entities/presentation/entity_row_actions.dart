@@ -689,7 +689,7 @@ class _EntityMetaFormSheetState extends State<EntityMetaFormSheet> {
                 onChanged: (v) => setState(() => widget.onBulkLockChanged(!v)),
                 title: Text(
                   ar ? 'السماح للوكيل بتعديل الحد' : 'Let this agent edit the limit',
-                  style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w600),
+                  style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w600),
                 ),
                 subtitle: Text(
                   ar

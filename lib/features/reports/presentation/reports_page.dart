@@ -944,7 +944,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
       child: Row(children: [
-        Text('${s.viewFor}: ', style: IntesharType.sans(13, color: cs.onSurfaceVariant)),
+        Text('${s.viewFor}: ', style: IntesharType.sans(14, color: cs.onSurfaceVariant)),
         const SizedBox(width: 8),
         Expanded(
           child: DropdownButtonFormField<String>(
@@ -1046,7 +1046,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
               label: Text(tabs[i].label),
               selected: _tab == i,
               onSelected: (_) => setState(() => _tab = i),
-              labelStyle: IntesharType.sans(12.5,
+              labelStyle: IntesharType.sans(12,
                   color: _tab == i ? cs.onSurface : cs.onSurfaceVariant, w: FontWeight.w700),
             ),
         ],
@@ -1102,7 +1102,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                 s.exportFollows(scope),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: IntesharType.sans(11.5, color: cs.onSurfaceVariant, w: FontWeight.w600),
+                style: IntesharType.sans(12, color: cs.onSurfaceVariant, w: FontWeight.w600),
               ),
             ),
           ),
@@ -1143,7 +1143,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
           const SizedBox(height: 4),
           Center(
             child: Text('${_ymd(_from)} → ${_ymd(_to)}',
-                style: IntesharType.mono(12.5, color: cs.onSurfaceVariant)),
+                style: IntesharType.mono(12, color: cs.onSurfaceVariant)),
           ),
           const SizedBox(height: 16),
           Center(
@@ -1224,7 +1224,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
           ..sort();
         if (govs.isEmpty) return const SizedBox.shrink();
         return Row(children: [
-          Text('${s.governorate}: ', style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+          Text('${s.governorate}: ', style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
           Expanded(
             child: DropdownButtonFormField<String>(
               initialValue: _stockGov,
@@ -1506,7 +1506,7 @@ class _ReportSurfaceState extends State<_ReportSurface> {
         const SizedBox(width: 6),
         Expanded(
           child: Text(widget.s.sortedOf(n),
-              style: IntesharType.sans(11.5, color: warn, w: FontWeight.w600)),
+              style: IntesharType.sans(12, color: warn, w: FontWeight.w600)),
         ),
       ]),
     );
@@ -1568,7 +1568,7 @@ class _ReportSurfaceState extends State<_ReportSurface> {
                 child: Text(label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: IntesharType.sans(11.5,
+                    style: IntesharType.sans(12,
                         color: cs.onSurfaceVariant, w: FontWeight.w700)),
               ),
             ]),
@@ -1665,10 +1665,10 @@ class _ReportSurfaceState extends State<_ReportSurface> {
 
   Widget _cellText(ColorScheme cs, _RCol col, _RCell cell) {
     final style = col.numeric
-        ? IntesharType.mono(12.5,
+        ? IntesharType.mono(12,
             color: cell.color ?? (col.primary || col.trailing ? cs.onSurface : cs.onSurfaceVariant),
             w: col.trailing ? FontWeight.w800 : FontWeight.w600)
-        : IntesharType.sans(13,
+        : IntesharType.sans(14,
             color: cell.color ?? (col.primary ? cs.onSurface : cs.onSurfaceVariant),
             w: col.primary ? FontWeight.w700 : FontWeight.w500);
     // Figures shrink rather than clip — a truncated amount is a lie (B-095/B-099).
@@ -1762,7 +1762,7 @@ class _ReportSurfaceState extends State<_ReportSurface> {
             Text(meta.join('  ·  '),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: IntesharType.sans(11.5, color: cs.onSurfaceVariant)),
+                style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
           ],
         ],
       ),
@@ -1851,7 +1851,7 @@ class _RosterReportState extends State<_RosterReport> {
           // UX-35: name the arithmetic once, above the table, rather than leaving
           // three money columns with no stated relationship to each other.
           Text(s.rosterComposition,
-              style: IntesharType.sans(11.5, color: cs.onSurfaceVariant, w: FontWeight.w600)),
+              style: IntesharType.sans(12, color: cs.onSurfaceVariant, w: FontWeight.w600)),
         ]),
       ),
       columns: [
@@ -1894,7 +1894,7 @@ class _RosterReportState extends State<_RosterReport> {
         child: Center(
           child: Text(s.noMatchLoaded,
               textAlign: TextAlign.center,
-              style: IntesharType.sans(13, color: cs.onSurfaceVariant)),
+              style: IntesharType.sans(14, color: cs.onSurfaceVariant)),
         ),
       ),
     );
@@ -2233,12 +2233,12 @@ class _StockReport extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w700)),
+                style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700)),
             const SizedBox(height: 2),
             // The available count, directly beneath the image (the spec's
             // "اسفل كل صورة عدد الكروت المتوفر") — still the hero number.
             Text(Formatters.money(availOf(sku)),
-                style: IntesharType.mono(17, color: context.tones.brandInk, w: FontWeight.w900)),
+                style: IntesharType.mono(16, color: context.tones.brandInk, w: FontWeight.w900)),
             const SizedBox(height: 1),
             // …with the two columns the export also carries (B-091), kept quiet
             // so they inform without competing with the available count.
@@ -2247,7 +2247,7 @@ class _StockReport extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
-              style: IntesharType.sans(10.5, color: cs.onSurfaceVariant),
+              style: IntesharType.sans(11, color: cs.onSurfaceVariant),
             ),
           ]),
         );
@@ -2289,7 +2289,7 @@ class _DetailedReport extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(bottom: 10),
           child: Text(s.grandTotalBasis,
-              style: IntesharType.sans(11.5,
+              style: IntesharType.sans(12,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                   w: FontWeight.w600)),
         ),
@@ -2363,7 +2363,7 @@ class _TotalStrip extends StatelessWidget {
           const SizedBox(width: 6),
           Expanded(
             child: Text(text,
-                style: IntesharType.sans(11.5,
+                style: IntesharType.sans(12,
                     color: color ?? cs.onSurfaceVariant, w: FontWeight.w600)),
           ),
         ]);
@@ -2421,7 +2421,7 @@ class _TotalStrip extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text('$headline$absolute',
-                    style: IntesharType.sans(12.5, color: tone, w: FontWeight.w800)),
+                    style: IntesharType.sans(12, color: tone, w: FontWeight.w800)),
                 const SizedBox(height: 1),
                 // Name the window that was compared and what it held, so the
                 // percentage is checkable rather than taken on trust.
@@ -2501,7 +2501,7 @@ class _TotalStrip extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(subValue!,
                     maxLines: 1,
-                    style: IntesharType.mono(15, color: cs.onSurface, w: FontWeight.w800)),
+                    style: IntesharType.mono(16, color: cs.onSurface, w: FontWeight.w800)),
               ],
             ),
           ],
@@ -2515,7 +2515,7 @@ class _TotalStrip extends StatelessWidget {
           const SizedBox(width: 6),
           Expanded(
             child: Text(note!,
-                style: IntesharType.sans(11.5,
+                style: IntesharType.sans(12,
                     color: context.status.warn, w: FontWeight.w600)),
           ),
         ]),

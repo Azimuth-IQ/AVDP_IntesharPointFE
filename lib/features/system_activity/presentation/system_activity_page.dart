@@ -681,7 +681,7 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
                       Localizations.localeOf(context).languageCode == 'ar'
                           ? 'نشاط: $_logEntityLabel'
                           : 'Activity of: $_logEntityLabel',
-                      style: IntesharType.sans(12.5),
+                      style: IntesharType.sans(12),
                     ),
                     onDeleted: () {
                       setState(() {
@@ -1076,13 +1076,13 @@ class _AllClearCard extends StatelessWidget {
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(ar ? 'كل شيء يعمل بشكل سليم' : 'Everything is running clean',
-                style: IntesharType.sans(14.5, color: cs.onSurface, w: FontWeight.w800)),
+                style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w800)),
             const SizedBox(height: 3),
             Text(
               ar
                   ? 'لا توجد معاملات فاشلة ولا أخطاء في $windowLabel.'
                   : 'No failed transactions and no errors in the $windowLabel.',
-              style: IntesharType.sans(12.5, color: cs.onSurfaceVariant),
+              style: IntesharType.sans(12, color: cs.onSurfaceVariant),
             ),
           ]),
         ),
@@ -1132,10 +1132,10 @@ class _ExceptionsCard extends StatelessWidget {
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(rows[i].title,
-                        style: IntesharType.sans(13.5, color: cs.onSurface, w: FontWeight.w700)),
+                        style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700)),
                     const SizedBox(height: 2),
                     Text(rows[i].subtitle,
-                        style: IntesharType.sans(11.5, color: cs.onSurfaceVariant)),
+                        style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
                   ]),
                 ),
                 if (rows[i].onTap != null)
@@ -1166,7 +1166,7 @@ class _HealthHint extends StatelessWidget {
           ar
               ? 'الأرقام أعلاه قابلة للنقر: كل بطاقة تفتح القائمة التي تشرحها. السجل الكامل في تبويب "النشاط".'
               : 'The numbers above are tappable — each opens the list behind it. The full request log is in the Activity tab.',
-          style: IntesharType.sans(11.5, color: cs.onSurfaceVariant),
+          style: IntesharType.sans(12, color: cs.onSurfaceVariant),
         ),
       ),
     ]);
@@ -1207,7 +1207,7 @@ class _SiblingSectionLink extends StatelessWidget {
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(title,
-                style: IntesharType.sans(13.5,
+                style: IntesharType.sans(14,
                     color: cs.onSurface, w: FontWeight.w800)),
             const SizedBox(height: 3),
             Text(body,
@@ -1401,7 +1401,7 @@ class _StatTile extends StatelessWidget {
                 Text(period,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: IntesharType.sans(10, color: cs.onSurfaceVariant, w: FontWeight.w500)),
+                    style: IntesharType.sans(11, color: cs.onSurfaceVariant, w: FontWeight.w500)),
               ],
             ),
           ),
@@ -1472,7 +1472,7 @@ class _TabChip extends StatelessWidget {
               Icon(spec.icon, size: 16, color: fg),
               const SizedBox(width: 7),
               Text(spec.label,
-                  style: IntesharType.sans(13, color: fg, w: active ? FontWeight.w800 : FontWeight.w600)),
+                  style: IntesharType.sans(14, color: fg, w: active ? FontWeight.w800 : FontWeight.w600)),
               const SizedBox(width: 7),
               Tooltip(
                 message: spec.hint,
@@ -1488,7 +1488,7 @@ class _TabChip extends StatelessWidget {
                       spec.approxCount
                           ? '${Formatters.money(spec.count)}+'
                           : Formatters.money(spec.count),
-                      style: IntesharType.mono(10, color: fg, w: FontWeight.w700)),
+                      style: IntesharType.mono(11, color: fg, w: FontWeight.w700)),
                 ),
               ),
             ],
@@ -1534,7 +1534,7 @@ class _FilterPill extends StatelessWidget {
             children: [
               if (icon != null) ...[Icon(icon, size: 14, color: fg), const SizedBox(width: 5)],
               Text(label,
-                  style: IntesharType.sans(12.5, color: fg, w: selected ? FontWeight.w800 : FontWeight.w600)),
+                  style: IntesharType.sans(12, color: fg, w: selected ? FontWeight.w800 : FontWeight.w600)),
             ],
           ),
         ),
@@ -1675,12 +1675,12 @@ class _LogRow extends StatelessWidget {
                 Text(_logPrimaryLine(log, ar),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w700)),
+                    style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700)),
                 const SizedBox(height: 4),
                 Text(meta,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: IntesharType.sans(11.5, color: context.status.neutral)),
+                    style: IntesharType.sans(12, color: context.status.neutral)),
               ],
             ),
           ),
@@ -1692,7 +1692,7 @@ class _LogRow extends StatelessWidget {
               if (log.durationMs != null) ...[
                 const SizedBox(height: 5),
                 _ltr(Text('${log.durationMs}ms',
-                    style: IntesharType.mono(10, color: IntesharColors.lichen))),
+                    style: IntesharType.mono(11, color: IntesharColors.lichen))),
               ],
             ],
           ),
@@ -1727,7 +1727,7 @@ class _LogDetailSheet extends StatelessWidget {
             Expanded(
               child: Text(
                 _logPrimaryLine(light, Localizations.localeOf(context).languageCode == 'ar'),
-                style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w700),
+                style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700),
               ),
             ),
           ],
@@ -1842,12 +1842,12 @@ class _TxnRow extends StatelessWidget {
                 Text('${row.sourceLabel}  →  ${row.destinationLabel}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: IntesharType.sans(13.5, color: cs.onSurface, w: FontWeight.w700)),
+                    style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700)),
                 const SizedBox(height: 3),
                 _ltr(Text('#$shortId · ${row.date} ${row.time}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: IntesharType.mono(10.5, color: context.status.neutral))),
+                    style: IntesharType.mono(11, color: context.status.neutral))),
               ],
             ),
           ),
@@ -1899,7 +1899,7 @@ class _TxnDetailSheet extends StatelessWidget {
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Text(l.inventoryLoadCodesFailed,
-                    style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+                    style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
               );
             }
             final tx = snap.data!;
@@ -1911,10 +1911,10 @@ class _TxnDetailSheet extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Row(
                       children: [
-                        Expanded(child: _ltr(Text(ln.sku, style: IntesharType.mono(12.5, color: cs.onSurface, w: FontWeight.w600)))),
-                        Text('×${Formatters.money(ln.amount)}', style: IntesharType.sans(12.5, color: context.status.neutral)),
+                        Expanded(child: _ltr(Text(ln.sku, style: IntesharType.mono(12, color: cs.onSurface, w: FontWeight.w600)))),
+                        Text('×${Formatters.money(ln.amount)}', style: IntesharType.sans(12, color: context.status.neutral)),
                         const SizedBox(width: 14),
-                        Text(Formatters.iqd(ln.lineTotal), style: IntesharType.mono(12.5, color: cs.onSurface, w: FontWeight.w700)),
+                        Text(Formatters.iqd(ln.lineTotal), style: IntesharType.mono(12, color: cs.onSurface, w: FontWeight.w700)),
                       ],
                     ),
                   ),
@@ -1935,7 +1935,7 @@ class _TxnDetailSheet extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Text(l.newTxnGrandTotal, style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w700)),
+              Text(l.newTxnGrandTotal, style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700)),
               const Spacer(),
               Text(Formatters.iqd(row.totalAmount), style: IntesharType.display(20, color: cs.onSurface, w: FontWeight.w900)),
             ],
@@ -2008,7 +2008,7 @@ class _EntityRow extends ConsumerWidget {
                 Text(meta,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: IntesharType.sans(11.5, color: context.status.neutral)),
+                    style: IntesharType.sans(12, color: context.status.neutral)),
                 if (row.parentName.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text('${l.entityTreeParentLabel}: ${row.parentName}',
@@ -2087,7 +2087,7 @@ class _EntityDetailSheet extends StatelessWidget {
             if (users.isEmpty) {
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Text(l.manageUsersEmpty, style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+                child: Text(l.manageUsersEmpty, style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
               );
             }
             return Column(
@@ -2100,7 +2100,7 @@ class _EntityDetailSheet extends StatelessWidget {
                       children: [
                         Icon(Icons.person_outline, size: 18, color: cs.onSurfaceVariant),
                         const SizedBox(width: 10),
-                        Expanded(child: _ltr(Text(u.phone, style: IntesharType.mono(12.5)))),
+                        Expanded(child: _ltr(Text(u.phone, style: IntesharType.mono(12)))),
                         _roleChip(context, u.roleEnum, l),
                       ],
                     ),
@@ -2152,7 +2152,7 @@ class _UserRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _ltr(Text(row.phone, style: IntesharType.mono(13, color: cs.onSurface, w: FontWeight.w600))),
+                _ltr(Text(row.phone, style: IntesharType.mono(14, color: cs.onSurface, w: FontWeight.w600))),
                 const SizedBox(height: 3),
                 Row(
                   children: [
@@ -2160,7 +2160,7 @@ class _UserRow extends StatelessWidget {
                       child: Text(row.entityLabel,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: IntesharType.sans(11.5, color: context.status.neutral)),
+                          style: IntesharType.sans(12, color: context.status.neutral)),
                     ),
                     if (type != null) ...[const SizedBox(width: 6), _MiniTypeTag(type: type)],
                   ],
@@ -2193,7 +2193,8 @@ class _MiniTypeTag extends StatelessWidget {
         color: c.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Text(type.label, style: IntesharType.sans(9.5, color: c, w: FontWeight.w700)),
+      child: Text(type.label,
+          style: IntesharType.sans(IntesharScale.caption, color: c, w: FontWeight.w700)),
     );
   }
 }
@@ -2245,8 +2246,8 @@ Widget _kv(BuildContext context, String label, String value, {bool mono = false}
   final valueWidget = SelectableText(
     value,
     style: mono
-        ? IntesharType.mono(12.5, color: cs.onSurface)
-        : IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w500),
+        ? IntesharType.mono(12, color: cs.onSurface)
+        : IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w500),
   );
   return Padding(
     padding: const EdgeInsets.only(bottom: 9),
@@ -2255,7 +2256,7 @@ Widget _kv(BuildContext context, String label, String value, {bool mono = false}
       children: [
         SizedBox(
           width: 116,
-          child: Text(label, style: IntesharType.sans(11.5, color: context.status.neutral, w: FontWeight.w600)),
+          child: Text(label, style: IntesharType.sans(12, color: context.status.neutral, w: FontWeight.w600)),
         ),
         const SizedBox(width: 12),
         Expanded(child: mono ? _ltr(valueWidget) : valueWidget),
@@ -2292,7 +2293,7 @@ class _NoticeState extends StatelessWidget {
               Text(
                 message,
                 textAlign: TextAlign.center,
-                style: IntesharType.sans(13.5, color: cs.onSurfaceVariant, w: FontWeight.w600),
+                style: IntesharType.sans(14, color: cs.onSurfaceVariant, w: FontWeight.w600),
               ),
               if (actionLabel != null && onAction != null) ...[
                 const SizedBox(height: 18),
@@ -2322,7 +2323,7 @@ class _CodeBlock extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: IntesharType.sans(11.5, color: tint ?? context.status.neutral, w: FontWeight.w700)),
+        Text(label, style: IntesharType.sans(12, color: tint ?? context.status.neutral, w: FontWeight.w700)),
         const SizedBox(height: 6),
         Container(
           width: double.infinity,
@@ -2332,7 +2333,7 @@ class _CodeBlock extends StatelessWidget {
             borderRadius: BorderRadius.circular(IntesharRadii.md),
             border: Border.all(color: cs.outline),
           ),
-          child: _ltr(SelectableText(text, style: IntesharType.mono(11.5, color: cs.onSurface).copyWith(height: 1.45))),
+          child: _ltr(SelectableText(text, style: IntesharType.mono(12, color: cs.onSurface).copyWith(height: 1.45))),
         ),
       ],
     );
@@ -2370,7 +2371,7 @@ class _UnpricedAgentsCard extends StatelessWidget {
               ar
                   ? '${rows.length} وكيل رئيسي لديه بطاقات غير مسعّرة'
                   : '${rows.length} main agent(s) with unpriced cards',
-              style: IntesharType.sans(13.5, color: cs.onSurface, w: FontWeight.w700),
+              style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700),
             ),
           ),
         ]),

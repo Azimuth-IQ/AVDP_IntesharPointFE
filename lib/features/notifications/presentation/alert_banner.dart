@@ -50,14 +50,14 @@ class AlertBanner extends ConsumerWidget {
                   Text(alert.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: IntesharType.sans(13.5, color: Colors.white, w: FontWeight.w800)),
+                      style: IntesharType.sans(14, color: Colors.white, w: FontWeight.w800)),
                 Text(alert.body,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: IntesharType.sans(12.5, color: Colors.white.withValues(alpha: 0.92))),
+                    style: IntesharType.sans(12, color: Colors.white.withValues(alpha: 0.92))),
                 if (alerts.length > 1)
                   Text('+${alerts.length - 1}',
-                      style: IntesharType.mono(10.5, color: Colors.white.withValues(alpha: 0.7))),
+                      style: IntesharType.mono(11, color: Colors.white.withValues(alpha: 0.7))),
               ]),
             ),
             IconButton(

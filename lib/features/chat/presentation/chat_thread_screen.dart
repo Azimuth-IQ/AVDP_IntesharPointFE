@@ -249,12 +249,12 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
           borderRadius: BorderRadius.circular(14),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(m.text, style: IntesharType.sans(13.5, color: onBubble)),
+          Text(m.text, style: IntesharType.sans(14, color: onBubble)),
           if (when.isNotEmpty || mine) ...[
             const SizedBox(height: 2),
             Row(mainAxisSize: MainAxisSize.min, children: [
               if (when.isNotEmpty)
-                Text(when, style: IntesharType.mono(9.5, color: footColor)),
+                Text(when, style: IntesharType.mono(IntesharScale.caption, color: footColor)),
               // The delivered marker. Without it "sending" and "sent" looked
               // exactly the same, which is the whole of UX-92.
               if (mine) ...[
@@ -286,7 +286,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
           border: failed ? Border.all(color: context.status.danger) : null,
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(p.text, style: IntesharType.sans(13.5, color: fg)),
+          Text(p.text, style: IntesharType.sans(14, color: fg)),
           const SizedBox(height: 4),
           if (!failed)
             Row(mainAxisSize: MainAxisSize.min, children: [
@@ -298,7 +298,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
               ),
               const SizedBox(width: 6),
               Text(ar ? 'جارٍ الإرسال…' : 'Sending…',
-                  style: IntesharType.sans(10.5, color: fg.withValues(alpha: 0.8))),
+                  style: IntesharType.sans(11, color: fg.withValues(alpha: 0.8))),
             ])
           else ...[
             Row(mainAxisSize: MainAxisSize.min, children: [
@@ -309,7 +309,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                   p.reason?.isNotEmpty == true
                       ? p.reason!
                       : (ar ? 'لم تُرسل' : 'Not sent'),
-                  style: IntesharType.sans(10.5,
+                  style: IntesharType.sans(11,
                       color: context.status.danger, w: FontWeight.w600),
                 ),
               ),
@@ -325,7 +325,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                 onPressed: () => _deliver(p),
                 icon: const Icon(Icons.refresh, size: 15),
                 label: Text(ar ? 'إعادة المحاولة' : 'Retry',
-                    style: IntesharType.sans(11.5, w: FontWeight.w700)),
+                    style: IntesharType.sans(12, w: FontWeight.w700)),
               ),
               TextButton(
                 style: TextButton.styleFrom(
@@ -335,7 +335,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                 ),
                 onPressed: () => setState(() => _outgoing.remove(p)),
                 child: Text(ar ? 'تجاهل' : 'Discard',
-                    style: IntesharType.sans(11.5, w: FontWeight.w600)),
+                    style: IntesharType.sans(12, w: FontWeight.w600)),
               ),
             ]),
           ],

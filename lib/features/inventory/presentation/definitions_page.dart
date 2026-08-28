@@ -240,7 +240,7 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
                     const SizedBox(width: 8),
                     Text(
                       l.defsTitlesLabel,
-                      style: IntesharType.sans(13,
+                      style: IntesharType.sans(14,
                           color: context.tones.brandInk, w: FontWeight.w700),
                     ),
                   ],
@@ -447,7 +447,7 @@ class _DefinitionRowState extends State<_DefinitionRow> {
                     Text(
                       widget.def.name,
                       style: IntesharType.sans(
-                        15,
+                        16,
                         color: cs.onSurface,
                         w: FontWeight.w700,
                       ),
@@ -476,7 +476,7 @@ class _DefinitionRowState extends State<_DefinitionRow> {
                     children: [
                       Text(
                         l.defsPrice,
-                        style: IntesharType.sans(10,
+                        style: IntesharType.sans(11,
                             color: IntesharColors.lichen, w: FontWeight.w700),
                       ),
                       const SizedBox(height: 2),

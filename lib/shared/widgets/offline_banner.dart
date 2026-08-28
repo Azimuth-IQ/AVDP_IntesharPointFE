@@ -82,7 +82,7 @@ class OfflineStrip extends ConsumerWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: IntesharType.sans(
-                        12.5,
+                        12,
                         color: fg.withValues(alpha: 0.86),
                       ),
                     ),

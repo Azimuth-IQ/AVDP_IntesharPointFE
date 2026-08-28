@@ -564,7 +564,7 @@ class _SkuList extends StatelessWidget {
                       child: Center(
                         child: Text(
                           def.sku,
-                          style: IntesharType.mono(10,
+                          style: IntesharType.mono(11,
                               color: isSelected
                                   ? context.tones.onBrand
                                   : cs.onSurface,
@@ -1036,7 +1036,7 @@ class _TemplateEditor extends StatelessWidget {
               : (isAr
                   ? 'كل التغييرات محفوظة.'
                   : 'All changes saved.'),
-          style: IntesharType.sans(11.5,
+          style: IntesharType.sans(12,
               color: dirty ? context.tones.brandInk : cs.onSurfaceVariant,
               w: dirty ? FontWeight.w700 : FontWeight.w400),
         ),
@@ -1167,14 +1167,14 @@ class _ReceiptPreview extends StatelessWidget {
               Text(
                 template.headerText,
                 textAlign: TextAlign.center,
-                style: IntesharType.mono(13, color: Colors.black, w: FontWeight.w700, letterSpacing: 0.4),
+                style: IntesharType.mono(14, color: Colors.black, w: FontWeight.w700, letterSpacing: 0.4),
               ),
               const SizedBox(height: 8),
             ] else ...[
               Text(
                 _sampleCompany,
                 textAlign: TextAlign.center,
-                style: IntesharType.mono(13, color: Colors.black54, w: FontWeight.w700, letterSpacing: 0.4),
+                style: IntesharType.mono(14, color: Colors.black54, w: FontWeight.w700, letterSpacing: 0.4),
               ),
               const SizedBox(height: 8),
             ],
@@ -1184,7 +1184,7 @@ class _ReceiptPreview extends StatelessWidget {
               Text(
                 _sampleCompanyName,
                 textAlign: TextAlign.center,
-                style: IntesharType.mono(13, color: Colors.black, w: FontWeight.w700, letterSpacing: 0.6),
+                style: IntesharType.mono(14, color: Colors.black, w: FontWeight.w700, letterSpacing: 0.6),
               ),
               const SizedBox(height: 4),
             ],
@@ -1253,7 +1253,7 @@ class _ReceiptPreview extends StatelessWidget {
               Text(
                 qrPayload,
                 textAlign: TextAlign.center,
-                style: IntesharType.mono(10, color: Colors.black54, letterSpacing: 0.3),
+                style: IntesharType.mono(11, color: Colors.black54, letterSpacing: 0.3),
               ),
               const SizedBox(height: 8),
             ],
@@ -1265,7 +1265,7 @@ class _ReceiptPreview extends StatelessWidget {
               Text(
                 template.redeemInstructions,
                 textAlign: TextAlign.center,
-                style: IntesharType.mono(10, color: Colors.black87).copyWith(height: 1.5),
+                style: IntesharType.mono(11, color: Colors.black87).copyWith(height: 1.5),
               ),
               const SizedBox(height: 8),
             ],
@@ -1274,6 +1274,11 @@ class _ReceiptPreview extends StatelessWidget {
             if (template.footerText.isNotEmpty) ...[
               _DashedDivider(),
               const SizedBox(height: 8),
+              // UX-147 floors UI text at 11px; this is deliberately exempt.
+              // It is not UI text — it is a DEPICTION of the thermal slip, and
+              // the slip really does print this small. Raising it would make the
+              // preview stop matching what comes out of the printer, which is
+              // the only thing this widget is for.
               Text(
                 template.footerText,
                 textAlign: TextAlign.center,
@@ -1345,12 +1350,12 @@ class _ReceiptRow extends StatelessWidget {
       children: [
         Text(
           '$label: ',
-          style: IntesharType.mono(10, color: Colors.black54, w: FontWeight.w600),
+          style: IntesharType.mono(11, color: Colors.black54, w: FontWeight.w600),
         ),
         Expanded(
           child: Text(
             value,
-            style: IntesharType.mono(10, color: Colors.black87, letterSpacing: 0.3),
+            style: IntesharType.mono(11, color: Colors.black87, letterSpacing: 0.3),
             overflow: TextOverflow.ellipsis,
           ),
         ),

@@ -292,9 +292,9 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
     final cs = Theme.of(context).colorScheme;
     return InkCard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(s.totpTitle, style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w800)),
+        Text(s.totpTitle, style: IntesharType.sans(16, color: cs.onSurface, w: FontWeight.w800)),
         const SizedBox(height: 4),
-        Text(s.totpBody, style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+        Text(s.totpBody, style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
         const SizedBox(height: 8),
         if (_totpLoading)
           const Padding(
@@ -306,10 +306,10 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
             SwitchListTile(
               dense: true,
               contentPadding: EdgeInsets.zero,
-              title: Text(t.label, style: IntesharType.sans(13.5, color: cs.onSurface)),
+              title: Text(t.label, style: IntesharType.sans(14, color: cs.onSurface)),
               // Say when a tier is on the default rather than an explicit choice.
               subtitle: _totp[t] == null
-                  ? Text(s.totpDefault, style: IntesharType.sans(11.5, color: cs.onSurfaceVariant))
+                  ? Text(s.totpDefault, style: IntesharType.sans(12, color: cs.onSurfaceVariant))
                   : null,
               value: _totpEffective(t),
               onChanged: _totpSaving != null ? null : (v) => _toggleTotp(t, v),

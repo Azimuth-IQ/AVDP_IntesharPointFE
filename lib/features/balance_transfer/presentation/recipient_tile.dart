@@ -100,7 +100,7 @@ class RecipientTile extends StatelessWidget {
       title: Text(
         row.label,
         overflow: TextOverflow.ellipsis,
-        style: IntesharType.sans(13,
+        style: IntesharType.sans(14,
             color: cs.onSurface, w: selected ? FontWeight.w800 : FontWeight.w600),
       ),
       // Name the tier outright — with both lists behind one segment it must be

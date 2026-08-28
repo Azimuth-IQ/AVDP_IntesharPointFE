@@ -152,7 +152,7 @@ class _ChatThreadsPageState extends ConsumerState<ChatThreadsPage> {
             backgroundColor: cs.primary.withValues(alpha: 0.14),
             child: Text(
               (t.label.isNotEmpty ? t.label[0] : '?').toUpperCase(),
-              style: IntesharType.sans(15, color: cs.primary, w: FontWeight.w800),
+              style: IntesharType.sans(16, color: cs.primary, w: FontWeight.w800),
             ),
           ),
           const SizedBox(width: 12),
@@ -163,17 +163,17 @@ class _ChatThreadsPageState extends ConsumerState<ChatThreadsPage> {
                   child: Text(t.label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: IntesharType.sans(14.5, color: cs.onSurface, w: FontWeight.w700)),
+                      style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700)),
                 ),
                 Text(t.withTier.label,
-                    style: IntesharType.sans(10.5, color: cs.onSurfaceVariant)),
+                    style: IntesharType.sans(11, color: cs.onSurfaceVariant)),
               ]),
               const SizedBox(height: 2),
               Text(
                 t.lastMessage.isEmpty ? (ar ? 'ابدأ المحادثة' : 'Start the conversation') : t.lastMessage,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: IntesharType.sans(12.5, color: cs.onSurfaceVariant),
+                style: IntesharType.sans(12, color: cs.onSurfaceVariant),
               ),
             ]),
           ),
@@ -181,7 +181,7 @@ class _ChatThreadsPageState extends ConsumerState<ChatThreadsPage> {
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
             if (when.isNotEmpty)
               Text(when.length > 10 ? when.substring(5) : when,
-                  style: IntesharType.mono(10, color: cs.onSurfaceVariant)),
+                  style: IntesharType.mono(11, color: cs.onSurfaceVariant)),
             if (t.unread > 0) ...[
               const SizedBox(height: 4),
               Container(

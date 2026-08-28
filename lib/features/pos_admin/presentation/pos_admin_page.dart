@@ -559,7 +559,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
       onTap: () => showPosShopSheet(context, ref, store: store),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Expanded(child: Text(name, style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w700))),
+          Expanded(child: Text(name, style: IntesharType.sans(16, color: cs.onSurface, w: FontWeight.w700))),
           // UX-144: `cs.outline` is a hairline BORDER token — as pill text on
           // white it is 1.22:1, so "موقوف" was invisible and the only real signal
           // was the absence of green. Readable neutral + an icon, so the state is
@@ -580,7 +580,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
         ],
         const SizedBox(height: 4),
         Text(phone, style: IntesharType.mono(12, color: cs.onSurfaceVariant)),
-        if (owner.isNotEmpty) Text(owner, style: IntesharType.sans(12.5, color: cs.onSurface)),
+        if (owner.isNotEmpty) Text(owner, style: IntesharType.sans(12, color: cs.onSurface)),
         if (gov.isNotEmpty) Text(governorateLabel(gov, loc), style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
         // UX-24: three surfaces listed an agent's shops and none showed money, so
         // "which of my shops is out of credit?" could not be asked anywhere.
@@ -591,13 +591,13 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
               Text('${s.balance}: ',
                   style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
               Text(Formatters.iqd(balance.round()),
-                  style: IntesharType.mono(12.5,
+                  style: IntesharType.mono(12,
                       color: balance <= 0 ? context.status.danger : cs.onSurface,
                       w: FontWeight.w700)),
               if (balance <= 0) ...[
                 const SizedBox(width: 6),
                 Text(s.outOfCredit,
-                    style: IntesharType.sans(11.5,
+                    style: IntesharType.sans(12,
                         color: context.status.danger, w: FontWeight.w700)),
               ],
             ]),
@@ -611,7 +611,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
               loc == 'ar'
                   ? 'لا يوجد مستخدم نقطة بيع لهذا المتجر — إجراءات المستخدم غير متاحة'
                   : 'This shop has no POS user — operator actions are unavailable',
-              style: IntesharType.sans(11.5, color: cs.error, w: FontWeight.w600),
+              style: IntesharType.sans(12, color: cs.error, w: FontWeight.w600),
             ),
           ),
         const SizedBox(height: 10),
@@ -712,7 +712,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
         builder: (ctx) => AlertDialog(
           title: Text(s.pinResetTitle),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text(s.pinResetBody, style: IntesharType.sans(13, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+            Text(s.pinResetBody, style: IntesharType.sans(14, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
             const SizedBox(height: 16),
             SelectableText(
               pin,
@@ -850,7 +850,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
                             ? s.locationHintNone
                             : '${s.locationFound}: ${hint!.latitude.toStringAsFixed(5)}, ${hint!.longitude.toStringAsFixed(5)}'),
                     style: IntesharType.sans(
-                      11.5,
+                      12,
                       color: linkError != null
                           ? Theme.of(ctx).colorScheme.error
                           : Theme.of(ctx).colorScheme.onSurfaceVariant,

@@ -418,7 +418,7 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
               childrenPadding: EdgeInsets.zero,
               title: Text(
                 ar ? 'إعدادات متقدمة' : 'Advanced',
-                style: IntesharType.sans(13.5, color: cs.onSurface, w: FontWeight.w700),
+                style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700),
               ),
               subtitle: Text(
                 ar
@@ -723,7 +723,7 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
             child: Text(
               text,
               style: IntesharType.sans(
-                12.5,
+                12,
                 color: cs.onSurface,
                 w: FontWeight.w600,
               ),
@@ -766,7 +766,7 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
                 Text(
                   title,
                   style: IntesharType.sans(
-                    13.5,
+                    14,
                     color: cs.onSurface,
                     w: FontWeight.w700,
                   ),

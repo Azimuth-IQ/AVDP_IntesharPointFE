@@ -1145,7 +1145,7 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
                       children: [
                         Text(
                           s.name,
-                          style: IntesharType.sans(17, color: cs.onSurface, w: FontWeight.w800),
+                          style: IntesharType.sans(16, color: cs.onSurface, w: FontWeight.w800),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -1238,7 +1238,7 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
             Expanded(
               child: Text(
                 l.inventoryLoadCodesFailed,
-                style: IntesharType.sans(13, color: context.status.danger, w: FontWeight.w600),
+                style: IntesharType.sans(14, color: context.status.danger, w: FontWeight.w600),
               ),
             ),
             TextButton(onPressed: _loadFirst, child: Text(l.retryButton)),
@@ -1249,7 +1249,7 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
     if (_products.isEmpty) {
       return Padding(
         padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16),
-        child: Text(l.inventoryNoCodes, style: IntesharType.sans(13, color: cs.onSurfaceVariant)),
+        child: Text(l.inventoryNoCodes, style: IntesharType.sans(14, color: cs.onSurfaceVariant)),
       );
     }
     return Column(
@@ -1334,7 +1334,7 @@ class _GovBreakdown extends StatelessWidget {
                   Expanded(
                     child: Text(
                       label,
-                      style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w600),
+                      style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w600),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1389,7 +1389,7 @@ class _LoadMoreRow extends StatelessWidget {
             Flexible(
               child: Text(
                 l.inventoryShowingCount(shown, total),
-                style: IntesharType.sans(13, color: cs.onSurfaceVariant, w: FontWeight.w600),
+                style: IntesharType.sans(14, color: cs.onSurfaceVariant, w: FontWeight.w600),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -1398,7 +1398,7 @@ class _LoadMoreRow extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 l.inventoryLoadMore,
-                style: IntesharType.sans(13, color: context.tones.brandInk, w: FontWeight.w700),
+                style: IntesharType.sans(14, color: context.tones.brandInk, w: FontWeight.w700),
               ),
             ],
           ],

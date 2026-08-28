@@ -1639,7 +1639,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
               ar
                   ? 'بيع $_qty بطاقة. أدخل رمز نقطة البيع للمتابعة.'
                   : 'Selling $_qty cards. Enter your POS PIN to continue.',
-              style: IntesharType.sans(13, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+              style: IntesharType.sans(14, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -2093,7 +2093,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                         const SizedBox(height: 4),
                         Text(
                           Formatters.iqd(def.defaultPrice),
-                          style: IntesharType.mono(17, color: context.tones.brandInk, w: FontWeight.w800),
+                          style: IntesharType.mono(16, color: context.tones.brandInk, w: FontWeight.w800),
                         ),
                       ],
                       const SizedBox(height: 18),
@@ -2302,7 +2302,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
           ),
         ]),
         if (hint != null)
-          Text(hint, style: IntesharType.sans(11.5, color: cs.onSurfaceVariant)),
+          Text(hint, style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
         if (_qty > 1) ...[
           const SizedBox(height: 8),
           Text(
@@ -2485,7 +2485,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                     const SizedBox(height: 6),
                     Text(
                       s.price > 0 ? Formatters.iqd(s.price) : (Localizations.localeOf(context).languageCode == 'ar' ? 'السعر غير محدَّد' : 'Price not set'),
-                      style: IntesharType.mono(17, color: context.tones.brandInk, w: FontWeight.w800),
+                      style: IntesharType.mono(16, color: context.tones.brandInk, w: FontWeight.w800),
                     ),
                     const SizedBox(height: 16),
                     _LockedQr(label: l.posPinHidden),
@@ -3045,7 +3045,7 @@ class _LocationGateState extends ConsumerState<_LocationGate> {
                   ? 'مطلوب مرة واحدة عند الوصول إلى مكان عملك، ولا يمكن بيع أي بطاقة قبل التثبيت.'
                   : 'Required once, at your workplace. You cannot sell any card until this is confirmed.',
               textAlign: TextAlign.center,
-              style: IntesharType.sans(13.5, color: cs.onSurfaceVariant),
+              style: IntesharType.sans(14, color: cs.onSurfaceVariant),
             ),
             const SizedBox(height: 22),
             BrandCTAButton(
@@ -3160,7 +3160,7 @@ class _BulkCardRowState extends State<_BulkCardRow> {
                 _revealed ? p.pin : '•' * (p.pin.isEmpty ? 8 : p.pin.length.clamp(6, 16)),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: IntesharType.mono(14.5,
+                style: IntesharType.mono(14,
                     color: _revealed ? cs.onSurface : cs.onSurfaceVariant,
                     w: FontWeight.w800,
                     letterSpacing: _revealed ? 1 : 2),

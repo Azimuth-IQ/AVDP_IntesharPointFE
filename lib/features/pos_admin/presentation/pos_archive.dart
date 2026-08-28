@@ -536,7 +536,7 @@ class PosArchiveList extends StatelessWidget {
         Row(children: [
           Expanded(
             child: Text(row.name,
-                style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w800)),
+                style: IntesharType.sans(16, color: cs.onSurface, w: FontWeight.w800)),
           ),
           // The countdown is the server's, never recomputed here — a local clock
           // would eventually offer a delete the server refuses.

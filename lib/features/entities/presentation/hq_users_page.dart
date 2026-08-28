@@ -491,7 +491,7 @@ class _UserCard extends StatelessWidget {
           border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         child: Text(label,
-            style: IntesharType.sans(11.5, color: color, w: FontWeight.w700)),
+            style: IntesharType.sans(12, color: color, w: FontWeight.w700)),
       );
 }
 
@@ -616,7 +616,7 @@ class _UserFormSheetState extends ConsumerState<_UserFormSheet> {
               Text(
                 _tr(context, 'سيُطلب منه تغييرها عند أول تسجيل دخول',
                     'They will be asked to change it on first login'),
-                style: IntesharType.sans(11.5, color: cs.onSurfaceVariant),
+                style: IntesharType.sans(12, color: cs.onSurfaceVariant),
               ),
             ],
             const SizedBox(height: 16),
@@ -631,7 +631,7 @@ class _UserFormSheetState extends ConsumerState<_UserFormSheet> {
                 controlAffinity: ListTileControlAffinity.leading,
                 value: _caps.contains(c),
                 title: Text(c.label(loc),
-                    style: IntesharType.sans(13.5, color: cs.onSurface)),
+                    style: IntesharType.sans(14, color: cs.onSurface)),
                 subtitle: hint == null
                     ? null
                     : Text(hint,

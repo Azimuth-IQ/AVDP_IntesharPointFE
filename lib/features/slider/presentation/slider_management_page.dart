@@ -155,7 +155,7 @@ class _SliderManagementPageState extends ConsumerState<SliderManagementPage> {
             child: Center(
               child: Text(
                 _t(context, 'لا توجد صور بعد — أضف واحدة.', 'No slides yet — add one.'),
-                style: IntesharType.sans(13, color: cs.onSurfaceVariant),
+                style: IntesharType.sans(14, color: cs.onSurfaceVariant),
               ),
             ),
           )
@@ -256,7 +256,7 @@ class _SliderRow extends StatelessWidget {
             Text(audienceSummary,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: IntesharType.sans(12.5, color: cs.onSurface, w: FontWeight.w700)),
+                style: IntesharType.sans(12, color: cs.onSurface, w: FontWeight.w700)),
             const SizedBox(height: 2),
             Text(slider.active ? _t(context, 'مُفعّلة', 'Active') : _t(context, 'مخفية', 'Hidden'),
                 style: IntesharType.sans(11, color: cs.onSurfaceVariant)),
@@ -512,7 +512,7 @@ class _SliderEditorSheetState extends ConsumerState<_SliderEditorSheet> {
               value: _active,
               onChanged: (v) => setState(() => _active = v),
               title: Text(_t(context, 'مُفعّلة', 'Active'),
-                  style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w600)),
+                  style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w600)),
             ),
             const SizedBox(height: 8),
 
@@ -542,7 +542,7 @@ class _SliderEditorSheetState extends ConsumerState<_SliderEditorSheet> {
 
             if (_error != null) ...[
               const SizedBox(height: 10),
-              Text(_error!, style: IntesharType.sans(12.5, color: cs.error)),
+              Text(_error!, style: IntesharType.sans(12, color: cs.error)),
             ],
             const SizedBox(height: 16),
             SizedBox(
@@ -591,7 +591,7 @@ class _SliderEditorSheetState extends ConsumerState<_SliderEditorSheet> {
         children: [
           if (_entityIds.isNotEmpty) ...[
             Text(_t(context, 'المحدد: ${_entityIds.length}', 'Selected: ${_entityIds.length}'),
-                style: IntesharType.sans(11.5, color: context.tones.brandInk, w: FontWeight.w700)),
+                style: IntesharType.sans(12, color: context.tones.brandInk, w: FontWeight.w700)),
             const SizedBox(height: 6),
           ],
           EntityMultiSearchList(

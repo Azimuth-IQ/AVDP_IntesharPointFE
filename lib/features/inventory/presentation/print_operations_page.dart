@@ -151,7 +151,7 @@ class _OpCard extends StatelessWidget {
               child: mono
                   ? monoText(v, size: 12.5, color: cs.onSurface)
                   : Text(v,
-                      style: IntesharType.sans(12.5,
+                      style: IntesharType.sans(12,
                           color: cs.onSurface, w: FontWeight.w600)),
             ),
           ]),

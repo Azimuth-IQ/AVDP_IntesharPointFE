@@ -506,7 +506,7 @@ class _TotpChallenge extends StatelessWidget {
               // family nothing had registered, so the secret the user has to
               // transcribe into an authenticator rendered PROPORTIONAL. Goes
               // through the helper now, which carries the mono fallback chain.
-              style: IntesharType.mono(13, w: FontWeight.w400, letterSpacing: 1.5),
+              style: IntesharType.mono(14, w: FontWeight.w400, letterSpacing: 1.5),
             ),
             const SizedBox(height: 10),
             Text(

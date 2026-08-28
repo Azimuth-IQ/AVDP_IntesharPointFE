@@ -127,7 +127,7 @@ class _SliderCropDialogState extends State<_SliderCropDialog> {
               Text(
                 isAr ? 'قصّ صورة الشريط (16:9)' : 'Crop slider image (16:9)',
                 style: IntesharType.sans(
-                  15,
+                  16,
                   color: cs.onSurface,
                   w: FontWeight.w800,
                 ),

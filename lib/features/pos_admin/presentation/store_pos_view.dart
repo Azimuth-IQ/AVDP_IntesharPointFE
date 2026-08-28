@@ -158,9 +158,9 @@ class _StorePosViewState extends ConsumerState<StorePosView> {
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(s.noteTitle, style: IntesharType.sans(13.5, color: cs.onSurface, w: FontWeight.w800)),
+              Text(s.noteTitle, style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w800)),
               const SizedBox(height: 3),
-              Text(s.noteBody, style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+              Text(s.noteBody, style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
             ]),
           ),
         ]),
@@ -204,9 +204,9 @@ class _StorePosViewState extends ConsumerState<StorePosView> {
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           SizedBox(
             width: 104,
-            child: Text(label, style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+            child: Text(label, style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
           ),
-          Expanded(child: Text(value, style: IntesharType.sans(13, color: cs.onSurface))),
+          Expanded(child: Text(value, style: IntesharType.sans(14, color: cs.onSurface))),
         ]),
       );
 
@@ -221,7 +221,7 @@ class _StorePosViewState extends ConsumerState<StorePosView> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(s.noCounter, style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700)),
           const SizedBox(height: 4),
-          Text(s.noCounterBody, style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+          Text(s.noCounterBody, style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
         ]),
       );
     }
@@ -236,7 +236,7 @@ class _StorePosViewState extends ConsumerState<StorePosView> {
         Text(counter.phone, style: IntesharType.mono(14, color: cs.onSurface)),
         const SizedBox(height: 12),
         if (!canManage)
-          Text(s.legacyCounter, style: IntesharType.sans(12.5, color: cs.onSurfaceVariant))
+          Text(s.legacyCounter, style: IntesharType.sans(12, color: cs.onSurfaceVariant))
         else
           Wrap(spacing: 8, runSpacing: 8, children: [
             _actionButton('pin', s.resetPin, () => _resetPin(s, counter.phone)),
@@ -263,7 +263,7 @@ class _StorePosViewState extends ConsumerState<StorePosView> {
           title: Text(s.pinResetTitle),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
             Text(s.pinResetBody,
-                style: IntesharType.sans(13, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+                style: IntesharType.sans(14, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
             const SizedBox(height: 16),
             SelectableText(
               pin,

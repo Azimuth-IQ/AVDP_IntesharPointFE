@@ -257,7 +257,7 @@ class NotificationsUnreadBanner extends StatelessWidget {
             child: Text(
               label,
               style: IntesharType.sans(
-                13,
+                14,
                 color: context.tones.brandInk,
                 w: FontWeight.w700,
               ),
@@ -335,7 +335,7 @@ class _NotifCard extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: IntesharType.sans(
-                      12.5,
+                      12,
                       color: cs.onSurfaceVariant,
                     ),
                   ),
@@ -362,7 +362,7 @@ class _NotifCard extends StatelessWidget {
                 Text(
                   DateFormat('MM-dd HH:mm').format(n.sentAt!),
                   style: IntesharType.mono(
-                    10,
+                    11,
                     color: IntesharColors.lichen,
                   ),
                 ),
@@ -428,7 +428,7 @@ class _DetailSheet extends StatelessWidget {
               ),
               Text(
                 n.body,
-                style: IntesharType.sans(15, color: cs.onSurface)
+                style: IntesharType.sans(16, color: cs.onSurface)
                     .copyWith(height: 1.55),
               ),
               const SizedBox(height: 20),
@@ -463,7 +463,7 @@ Widget _kvRow(BuildContext context, String label, String value) {
           child: Text(
             label,
             style: IntesharType.sans(
-              11.5,
+              12,
               color: cs.onSurfaceVariant,
               w: FontWeight.w600,
             ),
@@ -474,7 +474,7 @@ Widget _kvRow(BuildContext context, String label, String value) {
           child: Text(
             value,
             style: IntesharType.sans(
-              13,
+              14,
               color: cs.onSurface,
               w: FontWeight.w500,
             ),

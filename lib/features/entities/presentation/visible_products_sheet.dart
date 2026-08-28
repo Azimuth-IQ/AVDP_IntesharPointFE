@@ -173,11 +173,11 @@ class _VisibleProductsSheetState extends ConsumerState<_VisibleProductsSheet> {
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(ar ? 'المنتجات المتاحة' : 'Visible products',
-                          style: IntesharType.sans(17, color: cs.onSurface, w: FontWeight.w800)),
+                          style: IntesharType.sans(16, color: cs.onSurface, w: FontWeight.w800)),
                       Text(widget.entityName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+                          style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
                     ]),
                   ),
                   IconButton(
@@ -264,12 +264,12 @@ class _VisibleProductsSheetState extends ConsumerState<_VisibleProductsSheet> {
       title: Text(d.name,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: IntesharType.sans(13.5,
+          style: IntesharType.sans(14,
               color: inherited ? cs.onSurfaceVariant : cs.onSurface, w: FontWeight.w600)),
       subtitle: inherited
           ? Text(ar ? 'مخفي من قِبل حساب أعلى' : 'Hidden by a parent account',
               style: IntesharType.sans(11, color: cs.onSurfaceVariant))
-          : Text(d.sku, style: IntesharType.mono(10.5, color: cs.onSurfaceVariant)),
+          : Text(d.sku, style: IntesharType.mono(11, color: cs.onSurfaceVariant)),
       // The spinner belongs on the row that was tapped — that is the whole point
       // of scoping the busy state.
       secondary: pending

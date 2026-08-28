@@ -238,7 +238,7 @@ class _SupplyRequestDialogState extends State<_SupplyRequestDialog> {
               )
             : _error != null
                 ? Text(friendlyError(_error!, context),
-                    style: IntesharType.sans(13, color: cs.error))
+                    style: IntesharType.sans(14, color: cs.error))
                 : _form(ar, cs),
       ),
       actions: [
@@ -275,7 +275,7 @@ class _SupplyRequestDialogState extends State<_SupplyRequestDialog> {
         ar
             ? 'لا توجد جهة يمكن مراسلتها من هذا الحساب بعد.'
             : 'This account has no one to message yet.',
-        style: IntesharType.sans(13, color: cs.onSurfaceVariant),
+        style: IntesharType.sans(14, color: cs.onSurfaceVariant),
       );
     }
     return SingleChildScrollView(
@@ -291,7 +291,7 @@ class _SupplyRequestDialogState extends State<_SupplyRequestDialog> {
               Expanded(
                 child: Text(
                   ar ? 'إلى ${_to?.label ?? ''}' : 'To ${_to?.label ?? ''}',
-                  style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w600),
+                  style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w600),
                 ),
               ),
             ])
@@ -354,7 +354,7 @@ class _SupplyRequestDialogState extends State<_SupplyRequestDialog> {
             ar
                 ? 'ستفتح المحادثة والرسالة جاهزة — يمكنك تعديلها قبل الإرسال.'
                 : 'The conversation opens with the message ready — edit it before sending.',
-            style: IntesharType.sans(11.5, color: cs.onSurfaceVariant),
+            style: IntesharType.sans(12, color: cs.onSurfaceVariant),
           ),
         ],
       ),

@@ -274,7 +274,7 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
                   width: 34,
                   alignment: Alignment.center,
                   child: Text('${c.displayOrder}',
-                      style: IntesharType.mono(13, color: cs.onSurfaceVariant, w: FontWeight.w700)),
+                      style: IntesharType.mono(14, color: cs.onSurfaceVariant, w: FontWeight.w700)),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -287,7 +287,7 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
                         Text(c.description,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+                            style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
                       ],
                       // UX-71: the effective cap, on the row. It was visible
                       // nowhere but inside this company's dialog, so a shop
@@ -314,7 +314,7 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
                                 : s.capRowNone,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: IntesharType.sans(11.5,
+                            style: IntesharType.sans(12,
                                 color: cs.onSurfaceVariant,
                                 w: c.withdrawalCap > 0
                                     ? FontWeight.w700
@@ -453,7 +453,7 @@ class _CompanyDialogState extends State<_CompanyDialog> {
             keyboardType: TextInputType.number,
             textAlign: TextAlign.center,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            style: IntesharType.mono(15, color: cs.onSurface, w: FontWeight.w800),
+            style: IntesharType.mono(16, color: cs.onSurface, w: FontWeight.w800),
             decoration: InputDecoration(isDense: true, hintText: hint),
             // The readout below is the point of the control, so it has to move
             // with the digits rather than after a save.
@@ -461,7 +461,7 @@ class _CompanyDialogState extends State<_CompanyDialog> {
           ),
         );
     final labelStyle =
-        IntesharType.sans(13.5, color: cs.onSurface, w: FontWeight.w600);
+        IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w600);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -490,7 +490,7 @@ class _CompanyDialogState extends State<_CompanyDialog> {
                 cap <= 0
                     ? s.capUnlimited
                     : s.capReadout(cap, hours <= 0 ? 24 : hours),
-                style: IntesharType.sans(11.5, color: cs.onSurfaceVariant),
+                style: IntesharType.sans(12, color: cs.onSurfaceVariant),
               ),
             ),
           ],
@@ -637,7 +637,7 @@ class _RestrictionEditorState extends ConsumerState<_RestrictionEditor> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(widget.s.restrictSection, style: IntesharType.sans(12.5, color: cs.onSurface, w: FontWeight.w700)),
+      Text(widget.s.restrictSection, style: IntesharType.sans(12, color: cs.onSurface, w: FontWeight.w700)),
       Text(widget.s.restrictHint, style: IntesharType.sans(11, color: cs.onSurfaceVariant)),
       const SizedBox(height: 6),
       if (_loading)

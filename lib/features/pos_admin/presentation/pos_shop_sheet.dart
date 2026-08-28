@@ -242,7 +242,7 @@ class _PosShopSheetState extends State<_PosShopSheet> {
                 if (gov.isNotEmpty) governorateLabel(gov, loc),
                 if (store.profile?.address.isNotEmpty ?? false) store.profile!.address,
               ].join(' · '),
-              style: IntesharType.sans(12.5, color: cs.onSurfaceVariant),
+              style: IntesharType.sans(12, color: cs.onSurfaceVariant),
             ),
             const SizedBox(height: 16),
             if (_loading)
@@ -252,7 +252,7 @@ class _PosShopSheetState extends State<_PosShopSheet> {
               )
             else if (_error != null) ...[
               Text(friendlyError(_error!, context),
-                  style: IntesharType.sans(13, color: cs.error)),
+                  style: IntesharType.sans(14, color: cs.error)),
               const SizedBox(height: 12),
               OutlinedButton(
                   onPressed: _load, child: Text(_p('Try again', 'إعادة المحاولة'))),
@@ -304,7 +304,7 @@ class _PosShopSheetState extends State<_PosShopSheet> {
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(g.label,
-                style: IntesharType.sans(13.5,
+                style: IntesharType.sans(14,
                     color: cs.onSurface,
                     w: g.ok == false ? FontWeight.w800 : FontWeight.w600)),
             const SizedBox(height: 1),
@@ -322,13 +322,13 @@ class _PosShopSheetState extends State<_PosShopSheet> {
         child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Flexible(
             child: Text(label,
-                style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+                style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
           ),
           const SizedBox(width: 12),
           Flexible(
             child: Text(value,
                 textAlign: TextAlign.end,
-                style: IntesharType.mono(12.5, color: cs.onSurface, w: FontWeight.w600)),
+                style: IntesharType.mono(12, color: cs.onSurface, w: FontWeight.w600)),
           ),
         ]),
       );

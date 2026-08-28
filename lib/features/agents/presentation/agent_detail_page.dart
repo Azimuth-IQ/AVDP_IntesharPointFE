@@ -253,7 +253,7 @@ class _AgentDetailPageState extends ConsumerState<AgentDetailPage> {
                   e.meta.name.isEmpty ? e.id : e.meta.name,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: IntesharType.sans(19, color: cs.onSurface, w: FontWeight.w800),
+                  style: IntesharType.sans(20, color: cs.onSurface, w: FontWeight.w800),
                 ),
               ),
               const SizedBox(width: 8),
@@ -265,14 +265,14 @@ class _AgentDetailPageState extends ConsumerState<AgentDetailPage> {
               style: IntesharType.mono(11, color: cs.onSurfaceVariant, letterSpacing: 0.3)),
           if (e.meta.slogan.isNotEmpty) ...[
             const SizedBox(height: 6),
-            Text(e.meta.slogan, style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+            Text(e.meta.slogan, style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
           ],
           const SizedBox(height: 14),
           _label(ar ? 'التغطية' : 'Coverage'),
           const SizedBox(height: 6),
           if (e.meta.governorates.isEmpty)
             Text(ar ? 'لا توجد محافظات' : 'No governorates',
-                style: IntesharType.sans(12.5, color: cs.onSurfaceVariant))
+                style: IntesharType.sans(12, color: cs.onSurfaceVariant))
           else
             Wrap(
               spacing: 6,
@@ -566,7 +566,7 @@ class _AgentDetailPageState extends ConsumerState<AgentDetailPage> {
                             textDirection: TextDirection.ltr,
                             child: Align(
                               alignment: AlignmentDirectional.centerStart,
-                              child: Text(e.liveUsers[i].phone, style: IntesharType.mono(12.5)),
+                              child: Text(e.liveUsers[i].phone, style: IntesharType.mono(12)),
                             ),
                           ),
                         ),
@@ -602,7 +602,7 @@ class _AgentDetailPageState extends ConsumerState<AgentDetailPage> {
         const SizedBox(height: 2),
         Text(
           value ?? '—',
-          style: IntesharType.mono(15,
+          style: IntesharType.mono(16,
               color: value == null ? cs.onSurfaceVariant : cs.onSurface),
         ),
       ],
@@ -612,7 +612,7 @@ class _AgentDetailPageState extends ConsumerState<AgentDetailPage> {
   Widget _note(String text) => Padding(
         padding: const EdgeInsets.only(top: 2),
         child: Text(text,
-            style: IntesharType.sans(12.5,
+            style: IntesharType.sans(12,
                 color: Theme.of(context).colorScheme.onSurfaceVariant)),
       );
 
@@ -630,11 +630,11 @@ class _AgentDetailPageState extends ConsumerState<AgentDetailPage> {
             child: Text(k,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: IntesharType.sans(12.5, color: cs.onSurface)),
+                style: IntesharType.sans(12, color: cs.onSurface)),
           ),
           const SizedBox(width: 10),
           Text(v,
-              style: IntesharType.mono(12.5,
+              style: IntesharType.mono(12,
                   color: danger ? context.status.warn : cs.onSurfaceVariant)),
         ],
       ),
@@ -671,7 +671,7 @@ class _ChildRow extends ConsumerWidget {
                     Text(row.label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w700)),
+                        style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700)),
                     const SizedBox(height: 1),
                     Text(row.type.label,
                         style: IntesharType.sans(11, color: cs.onSurfaceVariant)),
@@ -715,7 +715,7 @@ class _Section extends StatelessWidget {
                     if (subtitle != null) ...[
                       const SizedBox(height: 2),
                       Text(subtitle!,
-                          style: IntesharType.sans(11.5, color: cs.onSurfaceVariant)),
+                          style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
                     ],
                   ],
                 ),
@@ -782,7 +782,7 @@ class _StepRow extends StatelessWidget {
                 Text(value,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w700)),
+                    style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700)),
               ],
             ),
           ),

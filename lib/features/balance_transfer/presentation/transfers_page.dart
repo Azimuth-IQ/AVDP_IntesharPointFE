@@ -352,23 +352,23 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                 const SizedBox(height: 12),
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   Text(s.accountBalance,
-                      style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+                      style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
                   Text(Formatters.iqd(childBal.round()),
-                      style: IntesharType.mono(12.5, color: cs.onSurface)),
+                      style: IntesharType.mono(12, color: cs.onSurface)),
                 ]),
                 const SizedBox(height: 4),
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   Text(s.afterTakeBack,
-                      style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+                      style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
                   Text(Formatters.iqd(after.round()),
-                      style: IntesharType.mono(12.5,
+                      style: IntesharType.mono(12,
                           w: FontWeight.w700,
                           color: after < 0 ? ctx.status.danger : cs.onSurface)),
                 ]),
                 if (after < 0) ...[
                   const SizedBox(height: 4),
                   Text(s.overChildBalance,
-                      style: IntesharType.sans(11.5,
+                      style: IntesharType.sans(12,
                           color: ctx.status.danger, w: FontWeight.w600)),
                 ],
               ] else if (from != null) ...[
@@ -377,7 +377,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                   ar
                       ? 'رصيد هذا الحساب غير متاح لك — سيحدد الخادم الحد الأقصى.'
                       : "This account's balance isn't visible to you — the server sets the ceiling.",
-                  style: IntesharType.sans(11.5, color: cs.onSurfaceVariant),
+                  style: IntesharType.sans(12, color: cs.onSurfaceVariant),
                 ),
               ],
               const SizedBox(height: 8),
@@ -563,7 +563,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                           padding: const EdgeInsets.all(20),
                           child: Center(
                               child: Text(ar ? 'لا توجد حسابات مطابقة' : 'No matching accounts',
-                                  style: IntesharType.sans(12.5, color: cs.onSurfaceVariant))),
+                                  style: IntesharType.sans(12, color: cs.onSurfaceVariant))),
                         )
                       : ListView.builder(
                           shrinkWrap: true,
@@ -595,16 +595,16 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
               // Live before → after so the sender sees the impact at decision time.
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 Text(ar ? 'الرصيد المتاح' : 'Available',
-                    style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+                    style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
                 Text(Formatters.iqd(avail.round()),
-                    style: IntesharType.mono(12.5, color: cs.onSurface)),
+                    style: IntesharType.mono(12, color: cs.onSurface)),
               ]),
               const SizedBox(height: 4),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 Text(ar ? 'بعد التحويل' : 'After transfer',
-                    style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+                    style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
                 Text(Formatters.iqd(after.round()),
-                    style: IntesharType.mono(12.5,
+                    style: IntesharType.mono(12,
                         w: FontWeight.w700,
                         color: after < 0 ? ctx.status.danger : cs.onSurface)),
               ]),
@@ -618,17 +618,17 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                 const SizedBox(height: 10),
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   Text(ar ? 'رصيد المستلم' : 'Recipient balance',
-                      style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+                      style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
                   Text(Formatters.iqd(_childBal[dest!.id]!.round()),
-                      style: IntesharType.mono(12.5, color: cs.onSurface)),
+                      style: IntesharType.mono(12, color: cs.onSurface)),
                 ]),
                 const SizedBox(height: 4),
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   Text(ar ? 'بعد الاستلام' : 'After receiving',
-                      style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+                      style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
                   Text(
                       Formatters.iqd((_childBal[dest!.id]! + amt).round()),
-                      style: IntesharType.mono(12.5,
+                      style: IntesharType.mono(12,
                           w: FontWeight.w700, color: ctx.status.success)),
                 ]),
               ],
@@ -867,7 +867,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
           child: Row(children: [
             Expanded(
               child: Text(s.showingOf(shown.length, rows.length),
-                  style: IntesharType.sans(11.5, color: cs.onSurfaceVariant)),
+                  style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
             ),
             if (shown.length < rows.length)
               TextButton(
@@ -929,7 +929,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
               Text(sent ? s.toName(other) : s.fromName(other),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: IntesharType.sans(13.5,
+                  style: IntesharType.sans(14,
                       color: cs.onSurface, w: FontWeight.w600)),
               const SizedBox(height: 1),
               Text('${g.date} ${g.time}',
@@ -937,7 +937,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
             ]),
           ),
           Text('${sent ? '−' : '+'}${Formatters.iqd(g.amount.round())}',
-              style: IntesharType.mono(13.5, color: tint)),
+              style: IntesharType.mono(14, color: tint)),
         ]),
       ),
     );

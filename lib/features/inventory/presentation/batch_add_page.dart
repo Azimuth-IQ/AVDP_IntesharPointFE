@@ -212,8 +212,8 @@ class _BatchAddPageState extends ConsumerState<BatchAddPage>
                 // The indicator is a brand pill — the selected label rides on it.
                 labelColor: context.tones.onBrand,
                 unselectedLabelColor: cs.onSurfaceVariant,
-                labelStyle: IntesharType.sans(13, w: FontWeight.w800),
-                unselectedLabelStyle: IntesharType.sans(13, w: FontWeight.w700),
+                labelStyle: IntesharType.sans(14, w: FontWeight.w800),
+                unselectedLabelStyle: IntesharType.sans(14, w: FontWeight.w700),
                 tabs: [
                   for (final t in _batchTabs) Tab(text: _tr(context, t.ar, t.en)),
                 ],
@@ -812,7 +812,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                         'تم استيراد ${Formatters.money(res.imported)} قسيمة إلى $to',
                         '${Formatters.money(res.imported)} imported to $to',
                       ),
-                style: IntesharType.sans(14.5,
+                style: IntesharType.sans(14,
                     color: cs.onSurface, w: FontWeight.w800),
               ),
             ),
@@ -824,7 +824,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
               'مكرر: ${res.skipped} • غير صالح: ${res.invalid}',
               'Duplicate: ${res.skipped} • invalid: ${res.invalid}',
             ),
-            style: IntesharType.sans(13, color: cs.onSurfaceVariant, w: FontWeight.w600),
+            style: IntesharType.sans(14, color: cs.onSurfaceVariant, w: FontWeight.w600),
           ),
           // ── Partial upload (UX-85) ───────────────────────────────────
           if (partial != null) ...[
@@ -839,12 +839,12 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                     '${Formatters.money(partial.totalRows)} rows. The vouchers above '
                     'ARE already on the server and sellable — nothing was lost.',
               ),
-              style: IntesharType.sans(13, color: cs.onSurface, w: FontWeight.w600),
+              style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w600),
             ),
             const SizedBox(height: 6),
             Text(
               friendlyError(partial.cause, context),
-              style: IntesharType.sans(12.5, color: context.status.danger, w: FontWeight.w600),
+              style: IntesharType.sans(12, color: context.status.danger, w: FontWeight.w600),
             ),
             const SizedBox(height: 6),
             Text(
@@ -855,7 +855,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                 'Retrying is safe: the server ignores any serial it already has, '
                     'so no voucher can be duplicated.',
               ),
-              style: IntesharType.sans(12.5, color: cs.onSurfaceVariant),
+              style: IntesharType.sans(12, color: cs.onSurfaceVariant),
             ),
           ],
           // ── Actions ──────────────────────────────────────────────────
@@ -910,7 +910,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                 'أرقام مكررة: ${res.skippedSerials.take(20).join('، ')}${res.skippedSerials.length > 20 ? ' …' : ''}',
                 'Duplicate serials: ${res.skippedSerials.take(20).join(', ')}${res.skippedSerials.length > 20 ? ' …' : ''}',
               ),
-              style: IntesharType.mono(11.5,
+              style: IntesharType.mono(12,
                   color: cs.onSurfaceVariant, w: FontWeight.w600),
             ),
           ],
@@ -1011,7 +1011,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                 padding: const EdgeInsets.all(12),
                 child: Text(
                   _tr(context, 'أنشئ وكيلاً رئيسياً أولاً', 'Create a Main Agent first'),
-                  style: IntesharType.sans(13, color: cs.onSurface),
+                  style: IntesharType.sans(14, color: cs.onSurface),
                 ),
               )
             else
@@ -1122,7 +1122,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                       child: Text(
                         _scopeSummary(context),
                         style: IntesharType.sans(
-                          12.5,
+                          12,
                           color: unanswered ? context.status.danger : cs.onSurfaceVariant,
                           w: unanswered ? FontWeight.w700 : FontWeight.w500,
                         ),
@@ -1183,7 +1183,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                 ruleColor: cs.error,
                 padding: const EdgeInsets.all(12),
                 child: Text(_error!,
-                    style: IntesharType.sans(13, color: cs.onSurface)),
+                    style: IntesharType.sans(14, color: cs.onSurface)),
               ),
             ],
 
@@ -1202,7 +1202,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                 child: Text(
                   _tr(context, 'لا توجد صفوف صالحة — تحقّق من الصيغة',
                       'No valid rows found — check the format'),
-                  style: IntesharType.sans(13, color: cs.onSurface),
+                  style: IntesharType.sans(14, color: cs.onSurface),
                 ),
               ),
             ],
@@ -1992,7 +1992,7 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
           Text(
             _tr(context, 'عرض ${visible.length} من ${all.length}',
                 'Showing ${visible.length} of ${all.length}'),
-            style: IntesharType.sans(11.5, color: cs.onSurfaceVariant),
+            style: IntesharType.sans(12, color: cs.onSurfaceVariant),
           ),
           if (_selecting) ...[
             const SizedBox(height: 8),
@@ -2007,7 +2007,7 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
                   Text(
                     _tr(context, 'محدد: ${_selected.length}',
                         '${_selected.length} selected'),
-                    style: IntesharType.sans(13,
+                    style: IntesharType.sans(14,
                         color: cs.onSurface, w: FontWeight.w800),
                   ),
                   TextButton(
@@ -2107,7 +2107,7 @@ class _BatchCard extends StatelessWidget {
                 batch.productName.isNotEmpty
                     ? batch.productName
                     : batch.sku,
-                style: IntesharType.sans(15,
+                style: IntesharType.sans(16,
                     color: cs.onSurface, w: FontWeight.w800),
               ),
             ),
@@ -2129,7 +2129,7 @@ class _BatchCard extends StatelessWidget {
                   batch.ownerName!,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: IntesharType.sans(13,
+                  style: IntesharType.sans(14,
                       color: context.tones.brandOnSurface, w: FontWeight.w700),
                 ),
               ),
@@ -2302,10 +2302,10 @@ class _CountStat extends StatelessWidget {
       children: [
         Text(
           Formatters.money(value),
-          style: IntesharType.sans(17, color: color, w: FontWeight.w800),
+          style: IntesharType.sans(16, color: color, w: FontWeight.w800),
         ),
         Text(label,
-            style: IntesharType.sans(10, color: cs.onSurfaceVariant)),
+            style: IntesharType.sans(11, color: cs.onSurfaceVariant)),
       ],
     );
   }

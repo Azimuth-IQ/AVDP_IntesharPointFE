@@ -314,7 +314,7 @@ class _AgentCard extends ConsumerWidget {
                           child: Text(row.label,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: IntesharType.sans(17,
+                              style: IntesharType.sans(16,
                                   color: cs.onSurface, w: FontWeight.w800)),
                         ),
                         const SizedBox(width: 8),
@@ -350,7 +350,7 @@ class _AgentCard extends ConsumerWidget {
           Text(s.coverage, style: IntesharType.overline(color: cs.onSurfaceVariant)),
           const SizedBox(height: 6),
           if (row.governorates.isEmpty)
-            Text(s.noRegions, style: IntesharType.sans(12.5, color: cs.onSurfaceVariant))
+            Text(s.noRegions, style: IntesharType.sans(12, color: cs.onSurfaceVariant))
           else
             Wrap(
               spacing: 6,
@@ -364,11 +364,11 @@ class _AgentCard extends ConsumerWidget {
             children: [
               Icon(Icons.group_outlined, size: 15, color: cs.onSurfaceVariant),
               const SizedBox(width: 5),
-              Text(s.usersCount(row.userCount), style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+              Text(s.usersCount(row.userCount), style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
               const SizedBox(width: 16),
               Icon(Icons.account_tree_outlined, size: 15, color: cs.onSurfaceVariant),
               const SizedBox(width: 5),
-              Text(s.childrenCount(row.childrenCount), style: IntesharType.sans(12.5, color: cs.onSurfaceVariant)),
+              Text(s.childrenCount(row.childrenCount), style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
             ],
           ),
           const SizedBox(height: 14),
@@ -510,7 +510,7 @@ class _ReadyChip extends StatelessWidget {
                 Text(value,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: IntesharType.sans(12.5,
+                    style: IntesharType.sans(12,
                         color: cs.onSurface, w: FontWeight.w700)),
               ],
             ),

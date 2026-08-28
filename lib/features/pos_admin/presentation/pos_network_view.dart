@@ -180,7 +180,7 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
             title: Text(picked.label, overflow: TextOverflow.ellipsis),
             subtitle: Text(picked.type.label,
                 style: IntesharType.sans(
-                    11.5, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+                    12, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
           ),
           const SizedBox(height: 8),
           TextField(
@@ -308,7 +308,7 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Flexible(child: Text(r.name.isNotEmpty ? r.name : r.entityId, style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w700), overflow: TextOverflow.ellipsis)),
+                Flexible(child: Text(r.name.isNotEmpty ? r.name : r.entityId, style: IntesharType.sans(16, color: cs.onSurface, w: FontWeight.w700), overflow: TextOverflow.ellipsis)),
                 const SizedBox(width: 8),
                 StampPill(label: isSub ? s.sub : s.main, color: isSub ? context.status.success : context.tones.brandInk),
               ]),
@@ -318,7 +318,7 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
               ],
               const SizedBox(height: 8),
               Text('${Formatters.money(r.used)} ${s.used} · ${Formatters.money(r.available)} ${s.avail} ${s.ofTotal} ${Formatters.money(r.total)}',
-                  style: IntesharType.mono(12.5, color: cs.onSurfaceVariant)),
+                  style: IntesharType.mono(12, color: cs.onSurfaceVariant)),
             ]),
           ),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [

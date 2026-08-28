@@ -106,7 +106,7 @@ class ColorHexField extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: IntesharType.sans(
-              11.5,
+              12,
               color: ok ? cs.onSurfaceVariant : cs.error,
               w: ok ? FontWeight.w500 : FontWeight.w700,
             ),

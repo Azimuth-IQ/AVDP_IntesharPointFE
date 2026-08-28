@@ -534,7 +534,7 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
                 selected: _preset == p,
                 onSelected: (_) => _applyPreset(p),
                 label: Text(label),
-                labelStyle: IntesharType.sans(12.5,
+                labelStyle: IntesharType.sans(12,
                     color: _preset == p ? cs.onSecondaryContainer : cs.onSurfaceVariant,
                     w: FontWeight.w700),
               ),
@@ -552,7 +552,7 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
         if (!_identity.isEmpty) ...[
           if (_identity.shopName.trim().isNotEmpty)
             Text(_identity.shopName.trim(),
-                style: IntesharType.sans(15, color: cs.onSurface, w: FontWeight.w800)),
+                style: IntesharType.sans(16, color: cs.onSurface, w: FontWeight.w800)),
           for (final line in [
             if (_identity.ownerName.trim().isNotEmpty)
               '${ar ? 'صاحب النقطة' : 'Owner'}: ${_identity.ownerName.trim()}',
@@ -564,7 +564,7 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
             Padding(
               padding: const EdgeInsets.only(top: 2),
               child: Text(line,
-                  style: IntesharType.sans(11.5, color: cs.onSurfaceVariant)),
+                  style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
             ),
           const SizedBox(height: 10),
         ],
@@ -633,11 +633,11 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
                   child: Text(line.category,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: IntesharType.sans(12.5, color: cs.onSurface, w: FontWeight.w600)),
+                      style: IntesharType.sans(12, color: cs.onSurface, w: FontWeight.w600)),
                 ),
                 const SizedBox(width: 8),
                 Text('×${line.cards}',
-                    style: IntesharType.mono(12.5, color: cs.onSurfaceVariant, w: FontWeight.w700)),
+                    style: IntesharType.mono(12, color: cs.onSurfaceVariant, w: FontWeight.w700)),
                 const SizedBox(width: 10),
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 120),
@@ -646,7 +646,7 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
                     alignment: AlignmentDirectional.centerEnd,
                     child: Text(Formatters.iqd(line.total.round()),
                         maxLines: 1,
-                        style: IntesharType.mono(12.5, color: cs.onSurface)),
+                        style: IntesharType.mono(12, color: cs.onSurface)),
                   ),
                 ),
               ]),
@@ -789,14 +789,14 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
           // agent to trace a card — 11.5px was the smallest type in this panel
           // and it carried the one value that has to be transcribed exactly.
           Text('SN ${op.serialNumber}',
-              style: IntesharType.mono(13, color: cs.onSurface, w: FontWeight.w600)),
+              style: IntesharType.mono(14, color: cs.onSurface, w: FontWeight.w600)),
           Row(children: [
             Expanded(
                 child: Text(when,
                     style: IntesharType.mono(12, color: cs.onSurfaceVariant))),
             if (op.soldPrice != null)
               Text(Formatters.iqd(op.soldPrice!.round()),
-                  style: IntesharType.mono(12.5, color: cs.onSurface)),
+                  style: IntesharType.mono(12, color: cs.onSurface)),
           ]),
           const SizedBox(height: 8),
           Align(

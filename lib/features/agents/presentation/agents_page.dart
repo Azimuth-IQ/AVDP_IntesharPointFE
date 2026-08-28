@@ -189,7 +189,9 @@ class _AgentsPageState extends ConsumerState<AgentsPage> {
     final s = AgentStrings.of(context, tier);
     final authState = ref.watch(authStateProvider).valueOrNull;
     final canManage = authState is AuthAuthenticated && authState.can({Capability.MANAGE_AGENTS});
-    return MaxWidthBox(
+    // UX-13: a roster is scanned, not read, so it takes the data cap
+    // (1600) rather than the prose one (1280).
+    return MaxWidthBox.wide(
       child: Column(
         children: [
           PageHeader(
@@ -229,35 +231,46 @@ class _AgentsPageState extends ConsumerState<AgentsPage> {
     if (_items.isEmpty) {
       return EmptyState(message: '${s.empty}\n${s.emptyHint}', actionLabel: s.newAgent, onAction: () => _openForm());
     }
+    // UX-13: one narrow column of tall cards wasted ~360dp of a 1080p browser
+    // and showed about five agents at once — so "which agent has the fewest POS
+    // points?" needed scrolling, and a comparison you scroll for is one you
+    // cannot make. `AdaptiveColumns` deals the cards across up to three columns
+    // and collapses back to one on a phone.
+    //
+    // The list is still lazily PAGED (`_hasMore` / `_loadMore`), so the set
+    // built here is one page, not the whole roster — which is why building the
+    // children together rather than through an itemBuilder is affordable.
     return RefreshIndicator(
       onRefresh: _reload,
-      child: ListView.separated(
+      child: ListView(
         padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
-        itemCount: _items.length + (_hasMore ? 1 : 0),
-        separatorBuilder: (_, _) => const SizedBox(height: 10),
-        itemBuilder: (context, i) {
-          if (i >= _items.length) {
-            return Padding(
+        children: [
+          AdaptiveColumns(
+            children: [
+              for (final row in _items)
+                _AgentCard(
+                  row: row,
+                  s: s,
+                  tier: tier,
+                  canManage: canManage,
+                  slots: _slots[row.id],
+                  slotsReady: _slotsReady,
+                  unpriced: _unpriced[row.id] ?? 0,
+                  pricingReady: _pricingReady,
+                  onChanged: _reload,
+                ),
+            ],
+          ),
+          if (_hasMore)
+            Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Center(
                 child: _loadingMore
                     ? const CircularProgressIndicator()
                     : OutlinedButton(onPressed: _loadMore, child: Text(s.loadMore)),
               ),
-            );
-          }
-          return _AgentCard(
-            row: _items[i],
-            s: s,
-            tier: tier,
-            canManage: canManage,
-            slots: _slots[_items[i].id],
-            slotsReady: _slotsReady,
-            unpriced: _unpriced[_items[i].id] ?? 0,
-            pricingReady: _pricingReady,
-            onChanged: _reload,
-          );
-        },
+            ),
+        ],
       ),
     );
   }

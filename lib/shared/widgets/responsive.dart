@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:inteshar/app/theme.dart';
 
 /// Layout breakpoints used across the app.
 ///
@@ -24,8 +25,8 @@ class Breakpoints {
   /// column, and every row you have to scroll for is a comparison you cannot
   /// make.
   ///
-  /// Use this (with [CompactTable] or [AdaptiveColumns]) for anything the reader
-  /// scans; keep [contentMax] for anything they read.
+  /// Use this (with [AdaptiveColumns]) for anything the reader scans; keep
+  /// [contentMax] for anything they read.
   static const double contentWideMax = 1600;
 
   static const double formMax = 560;
@@ -84,6 +85,103 @@ class MaxWidthBox extends StatelessWidget {
         constraints: BoxConstraints(maxWidth: maxWidth),
         child: Padding(padding: padding, child: child),
       ),
+    );
+  }
+}
+
+/// Lays [children] out in as many columns as the width honestly allows (UX-13).
+///
+/// The problem this solves is one narrow column of tall cards on a 1080p
+/// browser: ~1640dp of usable width showing about five agents, each mostly white
+/// space, so "which agent has the fewest POS points?" needs scrolling — and a
+/// comparison you have to scroll for is one you cannot make.
+///
+/// Deliberately NOT a `GridView`. These are cards of genuinely different heights
+/// (an agent with three governorate pills is taller than one with a single
+/// governorate), and a grid forces a row to the tallest cell, reinstating the
+/// white space this exists to remove. Children are dealt round-robin into
+/// independent columns instead, so each column packs to its own content.
+///
+/// Round-robin also preserves READING order across the columns: with three
+/// columns the sequence runs 1,2,3 across the first row of cards, then 4,5,6 —
+/// the order the eye expects. Filling column-by-column would put items 1..n in
+/// the first column, which reads as three unrelated lists.
+///
+/// Collapses to a single [Column] below [minColumnWidth] * 2, so a phone and a
+/// narrow tablet keep the layout they already have.
+class AdaptiveColumns extends StatelessWidget {
+  final List<Widget> children;
+
+  /// The narrowest a column may become before dropping one. Cards below roughly
+  /// 320dp start wrapping their own content, which costs more vertical space
+  /// than the extra column saves.
+  final double minColumnWidth;
+
+  /// Ceiling on columns. Three is the practical maximum for a card carrying a
+  /// name, a metric row and a chip row — beyond that the card is narrower than
+  /// its own content and every line wraps.
+  final int maxColumns;
+
+  final double spacing;
+
+  const AdaptiveColumns({
+    super.key,
+    required this.children,
+    this.minColumnWidth = 360,
+    this.maxColumns = 3,
+    this.spacing = IntesharSpacing.md,
+  });
+
+  /// How many columns [width] supports — exposed for tests and callers that need
+  /// to know the count before building (e.g. to pick a denser row layout).
+  int columnsFor(double width) {
+    if (width.isNaN || width <= 0) return 1;
+    // Every column after the first also costs a gap.
+    final n = ((width + spacing) / (minColumnWidth + spacing)).floor();
+    return n.clamp(1, maxColumns);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (children.isEmpty) return const SizedBox.shrink();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final count = columnsFor(constraints.maxWidth);
+        if (count <= 1) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < children.length; i++) ...[
+                if (i > 0) SizedBox(height: spacing),
+                children[i],
+              ],
+            ],
+          );
+        }
+        final columns = List.generate(count, (_) => <Widget>[]);
+        for (var i = 0; i < children.length; i++) {
+          columns[i % count].add(children[i]);
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var c = 0; c < count; c++) ...[
+              if (c > 0) SizedBox(width: spacing),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var i = 0; i < columns[c].length; i++) ...[
+                      if (i > 0) SizedBox(height: spacing),
+                      columns[c][i],
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }

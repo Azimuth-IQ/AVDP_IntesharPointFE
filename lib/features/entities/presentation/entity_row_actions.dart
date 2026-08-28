@@ -232,7 +232,14 @@ Future<void> runEntityRowAction(
     case EntityRowAction.manageUsers:
       await showEntityUsersSheet(context, ref, row, onChanged: onChanged);
     case EntityRowAction.visibleProducts:
-      await showVisibleProductsSheet(context, entityId: row.id, entityName: row.label);
+      // UX-159: the sheet writes, so it reports whether it wrote and the caller
+      // refreshes — the same contract every other mutating sheet here follows.
+      final changed = await showVisibleProductsSheet(
+        context,
+        entityId: row.id,
+        entityName: row.label,
+      );
+      if (changed) onChanged();
     case EntityRowAction.viewInventory:
       final prefix = inventoryRoutePrefix(ref);
       if (prefix == null) return;

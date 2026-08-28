@@ -123,6 +123,26 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       // All signed-in sections share the responsive [AppShell] (nav + URL).
+      //
+      // ── The refresh contract (UX-159) ────────────────────────────────────
+      // This is a plain ShellRoute ON PURPOSE. Navigating to a screen BUILDS
+      // it, so `initState` re-runs its load and the screen is fresh. Apart from
+      // the unread-count providers, nothing in this app invalidates data across
+      // screens — this rebuild IS the invalidation.
+      //
+      // Do not swap it for `StatefulShellRoute.indexedStack`. That is the
+      // obvious move when someone asks to keep scroll position or make nav feel
+      // faster, and it keeps every branch alive: loads stop re-running and the
+      // whole app quietly serves stale reads. `test/app/refresh_contract_test`
+      // fails if this changes, and that failure is the reminder that every
+      // screen needs an explicit refresh FIRST.
+      //
+      // Within a screen the rule is: a sheet or dialog that MUTATES reports
+      // whether it mutated — either by popping a bool (`showDeleteAgentSheet`,
+      // `showVisibleProductsSheet`) or via an `onChanged` callback — and the
+      // caller refreshes. A mutating surface that returns `Future<void>` is a
+      // bug; it was how `showVisibleProductsSheet` behaved until UX-159, and it
+      // was invisible only because nothing on screen showed what it wrote.
       ShellRoute(
         builder: (context, state, child) => AppShell(child: child),
         routes: [

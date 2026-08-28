@@ -13,16 +13,26 @@ import 'package:inteshar/shared/widgets/error_state.dart';
 /// can see & sell — a "Visible products" checklist over the full catalog. Ticked =
 /// visible; unticking hides it for this account and everything under it. Rows a
 /// PARENT already hid are shown locked (managed higher up the tree).
-Future<void> showVisibleProductsSheet(
+/// Returns true when at least one visibility was actually written, so the caller
+/// can refresh (UX-159).
+///
+/// It used to return `Future<void>` while writing `setRestricted` — the only
+/// sheet in the app that mutated and reported nothing. That was harmless purely
+/// by accident: the hierarchy does not currently display restriction state, so
+/// there was nothing on screen to go stale. The moment it does, this becomes the
+/// same "panel doesn't update after I change something" the client already
+/// reported. A mutating sheet says whether it mutated.
+Future<bool> showVisibleProductsSheet(
   BuildContext context, {
   required String entityId,
   required String entityName,
-}) {
-  return showModalBottomSheet<void>(
+}) async {
+  final changed = await showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     builder: (_) => _VisibleProductsSheet(entityId: entityId, entityName: entityName),
   );
+  return changed ?? false;
 }
 
 class _VisibleProductsSheet extends ConsumerStatefulWidget {
@@ -35,6 +45,10 @@ class _VisibleProductsSheet extends ConsumerStatefulWidget {
 }
 
 class _VisibleProductsSheetState extends ConsumerState<_VisibleProductsSheet> {
+  /// Whether any visibility was successfully written this session — the value
+  /// this sheet pops with (UX-159).
+  bool _changed = false;
+
   List<ProductDefinition> _defs = const [];
   Map<String, String> _companyNames = const {}; // companyId -> name
   Set<String> _restricted = {}; // own (editable) hidden SKUs
@@ -103,6 +117,7 @@ class _VisibleProductsSheetState extends ConsumerState<_VisibleProductsSheet> {
     });
     try {
       await _repo.setRestricted(sku: sku, entityId: widget.entityId, restricted: hidden);
+      _changed = true;
     } catch (e) {
       if (!mounted) return;
       setState(() => _restricted = prev); // revert on failure
@@ -122,9 +137,13 @@ class _VisibleProductsSheetState extends ConsumerState<_VisibleProductsSheet> {
       final targets = hidden
           ? _toggleable.where((d) => !_restricted.contains(d.sku)).map((d) => d.sku)
           : _toggleable.where((d) => _restricted.contains(d.sku)).map((d) => d.sku);
-      for (final sku in targets.toList()) {
+      final list = targets.toList();
+      for (final sku in list) {
         await _repo.setRestricted(sku: sku, entityId: widget.entityId, restricted: hidden);
       }
+      // A partial run still changed something — report it, or a failure halfway
+      // through would leave the caller believing nothing happened.
+      if (list.isNotEmpty) _changed = true;
       await _load();
     } catch (e) {
       if (mounted) {
@@ -163,7 +182,7 @@ class _VisibleProductsSheetState extends ConsumerState<_VisibleProductsSheet> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () => Navigator.pop(context, _changed),
                     tooltip: MaterialLocalizations.of(context).closeButtonLabel,
                   ),
                 ]),

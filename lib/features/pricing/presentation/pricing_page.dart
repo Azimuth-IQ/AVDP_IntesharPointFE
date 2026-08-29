@@ -1338,17 +1338,39 @@ class _BalanceHeader extends StatelessWidget {
               borderRadius: BorderRadius.circular(999),
               onTap: onToggleUnpriced,
               // UX-154: this used to be wrapped in `Opacity(0.85)` when the
-              // filter was off, which dropped the pill to 3.38:1 — and the pill
-              // is a DANGER count of categories with no price, i.e. the thing on
-              // this screen most worth reading. The filter's on/off state is
-              // already carried by the icon swapping filled/outlined beside it,
-              // so the opacity was paying contrast for a cue that was already
-              // there.
+              // filter was off — and the pill is a DANGER count of categories
+              // with no price, i.e. the thing on this screen most worth reading.
+              // The filter's on/off state is already carried by the icon
+              // swapping filled/outlined beside it, so the opacity was paying
+              // contrast for a cue that was already there.
+              //
+              // Removing it was necessary but not sufficient. [StampPill] paints
+              // a 14%-alpha tint and measures its label against
+              // `cs.surface` — but this card is a BRAND FILL, so the gold came
+              // through the tint and the label landed on #E19A25 at **2.60:1**
+              // (2.35:1 with the old opacity). The pill needs the ground it was
+              // measured against, so it gets one: an opaque `cs.surface` capsule
+              // that restores the intended 4.65:1, plus an on-brand hairline so
+              // the tap target still has a visible edge against the gold.
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                StampPill(label: s.unpriced(unpriced), color: context.status.danger),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: onBrand, width: 1),
+                  ),
+                  child: StampPill(
+                      label: s.unpriced(unpriced), color: context.status.danger),
+                ),
                 const SizedBox(width: 4),
+                // Was `onBrand` at 70% alpha. On the STOCK gold that measures
+                // 4.58:1 and is fine — but `onBrand` is `legibleOn(brand)`, so
+                // under a white-label brand it can be white with only ~4.8:1 to
+                // spare, and fading white 30% toward that fill lands at ~2.98:1
+                // (exactly the alert-banner failure in item 2). `onBrand` is the
+                // measured token; 8.66:1 here, and safe on any brand.
                 Icon(unpricedOnly ? Icons.filter_alt : Icons.filter_alt_outlined,
-                    size: 16, color: onBrand.withValues(alpha: 0.7)),
+                    size: 16, color: onBrand),
               ]),
             ),
         ],

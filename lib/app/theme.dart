@@ -999,6 +999,35 @@ ThemeData _build(
   // white-label brand instead of staying the stock gold `dust` (B-085).
   final brandWash = isDark ? _darken(saffron, 0.72) : _lighten(saffron, 0.78);
 
+  // UX-154: `onErrorContainer` was the raw `oxblood`, which measures **3.70:1**
+  // on the light `errorContainer` #FADAD9 — under the 4.5:1 body floor, and the
+  // POS error banners set it at 12.5px. It is a *measured* correction now, so
+  // the pale-red container and its ink can never drift apart, and high contrast
+  // gets its promised AAA instead of silently keeping the AA-failing value
+  // (3.70:1 in that mode too). Dark already passed at 5.02:1 and is unchanged
+  // by the correction.
+  final errorContainer =
+      isDark ? const Color(0xFF2A1414) : const Color(0xFFFADAD9);
+  final onErrorContainer =
+      contrastAdjusted(oxblood, errorContainer, minRatio: minRatio);
+
+  // UX-154 — the placeholder. It was `onPaperSoft` at **55% alpha** over the
+  // white field fill: #A4A8AE, **2.39:1**, the least legible text in the
+  // product on the one string that tells a first-time user what a field wants.
+  // A hint may look lighter than its label; it may not stop being text.
+  //
+  // Two changes. It is *opaque* — an alpha placeholder re-measures itself
+  // against whatever fill sits behind it, and `errorContainer`/`sunk` fields
+  // are not the white this was tuned on. And it is *measured*: blend toward the
+  // fill for the "lighter than the label" read, then correct straight back up
+  // to the mode's floor, so the hint is the lightest tone that still clears the
+  // bar and cannot be lightened past it by editing one number.
+  final hintInk = contrastAdjusted(
+    Color.alphaBlend(onPaperSoft.withValues(alpha: 0.55), card),
+    card,
+    minRatio: minRatio,
+  );
+
   final scheme = ColorScheme(
     brightness: b,
     // Yellow is a "light" hue — onPrimary must be ink in BOTH modes for contrast.
@@ -1019,8 +1048,8 @@ ThemeData _build(
 
     error: oxblood,
     onError: Colors.white,
-    errorContainer: isDark ? const Color(0xFF2A1414) : const Color(0xFFFADAD9),
-    onErrorContainer: oxblood,
+    errorContainer: errorContainer,
+    onErrorContainer: onErrorContainer,
 
     surface: paper,
     onSurface: onPaper,
@@ -1158,12 +1187,12 @@ ThemeData _build(
       fillColor: card,
       isDense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.lg, vertical: IntesharSpacing.lg),
-      // A placeholder at 55% of an already-soft grey is the least legible text
-      // in the product; high contrast keeps it a hint but stops hiding it.
+      // UX-154: measured, opaque placeholder ink — see [hintInk]. High contrast
+      // is not a special case any more; it just raises the floor to 7:1.
       hintStyle: codec(
           size: IntesharScale.bodyLg,
           w: IntesharWeight.regular,
-          c: onPaperSoft.withValues(alpha: highContrast ? 0.9 : 0.55)),
+          c: hintInk),
       labelStyle: codec(size: IntesharScale.bodyLg, w: IntesharWeight.regular, c: onPaperSoft),
       floatingLabelStyle: codec(size: IntesharScale.body, w: IntesharWeight.semibold, c: brandInk),
       border: OutlineInputBorder(

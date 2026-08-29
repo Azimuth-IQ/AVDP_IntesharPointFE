@@ -35,15 +35,20 @@ class AlertBanner extends ConsumerWidget {
       ref.invalidate(notificationsUnreadCountProvider);
     }
 
-    // UX-154: the banner used to fade its own text — body at white 92% (4.28:1
-    // on the oxblood fill) and the "+N" counter at 70% (2.98:1), both under the
-    // 4.5:1 body floor, on the one surface in the app that only appears when
-    // something is wrong. There is no alpha that clears the bar here: measured
-    // against this fill, FULL white is 4.83:1 and every step down falls short
-    // (90% → 4.13:1). So the alphas go and the hierarchy comes from size and
-    // weight instead, which is what it should have been on a saturated fill.
+    // UX-154: the banner used to fade its own text — body at white 92%
+    // (**4.27:1** on the oxblood fill) and the "+N" counter at 70% (**2.98:1**),
+    // both under the 4.5:1 body floor, on the one surface in the app that only
+    // appears when something is wrong.
+    //
+    // The fill is the constraint, not the alpha: full white on #DC2626 measures
+    // **4.83:1**, so there is exactly one passing value and every step down from
+    // it fails. The alphas therefore go entirely and the hierarchy comes from
+    // size and weight — which is what it should have been on a saturated fill.
+    // The fill itself stays: 4.83:1 clears AA for body, and darkening the red
+    // would cost the "stop" read that is the whole point of this banner.
     const fill = IntesharColors.oxblood;
-    final onFill = legibleOn(fill); // white — 4.83:1, vs 4.35:1 for ink.
+    // White measures 4.83:1 here; ink is only 3.68:1, so `legibleOn` picks white.
+    final onFill = legibleOn(fill);
     return Material(
       color: fill,
       child: SafeArea(

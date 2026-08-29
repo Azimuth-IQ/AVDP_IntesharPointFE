@@ -988,7 +988,7 @@ class IntesharText {
 /// That makes `secondaryColor` an editable field that legitimately changes
 /// nothing, which is the shipped bug. The honest end state is to REMOVE the
 /// control; those edits are outside this file — see the follow-up list for
-/// `agent_form.dart`, `entity_tree_page.dart`, `entity.dart`, `branding.dart`
+/// `agent_form.dart`, `entity_directory_page.dart`, `entity.dart`, `branding.dart`
 /// and `theme_provider.dart`.
 ///
 /// **UX-153 — [highContrast].** Not a colour scheme of its own: the same

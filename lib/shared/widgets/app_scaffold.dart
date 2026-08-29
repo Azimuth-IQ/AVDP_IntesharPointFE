@@ -56,6 +56,17 @@ class _NavItem {
   // HQ supervisors are scoped to sections via capabilities; null = always visible.
   final Capability? required;
 
+  /// Extra capabilities that ALSO unlock this destination — any-of with
+  /// [required], matching `AuthAuthenticated.can`.
+  ///
+  /// UX-15: the entity directory absorbed `/hq/main-agents` and
+  /// `/hq/sub-agents`, which were gated on MANAGE_AGENTS while the hierarchy was
+  /// gated on VIEW_REPORTS. With a single `required` an admin holding only
+  /// MANAGE_AGENTS would have watched their two agent destinations disappear
+  /// with nothing taking their place — the consolidation silently revoking the
+  /// one section they exist to work in.
+  final Set<Capability> orAny;
+
   /// Desktop-sidebar group key — matches a key in [_kGroupLabels].
   /// Null means the item renders without a group header (agents' Notifications,
   /// Store items, action rows). Ignored by the bottom-bar and NavigationRail.
@@ -66,8 +77,12 @@ class _NavItem {
     this.label,
     this.route, {
     this.required,
+    this.orAny = const <Capability>{},
     this.group,
   });
+
+  /// Every capability that unlocks this destination.
+  Set<Capability> get unlockedBy => {?required, ...orAny};
 }
 
 /// Wraps [icon] in a Material [Badge] for the destinations that carry an unread
@@ -289,12 +304,17 @@ class AppShell extends ConsumerWidget {
             required: Capability.VIEW_REPORTS,
             group: 'inventory_stock',
           ),
+          // UX-15: THE entity directory. It absorbed "Main Agents" and "Sub
+          // Agents", which were the same rows behind a type filter, so the
+          // MANAGE_AGENTS admin who used to reach the network through those two
+          // destinations reaches it through this one.
           _NavItem(
             Icons.account_tree_outlined,
             Icons.account_tree,
             l.navHierarchy,
             '/hq/entities',
             required: Capability.VIEW_REPORTS,
+            orAny: const {Capability.MANAGE_AGENTS},
             group: 'network',
           ),
           _NavItem(
@@ -347,22 +367,11 @@ class AppShell extends ConsumerWidget {
             required: Capability.MANAGE_CATALOG,
             group: 'inventory_stock',
           ),
-          _NavItem(
-            Icons.badge_outlined,
-            Icons.badge,
-            l.navMainAgents,
-            '/hq/main-agents',
-            required: Capability.MANAGE_AGENTS,
-            group: 'network',
-          ),
-          _NavItem(
-            Icons.store_outlined,
-            Icons.store,
-            l.navSubAgents,
-            '/hq/sub-agents',
-            required: Capability.MANAGE_AGENTS,
-            group: 'network',
-          ),
+          // UX-15: "Main Agents" and "Sub Agents" are gone from here. They were
+          // `/hq/entities` with `?type=` — a third and fourth door onto the same
+          // objects, each with a different subset of the powers. Both paths still
+          // resolve (they redirect in `router.dart`), so a bookmark lands on the
+          // directory with that tier preselected instead of on a 404.
           _NavItem(
             Icons.business_outlined,
             Icons.business,
@@ -487,7 +496,7 @@ class AppShell extends ConsumerWidget {
             Icons.account_tree_outlined,
             Icons.account_tree,
             // UX-97: was `navChildren` ("Children" / الفروع) while the page it
-            // opens — the same EntityTreePage HQ reaches — titles itself
+            // opens — the same EntityDirectoryPage HQ reaches — titles itself
             // `navHierarchy`. One destination, three tiers, one name now.
             l.navHierarchy,
             '/agent1/entities',
@@ -693,7 +702,7 @@ class AppShell extends ConsumerWidget {
     final filtered = base.where((it) {
       if (it.required == null) return true;
       if (auth is! AuthAuthenticated) return false;
-      return auth.can({it.required!});
+      return auth.can(it.unlockedBy);
     }).toList();
     final items = filtered.isEmpty ? base : filtered;
 

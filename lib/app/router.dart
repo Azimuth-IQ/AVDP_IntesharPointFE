@@ -8,7 +8,8 @@ import 'package:inteshar/features/auth/presentation/login_page.dart';
 import 'package:inteshar/features/auth/presentation/splash_page.dart';
 import 'package:inteshar/features/dashboard/presentation/dashboard_page.dart';
 import 'package:inteshar/features/diagnostics/presentation/health_page.dart';
-import 'package:inteshar/features/entities/presentation/entity_tree_page.dart';
+import 'package:inteshar/features/entities/domain/entity_type.dart';
+import 'package:inteshar/features/entities/presentation/entity_directory_page.dart';
 import 'package:inteshar/features/entities/presentation/hq_users_page.dart';
 import 'package:inteshar/features/inventory/presentation/batch_add_page.dart';
 import 'package:inteshar/features/inventory/presentation/definitions_page.dart';
@@ -21,8 +22,6 @@ import 'package:inteshar/features/slider/presentation/slider_management_page.dar
 import 'package:inteshar/features/update/presentation/app_download_page.dart';
 import 'package:inteshar/features/notifications/presentation/notifications_inbox_page.dart';
 import 'package:inteshar/features/settings/presentation/working_hours_page.dart';
-import 'package:inteshar/features/agents/presentation/main_agents_page.dart';
-import 'package:inteshar/features/agents/presentation/sub_agents_page.dart';
 import 'package:inteshar/features/companies/presentation/companies_page.dart';
 import 'package:inteshar/features/pos/presentation/pos_home_page.dart';
 import 'package:inteshar/features/pos/presentation/pos_pin_lock_page.dart';
@@ -106,13 +105,12 @@ final routerProvider = Provider<GoRouter>((ref) {
           entityName: s.uri.queryParameters['name'] ?? '',
         ),
       ),
-      GoRoute(
-        path: '/agent2/entities/:id/inventory',
-        builder: (_, s) => ChildInventoryPage(
-          entityId: s.pathParameters['id']!,
-          entityName: s.uri.queryParameters['name'] ?? '',
-        ),
-      ),
+      // UX-15: there is deliberately NO `/agent2/entities/:id/inventory`. The
+      // drill-in is offered only when the row is `inventoryBacked`, which under
+      // draw-on-print is HQ and Main Agents only (B-042) — and every account in
+      // an AGENT2's subtree is an AGENT2 or a STORE. The route was therefore
+      // unreachable by construction, and `inventoryRoutePrefix` no longer names
+      // `/agent2` either, so the two cannot drift back apart.
       // Main Agent browses a descendant's stock (BRD: AGENT1 browses own+descendant inventory).
       GoRoute(
         path: '/agent1/entities/:id/inventory',
@@ -120,6 +118,25 @@ final routerProvider = Provider<GoRouter>((ref) {
           entityId: s.pathParameters['id']!,
           entityName: s.uri.queryParameters['name'] ?? '',
         ),
+      ),
+
+      // ── Retired surfaces (UX-15 / UX-93) ─────────────────────────────────
+      //
+      // HQ had three routes listing the same `Entity` objects with different
+      // powers, and the richest one had the worst findability. `/hq/entities` is
+      // now the single directory — list or tree, one search, one action set —
+      // and the two tier pages are the same directory with a type preselected.
+      //
+      // They redirect rather than 404 because they are three months of admin
+      // bookmarks, the links inside older notification copy, and the target of
+      // "open the Main Agents page" in the client's own notes.
+      GoRoute(
+        path: '/hq/main-agents',
+        redirect: (_, _) => '/hq/entities?type=${EntityType.AGENT1.name}',
+      ),
+      GoRoute(
+        path: '/hq/sub-agents',
+        redirect: (_, _) => '/hq/entities?type=${EntityType.AGENT2.name}',
       ),
 
       // All signed-in sections share the responsive [AppShell] (nav + URL).
@@ -148,10 +165,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         routes: [
           // HQ — the home/landing IS the System Activity oversight screen.
           GoRoute(path: '/hq/home', builder: (_, _) => const SystemActivityPage()),
-          GoRoute(path: '/hq/main-agents', builder: (_, _) => const MainAgentsPage()),
-          GoRoute(path: '/hq/sub-agents', builder: (_, _) => const SubAgentsPage()),
           GoRoute(path: '/hq/companies', builder: (_, _) => const CompaniesPage()),
-          GoRoute(path: '/hq/entities', builder: (_, _) => const EntityTreePage()),
+          // THE entity directory. `?type=` preselects a tier — that is all the
+          // retired `/hq/main-agents` and `/hq/sub-agents` ever were.
+          GoRoute(
+            path: '/hq/entities',
+            builder: (_, s) => EntityDirectoryPage(initialType: _typeParam(s)),
+          ),
           GoRoute(path: '/hq/definitions', builder: (_, _) => const DefinitionsPage()),
           // UX-01: PricingPage used to be mounted at /agent1/pricing ONLY, so HQ —
           // the tier that publishes the default price and the tier the landing
@@ -173,7 +193,10 @@ final routerProvider = Provider<GoRouter>((ref) {
 
           // Agent1
           GoRoute(path: '/agent1/home', builder: (_, _) => const DashboardPage()),
-          GoRoute(path: '/agent1/entities', builder: (_, _) => const EntityTreePage()),
+          GoRoute(
+            path: '/agent1/entities',
+            builder: (_, s) => EntityDirectoryPage(initialType: _typeParam(s)),
+          ),
           GoRoute(path: '/agent1/inventory', builder: (_, _) => const InventoryPage(readOnly: true)),
           GoRoute(path: '/agent1/pricing', builder: (_, _) => const PricingPage()),
           GoRoute(path: '/agent1/transfers', builder: (_, _) => const TransfersPage()),
@@ -185,7 +208,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           // Agent2 — no own-inventory route: a sub-agent holds no cards and draws
           // from its parent's pool at print time (draw-on-print), B-042.
           GoRoute(path: '/agent2/home', builder: (_, _) => const DashboardPage()),
-          GoRoute(path: '/agent2/entities', builder: (_, _) => const EntityTreePage()),
+          GoRoute(
+            path: '/agent2/entities',
+            builder: (_, s) => EntityDirectoryPage(initialType: _typeParam(s)),
+          ),
           GoRoute(path: '/agent2/reports', builder: (_, _) => const ReportsPage()),
           GoRoute(path: '/agent2/chat', builder: (_, _) => const ChatThreadsPage()),
           GoRoute(path: '/agent2/transfers', builder: (_, _) => const TransfersPage()),
@@ -208,6 +234,19 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+/// The `?type=` tier preselection on an entity-directory route, or null when it
+/// is absent or not an [EntityType] name. An unknown value is dropped rather
+/// than erroring: a stale bookmark should land on the unfiltered directory, not
+/// on a crash.
+EntityType? _typeParam(GoRouterState state) {
+  final raw = state.uri.queryParameters['type'];
+  if (raw == null || raw.isEmpty) return null;
+  for (final t in EntityType.values) {
+    if (t.name == raw) return t;
+  }
+  return null;
+}
 
 /// The role route prefix a [location] belongs to, or `null` if it is not a
 /// role-scoped route (e.g. `/splash`, `/login`, `/diagnostics`). Used by the

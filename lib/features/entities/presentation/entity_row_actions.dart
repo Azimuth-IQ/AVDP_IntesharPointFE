@@ -38,14 +38,20 @@ import 'package:inteshar/shared/widgets/sheet_frame.dart';
 // which is the property the four private copies could never have.
 
 /// Where the viewer may browse another entity's stock from, or null when the
-/// role cannot (only HQ, Main Agent and Sub Agent can).
+/// role cannot.
+///
+/// UX-15: AGENT2 used to be listed here and had a matching
+/// `/agent2/entities/:id/inventory` route, but neither could ever fire. The
+/// drill-in also requires the ROW to be `inventoryBacked`, which under
+/// draw-on-print means HQ or a Main Agent (B-042) — and every account inside a
+/// Sub Agent's subtree is an AGENT2 or a STORE. Both halves are gone together so
+/// they cannot drift back into a dead route.
 String? inventoryRoutePrefix(WidgetRef ref) {
   final viewer = ref.read(authStateProvider).valueOrNull;
   if (viewer is! AuthAuthenticated) return null;
   return switch (viewer.entity.type) {
     EntityType.INTESHAR => '/hq',
     EntityType.AGENT1 => '/agent1', // Main Agent browses descendant inventory (BRD)
-    EntityType.AGENT2 => '/agent2',
     _ => null,
   };
 }

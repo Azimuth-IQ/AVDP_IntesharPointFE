@@ -903,6 +903,22 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
             ],
           ),
         ),
+        // UX-15: this tab and the network directory both list entities, and
+        // saying which is for what — here, where the reader already is — is the
+        // whole reason "where do I change X?" now has one answer. Oversight
+        // answers "what is this account and what has it been doing"; the
+        // directory is where it is administered.
+        Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(_hPad, 0, _hPad, 10),
+          child: _SiblingSectionLink(
+            icon: Icons.account_tree_outlined,
+            title: l.navHierarchy,
+            body: Localizations.localeOf(context).languageCode == 'ar'
+                ? 'دليل الشبكة — نفس الحسابات كقائمة أو شجرة، مع الإنشاء والتعديل والحذف. هذه الشاشة للمتابعة؛ الإدارة تتم هناك.'
+                : 'The network directory — the same accounts as a list or a tree, with create, edit and delete. This screen is for watching; that is where accounts are administered.',
+            onTap: () => context.go('/hq/entities'),
+          ),
+        ),
         Expanded(
           child: _feedList<EntitySummaryRow>(
             feed: _entityFeed,

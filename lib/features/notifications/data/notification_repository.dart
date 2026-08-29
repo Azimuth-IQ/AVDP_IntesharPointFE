@@ -40,7 +40,12 @@ class NotificationRepository {
   /// [tierTypes] carries one or more EntityType names when [audienceType] == `TIER`.
   /// [entityIds] carries one or more target ids when [audienceType] == `ENTITY`.
   /// [posOnly] narrows any audience to POS operators (User.isPos) within the scope.
-  Future<void> send({
+  ///
+  /// UX-88: returns the server's delivery tally so the confirmation can name the
+  /// audience size. The body used to be discarded; a backend that has not been
+  /// redeployed yet still answers with the bare notification, which parses to a
+  /// [NotificationReach] with `hasTally == false` rather than to zeros.
+  Future<NotificationReach> send({
     required String title,
     required String body,
     required String audienceType,
@@ -49,7 +54,7 @@ class NotificationRepository {
     bool posOnly = false,
     String type = 'NOTIFICATION',
   }) async {
-    await _api.post(Endpoints.notificationsSend, data: {
+    final r = await _api.post(Endpoints.notificationsSend, data: {
       'title': title,
       'body': body,
       'audience': audienceType,
@@ -58,6 +63,12 @@ class NotificationRepository {
       if (entityIds.isNotEmpty) 'entityIds': entityIds,
       if (posOnly) 'posOnly': true,
     });
+    return _api.unwrap(
+      r,
+      (d) => d is Map
+          ? NotificationReach.fromJson(d.cast<String, dynamic>())
+          : const NotificationReach(),
+    );
   }
 
   /// Marks [id] as read for the current caller.

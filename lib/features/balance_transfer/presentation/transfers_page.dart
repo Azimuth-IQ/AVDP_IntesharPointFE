@@ -55,7 +55,6 @@ class _TS {
   String takeBackFrom(String name) => p('Take back from $name', 'استرجاع من $name');
   String confirmTakeBack(String amount, String from) =>
       p('Confirm: take back $amount from $from', 'تأكيد: استرجاع $amount من $from');
-  String get takenBack => p('Balance taken back', 'تم استرجاع الرصيد');
 
   /// UX-88: for money, the AMOUNT is the confirmation. "Balance transferred"
   /// confirmed that *something* happened to *someone* — it did not confirm the
@@ -95,7 +94,10 @@ class _TS {
   String confirmSend(String amount, String to) =>
       p('Confirm: send $amount to $to', 'تأكيد: إرسال $amount إلى $to');
   String get cancel => p('Cancel', 'إلغاء');
-  String get sent => p('Balance transferred', 'تم تحويل الرصيد');
+  // The amount-less "Balance transferred" / "Balance taken back" getters that
+  // used to sit here are deliberately gone: they are the exact wording UX-88
+  // replaced, and leaving them in scope invites autocomplete to put them back.
+  // Use [sentDetail] / [takenBackDetail] (or their ...Only variants).
   String get history => p('Transfer history', 'سجل التحويلات');
   String get empty => p('No transfers yet.', 'لا توجد تحويلات بعد.');
   String get noChildren =>

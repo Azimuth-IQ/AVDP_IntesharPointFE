@@ -22,6 +22,14 @@ import 'package:inteshar/shared/widgets/entity_search_picker.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
+/// Test seam for the UX-88 write confirmations. A price upload's snackbar is the
+/// only report the operator gets about a 200-row write, and its wording is
+/// decided by arithmetic (full vs short) plus Arabic number agreement — neither
+/// visible in a widget test. Assert the strings.
+PricingStrings pricingStringsFor(bool ar) => _S(ar);
+
+typedef PricingStrings = _S;
+
 class _S {
   final bool ar;
   const _S(this.ar);
@@ -71,10 +79,34 @@ class _S {
   String get save => p('Save prices', 'حفظ الأسعار');
   // UX-09: the Save is ONE request now, and it says how many rows the server
   // reported back rather than "done" over a write that may have stopped short.
-  String savedN(int n) => p('$n price(s) saved', 'تم حفظ $n سعر');
+  String savedN(int n) => p(
+      n == 1 ? '1 price saved' : '$n prices saved',
+      'تم حفظ ${pricesPhrase(n)}');
   String savedPartial(int applied, int total) => p(
       'Saved $applied of $total prices — reloading to show what applied',
       'تم حفظ $applied من $total سعر — يُعاد التحميل لعرض ما طُبّق');
+
+  /// Arabic agrees a counted noun three different ways, so one "$n سعر" template
+  /// reads wrong for most values. Dual for 2, broken plural for 3–10, accusative
+  /// singular from 11 up. (A "من"-comparison like "$applied من $total سعر" keeps
+  /// the singular and is already correct — these are for the standalone counts.)
+  String pricesPhrase(int n) => p(
+      n == 1 ? '1 price' : '$n prices',
+      switch (n) {
+        1 => 'سعر واحد',
+        2 => 'سعرين',
+        <= 10 => '$n أسعار',
+        _ => '$n سعراً',
+      });
+
+  String accountsPhrase(int n) => p(
+      n == 1 ? '1 account' : '$n accounts',
+      switch (n) {
+        1 => 'حساب واحد',
+        2 => 'حسابين',
+        <= 10 => '$n حسابات',
+        _ => '$n حساباً',
+      });
   String get nothingToSave =>
       p('No price changes to save', 'لا توجد تغييرات على الأسعار');
   // The whole batch is one request, so a failure is all-or-nothing on the wire
@@ -121,8 +153,19 @@ class _S {
   String get clearFilters => p('Clear filters', 'مسح عوامل التصفية');
   String get colOfficial => p('Official price', 'السعر الرسمي');
   String get colYour => p('Your price', 'سعرك');
-  String parsed(int n) => p('$n prices parsed', 'تم قراءة $n سعر');
-  String applied(int agents) => p('Applied to $agents account(s)', 'تم التطبيق على $agents حساب');
+  String parsed(int n) => p('$n prices parsed', 'تم قراءة ${pricesPhrase(n)}');
+
+  /// UX-88: the spreadsheet path is the tool for "set 200 prices", and it used to
+  /// confirm with "Applied to 2 account(s)" — the one number in that sentence
+  /// counts the accounts, never the prices, so the operator who just uploaded a
+  /// 200-row file learned nothing about the 200 rows. Name both, and name a short
+  /// write as short, the way the withdraw toast does ("Withdrew 60 of 100").
+  String appliedPrices(int prices, int accounts) => p(
+      'Applied ${pricesPhrase(prices)} to ${accountsPhrase(accounts)}',
+      'تم تطبيق ${pricesPhrase(prices)} على ${accountsPhrase(accounts)}');
+  String appliedPricesPartial(int applied, int total, int accounts) => p(
+      'Applied $applied of $total prices to ${accountsPhrase(accounts)}',
+      'تم تطبيق $applied من $total سعر على ${accountsPhrase(accounts)}');
   String get nothingParsed => p('No prices found in the file', 'لا توجد أسعار في الملف');
   // B-117: export/upload follow the filters on screen.
   String get nothingToExport =>
@@ -825,8 +868,19 @@ class _PricingPageState extends ConsumerState<PricingPage> {
         entityIds: targetIds, // empty = self only; non-empty = exactly these
       );
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(s.applied(result.length))));
+        // Same convention as the grid Save: the server answers with a per-account
+        // applied count, and the smallest of them is the honest headline rather
+        // than the most flattering one. An empty map (self-only, older servers)
+        // means "no per-account detail", so fall back to the parsed row count.
+        final applied = result.values.isEmpty
+            ? parsed.length
+            : result.values.reduce((a, b) => a < b ? a : b);
+        final accounts = result.isEmpty ? 1 : result.length;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(applied >= parsed.length
+              ? s.appliedPrices(parsed.length, accounts)
+              : s.appliedPricesPartial(applied, parsed.length, accounts)),
+        ));
       }
       await _load();
     } catch (e) {

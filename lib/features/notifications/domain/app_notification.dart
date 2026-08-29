@@ -111,3 +111,35 @@ class AppNotification {
         isRead: isRead ?? this.isRead,
       );
 }
+
+/// UX-88 — the delivery tally `POST /api/notifications` answers with.
+///
+/// A broadcast used to be confirmed with "Notification sent!", the same six
+/// characters whether it went to one shop or to every account in the country.
+/// Only the server knows the audience size (the client picks a *scope*), so the
+/// create endpoint now returns `{notification, accounts, recipients}` and the
+/// toast can name a number.
+///
+/// Both counts are **nullable on purpose**. The two repos deploy independently,
+/// so a client can meet a backend that still answers with the bare notification;
+/// [hasTally] is false there and the caller falls back to the audience-only
+/// wording. Treating a missing tally as `0` would announce "no account can
+/// receive it" over a broadcast that in fact went out fine.
+class NotificationReach {
+  /// Accounts (entities) whose inbox the notification landed in. Null = the
+  /// server did not report a tally.
+  final int? accounts;
+
+  /// Individual logins that can open it — an account with three users counts
+  /// once in [accounts] and three times here. Null = not reported.
+  final int? recipients;
+
+  const NotificationReach({this.accounts, this.recipients});
+
+  bool get hasTally => accounts != null;
+
+  factory NotificationReach.fromJson(Map<String, dynamic> j) => NotificationReach(
+        accounts: (j['accounts'] as num?)?.toInt(),
+        recipients: (j['recipients'] as num?)?.toInt(),
+      );
+}

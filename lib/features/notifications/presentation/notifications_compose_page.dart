@@ -59,9 +59,63 @@ class _S {
       p('Notification sent to $audience', 'أُرسل الإشعار إلى $audience');
   String get audAllPos => p('all POS operators', 'كل مستخدمي نقاط البيع');
   String get audEveryone => p('everyone', 'الجميع');
-  String audAccounts(int n) => p(
+  String audAccounts(int n) => accountsPhrase(n);
+
+  /// UX-88 — the toast the server's tally makes possible.
+  ///
+  /// `POST /api/notifications` now answers with how many accounts and logins the
+  /// send actually reached, so the confirmation carries the audience SIZE and not
+  /// only its name. Shaped like the withdraw toast the app already gets right
+  /// ("Withdrew 60 of 100 — 40 left"): what happened, then the numbers.
+  ///
+  /// Three cases, in the order they are decided:
+  ///  * nothing was reached — the send succeeded but no live account can open it,
+  ///    which is the one outcome a sender must not read as success;
+  ///  * the audience phrase already IS this number (an "n accounts" send that
+  ///    reached all n) — repeating it would say the same thing twice;
+  ///  * otherwise, append the reach.
+  ///
+  /// [audienceAccounts] is how many accounts the sender picked, when the audience
+  /// was picked BY account; null for a tier or everyone broadcast.
+  String sentSummary({
+    required bool alert,
+    required String audience,
+    required int accounts,
+    required int recipients,
+    required bool posOnly,
+    int? audienceAccounts,
+  }) {
+    final head = alert ? sentAlertTo(audience) : sentNoticeTo(audience);
+    if (accounts <= 0) {
+      return p('$head — but no account can receive it yet',
+          '$head — لكن لا يوجد حساب يمكنه استلامه');
+    }
+    if (!posOnly && audienceAccounts == accounts) return head;
+    final reach = posOnly ? posUsersPhrase(recipients) : accountsPhrase(accounts);
+    return p('$head — reached $reach', '$head — وصل إلى $reach');
+  }
+
+  /// Arabic counts a noun three different ways depending on the number, so a
+  /// single "$n حسابات" template reads wrong for most values ("2 حسابات",
+  /// "12 حسابات"). Dual for 2, broken plural for 3–10, accusative singular from
+  /// 11 up.
+  String accountsPhrase(int n) => p(
       n == 1 ? '1 account' : '$n accounts',
-      n == 1 ? 'حساب واحد' : '$n حسابات');
+      switch (n) {
+        1 => 'حساب واحد',
+        2 => 'حسابين',
+        <= 10 => '$n حسابات',
+        _ => '$n حساباً',
+      });
+
+  String posUsersPhrase(int n) => p(
+      n == 1 ? '1 POS operator' : '$n POS operators',
+      switch (n) {
+        1 => 'مستخدم نقطة بيع واحد',
+        2 => 'مستخدمَين لنقاط البيع',
+        <= 10 => '$n مستخدمين لنقاط البيع',
+        _ => '$n مستخدماً لنقاط البيع',
+      });
   /// "POS operators in [the named tiers]" — posOnly narrows a tier/entity audience too,
   /// and a confirmation that omits the narrowing overstates the reach.
   String posWithin(String audience) =>
@@ -80,6 +134,14 @@ class _S {
         _ => t,
       };
 }
+
+/// Test seam for the UX-88 send confirmation. The toast is the only report a
+/// sender ever gets about how far a broadcast went, and its wording is decided by
+/// arithmetic (zero reach / redundant reach / plain reach) plus Arabic number
+/// agreement — none of which a widget test would surface. Assert the strings.
+NotificationStrings notificationStringsFor(bool ar) => _S(ar);
+
+typedef NotificationStrings = _S;
 
 const _tierOptions = [
   ('INTESHAR', 'typeHq'),
@@ -289,10 +351,14 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
     // happened, and `_send` clears the audience on success.
     final audience = _audienceLabel(s);
     final wasAlert = _isAlert;
+    final wasPosOnly = _posOnly;
+    // Only meaningful when the audience was picked BY account; a tier or
+    // everyone broadcast has no picked count to compare the reach against.
+    final pickedAccounts = _mode == _Mode.entity ? _entityIds.length : null;
 
     setState(() { _sending = true; _error = null; });
     try {
-      await NotificationRepository(ref.read(apiClientProvider)).send(
+      final reach = await NotificationRepository(ref.read(apiClientProvider)).send(
         title: _titleCtrl.text.trim(),
         body: _bodyCtrl.text.trim(),
         audienceType: switch (_mode) { _Mode.all => 'ALL', _Mode.type => 'TIER', _Mode.entity => 'ENTITY' },
@@ -312,11 +378,22 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
         _entityIds.clear();
         _posOnly = false;
       });
-      // UX-88: names the kind and the audience. A true recipient COUNT would be
-      // better still, but `POST /api/notifications` returns the created
-      // Notification and no delivery tally — that needs a backend change.
-      showOk(context,
-          wasAlert ? s.sentAlertTo(audience) : s.sentNoticeTo(audience));
+      // UX-88: names the kind, the audience AND how far it reached. A backend
+      // that predates the tally reports none (`hasTally == false`) — say less
+      // rather than announce a zero the server never claimed.
+      showOk(
+        context,
+        reach.hasTally
+            ? s.sentSummary(
+                alert: wasAlert,
+                audience: audience,
+                accounts: reach.accounts ?? 0,
+                recipients: reach.recipients ?? 0,
+                posOnly: wasPosOnly,
+                audienceAccounts: pickedAccounts,
+              )
+            : (wasAlert ? s.sentAlertTo(audience) : s.sentNoticeTo(audience)),
+      );
       widget.onSent();
     } catch (e) {
       if (mounted) setState(() { _sending = false; _error = friendlyError(e, context); });

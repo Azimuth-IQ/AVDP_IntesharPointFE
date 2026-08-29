@@ -180,7 +180,11 @@ class _ProbePageState extends State<_ProbePage> {
     appBar: AppBar(
       title: const Text('Printer probe'),
       actions: [
-        IconButton(onPressed: _busy ? null : _scan, icon: const Icon(Icons.refresh)),
+        IconButton(
+          onPressed: _busy ? null : _scan,
+          tooltip: 'Rescan',
+          icon: const Icon(Icons.refresh),
+        ),
       ],
     ),
     body: ListView(

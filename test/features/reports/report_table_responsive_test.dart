@@ -72,6 +72,29 @@ void main() {
     expect(meta.first.contains('·'), isTrue);
   });
 
+  testWidgets('UX-121: a desktop-width table draws GENUINELY shorter rows',
+      (tester) async {
+    // Vertical distance from one row's identity to the next one's — i.e. the
+    // real, laid-out row pitch, dividers and all. Both cells are single-line at
+    // every width, so the only thing that can move this number is the padding.
+    Future<double> pitch(double width) async {
+      await pump(tester, Size(width, 900));
+      return tester.getTopLeft(find.text('Noor Mobile Center')).dy -
+          tester.getTopLeft(find.text('مكتب سعد للاتصالات')).dy;
+    }
+
+    // 900 − 32 of list gutter = 868: a tablet table.
+    final comfortable = await pitch(900);
+    // 1200 − 32 = 1168: the console. This is the width that used to be served
+    // identical rows to the tablet above.
+    final dense = await pitch(1200);
+
+    expect(dense, lessThan(comfortable),
+        reason: 'the whole point of the wide tier');
+    // 12 → 8 of padding, top and bottom.
+    expect(comfortable - dense, closeTo(8, 0.5));
+  });
+
   testWidgets('the row identity and its figure survive BOTH layouts', (tester) async {
     for (final size in [const Size(1200, 900), const Size(360, 900)]) {
       await pump(tester, size);

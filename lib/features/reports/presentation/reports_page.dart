@@ -909,7 +909,10 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     final tabs = _tabsFor(s);
     if (_tab >= tabs.length) _tab = 0;
     final key = tabs[_tab].key;
-    return MaxWidthBox(
+    // UX-121: `.wide` (1600), not the prose cap (1280). Every tab on this page
+    // is a table meant to be scanned down a column, and the prose cap was
+    // throwing away ~320dp of a 1080p console — the width the dense tier needs.
+    return MaxWidthBox.wide(
       child: Column(
         children: [
           PageHeader(
@@ -1424,8 +1427,6 @@ class _ReportSurfaceState extends State<_ReportSurface> {
   int? _sortIndex;
   bool _desc = true;
 
-  static const _wide = 720.0;
-
   List<int> get _sortable => [
         for (var i = 0; i < widget.columns.length; i++)
           if (widget.columns[i].numeric) i,
@@ -1468,7 +1469,10 @@ class _ReportSurfaceState extends State<_ReportSurface> {
     final rows = _rows;
     return LayoutBuilder(
       builder: (context, c) {
-        final wide = c.maxWidth >= _wide;
+        // UX-121: three tiers, not two. The old single 720 threshold gave a
+        // 1440dp browser the same finger-sized rows as a 760dp tablet.
+        final density = TableDensity.forWidth(c.maxWidth);
+        final wide = density.tabular;
         return Container(
           decoration: BoxDecoration(
             color: cs.surface,
@@ -1481,7 +1485,7 @@ class _ReportSurfaceState extends State<_ReportSurface> {
             children: [
               // A phone has no column header to tap, and every POS user is on one.
               if (!wide && _sortable.isNotEmpty && widget.rows.isNotEmpty) _narrowSortBar(cs),
-              if (wide) _header(cs),
+              if (wide) _header(cs, density),
               // Sorting a partial feed answers "the lowest of the ones loaded",
               // which is a different question from the one being asked.
               if (_sortIndex != null && widget.partial) _partialSortNote(rows.length),
@@ -1490,7 +1494,7 @@ class _ReportSurfaceState extends State<_ReportSurface> {
               else
                 for (var i = 0; i < rows.length; i++) ...[
                   if (i > 0) Divider(height: 1, thickness: 1, color: cs.outlineVariant),
-                  wide ? _wideRow(cs, rows[i]) : _narrowRow(cs, rows[i]),
+                  wide ? _wideRow(cs, rows[i], density) : _narrowRow(cs, rows[i]),
                 ],
             ],
           ),
@@ -1583,15 +1587,15 @@ class _ReportSurfaceState extends State<_ReportSurface> {
     );
   }
 
-  /// UX-119: the vertical padding used to live HERE, outside the per-cell
-  /// InkWell — so the sort control's actual hit area was the 15dp glyph line
-  /// while the header looked 35dp tall. It moved into [_headerCell], which now
-  /// carries a 44dp floor, so the whole cell is the target for both pointers
-  /// and fingers.
-  static const double _headerCellMinHeight = 44;
+  /// Horizontal inset of a header cell.
+  ///
+  /// It was 14 against the rows' [IntesharSpacing.md] — so every column label
+  /// sat 2px off the cells it heads, which is exactly the misalignment a table
+  /// exists to avoid. One value now.
+  static const double _cellPadX = IntesharSpacing.md;
 
-  Widget _header(ColorScheme cs) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14),
+  Widget _header(ColorScheme cs, TableDensity density) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: _cellPadX),
         decoration: BoxDecoration(
           color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
           border: Border(bottom: BorderSide(color: cs.outlineVariant)),
@@ -1601,14 +1605,20 @@ class _ReportSurfaceState extends State<_ReportSurface> {
             for (var i = 0; i < widget.columns.length; i++)
               Expanded(
                 flex: widget.columns[i].flex,
-                child: _headerCell(cs, i),
+                child: _headerCell(cs, i, density),
               ),
           ],
         ),
       );
 
   /// A figure column is tappable to sort; everything else is a plain label.
-  Widget _headerCell(ColorScheme cs, int i) {
+  ///
+  /// UX-119: the vertical padding used to live in [_header], outside the
+  /// per-cell InkWell — so the sort control's actual hit area was the 15dp glyph
+  /// line while the header looked 35dp tall. It lives here, on a floor the
+  /// density tier sets: 44dp where a finger might land, 36 on a desktop table
+  /// where the pointer is a mouse (UX-121).
+  Widget _headerCell(ColorScheme cs, int i, TableDensity density) {
     final col = widget.columns[i];
     final text = Text(
       col.label,
@@ -1620,7 +1630,7 @@ class _ReportSurfaceState extends State<_ReportSurface> {
     );
     if (!col.numeric) {
       return Container(
-        constraints: const BoxConstraints(minHeight: _headerCellMinHeight),
+        constraints: BoxConstraints(minHeight: density.headerMinHeight),
         alignment: AlignmentDirectional.centerStart,
         child: text,
       );
@@ -1632,7 +1642,7 @@ class _ReportSurfaceState extends State<_ReportSurface> {
       child: InkWell(
         onTap: () => _tapColumn(i),
         child: Container(
-          constraints: const BoxConstraints(minHeight: _headerCellMinHeight),
+          constraints: BoxConstraints(minHeight: density.headerMinHeight),
           alignment: AlignmentDirectional.centerEnd,
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -1654,9 +1664,13 @@ class _ReportSurfaceState extends State<_ReportSurface> {
     );
   }
 
-  Widget _wideRow(ColorScheme cs, List<_RCell> cells) => Padding(
-        padding: const EdgeInsets.symmetric(
-            horizontal: IntesharSpacing.md, vertical: IntesharSpacing.md),
+  Widget _wideRow(ColorScheme cs, List<_RCell> cells, TableDensity density) => _HoverRow(
+        // UX-121: a dense eight-column row 1500dp wide is a long way to track a
+        // value back to the name that owns it. The tint is a READING aid, so it
+        // deliberately leaves the cursor alone — these rows are not tappable and
+        // a `click` cursor would promise an action that does not exist.
+        padding: EdgeInsets.symmetric(
+            horizontal: _cellPadX, vertical: density.rowPadY),
         child: Row(
           children: [
             for (var i = 0; i < widget.columns.length; i++)
@@ -1772,6 +1786,42 @@ class _ReportSurfaceState extends State<_ReportSurface> {
                 style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// A table row that tints under the pointer (UX-121).
+///
+/// [MouseRegion] only ever fires for a real pointer, so a POS handheld and a
+/// phone are untouched by this — it costs them one extra widget and no paint.
+class _HoverRow extends StatefulWidget {
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+
+  const _HoverRow({required this.child, required this.padding});
+
+  @override
+  State<_HoverRow> createState() => _HoverRowState();
+}
+
+class _HoverRowState extends State<_HoverRow> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: Container(
+        // The same recessed tone the header uses, at half its strength: enough
+        // to follow a row across, not enough to read as a selection.
+        color: _hovered
+            ? cs.surfaceContainerHighest.withValues(alpha: 0.25)
+            : Colors.transparent,
+        padding: widget.padding,
+        child: widget.child,
       ),
     );
   }

@@ -189,7 +189,15 @@ enum CardDensity {
 /// legible form of drift there is. The white fill wins (it is the ~60-site
 /// majority and the one `cardTheme` paints); [bordered] carries the hairline for
 /// the callers that wanted the extra definition.
-class InkCard extends StatelessWidget {
+///
+/// UX-121 — **hover**. A tappable card had no pointer feedback whatsoever. The
+/// `InkWell` below does carry `splashColor`/`highlightColor`, but its ink paints
+/// on the `Material` *underneath* its child, and that child is an opaque tile —
+/// so every ripple and hover overlay was drawn and then covered up. On the HQ
+/// console, which is a full-time mouse workload, nothing on a card said it could
+/// be clicked until you clicked it. The feedback therefore has to live in the
+/// tile's own decoration, which is what [_InkCardState] does.
+class InkCard extends StatefulWidget {
   final Widget child;
   final Color? ruleColor;
 
@@ -239,29 +247,43 @@ class InkCard extends StatelessWidget {
   });
 
   @override
+  State<InkCard> createState() => _InkCardState();
+}
+
+class _InkCardState extends State<InkCard> {
+  bool _hovered = false;
+
+  /// Long enough to read as a response, short enough that dragging the pointer
+  /// across a roster does not leave a trail of tiles still animating.
+  static const _hoverFade = Duration(milliseconds: 120);
+
+  @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final radius = borderRadius ?? BorderRadius.circular(IntesharRadii.lg);
-    final bg = background ?? cs.surfaceContainer;
-    final insets =
-        padding ?? (dense ? CardDensity.dense : density).padding;
+    final tones = context.tones;
+    final radius =
+        widget.borderRadius ?? BorderRadius.circular(IntesharRadii.lg);
+    final insets = widget.padding ??
+        (widget.dense ? CardDensity.dense : widget.density).padding;
+    final interactive = widget.onTap != null || widget.onLongPress != null;
+    final hovered = interactive && _hovered;
 
     final content = ClipRRect(
       borderRadius: radius,
       child: Stack(
         children: [
-          if (ruleColor != null)
+          if (widget.ruleColor != null)
             PositionedDirectional(
               start: 0,
               top: 0,
               bottom: 0,
-              child: Container(width: 4, color: ruleColor),
+              child: Container(width: 4, color: widget.ruleColor),
             ),
           Padding(
-            padding: ruleColor != null
+            padding: widget.ruleColor != null
                 ? insets.add(const EdgeInsetsDirectional.only(start: 4))
                 : insets,
-            child: child,
+            child: widget.child,
           ),
         ],
       ),
@@ -272,28 +294,49 @@ class InkCard extends StatelessWidget {
     // dark mode nor daylight provides them. In the stock light theme this is
     // byte-identical to the previous `IntesharShadows.elev1` + no border.
     final surfaces = context.surfaces;
-    final tile = Container(
+    final base = widget.background ?? cs.surfaceContainer;
+    // UX-121: the hover signal is a brand WASH over the fill, not a lift, so it
+    // still lands in the two modes where `surfaces.shadow` is empty by design
+    // (dark, high contrast) and a raised shadow would say nothing at all. The
+    // lift is layered on top wherever shadows are in play.
+    final tile = AnimatedContainer(
+      duration: _hoverFade,
+      curve: Curves.easeOut,
       decoration: BoxDecoration(
-        color: bg,
+        color: hovered
+            ? Color.alphaBlend(tones.brand.withValues(alpha: 0.06), base)
+            : base,
         borderRadius: radius,
-        border: (bordered || surfaces.hairline)
-            ? Border.all(color: cs.outlineVariant)
+        // Only the border's COLOUR reacts. Growing a border on hover would
+        // inset the child by a pixel and make the whole card's content twitch.
+        border: (widget.bordered || surfaces.hairline)
+            ? Border.all(
+                color: hovered
+                    ? tones.brandOnSurface.withValues(alpha: 0.45)
+                    : cs.outlineVariant)
             : null,
-        boxShadow: elevated ? surfaces.shadow : const [],
+        boxShadow: widget.elevated
+            ? (hovered ? surfaces.shadowRaised : surfaces.shadow)
+            : const [],
       ),
       child: content,
     );
 
-    if (onTap == null && onLongPress == null) return tile;
+    if (!interactive) return tile;
     return Material(
       color: Colors.transparent,
       borderRadius: radius,
       child: InkWell(
-        onTap: onTap,
-        onLongPress: onLongPress,
+        onTap: widget.onTap,
+        onLongPress: widget.onLongPress,
         borderRadius: radius,
-        splashColor: context.tones.brand.withValues(alpha: 0.10),
-        highlightColor: context.tones.brand.withValues(alpha: 0.05),
+        // `onHover` reuses the MouseRegion InkWell already builds, and only ever
+        // fires for a real pointer — a finger never triggers it.
+        onHover: (h) {
+          if (h != _hovered) setState(() => _hovered = h);
+        },
+        splashColor: tones.brand.withValues(alpha: 0.10),
+        highlightColor: tones.brand.withValues(alpha: 0.05),
         child: tile,
       ),
     );

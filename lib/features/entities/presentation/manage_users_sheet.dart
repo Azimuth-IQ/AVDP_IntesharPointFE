@@ -626,6 +626,10 @@ class _UserRow extends StatelessWidget {
             else if (canReset)
               PopupMenuButton<String>(
                 key: Key('remove-${user.phone}'),
+                // UX-121: an unlabelled `⋮` next to a user row could be reset,
+                // remove or anything else — name it rather than leaving the
+                // framework's generic "Show menu".
+                tooltip: ar ? 'إجراءات المستخدم' : 'User actions',
                 icon: Icon(
                   Icons.more_vert,
                   size: 18,

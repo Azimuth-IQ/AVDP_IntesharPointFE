@@ -34,6 +34,70 @@ class Breakpoints {
 
 enum ScreenSize { mobile, tablet, desktop }
 
+/// How much air a DATA TABLE gives each of its rows (UX-121).
+///
+/// The report surface had exactly one breakpoint — 720 — so a 1440dp browser
+/// window rendered the same rows as a 760dp tablet: 12dp of padding above and
+/// below every line, sized for a fingertip, on a screen nobody touches. The HQ
+/// console is a full-time mouse workload; a third of the vertical space in the
+/// table was being spent on a target that no longer needs to be 44dp.
+///
+/// The tier is decided from the width the **table itself** was handed, not the
+/// viewport, because that is the number that decides what fits. On the desktop
+/// shell the chrome costs a fixed 280dp of sidebar plus 16dp of gutter each
+/// side, so:
+///
+/// | viewport | table width | tier |
+/// |----------|-------------|------|
+/// | 360      | 328         | [stacked] |
+/// | 1024     | 712         | [stacked] — one pixel short of columns |
+/// | 1280     | 968         | [comfortable] |
+/// | 1440     | 1128        | [dense] |
+/// | 1920     | 1568 (capped at [Breakpoints.contentWideMax]) | [dense] |
+///
+/// Density here is spent on **padding, not type**: shrinking the figures would
+/// buy more rows and cost the legibility the type scale was tuned for.
+enum TableDensity {
+  /// Below [columnsFrom] — no room for aligned columns at all, so a record
+  /// stacks onto two lines instead. Finger padding, because this is the phone.
+  stacked(rowPadY: IntesharSpacing.md, headerMinHeight: 0),
+
+  /// The tablet table: real columns, rows still sized for a fingertip.
+  comfortable(rowPadY: IntesharSpacing.md, headerMinHeight: 44),
+
+  /// The desktop table. Row padding drops a step and the header loses the 44dp
+  /// touch floor (a mouse does not need it), which is ~19% more rows per screen
+  /// — four extra agents on a 900dp-tall viewport.
+  dense(rowPadY: IntesharSpacing.sm, headerMinHeight: 36);
+
+  const TableDensity({required this.rowPadY, required this.headerMinHeight});
+
+  /// Padding above and below a data row.
+  final double rowPadY;
+
+  /// Floor on the column-header cell — it is also the sort control's hit area,
+  /// so it is a tap target, not decoration (UX-119).
+  final double headerMinHeight;
+
+  /// Narrowest width that can carry aligned columns.
+  static const double columnsFrom = 720;
+
+  /// Narrowest width that is unambiguously a desktop browser rather than a
+  /// tablet held in two hands.
+  static const double denseFrom = 1100;
+
+  /// True when the tier renders real columns rather than stacked lines.
+  bool get tabular => this != TableDensity.stacked;
+
+  /// The tier for a table [width]. Degenerate widths (0 and NaN both arrive
+  /// from a transient layout pass) fall back to the safest layout, which is the
+  /// one that needs no width at all.
+  static TableDensity forWidth(double width) {
+    if (width.isNaN || width < columnsFrom) return stacked;
+    return width >= denseFrom ? dense : comfortable;
+  }
+}
+
 extension ResponsiveBuildContext on BuildContext {
   double get screenWidth => MediaQuery.sizeOf(this).width;
 

@@ -77,6 +77,9 @@ class _S {
   String get restrictSection => p('Restrict for agents', 'تقييد لوكلاء');
   String get restrictHint => p('Hidden for the chosen agent and everything under it.', 'يُخفى عن الوكيل المحدد وكل ما تحته.');
   String get addAgent => p('Add agent', 'إضافة وكيل');
+  // UX-121: the row's `⋮` had no tooltip, so on a desktop console the only way
+  // to learn what it opens was to open it. Names the menu, not the glyph.
+  String get rowMenu => p('Company actions', 'إجراءات الشركة');
   String get done => p('Done', 'تم');
 }
 
@@ -339,6 +342,7 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
                 if (canManage)
                   PopupMenuButton<String>(
                     enabled: !_deleting.contains(c.id),
+                    tooltip: s.rowMenu,
                     icon: _deleting.contains(c.id)
                         ? const SizedBox(
                             width: 18,

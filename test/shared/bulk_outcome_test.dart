@@ -1,12 +1,17 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:inteshar/features/inventory/presentation/batch_add_page.dart';
+import 'package:inteshar/shared/widgets/multi_select.dart';
 
 /// UX-11 — what a bulk action leaves behind when it half-succeeds.
 ///
-/// The bulk levers on this screen are Pause and Withdraw, i.e. a supplier
-/// RECALL, and a recall is never one batch. Half-success is therefore the normal
-/// case worth designing for, not the edge: some batches will already be paused,
-/// already withdrawn, or owned by someone who has since been deleted.
+/// Written for the Batches tab, whose bulk levers are Pause and Withdraw, i.e. a
+/// supplier RECALL — and a recall is never one batch. Half-success is therefore
+/// the normal case worth designing for, not the edge: some batches will already
+/// be paused, already withdrawn, or owned by someone who has since been deleted.
+///
+/// It moved to `shared/widgets/multi_select.dart` with the rest of the selection
+/// mechanism, so the same contract now governs the catalog and the POS lists —
+/// which is the point: "what happens when 7 of 10 succeed?" gets one answer,
+/// not one per screen.
 ///
 /// None of this is visible by clicking through with everything working, which is
 /// why it is pinned here.

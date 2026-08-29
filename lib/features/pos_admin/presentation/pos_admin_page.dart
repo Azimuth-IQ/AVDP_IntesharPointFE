@@ -24,6 +24,7 @@ import 'package:inteshar/features/pos_admin/presentation/store_pos_view.dart';
 import 'package:inteshar/features/reports/data/reports_repository.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
+import 'package:inteshar/shared/widgets/multi_select.dart';
 import 'package:inteshar/shared/widgets/password_field.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
@@ -128,6 +129,17 @@ class _S {
   // omitted rather than shown as a confident zero when the feed refuses.
   String get balance => p('Balance', 'الرصيد');
   String get outOfCredit => p('out of credit', 'بلا رصيد');
+  // UX-11: bulk activate/deactivate over a roster of shops. An agent with forty
+  // shops used to close for the night forty times.
+  static const posUnit = BulkUnit(ar: 'نقطة بيع', en: 'points of sale');
+  String activateN(int n) => p('Activate $n points of sale?', 'تفعيل $n نقطة بيع؟');
+  String deactivateN(int n) => p('Deactivate $n points of sale?', 'إيقاف $n نقطة بيع؟');
+  String get activateBody => p(
+      'Their operators can sign in and sell again.',
+      'سيتمكن مشغّلوها من تسجيل الدخول والبيع مجدداً.');
+  String get deactivateBody => p(
+      'Their operators stop being able to sign in. Nothing is deleted and it can be undone by activating them again.',
+      'لن يتمكن مشغّلوها من تسجيل الدخول. لا يُحذف شيء ويمكن التراجع بتفعيلها مرة أخرى.');
   String get alreadyExistsBody => p(
       'A POS user is already registered with this phone number. Use a different number, or find the existing point in the list.',
       'يوجد مستخدم نقطة بيع مسجل بهذا الرقم. استخدم رقماً آخر، أو ابحث عن النقطة الموجودة في القائمة.');
@@ -212,6 +224,12 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
   String _query = '';
   Timer? _searchDebounce;
 
+  /// UX-11: multi-select over the shop roster. Deactivating for a holiday, or
+  /// reactivating after one, was N × (find row → tap → confirm → wait → reload)
+  /// on a list that routinely runs to dozens of shops.
+  SelectionState _selection = SelectionState.off;
+  bool _bulkBusy = false;
+
   static const _pageSize = 50;
 
   /// Debounced so typing a name fires one request, not one per keystroke.
@@ -262,6 +280,10 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
         _quota = quota;
         _balances = balances;
         _loading = false;
+        // A shop that was archived (or paged away by a new search) must stop
+        // being counted — otherwise the bar says "5 selected" over four rows and
+        // the next run posts an id the roster no longer holds.
+        _selection = _selection.retain(first.items.map((e) => e.id));
       });
     } catch (e) {
       if (mounted) setState(() { _error = e; _loading = false; });
@@ -393,7 +415,15 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
                   label: Text(s.tabArchived)),
             ],
             selected: {_showArchive},
-            onSelectionChanged: (v) => setState(() => _showArchive = v.first),
+            onSelectionChanged: _bulkBusy
+                ? null
+                : (v) => setState(() {
+                      _showArchive = v.first;
+                      // The archive is a different roster with different actions;
+                      // carrying a selection across would leave shops ticked that
+                      // the bar's actions cannot touch.
+                      _selection = SelectionState.off;
+                    }),
           ),
           const SizedBox(height: 12),
           if (_showArchive) ...[
@@ -460,26 +490,50 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
           ],
           const SizedBox(height: 16),
           // B-129: find one shop without scrolling a paged list.
-          TextField(
-            decoration: InputDecoration(
-              isDense: true,
-              prefixIcon: const Icon(Icons.search, size: 18),
-              hintText: s.searchPos,
-              suffixIcon: _query.isEmpty
-                  ? null
-                  : IconButton(
-                      // UX-150: a bare x inside a search box.
-                      tooltip: MaterialLocalizations.of(context).deleteButtonTooltip,
-                      icon: const Icon(Icons.close, size: 18),
-                      onPressed: () {
-                        _searchDebounce?.cancel();
-                        setState(() => _query = '');
-                        _load(silent: true);
-                      },
-                    ),
+          Row(children: [
+            Expanded(
+              child: TextField(
+                enabled: !_bulkBusy,
+                decoration: InputDecoration(
+                  isDense: true,
+                  prefixIcon: const Icon(Icons.search, size: 18),
+                  hintText: s.searchPos,
+                  suffixIcon: _query.isEmpty
+                      ? null
+                      : IconButton(
+                          // UX-150: a bare x inside a search box.
+                          tooltip:
+                              MaterialLocalizations.of(context).deleteButtonTooltip,
+                          icon: const Icon(Icons.close, size: 18),
+                          onPressed: () {
+                            _searchDebounce?.cancel();
+                            setState(() => _query = '');
+                            _load(silent: true);
+                          },
+                        ),
+                ),
+                onChanged: _onSearchChanged,
+              ),
             ),
-            onChanged: _onSearchChanged,
-          ),
+            // UX-11: the same switch, in the same place, as the Batches tab.
+            SelectionModeButton(
+              state: _selection,
+              enabled: !_bulkBusy && !_pageBusy,
+              onChanged: (v) => setState(() => _selection = v),
+            ),
+          ]),
+          if (_selection.active) ...[
+            const SizedBox(height: 8),
+            SelectionBar(
+              state: _selection,
+              visibleIds: [for (final st in _stores) st.id],
+              onChanged: (v) => setState(() => _selection = v),
+              onBusyChanged: (b) => setState(() => _bulkBusy = b),
+              onCompleted: () => _load(silent: true),
+              unit: _S.posUnit,
+              actions: _bulkActions(s),
+            ),
+          ],
           const SizedBox(height: 12),
           if (_stores.isEmpty)
             Padding(
@@ -509,6 +563,36 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
       ),
     );
   }
+
+  /// UX-11: what a selection of shops can be told to do, in bulk.
+  ///
+  /// Deliberately only the two reversible lifecycle levers. Archiving is left
+  /// off: it starts a countdown to permanent deletion and the server wants an
+  /// authenticator code per shop, so a "batch archive" would either weaken that
+  /// gate or ask for forty codes. The PIN/password/2FA resets are left off for a
+  /// different reason — each one produces a secret that has to be handed to one
+  /// named operator, so doing forty at once produces forty secrets nobody
+  /// collected.
+  List<BulkAction> _bulkActions(_S s) => [
+        BulkAction(
+          label: s.activate,
+          icon: Icons.check_circle_outline,
+          title: s.activateN,
+          body: (_) => s.activateBody,
+          run: (id) => _repo.setActive(id, true),
+        ),
+        BulkAction(
+          label: s.deactivate,
+          icon: Icons.block,
+          // Reversible — one tap of Activate puts it back — so it stops short of
+          // the type-the-count gate. It still stops shops trading, so it is
+          // rendered last, in danger tone, behind a divider.
+          severity: BulkSeverity.danger,
+          title: s.deactivateN,
+          body: (_) => s.deactivateBody,
+          run: (id) => _repo.setActive(id, false),
+        ),
+      ];
 
   Widget _quotaCard(_S s, PosSlotBalance q) => BrandKpiStrip(stats: [
         (s.available, q.root ? '∞' : Formatters.money(q.available)),
@@ -552,13 +636,31 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     // a missing line is honest where a confident "0 د.ع" would be a lie that
     // sends a manager to top up a shop that is already funded.
     final balance = _balances?[store.id];
+    final selecting = _selection.active;
+    final selected = _selection.contains(store.id);
     return InkCard(
       density: CardDensity.dense,
+      ruleColor: selected ? context.tones.brand : null,
       // UX-07: the whole card opens the shop's diagnostics. The row buttons keep
       // their own taps — they sit in a Wrap below and swallow theirs first.
-      onTap: () => showPosShopSheet(context, ref, store: store),
+      // UX-11: in selection mode the card ticks instead, so a roster is swept
+      // with one tap per row rather than a menu per row.
+      onTap: selecting
+          ? () => setState(() => _selection = _selection.toggle(store.id))
+          : () => showPosShopSheet(context, ref, store: store),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
+          if (selecting) ...[
+            SelectionCheckbox(
+              selected: selected,
+              semanticLabel: name,
+              onChanged: _bulkBusy
+                  ? null
+                  : (_) => setState(
+                      () => _selection = _selection.toggle(store.id)),
+            ),
+            const SizedBox(width: IntesharSpacing.xs),
+          ],
           Expanded(child: Text(name, style: IntesharType.sans(16, color: cs.onSurface, w: FontWeight.w700))),
           // UX-144: `cs.outline` is a hairline BORDER token — as pill text on
           // white it is 1.22:1, so "موقوف" was invisible and the only real signal
@@ -643,7 +745,9 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     final busy = _isBusy(key);
     return OutlinedButton(
       style: style,
-      onPressed: (onPressed == null || _pageBusy || _rowBusy(storeId)) ? null : onPressed,
+      onPressed: (onPressed == null || _pageBusy || _bulkBusy || _rowBusy(storeId))
+          ? null
+          : onPressed,
       child: busy
           ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
           : Text(label),

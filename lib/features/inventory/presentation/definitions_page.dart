@@ -19,6 +19,7 @@ import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/image_upload_field.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/loading_state.dart';
+import 'package:inteshar/shared/widgets/multi_select.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 import 'package:inteshar/shared/widgets/sheet_frame.dart';
 
@@ -38,6 +39,11 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
   /// Category ids with a delete in flight (UX-87) — guards BOTH entry points.
   final Set<String> _deleting = {};
 
+  /// UX-11: multi-select over the catalog. Clearing out a retired provider's
+  /// denominations was one swipe-or-menu, one confirm and one reload per SKU.
+  SelectionState _selection = SelectionState.off;
+  bool _bulkBusy = false;
+
   @override
   void initState() {
     super.initState();
@@ -53,13 +59,51 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
       final api = ref.read(apiClientProvider);
       final repo = DefinitionRepository(api);
       final defs = await repo.readAll();
-      if (mounted) setState(() => _defs = defs);
+      if (mounted) {
+        setState(() {
+          _defs = defs;
+          _selection = _selection.retain(defs.map((d) => d.id));
+        });
+      }
     } catch (e) {
       if (mounted) setState(() => _error = e);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
+
+  /// UX-11: the catalog's one bulk lever.
+  ///
+  /// Deliberately WITHOUT the `force: true` override the single-row delete
+  /// offers. A category that still has vouchers answers 409, and the row delete
+  /// then shows the server's explanation and asks whether to delete anyway —
+  /// that is a per-category judgement about live stock, and answering it forty
+  /// times inside a loop is not a batch operation, it is forty decisions with
+  /// the reading removed. So a 409 here simply FAILS that row: it stays ticked,
+  /// the message names it, and the operator handles those few in the row menu
+  /// where the explanation is.
+  List<BulkAction> _bulkActions(AppLocalizations l) {
+    final repo = DefinitionRepository(ref.read(apiClientProvider));
+    return [
+      BulkAction(
+        label: l.defsDelete,
+        icon: Icons.delete_outline,
+        // The only irreversible batch in the app so far: prices and stock hang
+        // off these ids. The operator types the count before the button lives.
+        severity: BulkSeverity.irreversible,
+        title: (n) => _catalogAr
+            ? 'حذف $n فئة نهائياً؟'
+            : 'Permanently delete $n categories?',
+        body: (_) => _catalogAr
+            ? 'تُحذف هذه الفئات نهائياً. الفئات التي ما زالت تحتوي قسائم سترفض وتبقى محددة لتعالجها من قائمة الصف.'
+            : 'These categories are deleted permanently. Any that still hold vouchers will refuse and stay selected — handle those from the row menu.',
+        run: (id) => repo.delete(id),
+      ),
+    ];
+  }
+
+  bool get _catalogAr =>
+      Localizations.localeOf(context).languageCode == 'ar';
 
   Future<void> _showForm({ProductDefinition? existing}) async {
     final l = AppLocalizations.of(context)!;
@@ -251,17 +295,45 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
             ),
             Padding(
               padding: const EdgeInsetsDirectional.fromSTEB(16, 6, 16, 12),
-              child: TextField(
-                // UX-12: the catalog is a find-a-SKU screen on the HQ web
-                // console, so the caret starts in the box there. Never on a
-                // handheld — see `desktopSearchAutofocus`.
-                autofocus: desktopSearchAutofocus(context),
-                textInputAction: TextInputAction.search,
-                decoration: InputDecoration(
-                  hintText: l.defsSearchHint,
-                  prefixIcon: const Icon(Icons.search, size: 18),
-                ),
-                onChanged: (v) => setState(() => _search = v),
+              child: Column(
+                children: [
+                  Row(children: [
+                    Expanded(
+                      child: TextField(
+                        // UX-12: the catalog is a find-a-SKU screen on the HQ web
+                        // console, so the caret starts in the box there. Never on a
+                        // handheld — see `desktopSearchAutofocus`.
+                        autofocus: desktopSearchAutofocus(context),
+                        enabled: !_bulkBusy,
+                        textInputAction: TextInputAction.search,
+                        decoration: InputDecoration(
+                          hintText: l.defsSearchHint,
+                          prefixIcon: const Icon(Icons.search, size: 18),
+                        ),
+                        onChanged: (v) => setState(() => _search = v),
+                      ),
+                    ),
+                    SelectionModeButton(
+                      state: _selection,
+                      enabled: !_bulkBusy,
+                      onChanged: (v) => setState(() => _selection = v),
+                    ),
+                  ]),
+                  if (_selection.active) ...[
+                    const SizedBox(height: IntesharSpacing.sm),
+                    SelectionBar(
+                      state: _selection,
+                      // The FILTERED rows: "select shown" during a search must
+                      // never reach SKUs the search is hiding.
+                      visibleIds: [for (final d in filtered) d.id],
+                      onChanged: (v) => setState(() => _selection = v),
+                      onBusyChanged: (b) => setState(() => _bulkBusy = b),
+                      onCompleted: _load,
+                      unit: const BulkUnit(ar: 'فئة', en: 'categories'),
+                      actions: _bulkActions(l),
+                    ),
+                  ],
+                ],
               ),
             ),
             Expanded(
@@ -300,8 +372,13 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
                                         children: [
                                           Dismissible(
                                             key: ValueKey(def.id),
-                                            direction:
-                                                DismissDirection.endToStart,
+                                            // UX-11: swipe-to-delete is off in
+                                            // selection mode — a horizontal drag
+                                            // over a list being ticked is a
+                                            // mis-swipe, not a delete.
+                                            direction: _selection.active
+                                                ? DismissDirection.none
+                                                : DismissDirection.endToStart,
                                             background: Container(
                                               alignment: AlignmentDirectional
                                                   .centerEnd,
@@ -328,7 +405,14 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
                                             },
                                             child: _DefinitionRow(
                                               def: def,
-                                              busy: _deleting.contains(def.id),
+                                              busy: _deleting.contains(def.id) ||
+                                                  _bulkBusy,
+                                              selecting: _selection.active,
+                                              selected:
+                                                  _selection.contains(def.id),
+                                              onSelect: () => setState(() =>
+                                                  _selection =
+                                                      _selection.toggle(def.id)),
                                               onEdit: () =>
                                                   _showForm(existing: def),
                                               onDelete: () => _delete(def),
@@ -393,11 +477,19 @@ class _DefinitionRow extends StatefulWidget {
 
   /// A delete is in flight for this row — every control is inert (UX-87).
   final bool busy;
+
+  /// UX-11: the list is in selection mode, so the row ticks instead of editing.
+  final bool selecting;
+  final bool selected;
+  final VoidCallback onSelect;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   const _DefinitionRow(
       {required this.def,
       this.busy = false,
+      this.selecting = false,
+      this.selected = false,
+      required this.onSelect,
       required this.onEdit,
       required this.onDelete});
 
@@ -417,12 +509,22 @@ class _DefinitionRowState extends State<_DefinitionRow> {
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: InkWell(
-        onTap: widget.busy ? null : widget.onEdit,
+        onTap: widget.busy
+            ? null
+            : (widget.selecting ? widget.onSelect : widget.onEdit),
         child: Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 4, 12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              if (widget.selecting) ...[
+                SelectionCheckbox(
+                  selected: widget.selected,
+                  semanticLabel: widget.def.name,
+                  onChanged: widget.busy ? null : (_) => widget.onSelect(),
+                ),
+                const SizedBox(width: IntesharSpacing.xs),
+              ],
               // SKU tile — saffron on hover, recessed otherwise
               AnimatedContainer(
                 duration: const Duration(milliseconds: 160),

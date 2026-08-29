@@ -16,6 +16,7 @@ import 'package:inteshar/features/pos_admin/presentation/pos_admin_page.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/entity_search_picker.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
+import 'package:inteshar/shared/widgets/multi_select.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
 /// HQ-only network oversight (B-029): every agent's POS-slot line (used/unused points),
@@ -57,6 +58,17 @@ class _NS {
   String get cancel => p('Cancel', 'إلغاء');
   String get grant => p('Grant', 'منح');
   String get done => p('Done', 'تم');
+  // UX-11: granting points is HQ's most-repeated act on this roster, and it was
+  // one picker + one dialog PER AGENT. Onboarding a governorate meant doing it a
+  // dozen times.
+  static const agentUnit = BulkUnit(ar: 'وكيل', en: 'agents');
+  String get grantToSelected => p('Grant to selected', 'منح للمحددين');
+  String get atLeastOne => p('Enter at least 1', 'أدخل 1 على الأقل');
+  String grantN(int n) =>
+      p('Grant points to $n agents?', 'منح نقاط لـ $n وكيل؟');
+  String grantBody(int points, int agents) => p(
+      '$points POS points go to each of the $agents selected agents — $points × $agents in total.',
+      'ستذهب $points نقطة بيع إلى كل وكيل من الوكلاء الـ$agents المحددين — أي $points × $agents إجمالاً.');
 }
 
 class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
@@ -70,6 +82,16 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
   String _query = '';
   String _tier = ''; // '' = all, 'AGENT1', 'AGENT2'
   Timer? _debounce;
+
+  /// UX-11: multi-select over the agent roster, so one grant covers a whole
+  /// tier or a whole governorate's sub-agents.
+  SelectionState _selection = SelectionState.off;
+  bool _bulkBusy = false;
+
+  /// How many points the pending bulk grant gives EACH selected agent. Asked by
+  /// [BulkAction.prepare] before the confirmation, so the confirmation can state
+  /// both numbers.
+  int _grantEach = 1;
 
   PosAdminRepository get _repo => PosAdminRepository(ref.read(apiClientProvider));
 
@@ -108,6 +130,9 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
         _hasMore = pageData.hasMore;
         _page = 0;
         _loading = false;
+        // A tier filter or a search replaces the roster; ticks on rows that are
+        // no longer here must not survive into the next run.
+        _selection = _selection.retain(pageData.items.map((r) => r.entityId));
       });
     } catch (e) {
       if (mounted) setState(() { _error = e; _loading = false; });
@@ -212,6 +237,70 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
     }
   }
 
+  // ── UX-11: grant to a whole selection ──────────────────────────────────────
+
+  /// Asks how many points EACH selected agent gets, before the confirmation.
+  ///
+  /// A per-agent number rather than a pot to divide: that is what the single
+  /// grant has always meant, and quietly changing the unit at the moment the
+  /// operation gets bigger is how "grant 10" turns into 10 agents with 1 point.
+  Future<bool> _askGrantEach(_NS s) async {
+    final countCtrl = TextEditingController(text: '$_grantEach');
+    final formKey = GlobalKey<FormState>();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(s.grantToSelected),
+        content: Form(
+          key: formKey,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          child: TextFormField(
+            controller: countCtrl,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: InputDecoration(labelText: s.count, isDense: true),
+            validator: (v) {
+              final n = int.tryParse((v ?? '').trim());
+              // UX-73: an empty or zero count used to close the dialog and grant
+              // nothing, silently. In bulk that silence would cover N agents.
+              return (n == null || n < 1) ? s.atLeastOne : null;
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(s.cancel)),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState?.validate() ?? false) {
+                Navigator.pop(ctx, true);
+              }
+            },
+            child: Text(s.grant),
+          ),
+        ],
+      ),
+    );
+    final n = int.tryParse(countCtrl.text.trim()) ?? 0;
+    countCtrl.dispose();
+    if (ok != true || n < 1) return false;
+    _grantEach = n;
+    return true;
+  }
+
+  List<BulkAction> _bulkActions(_NS s) => [
+        BulkAction(
+          label: s.grant,
+          icon: Icons.card_giftcard,
+          prepare: () => _askGrantEach(s),
+          title: s.grantN,
+          body: (n) => s.grantBody(_grantEach, n),
+          run: (id) => _repo.grantSlots(destId: id, count: _grantEach),
+        ),
+      ];
+
   @override
   Widget build(BuildContext context) {
     final s = _NS.of(context);
@@ -248,14 +337,24 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
             ),
           ),
           const SizedBox(height: 14),
-          TextField(
-            decoration: InputDecoration(
-              labelText: s.search,
-              isDense: true,
-              prefixIcon: const Icon(Icons.search, size: 18),
+          Row(children: [
+            Expanded(
+              child: TextField(
+                enabled: !_bulkBusy,
+                decoration: InputDecoration(
+                  labelText: s.search,
+                  isDense: true,
+                  prefixIcon: const Icon(Icons.search, size: 18),
+                ),
+                onChanged: _onSearch,
+              ),
             ),
-            onChanged: _onSearch,
-          ),
+            SelectionModeButton(
+              state: _selection,
+              enabled: !_bulkBusy,
+              onChanged: (v) => setState(() => _selection = v),
+            ),
+          ]),
           const SizedBox(height: 10),
           SegmentedButton<String>(
             segments: [
@@ -265,8 +364,20 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
             ],
             selected: {_tier},
             showSelectedIcon: false,
-            onSelectionChanged: (v) => _setTier(v.first),
+            onSelectionChanged: _bulkBusy ? null : (v) => _setTier(v.first),
           ),
+          if (_selection.active) ...[
+            const SizedBox(height: 10),
+            SelectionBar(
+              state: _selection,
+              visibleIds: [for (final r in _rows) r.entityId],
+              onChanged: (v) => setState(() => _selection = v),
+              onBusyChanged: (b) => setState(() => _bulkBusy = b),
+              onCompleted: () => _reload(silent: true),
+              unit: _NS.agentUnit,
+              actions: _bulkActions(s),
+            ),
+          ],
           const SizedBox(height: 14),
           if (_rows.isEmpty)
             Padding(
@@ -299,12 +410,25 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
 
   Widget _agentCard(_NS s, PosNetworkRow r, ColorScheme cs) {
     final isSub = r.tier == 'AGENT2';
+    final selecting = _selection.active;
+    final selected = _selection.contains(r.entityId);
+    void toggle() =>
+        setState(() => _selection = _selection.toggle(r.entityId));
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: InkCard(
         density: CardDensity.dense,
-        onTap: () => _openAgent(r),
+        ruleColor: selected ? context.tones.brand : null,
+        onTap: selecting ? toggle : () => _openAgent(r),
         child: Row(children: [
+          if (selecting) ...[
+            SelectionCheckbox(
+              selected: selected,
+              semanticLabel: r.name.isNotEmpty ? r.name : r.entityId,
+              onChanged: _bulkBusy ? null : (_) => toggle(),
+            ),
+            const SizedBox(width: IntesharSpacing.xs),
+          ],
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
@@ -335,7 +459,10 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
             Text(s.points, style: IntesharType.overline(color: cs.onSurfaceVariant)),
           ]),
           const SizedBox(width: 6),
-          Icon(Directionality.of(context) == TextDirection.rtl ? Icons.chevron_left : Icons.chevron_right, color: cs.onSurfaceVariant),
+          // In selection mode the card ticks rather than drills in, so the
+          // chevron would be promising a hop that no longer happens.
+          if (!selecting)
+            Icon(Directionality.of(context) == TextDirection.rtl ? Icons.chevron_left : Icons.chevron_right, color: cs.onSurfaceVariant),
         ]),
       ),
     );

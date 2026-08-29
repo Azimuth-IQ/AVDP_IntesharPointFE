@@ -30,6 +30,7 @@ import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/loading_state.dart';
+import 'package:inteshar/shared/widgets/multi_select.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
 /// Inline bilingual label (the import tab adds several controls; rather than churn
@@ -121,49 +122,6 @@ List<BatchImportRequirement> batchImportMissing({
   }
   return missing;
 }
-
-/// What a bulk action leaves behind (UX-11).
-///
-/// Extracted for the same reason as [batchRowDecide] and [batchImportMissing]:
-/// this rule decides what happens after a RECALL half-succeeded, and a rule
-/// living in widget state cannot be tested without driving the page.
-///
-/// The rule: a bulk run over independent server calls does not stop at the
-/// first refusal and does not roll back. There is no transaction to roll back
-/// INTO — a "rollback" would be more mutations that can themselves fail — and
-/// stopping early leaves an arbitrary prefix applied while doing less work. So
-/// it finishes, then reports.
-///
-/// The failures stay SELECTED. That is not a convenience: it is the only record
-/// of which rows still need attention, and it makes "retry the three that
-/// failed" one tap instead of a hunt.
-class BulkOutcome {
-  /// Rows still needing attention. Empty on a clean run.
-  final Set<String> stillSelected;
-
-  /// Whether the list should remain in selection mode.
-  final bool keepSelecting;
-
-  /// How many succeeded — reported first, because a recall that moved 7 of 10
-  /// HAS changed the world, and a message that only counts failures reads as
-  /// "nothing happened", which is the reading that gets it run twice.
-  final int succeeded;
-
-  const BulkOutcome({
-    required this.stillSelected,
-    required this.keepSelecting,
-    required this.succeeded,
-  });
-
-  bool get clean => stillSelected.isEmpty;
-}
-
-BulkOutcome bulkOutcome({required int attempted, required Set<String> failedIds}) =>
-    BulkOutcome(
-      stillSelected: {...failedIds},
-      keepSelecting: failedIds.isNotEmpty,
-      succeeded: attempted - failedIds.length,
-    );
 
 /// Decide what to do with a single batch-import row.
 ///
@@ -1402,12 +1360,7 @@ class _ProgressBlock extends StatelessWidget {
   final double progress;
   final String label;
 
-  /// Overline. Defaults to the voucher-upload wording; the bulk batch actions
-  /// pass their own, because "جارٍ الرفع" over a pause/withdraw is the same
-  /// class of lie UX-86 fixed here.
-  final String? title;
-  const _ProgressBlock(
-      {required this.progress, required this.label, this.title});
+  const _ProgressBlock({required this.progress, required this.label});
 
   @override
   Widget build(BuildContext context) {
@@ -1425,7 +1378,7 @@ class _ProgressBlock extends StatelessWidget {
                 // UX-86: this bar has never printed anything — it is the
                 // voucher UPLOAD, and it said "جارٍ الطباعة" on the highest-stakes
                 // admin task.
-                title ?? l.batchAddUploading,
+                l.batchAddUploading,
                 style: IntesharType.overline(color: cs.onPrimaryContainer),
               ),
               const Spacer(),
@@ -1492,13 +1445,17 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
 
   // ── Multi-select: Pause/Withdraw are the recall levers, and a recall is
   // never one batch.
-  bool _selecting = false;
-  final Set<String> _selected = {};
+  //
+  // UX-11: this used to be a `bool _selecting`, a `Set<String> _selected`, a
+  // hand-rolled "Select shown" bar, a progress block and an eighty-line bulk
+  // runner — the app's only answer to batch work, reachable only by copying it.
+  // All of that is `shared/widgets/multi_select.dart` now, so the catalog and
+  // the POS lists get the same answers to "what happens when 7 of 10 succeed?"
+  // rather than three new ones.
+  SelectionState _selection = SelectionState.off;
 
-  /// Non-null while a bulk action runs — the whole list is inert until it ends.
-  String? _bulkLabel;
-  int _bulkDone = 0;
-  int _bulkTotal = 0;
+  /// True while a bulk action runs — the whole list is inert until it ends.
+  bool _bulkBusy = false;
 
   @override
   void initState() {
@@ -1525,7 +1482,7 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
           _batches = batches;
           _loading = false;
           // Drop selections for rows that no longer exist.
-          _selected.removeWhere((id) => !batches.any((b) => b.id == id));
+          _selection = _selection.retain(batches.map((b) => b.id));
         });
       }
     } catch (e) {
@@ -1699,119 +1656,54 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
     }
   }
 
-  // ── Bulk actions (UX-06) ───────────────────────────────────────────────────
+  // ── Bulk actions (UX-06 / UX-11) ───────────────────────────────────────────
 
-  /// Runs [action] over the selected batches one at a time, reporting progress
-  /// and a per-batch failure count rather than dying on the first refusal — a
-  /// recall that stops half-way is worse than one that reports what it missed.
-  Future<void> _runBulk({
-    required String label,
-    required String confirmTitle,
-    required String confirmBody,
-    required bool destructive,
-    required Future<void> Function(ProductRepository repo, VoucherBatch b) action,
-  }) async {
-    final all = _batches ?? const <VoucherBatch>[];
-    final targets =
-        all.where((b) => _selected.contains(b.id)).toList(growable: false);
-    if (targets.isEmpty || _bulkLabel != null) return;
-    final ok = await showConfirm(
-      context,
-      title: confirmTitle,
-      body: confirmBody,
-      confirmLabel: label,
-      destructive: destructive,
-    );
-    if (!ok || !mounted) return;
-    setState(() {
-      _bulkLabel = label;
-      _bulkDone = 0;
-      _bulkTotal = targets.length;
-    });
+  /// The recall levers, described rather than driven: [SelectionBar] owns the
+  /// confirm, the loop, the progress line, the partial-failure outcome and the
+  /// message. What is left here is the three things only this screen knows —
+  /// what the rows are called, what each action says, and which repository call
+  /// applies it to one row.
+  List<BulkAction> _bulkActions() {
     final repo = ProductRepository(ref.read(apiClientProvider));
-    // The ids that refused. Kept rather than counted, because they are what the
-    // operator does next: on a partial run they stay SELECTED, so "which three
-    // failed?" is answered by the list itself and one more tap retries exactly
-    // those. Clearing the selection here — which this used to do — threw away
-    // the only record of which rows still need attention.
-    final failedIds = <String>{};
-    Object? lastError;
-    for (final b in targets) {
-      try {
-        await action(repo, b);
-      } catch (e) {
-        failedIds.add(b.id);
-        lastError = e;
-      }
-      if (!mounted) return;
-      setState(() => _bulkDone++);
-    }
-    if (!mounted) return;
-    final outcome =
-        bulkOutcome(attempted: targets.length, failedIds: failedIds);
-    setState(() {
-      _bulkLabel = null;
-      _selecting = outcome.keepSelecting;
-      _selected
-        ..clear()
-        ..addAll(outcome.stillSelected);
-    });
-    await _load();
-    if (!mounted) return;
-    if (outcome.clean) {
-      showOk(
-          context,
-          _tr(context, 'تم على ${targets.length} دفعة',
-              'Done on ${targets.length} batches'));
-    } else {
-      final done = outcome.succeeded;
-      final why = friendlyError(lastError!, context);
-      // Lead with what DID happen: a recall that moved 7 of 10 has changed the
-      // world, and a message that only says "3 failed" reads as "nothing
-      // happened" — which is the reading that gets it run twice.
-      showError(
-        context,
-        _tr(
-          context,
-          'تم على $done من ${targets.length}. بقيت ${failedIds.length} محددة لإعادة المحاولة: $why',
-          'Done on $done of ${targets.length}. The ${failedIds.length} that failed stay selected to retry: $why',
-        ),
-      );
-    }
-  }
-
-  Future<void> _bulkPause(bool pause) => _runBulk(
-        label: pause
-            ? _tr(context, 'إيقاف مؤقت', 'Pause')
-            : _tr(context, 'استئناف', 'Resume'),
-        confirmTitle: pause
-            ? _tr(context, 'إيقاف ${_selected.length} دفعة؟',
-                'Pause ${_selected.length} batches?')
-            : _tr(context, 'استئناف ${_selected.length} دفعة؟',
-                'Resume ${_selected.length} batches?'),
-        confirmBody: pause
-            ? _tr(context, 'لن تُباع أي قسيمة من هذه الدفعات حتى الاستئناف.',
-                'No voucher from these batches can be sold until they are resumed.')
-            : _tr(context, 'ستعود هذه الدفعات قابلة للبيع.',
-                'These batches become sellable again.'),
-        destructive: pause,
-        action: (repo, b) => repo.pauseBatch(b.id, pause: pause),
-      );
-
-  Future<void> _bulkWithdraw() => _runBulk(
+    return [
+      BulkAction(
+        label: _tr(context, 'إيقاف مؤقت', 'Pause'),
+        icon: Icons.pause_outlined,
+        severity: BulkSeverity.danger,
+        title: (n) => _tr(context, 'إيقاف $n دفعة؟', 'Pause $n batches?'),
+        body: (_) => _tr(
+            context,
+            'لن تُباع أي قسيمة من هذه الدفعات حتى الاستئناف.',
+            'No voucher from these batches can be sold until they are resumed.'),
+        run: (id) => repo.pauseBatch(id, pause: true),
+      ),
+      BulkAction(
+        label: _tr(context, 'استئناف', 'Resume'),
+        icon: Icons.play_arrow_outlined,
+        title: (n) => _tr(context, 'استئناف $n دفعة؟', 'Resume $n batches?'),
+        body: (_) => _tr(context, 'ستعود هذه الدفعات قابلة للبيع.',
+            'These batches become sellable again.'),
+        run: (id) => repo.pauseBatch(id, pause: false),
+      ),
+      BulkAction(
         label: _tr(context, 'سحب', 'Withdraw'),
-        confirmTitle: _tr(context, 'سحب ${_selected.length} دفعة؟',
-            'Withdraw ${_selected.length} batches?'),
-        confirmBody: _tr(
+        icon: Icons.undo_outlined,
+        // Reversible in principle (the codes go back to HQ and can be sent out
+        // again), so it stops short of the type-the-count gate — but it strands
+        // every shop holding this stock, so it is never the nearest button.
+        severity: BulkSeverity.danger,
+        title: (n) => _tr(context, 'سحب $n دفعة؟', 'Withdraw $n batches?'),
+        body: (_) => _tr(
           context,
           'سيتم سحب جميع القسائم غير المستخدمة في هذه الدفعات إلى المقر. '
               'القسائم المستخدمة لا يمكن استرجاعها.',
           'All UNUSED vouchers in these batches will be reclaimed to HQ. '
               'Used vouchers cannot be recovered.',
         ),
-        destructive: true,
-        action: (repo, b) => repo.withdrawBatch(b.id),
-      );
+        run: (id) => repo.withdrawBatch(id),
+      ),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1834,8 +1726,7 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
           _query = '';
           _pausedFilter = null;
           _ownerFilter = null;
-          _selecting = false;
-          _selected.clear();
+          _selection = SelectionState.off;
         });
         ref.read(_batchFocusProvider.notifier).state = null;
         _load();
@@ -1858,20 +1749,9 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
       );
     }
     final visible = _visible(batches);
-    final bulkRunning = _bulkLabel != null;
     return Column(
       children: [
         _controls(batches, visible),
-        if (bulkRunning)
-          Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 10),
-            child: _ProgressBlock(
-              progress: _bulkTotal == 0 ? 0 : _bulkDone / _bulkTotal,
-              title: _bulkLabel,
-              label: _tr(context, '$_bulkDone من $_bulkTotal دفعة',
-                  '$_bulkDone of $_bulkTotal batches'),
-            ),
-          ),
         Expanded(
           child: visible.isEmpty
               ? EmptyState(
@@ -1890,12 +1770,11 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
                       final b = visible[i];
                       return _BatchCard(
                         batch: b,
-                        busy: _busy.contains(b.id) || bulkRunning,
-                        selecting: _selecting,
-                        selected: _selected.contains(b.id),
-                        onSelect: () => setState(() {
-                          if (!_selected.remove(b.id)) _selected.add(b.id);
-                        }),
+                        busy: _busy.contains(b.id) || _bulkBusy,
+                        selecting: _selection.active,
+                        selected: _selection.contains(b.id),
+                        onSelect: () =>
+                            setState(() => _selection = _selection.toggle(b.id)),
                         onTogglePause: () => _togglePause(b),
                         onDelete: () => _confirmDelete(b),
                         onExport: () => _export(b),
@@ -1922,7 +1801,7 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
       if (b.ownerId.isEmpty) continue;
       owners[b.ownerId] = (b.ownerName ?? '').isNotEmpty ? b.ownerName! : b.ownerId;
     }
-    final busy = _bulkLabel != null;
+    final busy = _bulkBusy;
     return Padding(
       padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 8),
       child: Column(
@@ -1977,16 +1856,10 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
                     child: Text(_tr(context, 'حسب الفئة', 'By product'))),
               ],
             ),
-            IconButton(
-              tooltip: _tr(context, 'تحديد متعدد', 'Select several'),
-              isSelected: _selecting,
-              icon: const Icon(Icons.checklist, size: 20),
-              onPressed: busy
-                  ? null
-                  : () => setState(() {
-                        _selecting = !_selecting;
-                        if (!_selecting) _selected.clear();
-                      }),
+            SelectionModeButton(
+              state: _selection,
+              enabled: !busy,
+              onChanged: (s) => setState(() => _selection = s),
             ),
           ]),
           const SizedBox(height: 8),
@@ -2050,57 +1923,18 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
                 'Showing ${visible.length} of ${all.length}'),
             style: IntesharType.sans(12, color: cs.onSurfaceVariant),
           ),
-          if (_selecting) ...[
+          if (_selection.active) ...[
             const SizedBox(height: 8),
-            InkCard(
-              ruleColor: context.tones.brandInk,
-              density: CardDensity.dense,
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Text(
-                    _tr(context, 'محدد: ${_selected.length}',
-                        '${_selected.length} selected'),
-                    style: IntesharType.sans(14,
-                        color: cs.onSurface, w: FontWeight.w800),
-                  ),
-                  TextButton(
-                    onPressed: busy
-                        ? null
-                        : () => setState(() {
-                              _selected
-                                ..clear()
-                                ..addAll(visible.map((b) => b.id));
-                            }),
-                    child: Text(_tr(context, 'تحديد المعروض', 'Select shown')),
-                  ),
-                  if (_selected.isNotEmpty)
-                    TextButton(
-                      onPressed: busy ? null : () => setState(_selected.clear),
-                      child: Text(_tr(context, 'إلغاء التحديد', 'Clear')),
-                    ),
-                  OutlinedButton.icon(
-                    onPressed:
-                        (_selected.isEmpty || busy) ? null : () => _bulkPause(true),
-                    icon: const Icon(Icons.pause_outlined, size: 16),
-                    label: Text(_tr(context, 'إيقاف', 'Pause')),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed:
-                        (_selected.isEmpty || busy) ? null : () => _bulkPause(false),
-                    icon: const Icon(Icons.play_arrow_outlined, size: 16),
-                    label: Text(_tr(context, 'استئناف', 'Resume')),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: (_selected.isEmpty || busy) ? null : _bulkWithdraw,
-                    style: OutlinedButton.styleFrom(foregroundColor: cs.error),
-                    icon: const Icon(Icons.undo_outlined, size: 16),
-                    label: Text(_tr(context, 'سحب', 'Withdraw')),
-                  ),
-                ],
-              ),
+            SelectionBar(
+              state: _selection,
+              // The rows PASSING THE FILTERS — "select shown" on a filtered
+              // recall must never reach batches the operator cannot see.
+              visibleIds: [for (final b in visible) b.id],
+              onChanged: (s) => setState(() => _selection = s),
+              onBusyChanged: (b) => setState(() => _bulkBusy = b),
+              onCompleted: _load,
+              unit: const BulkUnit(ar: 'دفعة', en: 'batches'),
+              actions: _bulkActions(),
             ),
           ],
         ],
@@ -2151,11 +1985,12 @@ class _BatchCard extends StatelessWidget {
           // Header: product name + status badge
           Row(children: [
             if (selecting) ...[
-              // UX-119: `VisualDensity.compact` shrank this to ~40dp. It is the
-              // control a supplier recall is driven from — one tap per batch,
-              // several batches, on a handheld — so it keeps the 48dp target.
-              Checkbox(
-                value: selected,
+              // UX-119: keeps the full 48dp target — see [SelectionCheckbox].
+              SelectionCheckbox(
+                selected: selected,
+                semanticLabel: batch.productName.isNotEmpty
+                    ? batch.productName
+                    : batch.sku,
                 onChanged: busy ? null : (_) => onSelect(),
               ),
               const SizedBox(width: IntesharSpacing.xs),

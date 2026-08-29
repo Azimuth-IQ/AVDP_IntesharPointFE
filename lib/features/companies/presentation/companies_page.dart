@@ -263,7 +263,7 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
       child: ListView.separated(
         padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
         itemCount: _items.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 10),
+        separatorBuilder: (_, _) => const SizedBox(height: IntesharSpacing.sm2),
         itemBuilder: (context, i) {
           final c = _items[i];
           final cs = Theme.of(context).colorScheme;
@@ -280,7 +280,7 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
                   child: Text('${c.displayOrder}',
                       style: IntesharType.mono(14, color: cs.onSurfaceVariant, w: FontWeight.w700)),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: IntesharSpacing.sm),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -297,7 +297,7 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
                       // nowhere but inside this company's dialog, so a shop
                       // refused with a 429 sent the admin opening companies one
                       // by one to find which rule bit.
-                      const SizedBox(height: 3),
+                      const SizedBox(height: IntesharSpacing.xs),
                       Row(children: [
                         Icon(
                           c.withdrawalCap > 0
@@ -306,7 +306,7 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
                           size: 13,
                           color: cs.onSurfaceVariant,
                         ),
-                        const SizedBox(width: 4),
+                        const SizedBox(width: IntesharSpacing.xs),
                         Flexible(
                           child: Text(
                             c.withdrawalCap > 0
@@ -472,7 +472,7 @@ class _CompanyDialogState extends State<_CompanyDialog> {
       children: [
         SectionLabel(s.capSection, padding: const EdgeInsets.only(bottom: 6)),
         Wrap(
-          spacing: 8,
+          spacing: IntesharSpacing.sm,
           runSpacing: 6,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
@@ -483,7 +483,7 @@ class _CompanyDialogState extends State<_CompanyDialog> {
             Text(s.capTail, style: labelStyle),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: IntesharSpacing.sm),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -518,23 +518,23 @@ class _CompanyDialogState extends State<_CompanyDialog> {
             mainAxisSize: MainAxisSize.min,
             children: [
             TextField(controller: _name, decoration: InputDecoration(labelText: s.name)),
-            const SizedBox(height: 10),
+            const SizedBox(height: IntesharSpacing.sm2),
             ImageUploadField(
               value: _logo.text.isEmpty ? null : _logo.text,
               label: s.logo,
               kind: 'agent-branding',
               onChanged: (u) => setState(() => _logo.text = u),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: IntesharSpacing.sm2),
             TextField(controller: _desc, decoration: InputDecoration(labelText: s.description)),
-            const SizedBox(height: 10),
+            const SizedBox(height: IntesharSpacing.sm2),
             TextField(
               controller: _order,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(labelText: s.order),
             ),
-            const SizedBox(height: 4),
-            const SizedBox(height: 10),
+            const SizedBox(height: IntesharSpacing.xs),
+            const SizedBox(height: IntesharSpacing.sm2),
             _capRule(s),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
@@ -548,7 +548,7 @@ class _CompanyDialogState extends State<_CompanyDialog> {
             ],
             if (_error != null)
               Padding(
-                padding: const EdgeInsets.only(top: 8),
+                padding: const EdgeInsets.only(top: IntesharSpacing.sm),
                 // UX-127: was an off-scale 12.5 — a half-point step no screen
                 // renders as distinct from `body`.
                 child: Text(_error!,

@@ -638,7 +638,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
               child: InkCard(
                 ruleColor: cs.error,
-                padding: const EdgeInsets.all(12),
+                density: CardDensity.dense,
                 child: Text(
                   _error!,
                   style: IntesharType.sans(14, color: cs.onSurface),
@@ -702,12 +702,12 @@ class _AgentFormState extends ConsumerState<AgentForm> {
       children: [
         if (tier.requiresParentPicker) ...[
           SectionLabel(s.sectionParent),
-          const SizedBox(height: 4),
+          const SizedBox(height: IntesharSpacing.xs),
           Text(
             s.parentHint,
             style: IntesharType.sans(12, color: cs.onSurfaceVariant),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: IntesharSpacing.sm2),
           if (_loadingParents)
             const Padding(
               padding: EdgeInsets.all(IntesharSpacing.sm),
@@ -744,7 +744,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         ],
         // Identity first — who the agent is, before any advanced access config (B-073).
         SectionLabel(s.sectionIdentity),
-        const SizedBox(height: 8),
+        const SizedBox(height: IntesharSpacing.sm),
         TextField(
           key: _kName,
           controller: _name,
@@ -756,20 +756,20 @@ class _AgentFormState extends ConsumerState<AgentForm> {
             if (_nameError != null) setState(() => _nameError = null);
           },
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: IntesharSpacing.md),
         // UX-03: slogan + description were only reachable from the hierarchy
         // tree's own edit sheet. They are identity, so they sit with the name.
         TextField(
           controller: _slogan,
           decoration: InputDecoration(labelText: s.fieldSlogan),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: IntesharSpacing.md),
         TextField(
           controller: _description,
           maxLines: 3,
           decoration: InputDecoration(labelText: s.fieldDescription),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: IntesharSpacing.md),
         ImageUploadField(
           value: _logo.text.isEmpty ? null : _logo.text,
           kind: 'agent-branding',
@@ -784,7 +784,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
           data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
           child: ExpansionTile(
             tilePadding: EdgeInsets.zero,
-            childrenPadding: const EdgeInsets.only(bottom: 8),
+            childrenPadding: const EdgeInsets.only(bottom: IntesharSpacing.sm),
             title: SectionLabel(Localizations.localeOf(context).languageCode == 'ar'
                 ? 'الوصول المتقدم (الأقسام المتاحة)'
                 : 'Advanced access (visible sections)'),
@@ -798,10 +798,10 @@ class _AgentFormState extends ConsumerState<AgentForm> {
                   style: IntesharType.sans(12, color: cs.onSurfaceVariant),
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: IntesharSpacing.sm),
               Wrap(
-                spacing: 8,
-                runSpacing: 8,
+                spacing: IntesharSpacing.sm,
+                runSpacing: IntesharSpacing.sm,
                 children: [
                   for (final c in _sectionChoices)
                     if (c != Capability.MANAGE_PRICING || tier == AgentTier.main)
@@ -823,12 +823,12 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         ),
         const SizedBox(height: IntesharSpacing.xl),
         SectionLabel(s.sectionGovernorates),
-        const SizedBox(height: 4),
+        const SizedBox(height: IntesharSpacing.xs),
         Text(
           s.governoratesHint,
           style: IntesharType.sans(12, color: cs.onSurfaceVariant),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: IntesharSpacing.sm2),
         GovernorateMultiSelect(
           key: _kGov,
           selected: _governorates,
@@ -856,7 +856,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
               ? 'ساعات الدخول'
               : 'Login hours',
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: IntesharSpacing.sm),
         // UX-04: the window below is enforced only while the PLATFORM-WIDE gate
         // is on, and that switch is on another screen. Saying nothing made this
         // silently no-op configuration: visibly saved, visibly ignored, with the
@@ -866,7 +866,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
           InkCard(
             bordered: true,
             ruleColor: context.status.warn,
-            padding: const EdgeInsets.all(IntesharSpacing.md),
+            density: CardDensity.dense,
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Icon(Icons.info_outlined,
                   size: 18, color: context.status.warn),
@@ -916,9 +916,9 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         // disjoint fields and neither mentioned the other, so whichever one an
         // admin opened, half the settings were invisible and unguessable.
         SectionLabel(s.sectionLimits, key: _kLimits),
-        const SizedBox(height: 4),
+        const SizedBox(height: IntesharSpacing.xs),
         Text(s.limitsHint, style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
-        const SizedBox(height: 10),
+        const SizedBox(height: IntesharSpacing.sm2),
         TextField(
           controller: _lowStock,
           keyboardType: TextInputType.number,
@@ -934,7 +934,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
             if (_lowStockError != null) setState(() => _lowStockError = null);
           },
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: IntesharSpacing.md),
         // B-086: the server resolves the EFFECTIVE limit as the minimum over the
         // chain, so a value here can only ever tighten what an ancestor allows.
         TextField(
@@ -966,29 +966,29 @@ class _AgentFormState extends ConsumerState<AgentForm> {
           ),
         const SizedBox(height: IntesharSpacing.xl),
         SectionLabel(s.sectionOwner),
-        const SizedBox(height: 8),
+        const SizedBox(height: IntesharSpacing.sm),
         TextField(
           controller: _ownerName,
           decoration: InputDecoration(labelText: s.fieldOwnerName),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: IntesharSpacing.md),
         MultiImageUploadField(
           values: _documentUrls,
           label: s.fieldDocuments,
           kind: 'kyc-doc',
           onChanged: (urls) => setState(() => _documentUrls = urls),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: IntesharSpacing.xs),
         Text(
           s.documentsHint,
           style: IntesharType.sans(12, color: cs.onSurfaceVariant),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: IntesharSpacing.md),
         TextField(
           controller: _landmark,
           decoration: InputDecoration(labelText: s.fieldLandmark),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: IntesharSpacing.md),
         Row(
           key: _kGeo,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1010,7 +1010,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
                 },
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: IntesharSpacing.md),
             Expanded(
               child: TextField(
                 controller: _lng,
@@ -1030,7 +1030,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: IntesharSpacing.sm),
         Align(
           alignment: AlignmentDirectional.centerStart,
           child: OutlinedButton.icon(
@@ -1039,7 +1039,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
             label: Text(s.pickOnMap),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: IntesharSpacing.md),
         TextField(
           controller: _contactPhone,
           keyboardType: TextInputType.phone,
@@ -1049,7 +1049,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
           ],
           decoration: InputDecoration(labelText: s.fieldPhone),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: IntesharSpacing.md),
         TextField(
           key: _kEmail,
           controller: _contactEmail,
@@ -1065,9 +1065,9 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         if (tier == AgentTier.main) ...[
           const SizedBox(height: IntesharSpacing.xl),
           SectionLabel(s.sectionBranding),
-          const SizedBox(height: 4),
+          const SizedBox(height: IntesharSpacing.xs),
           Text(s.brandingHint, style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
-          const SizedBox(height: 10),
+          const SizedBox(height: IntesharSpacing.sm2),
           Row(
             children: [
               Expanded(
@@ -1077,7 +1077,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
                   hint: '#F5B100',
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: IntesharSpacing.md),
               Expanded(
                 child: ColorHexField(
                   controller: _secondary,
@@ -1087,7 +1087,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: IntesharSpacing.md),
           ImageUploadField(
             value: _background.text.isEmpty ? null : _background.text,
             kind: 'agent-branding',
@@ -1113,7 +1113,7 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         ..._users.asMap().entries.map(
           (e) => Padding(
             key: e.value.anchor,
-            padding: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.only(bottom: IntesharSpacing.md),
             child: _UserCard(
               index: e.key,
               draft: e.value,
@@ -1211,7 +1211,7 @@ class _StepPill extends StatelessWidget {
                   ),
                 ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: IntesharSpacing.sm),
         Text(
           label,
           style: IntesharType.sans(
@@ -1220,7 +1220,7 @@ class _StepPill extends StatelessWidget {
             color: on ? cs.onSurface : cs.onSurfaceVariant,
           ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: IntesharSpacing.sm2),
       ],
     );
   }
@@ -1249,7 +1249,6 @@ class _UserCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final locale = s.ar ? 'ar' : 'en';
     return InkCard(
-      padding: const EdgeInsets.all(IntesharSpacing.lg),
       ruleColor: draft.preset == AgentUserPreset.admin
           ? context.tones.brand
           : cs.outline,
@@ -1278,7 +1277,7 @@ class _UserCard extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: IntesharSpacing.sm),
           TextField(
             controller: draft.phone,
             keyboardType: TextInputType.phone,
@@ -1299,7 +1298,7 @@ class _UserCard extends StatelessWidget {
               }
             },
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: IntesharSpacing.sm2),
           PasswordField(
             controller: draft.password,
             isDense: true,
@@ -1316,12 +1315,12 @@ class _UserCard extends StatelessWidget {
           // PasswordField takes no errorText, so the message goes right under
           // it rather than into the banner at the far bottom of the screen.
           if (draft.passwordError != null) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: IntesharSpacing.xs),
             Text(draft.passwordError!,
                 style: IntesharType.sans(12, color: cs.error)),
           ],
           if (showPreset) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: IntesharSpacing.sm2),
             DropdownButtonFormField<AgentUserPreset>(
               initialValue: draft.preset,
               isExpanded: true,
@@ -1348,7 +1347,7 @@ class _UserCard extends StatelessWidget {
               },
             ),
           ],
-          const SizedBox(height: 8),
+          const SizedBox(height: IntesharSpacing.sm),
           Wrap(
             spacing: 6,
             runSpacing: 6,

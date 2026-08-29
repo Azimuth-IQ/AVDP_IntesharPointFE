@@ -93,7 +93,7 @@ class EmptyState extends StatelessWidget {
                           letterSpacing: -0.2,
                         ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: IntesharSpacing.sm),
               ],
               Text(
                 message,

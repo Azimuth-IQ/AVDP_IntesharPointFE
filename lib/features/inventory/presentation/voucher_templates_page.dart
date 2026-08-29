@@ -406,7 +406,7 @@ class _WideLayout extends StatelessWidget {
                           children: [
                             SectionLabel(
                                 AppLocalizations.of(context)!.vtPreview),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: IntesharSpacing.lg),
                             Center(
                               child: _ReceiptPreview(
                                 def: selected!,
@@ -478,7 +478,7 @@ class _NarrowLayout extends StatelessWidget {
       children: [
         // Product picker dropdown
         _SkuDropdown(defs: defs, selected: selected, onSelect: onSelect),
-        const SizedBox(height: 16),
+        const SizedBox(height: IntesharSpacing.lg),
         if (selected != null) ...[
           _TemplateEditor(
             def: selected!,
@@ -499,9 +499,9 @@ class _NarrowLayout extends StatelessWidget {
             dirty: dirty,
             inScrollable: true,
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: IntesharSpacing.xl),
           SectionLabel(l.vtPreview),
-          const SizedBox(height: 16),
+          const SizedBox(height: IntesharSpacing.lg),
           Center(
             child: _ReceiptPreview(def: selected!, template: edited),
           ),
@@ -538,7 +538,7 @@ class _SkuList extends StatelessWidget {
         final def = defs[i];
         final isSelected = selected?.id == def.id;
         return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 3),
+          padding: const EdgeInsets.symmetric(vertical: IntesharSpacing.xs),
           child: Material(
             color: isSelected
                 ? context.tones.brand.withValues(alpha: 0.18)
@@ -549,7 +549,7 @@ class _SkuList extends StatelessWidget {
               borderRadius: BorderRadius.circular(IntesharRadii.md),
               splashColor: context.tones.brand.withValues(alpha: 0.10),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.md, vertical: IntesharSpacing.sm2),
                 child: Row(
                   children: [
                     Container(
@@ -573,7 +573,7 @@ class _SkuList extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: IntesharSpacing.sm2),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -631,7 +631,7 @@ class _SkuDropdown extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
     return InkCard(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.lg, vertical: IntesharSpacing.xs),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<ProductDefinition>(
           value: selected,
@@ -648,7 +648,7 @@ class _SkuDropdown extends StatelessWidget {
                         d.sku,
                         style: IntesharType.mono(12, color: context.tones.brandInk, w: FontWeight.w700),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: IntesharSpacing.sm2),
                       Expanded(
                         child: Text(d.name,
                             style: Theme.of(context).textTheme.bodyMedium,
@@ -680,7 +680,7 @@ class _SelectPrompt extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.receipt_long_outlined, size: 52, color: cs.outline),
-          const SizedBox(height: 16),
+          const SizedBox(height: IntesharSpacing.lg),
           Text(
             l.vtSelectPrompt,
             style: Theme.of(context)
@@ -756,7 +756,7 @@ class _TemplateEditor extends StatelessWidget {
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.sm2, vertical: IntesharSpacing.xs),
                 decoration: BoxDecoration(
                   color: context.tones.brand,
                   borderRadius: BorderRadius.circular(IntesharRadii.xs),
@@ -766,7 +766,7 @@ class _TemplateEditor extends StatelessWidget {
                   style: IntesharType.mono(12, color: context.tones.onBrand, w: kMonoHeaviest),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: IntesharSpacing.sm2),
               Expanded(
                 child: Text(
                   def.name,
@@ -779,7 +779,7 @@ class _TemplateEditor extends StatelessWidget {
               // not left to the operator's memory. Icon + words, never colour
               // alone.
               if (dirty) ...[
-                const SizedBox(width: 8),
+                const SizedBox(width: IntesharSpacing.sm),
                 StampPill(
                   label: isAr ? 'غير محفوظ' : 'Unsaved',
                   color: context.tones.brandInk,
@@ -807,7 +807,7 @@ class _TemplateEditor extends StatelessWidget {
         // ── Fields section ───────────────────────────────────────────────
         SectionLabel(l.vtFields),
         InkCard(
-          padding: EdgeInsets.zero,
+          density: CardDensity.flush,
           child: Column(
             children: [
               _BrandSwitch(
@@ -868,7 +868,7 @@ class _TemplateEditor extends StatelessWidget {
         // ── QR section ───────────────────────────────────────────────────
         SectionLabel(l.vtQrSection),
         InkCard(
-          padding: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.symmetric(vertical: IntesharSpacing.xs),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -894,7 +894,7 @@ class _TemplateEditor extends StatelessWidget {
                           w: IntesharWeight.semibold,
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: IntesharSpacing.sm),
                       SegmentedButton<String>(
                         showSelectedIcon: false,
                         style: ButtonStyle(
@@ -935,7 +935,7 @@ class _TemplateEditor extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: IntesharSpacing.md),
                       Expanded(
                         child: TextField(
                           controller: suffixCtrl,
@@ -1004,7 +1004,7 @@ class _TemplateEditor extends StatelessWidget {
             hintText: 'Inteshar · www.inteshar.iq',
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: IntesharSpacing.xl),
 
         // ── Save button ──────────────────────────────────────────────────
         // UX-78: Save used to look identical before and after a change, so
@@ -1100,7 +1100,7 @@ class _LogoPlaceholder extends StatelessWidget {
       height: 40,
       constraints: const BoxConstraints(minWidth: 110),
       alignment: Alignment.center,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.sm),
       decoration: BoxDecoration(
         border: Border.all(color: Colors.black26),
         borderRadius: BorderRadius.circular(4),
@@ -1109,7 +1109,7 @@ class _LogoPlaceholder extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           const Icon(Icons.image_outlined, size: 14, color: Colors.black38),
-          const SizedBox(width: 5),
+          const SizedBox(width: IntesharSpacing.xs),
           Text(label, style: const TextStyle(fontSize: 9.5, color: Colors.black45)),
         ],
       ),
@@ -1153,7 +1153,7 @@ class _ReceiptPreview extends StatelessWidget {
                     ? 'شعار الوكيل الرئيسي'
                     : 'Main agent logo',
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: IntesharSpacing.sm),
             ],
             if (template.showCompanyLogo) ...[
               _LogoPlaceholder(
@@ -1161,7 +1161,7 @@ class _ReceiptPreview extends StatelessWidget {
                     ? 'شعار الشركة'
                     : 'Company logo',
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: IntesharSpacing.sm),
             ],
             // ── Header ──────────────────────────────────────────────────
             if (template.headerText.isNotEmpty) ...[
@@ -1170,14 +1170,14 @@ class _ReceiptPreview extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: IntesharType.mono(14, color: Colors.black, w: FontWeight.w700, letterSpacing: 0.4),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: IntesharSpacing.sm),
             ] else ...[
               Text(
                 _sampleCompany,
                 textAlign: TextAlign.center,
                 style: IntesharType.mono(14, color: Colors.black54, w: FontWeight.w700, letterSpacing: 0.4),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: IntesharSpacing.sm),
             ],
 
             // ── Company name (telecom) ───────────────────────────────────
@@ -1187,7 +1187,7 @@ class _ReceiptPreview extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: IntesharType.mono(14, color: Colors.black, w: FontWeight.w700, letterSpacing: 0.6),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: IntesharSpacing.xs),
             ],
 
             // ── Category name (product-definition name) ──────────────────
@@ -1197,7 +1197,7 @@ class _ReceiptPreview extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: IntesharType.mono(11, color: Colors.black54),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: IntesharSpacing.xs),
             ],
 
             // ── Product name ─────────────────────────────────────────────
@@ -1207,7 +1207,7 @@ class _ReceiptPreview extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: IntesharType.mono(12, color: Colors.black87),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: IntesharSpacing.xs),
             ],
 
             // ── Price ────────────────────────────────────────────────────
@@ -1217,11 +1217,11 @@ class _ReceiptPreview extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: IntesharType.mono(12, color: Colors.black87, w: FontWeight.w600),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: IntesharSpacing.xs),
             ],
 
             _DashedDivider(),
-            const SizedBox(height: 8),
+            const SizedBox(height: IntesharSpacing.sm),
 
             // ── Serial ───────────────────────────────────────────────────
             if (template.showSerial) ...[
@@ -1231,19 +1231,19 @@ class _ReceiptPreview extends StatelessWidget {
 
             // ── PIN (larger, bold) ───────────────────────────────────────
             if (template.showPin) ...[
-              const SizedBox(height: 4),
+              const SizedBox(height: IntesharSpacing.xs),
               Text(
                 _samplePin,
                 textAlign: TextAlign.center,
                 style: IntesharType.mono(20, color: Colors.black, w: kMonoHeaviest, letterSpacing: 2),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: IntesharSpacing.sm),
             ],
 
             // ── QR code ──────────────────────────────────────────────────
             if (template.qrEnabled && qrPayload.isNotEmpty) ...[
               _DashedDivider(),
-              const SizedBox(height: 10),
+              const SizedBox(height: IntesharSpacing.sm2),
               QrImageView(
                 data: qrPayload,
                 version: QrVersions.auto,
@@ -1256,25 +1256,25 @@ class _ReceiptPreview extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: IntesharType.mono(11, color: Colors.black54, letterSpacing: 0.3),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: IntesharSpacing.sm),
             ],
 
             // ── Redeem instructions ──────────────────────────────────────
             if (template.redeemInstructions.isNotEmpty) ...[
               _DashedDivider(),
-              const SizedBox(height: 8),
+              const SizedBox(height: IntesharSpacing.sm),
               Text(
                 template.redeemInstructions,
                 textAlign: TextAlign.center,
                 style: IntesharType.mono(11, color: Colors.black87).copyWith(height: 1.5),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: IntesharSpacing.sm),
             ],
 
             // ── Footer ───────────────────────────────────────────────────
             if (template.footerText.isNotEmpty) ...[
               _DashedDivider(),
-              const SizedBox(height: 8),
+              const SizedBox(height: IntesharSpacing.sm),
               // UX-147 floors UI text at 11px; this is deliberately exempt.
               // It is not UI text — it is a DEPICTION of the thermal slip, and
               // the slip really does print this small. Raising it would make the
@@ -1285,7 +1285,7 @@ class _ReceiptPreview extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: IntesharType.mono(9, color: Colors.black54).copyWith(height: 1.5),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: IntesharSpacing.xs),
             ],
 
             // ── Timestamp ────────────────────────────────────────────────

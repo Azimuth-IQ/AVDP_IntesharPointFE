@@ -216,7 +216,7 @@ class _ResultCount extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: cs.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(IntesharRadii.pill),
         ),
         child: Text(
           '$count',

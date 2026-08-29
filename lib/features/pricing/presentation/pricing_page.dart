@@ -757,7 +757,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                           : cs.onSurfaceVariant,
                       w: FontWeight.w700),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: IntesharSpacing.sm),
                 // Preview table: SKU · governorate · new price.
                 Container(
                   constraints: const BoxConstraints(maxHeight: 220),
@@ -770,7 +770,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                       child: Column(children: [
                         for (final p in parsed)
                           Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.sm2, vertical: IntesharSpacing.xs),
                             child: Row(children: [
                               Expanded(flex: 3, child: Text('${p['sku']}',
                                   style: IntesharType.mono(12, color: cs.onSurface), overflow: TextOverflow.ellipsis)),
@@ -805,7 +805,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                       onDeleted: () => setD(() => extraAgents.remove(e.key)),
                     ),
                 ]),
-                Wrap(spacing: 8, children: [
+                Wrap(spacing: IntesharSpacing.sm, children: [
                   OutlinedButton.icon(
                     onPressed: () async {
                       final picked = await showEntitySearchPicker(
@@ -957,8 +957,8 @@ class _PricingPageState extends ConsumerState<PricingPage> {
           border: Border.all(color: cs.outlineVariant),
         ),
         child: Wrap(
-          spacing: 12,
-          runSpacing: 8,
+          spacing: IntesharSpacing.md,
+          runSpacing: IntesharSpacing.sm,
           crossAxisAlignment: WrapCrossAlignment.center,
           alignment: WrapAlignment.spaceBetween,
           children: [
@@ -988,7 +988,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                 ],
               ),
             ),
-            Wrap(spacing: 8, runSpacing: 8, children: [
+            Wrap(spacing: IntesharSpacing.sm, runSpacing: IntesharSpacing.sm, children: [
               OutlinedButton.icon(
                 onPressed: _saving ? null : () => _exportXlsx(s),
                 icon: const Icon(Icons.download_outlined, size: 16),
@@ -1115,7 +1115,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
           onChanged: (v) => setState(() => _query = v.trim()),
         ),
         if (companies.length > 1 || govs.isNotEmpty) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: IntesharSpacing.sm),
           Row(children: [
             if (companies.length > 1)
               Expanded(
@@ -1135,7 +1135,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
             // one governorate (B-127), so choosing the AGENT already chooses the
             // region — two controls for one fact just let them disagree.
             if (filtering) ...[
-              const SizedBox(width: 4),
+              const SizedBox(width: IntesharSpacing.xs),
               IconButton(
                 tooltip: s.clearFilters,
                 icon: Icon(Icons.filter_alt_off_outlined, size: 20, color: cs.onSurfaceVariant),
@@ -1185,7 +1185,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.lock_outline, size: 48, color: cs.onSurfaceVariant),
-            const SizedBox(height: 12),
+            const SizedBox(height: IntesharSpacing.md),
             Text(
               s.unauthorized,
               style: IntesharType.sans(14, color: cs.onSurfaceVariant),
@@ -1262,7 +1262,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                       SectionLabel(entry.key),
                       ...entry.value.map(
                         (row) => Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          padding: const EdgeInsets.symmetric(vertical: IntesharSpacing.xs),
                           child: _PriceRow(
                             row: row,
                             ctrls: _ctrls,
@@ -1279,7 +1279,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: IntesharSpacing.sm),
                     ],
                   ],
                 ),
@@ -1373,7 +1373,7 @@ class _BalanceHeader extends StatelessWidget {
                 // are two large IQD figures one tap apart that never agree,
                 // because they are not the same quantity. Neither stated its
                 // basis; this one now does.
-                const SizedBox(height: 4),
+                const SizedBox(height: IntesharSpacing.xs),
                 Text(
                   s.worthBasis,
                   maxLines: 2,
@@ -1385,11 +1385,11 @@ class _BalanceHeader extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: IntesharSpacing.sm),
           if (unpriced > 0)
             // Tap to filter the list to just the unpriced categories (toggle).
             InkWell(
-              borderRadius: BorderRadius.circular(999),
+              borderRadius: BorderRadius.circular(IntesharRadii.pill),
               onTap: onToggleUnpriced,
               // UX-154: this used to be wrapped in `Opacity(0.85)` when the
               // filter was off — and the pill is a DANGER count of categories
@@ -1410,13 +1410,13 @@ class _BalanceHeader extends StatelessWidget {
                 Container(
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.surface,
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: BorderRadius.circular(IntesharRadii.pill),
                     border: Border.all(color: onBrand, width: 1),
                   ),
                   child: StampPill(
                       label: s.unpriced(unpriced), color: context.status.danger),
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: IntesharSpacing.xs),
                 // Was `onBrand` at 70% alpha. On the STOCK gold that measures
                 // 4.58:1 and is fine — but `onBrand` is `legibleOn(brand)`, so
                 // under a white-label brand it can be white with only ~4.8:1 to
@@ -1511,7 +1511,7 @@ class _PriceRow extends StatelessWidget {
                   icon: Icons.edit_outlined,
                   filled: false,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: IntesharSpacing.sm),
               ],
               // UX-21: the two numbers on this card are a BUY and a SELL price
               // and nothing said which. The platform default is what this agent
@@ -1527,7 +1527,7 @@ class _PriceRow extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: IntesharSpacing.sm2),
           if (!regional)
             // Non-regional category: one price for all its (untagged) stock.
             _PriceField(
@@ -1549,13 +1549,13 @@ class _PriceRow extends StatelessWidget {
               s.byGovernorate,
               style: IntesharType.overline(color: cs.onSurfaceVariant),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: IntesharSpacing.xs),
             ...row.governorates.map((g) {
               final label = g.governorate.isEmpty
                   ? s.untagged
                   : governorateLabel(g.governorate, loc);
               return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
+                padding: const EdgeInsets.symmetric(vertical: IntesharSpacing.xs),
                 child: _PriceField(
                   // The governorate is a HEADING over the field now, not the
                   // field's label — the box itself says "your price · IQD".
@@ -1675,7 +1675,7 @@ class _PriceField extends StatelessWidget {
           children: [
             if (negative) ...[
               Icon(Icons.trending_down, size: 14, color: context.status.danger),
-              const SizedBox(width: 3),
+              const SizedBox(width: IntesharSpacing.xs),
             ],
             Flexible(
               child: Text(
@@ -1707,11 +1707,11 @@ class _PriceField extends StatelessWidget {
       children: [
         if (region != null)
           Padding(
-            padding: const EdgeInsets.only(bottom: 4),
+            padding: const EdgeInsets.only(bottom: IntesharSpacing.xs),
             child: Row(children: [
               Icon(Icons.place_outlined,
                   size: 13, color: dirty ? brandInk : cs.onSurfaceVariant),
-              const SizedBox(width: 4),
+              const SizedBox(width: IntesharSpacing.xs),
               Flexible(
                 child: Text(
                   // Not colour alone: the edited line says so in words.
@@ -1745,7 +1745,7 @@ class _PriceField extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: IntesharSpacing.md),
             // UX-21: the margin sits where the value used to — beside the field,
             // because unlike the value it IS a function of what is typed.
             Expanded(child: _marginBlock(context, typed)),
@@ -1757,7 +1757,7 @@ class _PriceField extends StatelessWidget {
         // did not move when the price dropped read as "it didn't save".
         const SizedBox(height: 6),
         Wrap(
-          spacing: 12,
+          spacing: IntesharSpacing.md,
           runSpacing: 2,
           children: [
             Text(

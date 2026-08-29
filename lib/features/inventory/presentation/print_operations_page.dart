@@ -94,7 +94,7 @@ class _PrintOperationsPageState extends ConsumerState<PrintOperationsPage> {
                     onSubmitted: (_) => _search(),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: IntesharSpacing.sm2),
                 FilledButton.icon(
                   onPressed: _loading ? null : _search,
                   icon: const Icon(Icons.search, size: 18),
@@ -127,7 +127,7 @@ class _PrintOperationsPageState extends ConsumerState<PrintOperationsPage> {
     return ListView.separated(
       padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 24),
       itemCount: r.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      separatorBuilder: (_, _) => const SizedBox(height: IntesharSpacing.sm2),
       itemBuilder: (_, i) => _OpCard(op: r[i]),
     );
   }
@@ -141,7 +141,7 @@ class _OpCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     Widget kv(String k, String v, {bool mono = false}) => Padding(
-          padding: const EdgeInsets.only(top: 5),
+          padding: const EdgeInsets.only(top: IntesharSpacing.xs),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             SizedBox(
                 width: 92,

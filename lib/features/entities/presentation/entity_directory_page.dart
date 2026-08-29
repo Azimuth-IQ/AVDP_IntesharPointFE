@@ -702,7 +702,7 @@ class _EntityDirectoryPageState extends ConsumerState<EntityDirectoryPage> {
             builder: (context, c) {
               final wide = c.maxWidth >= _wideBreakpoint;
               return InkCard(
-                padding: EdgeInsets.zero,
+                density: CardDensity.flush,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -739,7 +739,7 @@ class _EntityDirectoryPageState extends ConsumerState<EntityDirectoryPage> {
           ),
           if (_listMore)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
+              padding: const EdgeInsets.symmetric(vertical: IntesharSpacing.md),
               child: Center(
                 child: _listLoadingMore
                     ? const CircularProgressIndicator()
@@ -788,7 +788,7 @@ class _EntityDirectoryPageState extends ConsumerState<EntityDirectoryPage> {
               // instead, the pattern the reports surface uses.
               final wide = c.maxWidth >= _wideBreakpoint;
               return InkCard(
-                padding: EdgeInsets.zero,
+                density: CardDensity.flush,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -876,7 +876,7 @@ class _Toolbar extends StatelessWidget {
           // Filtering a hierarchy by type would cut branches out of the middle
           // and leave an org chart that lies, so the pills belong to list mode.
           if (mode == EntityViewMode.list) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: IntesharSpacing.sm2),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
@@ -888,7 +888,7 @@ class _Toolbar extends StatelessWidget {
                     onTap: () => onTypeChanged(null),
                   ),
                   for (final t in types) ...[
-                    const SizedBox(width: 8),
+                    const SizedBox(width: IntesharSpacing.sm),
                     _FilterPill(
                       key: ValueKey('entity-type-pill-${t.name}'),
                       label: localizedEntityTypeLabel(t, l),
@@ -934,10 +934,10 @@ class _FilterPill extends StatelessWidget {
       minSize: const Size(0, 48),
       child: Material(
         color: bg,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(IntesharRadii.pill),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(IntesharRadii.pill),
           child: Padding(
             padding: const EdgeInsets.symmetric(
                 horizontal: IntesharSpacing.md, vertical: IntesharSpacing.sm),
@@ -1148,7 +1148,7 @@ class _TreeSubtree extends ConsumerWidget {
         // First fetch for this node still in flight.
         rows.add(const Hairline());
         rows.add(Padding(
-          padding: EdgeInsetsDirectional.only(start: 44.0 + depth * _indentStep(wide), top: 10, bottom: 10),
+          padding: EdgeInsetsDirectional.only(start: 44.0 + depth * _indentStep(wide), top: IntesharSpacing.sm2, bottom: IntesharSpacing.sm2),
           child: const Align(
             alignment: AlignmentDirectional.centerStart,
             child: SizedBox(
@@ -1184,7 +1184,7 @@ class _TreeSubtree extends ConsumerWidget {
               alignment: AlignmentDirectional.centerStart,
               child: isLoading
                   ? const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 10),
+                      padding: EdgeInsets.symmetric(vertical: IntesharSpacing.sm2),
                       child: SizedBox(
                           width: 18,
                           height: 18,
@@ -1273,9 +1273,9 @@ class _EntityRowTile extends ConsumerWidget {
       child: Padding(
         padding: EdgeInsetsDirectional.only(
           start: startPad,
-          end: 4,
-          top: 10,
-          bottom: 10,
+          end: IntesharSpacing.xs,
+          top: IntesharSpacing.sm2,
+          bottom: IntesharSpacing.sm2,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1299,7 +1299,7 @@ class _EntityRowTile extends ConsumerWidget {
                           ),
                         ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: IntesharSpacing.sm),
                 // Type avatar (30 × 30 rounded square)
                 Container(
                   width: 30,
@@ -1321,7 +1321,7 @@ class _EntityRowTile extends ConsumerWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: IntesharSpacing.sm2),
                 // Name + type label (+ the figures, folded in below on a phone)
                 Expanded(
                   child: Column(
@@ -1345,7 +1345,7 @@ class _EntityRowTile extends ConsumerWidget {
                       // each carrying its own label — an unlabelled number under
                       // a header the phone never renders would be unreadable.
                       if (!wide && meta.isNotEmpty) ...[
-                        const SizedBox(height: 4),
+                        const SizedBox(height: IntesharSpacing.xs),
                         Text(
                           [for (final (label, value) in meta) '$label: $value']
                               .join(' · '),
@@ -1446,8 +1446,8 @@ class _EntityRowTile extends ConsumerWidget {
     return Padding(
       key: ValueKey('readiness-${entity.id}'),
       // Clears the expander + avatar gutter so the chips line up under the name.
-      padding: const EdgeInsetsDirectional.only(start: 68, top: 8, end: 4),
-      child: Wrap(spacing: 8, runSpacing: 8, children: chips),
+      padding: const EdgeInsetsDirectional.only(start: 68, top: IntesharSpacing.sm, end: IntesharSpacing.xs),
+      child: Wrap(spacing: IntesharSpacing.sm, runSpacing: IntesharSpacing.sm, children: chips),
     );
   }
 

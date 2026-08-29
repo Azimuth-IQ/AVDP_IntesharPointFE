@@ -88,17 +88,17 @@ class ColorHexField extends StatelessWidget {
     return Row(
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.sm2, vertical: IntesharSpacing.xs),
           decoration: BoxDecoration(
             color: color,
-            borderRadius: BorderRadius.circular(999),
+            borderRadius: BorderRadius.circular(IntesharRadii.pill),
           ),
           child: Text(
             isAr ? 'زر' : 'Button',
             style: IntesharText.caption(color: onBrand, w: IntesharWeight.heavy),
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: IntesharSpacing.sm),
         Flexible(
           child: Text(
             '${ratio.toStringAsFixed(1)}:1 · '
@@ -134,13 +134,13 @@ class ColorHexField extends StatelessWidget {
               onTap: () => _openWheel(context),
               borderRadius: BorderRadius.circular(6),
               child: Padding(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(IntesharSpacing.sm),
                 child: Container(
                   width: 24,
                   height: 24,
                   decoration: BoxDecoration(
                     color: color ?? Colors.transparent,
-                    borderRadius: BorderRadius.circular(5),
+                    borderRadius: BorderRadius.circular(IntesharRadii.xs),
                     border: Border.all(color: cs.outline),
                   ),
                   child: color == null

@@ -661,18 +661,18 @@ class _EntityMetaFormSheetState extends State<EntityMetaFormSheet> {
                 if (_nameError != null) setState(() => _nameError = null);
               },
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: IntesharSpacing.md),
             TextField(
               controller: widget.sloganCtrl,
               decoration: InputDecoration(labelText: l.entityTreeFieldSlogan),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: IntesharSpacing.md),
             TextField(
               controller: widget.descCtrl,
               maxLines: 3,
               decoration: InputDecoration(labelText: l.entityTreeFieldDescription),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: IntesharSpacing.md),
 
             // ── Brand fields ─────────────────────────────────────────────
             ImageUploadField(
@@ -683,18 +683,18 @@ class _EntityMetaFormSheetState extends State<EntityMetaFormSheet> {
               kind: 'agent-branding',
               onChanged: (u) => setState(() => widget.logoCtrl.text = u),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: IntesharSpacing.md),
             ImageUploadField(
               value: widget.backgroundCtrl.text.isEmpty ? null : widget.backgroundCtrl.text,
               label: ar ? 'صورة الخلفية' : 'Background Image',
               kind: 'agent-branding',
               onChanged: (u) => setState(() => widget.backgroundCtrl.text = u),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: IntesharSpacing.md),
             ColorHexField(controller: widget.primaryCtrl, label: l.entityFieldPrimaryColor),
-            const SizedBox(height: 12),
+            const SizedBox(height: IntesharSpacing.md),
             ColorHexField(controller: widget.secondaryCtrl, label: l.entityFieldSecondaryColor),
-            const SizedBox(height: 12),
+            const SizedBox(height: IntesharSpacing.md),
             // B-086: how many cards this account may sell in one bulk request. Blank =
             // inherit. The server resolves the EFFECTIVE value as the minimum over the
             // chain, so this can only ever tighten what an ancestor already allows.
@@ -729,7 +729,7 @@ class _EntityMetaFormSheetState extends State<EntityMetaFormSheet> {
                   style: IntesharType.sans(11, color: cs.onSurfaceVariant),
                 ),
               ),
-            const SizedBox(height: 12),
+            const SizedBox(height: IntesharSpacing.md),
             TextField(
               controller: widget.thresholdCtrl,
               keyboardType: TextInputType.number,

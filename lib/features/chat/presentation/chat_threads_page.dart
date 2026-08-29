@@ -111,12 +111,12 @@ class _ChatThreadsPageState extends ConsumerState<ChatThreadsPage> {
       // list means there's no one to message yet — explain rather than dead-end.
       return Center(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
+          padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.xxl),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(Icons.forum_outlined, size: 40, color: cs.onSurfaceVariant),
-              const SizedBox(height: 12),
+              const SizedBox(height: IntesharSpacing.md),
               Text(
                 ar
                     ? 'لا توجد جهات للتواصل بعد. ستظهر حساباتك هنا لبدء محادثة.'
@@ -142,9 +142,9 @@ class _ChatThreadsPageState extends ConsumerState<ChatThreadsPage> {
   Widget _threadTile(ChatThread t, bool ar, ColorScheme cs) {
     final when = t.lastAt.length >= 16 ? t.lastAt.substring(0, 16).replaceFirst('T', ' ') : '';
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: IntesharSpacing.sm),
       child: InkCard(
-        padding: const EdgeInsets.all(12),
+        density: CardDensity.dense,
         onTap: () => _open(t),
         child: Row(children: [
           CircleAvatar(
@@ -155,7 +155,7 @@ class _ChatThreadsPageState extends ConsumerState<ChatThreadsPage> {
               style: IntesharType.sans(16, color: cs.primary, w: FontWeight.w800),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: IntesharSpacing.md),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
@@ -177,20 +177,20 @@ class _ChatThreadsPageState extends ConsumerState<ChatThreadsPage> {
               ),
             ]),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: IntesharSpacing.sm),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
             if (when.isNotEmpty)
               Text(when.length > 10 ? when.substring(5) : when,
                   style: IntesharType.mono(11, color: cs.onSurfaceVariant)),
             if (t.unread > 0) ...[
-              const SizedBox(height: 4),
+              const SizedBox(height: IntesharSpacing.xs),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.sm, vertical: 2),
                 // UX-128: unread mail is not an error. The badge is ours and
                 // deliberate — brand, so red keeps meaning something broke.
                 decoration: BoxDecoration(
                     color: context.tones.brand,
-                    borderRadius: BorderRadius.circular(999)),
+                    borderRadius: BorderRadius.circular(IntesharRadii.pill)),
                 child: Text('${t.unread}',
                     style: IntesharType.sans(11,
                         color: context.tones.onBrand, w: FontWeight.w800)),

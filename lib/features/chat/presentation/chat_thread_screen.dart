@@ -196,7 +196,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
       ),
       child: Row(children: [
         Icon(Icons.forum_outlined, size: 18, color: cs.onSurfaceVariant),
-        const SizedBox(width: 8),
+        const SizedBox(width: IntesharSpacing.sm),
         Expanded(
           child: Text(widget.withName,
               maxLines: 1,
@@ -241,8 +241,8 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     return Align(
       alignment: mine ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        margin: const EdgeInsets.symmetric(vertical: IntesharSpacing.xs),
+        padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.md, vertical: IntesharSpacing.sm),
         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
         decoration: BoxDecoration(
           color: mine ? context.tones.brand : cs.surfaceContainerHighest,
@@ -258,7 +258,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
               // The delivered marker. Without it "sending" and "sent" looked
               // exactly the same, which is the whole of UX-92.
               if (mine) ...[
-                const SizedBox(width: 4),
+                const SizedBox(width: IntesharSpacing.xs),
                 Icon(Icons.done, size: 12, color: footColor),
               ],
             ]),
@@ -275,8 +275,8 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     return Align(
       alignment: AlignmentDirectional.centerEnd,
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        margin: const EdgeInsets.symmetric(vertical: IntesharSpacing.xs),
+        padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.md, vertical: IntesharSpacing.sm),
         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
         decoration: BoxDecoration(
           color: failed
@@ -287,7 +287,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(p.text, style: IntesharType.sans(14, color: fg)),
-          const SizedBox(height: 4),
+          const SizedBox(height: IntesharSpacing.xs),
           if (!failed)
             Row(mainAxisSize: MainAxisSize.min, children: [
               SizedBox(
@@ -303,7 +303,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
           else ...[
             Row(mainAxisSize: MainAxisSize.min, children: [
               Icon(Icons.error_outline, size: 12, color: context.status.danger),
-              const SizedBox(width: 5),
+              const SizedBox(width: IntesharSpacing.xs),
               Flexible(
                 child: Text(
                   p.reason?.isNotEmpty == true
@@ -370,13 +370,19 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                 filled: true,
                 fillColor: cs.surfaceContainerHighest,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
+                  // UX-135: was a raw 24 — the one literal radius in the app
+                  // that was neither a scale step nor half of its own box. The
+                  // composer wants to read rounder than a form field, so it
+                  // takes the scale's roundest step rather than being flattened
+                  // to `lg`; on a one-line composer it clamps to a full pill
+                  // either way, and only differs once the field grows.
+                  borderRadius: BorderRadius.circular(IntesharRadii.xl),
                   borderSide: BorderSide.none,
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: IntesharSpacing.sm),
           // Always enabled: an in-flight message no longer blocks the composer,
           // because it is now visible as its own bubble rather than as a
           // disabled send button.

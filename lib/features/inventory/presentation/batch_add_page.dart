@@ -200,13 +200,13 @@ class _BatchAddPageState extends ConsumerState<BatchAddPage>
               padding: const EdgeInsets.all(IntesharSpacing.xs),
               decoration: BoxDecoration(
                 color: cs.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(999),
+                borderRadius: BorderRadius.circular(IntesharRadii.pill),
               ),
               child: TabBar(
                 controller: _tabs,
                 indicator: BoxDecoration(
                   color: context.tones.brand,
-                  borderRadius: BorderRadius.circular(999),
+                  borderRadius: BorderRadius.circular(IntesharRadii.pill),
                 ),
                 indicatorSize: TabBarIndicatorSize.tab,
                 dividerColor: Colors.transparent,
@@ -802,7 +802,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
               size: 18,
               color: partial != null ? cs.error : context.status.success,
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: IntesharSpacing.sm),
             Expanded(
               child: Text(
                 to == null
@@ -829,7 +829,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
           ),
           // ── Partial upload (UX-85) ───────────────────────────────────
           if (partial != null) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: IntesharSpacing.sm2),
             Text(
               _tr(
                 context,
@@ -860,9 +860,9 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
             ),
           ],
           // ── Actions ──────────────────────────────────────────────────
-          const SizedBox(height: 12),
+          const SizedBox(height: IntesharSpacing.md),
           Wrap(
-            spacing: 8,
+            spacing: IntesharSpacing.sm,
             runSpacing: 6,
             children: [
               if (partial != null && partial.remainingRows > 0)
@@ -904,7 +904,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
           // Which serials were skipped as duplicates (first 20) — the full list is
           // in the reconciliation CSV above.
           if (res.skippedSerials.isNotEmpty) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: IntesharSpacing.sm2),
             Text(
               _tr(
                 context,
@@ -918,7 +918,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
           // Rows the parser threw away BEFORE the upload. The server never saw
           // them, so its `invalid` count cannot mention them.
           if (_attemptedRejected.isNotEmpty) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: IntesharSpacing.sm),
             Text(
               _tr(
                 context,
@@ -1094,7 +1094,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                 }),
               ),
               if (_regionLockedScope == true) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: IntesharSpacing.md),
                 GovernorateDropdown(
                   value: _selectedGovernorate,
                   // Inside the "one governorate" branch the null option is an
@@ -1106,7 +1106,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                   onChanged: (v) => setState(() => _selectedGovernorate = v),
                 ),
               ],
-              const SizedBox(height: 8),
+              const SizedBox(height: IntesharSpacing.sm),
               Builder(builder: (context) {
                 // While the scope is still open the summary is not a note, it is
                 // the outstanding question — so it carries the error colour.
@@ -1145,7 +1145,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                     label: Text(l.batchAddPickFile),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: IntesharSpacing.sm2),
                 OutlinedButton.icon(
                   onPressed: _downloadTemplate,
                   icon: const Icon(Icons.file_download_outlined, size: 18),
@@ -1154,13 +1154,13 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
               ],
             ),
             if (_fileName != null) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: IntesharSpacing.sm),
               Text('📄 $_fileName',
                   style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
             ],
 
             // ── Or paste rows (auto-detects NEW vs OTHER from the columns) ──
-            const SizedBox(height: 16),
+            const SizedBox(height: IntesharSpacing.lg),
             SectionLabel(_tr(context, 'أو الصق الصفوف', 'Or paste rows')),
             TextField(
               controller: _pasteCtrl,
@@ -1210,7 +1210,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
 
             // ── Preview ──────────────────────────────────────────────────
             if (_preview != null && _preview!.isNotEmpty) ...[
-              const SizedBox(height: 24),
+              const SizedBox(height: IntesharSpacing.xl),
               SectionLabel(
                 l.batchAddPreview,
                 trailing: Text(l.batchAddRowCount(_preview!.length),
@@ -1237,10 +1237,10 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
               // B-090: the primary action sits ABOVE the preview — it used to be the
               // very last thing on a long page, so the operator had to scroll past
               // everything to start the import they had already decided on.
-              const SizedBox(height: 12),
+              const SizedBox(height: IntesharSpacing.md),
               if (_missing().isNotEmpty) ...[
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.only(bottom: IntesharSpacing.sm),
                   child: Text(
                     '${_tr(context, 'مطلوب: ', 'Required: ')}${_missing().join(_tr(context, '، ', ', '))}',
                     style: IntesharType.sans(12, color: context.status.danger, w: IntesharWeight.semibold),
@@ -1256,7 +1256,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                 ),
               ),
               if (_importing) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: IntesharSpacing.md),
                 _ProgressBlock(
                   progress: _progress,
                   // Rows, not a second copy of the percentage already on the right.
@@ -1264,7 +1264,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                       '${Formatters.money(_uploadedRows)} / ${Formatters.money(_uploadTotalRows)}',
                 ),
               ],
-              const SizedBox(height: 16),
+              const SizedBox(height: IntesharSpacing.lg),
               _PreviewTable(rows: _preview!, showLabel: !isNew),
             ],
           ],
@@ -1294,7 +1294,7 @@ class _PreviewTable extends StatelessWidget {
     }
 
     return InkCard(
-      padding: EdgeInsets.zero,
+      density: CardDensity.flush,
       child: Column(
         children: [
           Padding(
@@ -1343,7 +1343,7 @@ class _PreviewTable extends StatelessWidget {
           if (rows.length > 10) ...[
             const Hairline(),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: IntesharSpacing.sm2),
               child: Text(l.batchAddMoreRows(rows.length - 10),
                   style: IntesharType.sans(12, color: IntesharColors.lichen)),
             ),
@@ -1390,12 +1390,12 @@ class _ProgressBlock extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: IntesharSpacing.sm2),
           ClipRRect(
             borderRadius: BorderRadius.circular(2),
             child: LinearProgressIndicator(value: progress, minHeight: 6),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: IntesharSpacing.sm),
           Text(label,
               style: IntesharType.sans(12, color: IntesharColors.lichen)),
         ],
@@ -1765,7 +1765,7 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
                   child: ListView.separated(
                     padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
                     itemCount: visible.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 10),
+                    separatorBuilder: (_, _) => const SizedBox(height: IntesharSpacing.sm2),
                     itemBuilder: (_, i) {
                       final b = visible[i];
                       return _BatchCard(
@@ -1834,7 +1834,7 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
                 ),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: IntesharSpacing.sm),
             PopupMenuButton<_BatchSort>(
               enabled: !busy,
               tooltip: _tr(context, 'الترتيب', 'Sort'),
@@ -1862,7 +1862,7 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
               onChanged: (s) => setState(() => _selection = s),
             ),
           ]),
-          const SizedBox(height: 8),
+          const SizedBox(height: IntesharSpacing.sm),
           Wrap(
             spacing: 6,
             runSpacing: 6,
@@ -1924,7 +1924,7 @@ class _BatchesTabState extends ConsumerState<_BatchesTab> {
             style: IntesharType.sans(12, color: cs.onSurfaceVariant),
           ),
           if (_selection.active) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: IntesharSpacing.sm),
             SelectionBar(
               state: _selection,
               // The rows PASSING THE FILTERS — "select shown" on a filtered
@@ -2004,7 +2004,7 @@ class _BatchCard extends StatelessWidget {
                     color: cs.onSurface, w: FontWeight.w800),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: IntesharSpacing.sm),
             _BatchStatusChip(paused: paused),
           ]),
           // C-18 ("المطلوب إظهار اسم الوكيل الذي رُفعت إليه البضاعة"): the owning
@@ -2013,10 +2013,10 @@ class _BatchCard extends StatelessWidget {
           // and the one fact that tells them apart, WHO GOT THE STOCK, was the
           // one missing.
           if ((batch.ownerName ?? '').isNotEmpty) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: IntesharSpacing.xs),
             Row(children: [
               Icon(Icons.store_outlined, size: 14, color: context.tones.brandOnSurface),
-              const SizedBox(width: 5),
+              const SizedBox(width: IntesharSpacing.xs),
               Expanded(
                 child: Text(
                   batch.ownerName!,
@@ -2032,14 +2032,14 @@ class _BatchCard extends StatelessWidget {
           // SKU · type · governorate tags
           Row(children: [
             monoText(batch.sku, size: 12, color: IntesharColors.lichen),
-            const SizedBox(width: 8),
+            const SizedBox(width: IntesharSpacing.sm),
             _BatchTag(batch.type),
             if ((batch.governorate ?? '').isNotEmpty) ...[  
               const SizedBox(width: 6),
               _BatchTag(batch.governorate!),
             ],
           ]),
-          const SizedBox(height: 12),
+          const SizedBox(height: IntesharSpacing.md),
           // Count stats: total / available / used
           Row(children: [
             _CountStat(
@@ -2066,13 +2066,13 @@ class _BatchCard extends StatelessWidget {
             ),
           ]),
           if (batch.createdAt.isNotEmpty) ...[  
-            const SizedBox(height: 8),
+            const SizedBox(height: IntesharSpacing.sm),
             Text(
               batch.createdAt.replaceFirst('T', ' ').split('.').first,
               style: IntesharType.sans(11, color: cs.onSurfaceVariant),
             ),
           ],
-          const SizedBox(height: 12),
+          const SizedBox(height: IntesharSpacing.md),
           // Action row
           if (busy)
             const Padding(
@@ -2086,7 +2086,7 @@ class _BatchCard extends StatelessWidget {
             )
           else
             Wrap(
-              spacing: 8,
+              spacing: IntesharSpacing.sm,
               runSpacing: 6,
               children: [
                 OutlinedButton.icon(
@@ -2162,10 +2162,10 @@ class _BatchStatusChip extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final isAr = Localizations.localeOf(context).languageCode == 'ar';
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.sm, vertical: IntesharSpacing.xs),
       decoration: BoxDecoration(
         color: paused ? cs.errorContainer : cs.primaryContainer,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(IntesharRadii.pill),
       ),
       child: Text(
         paused

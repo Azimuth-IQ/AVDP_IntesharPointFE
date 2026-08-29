@@ -948,7 +948,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
       child: Row(children: [
         Text('${s.viewFor}: ', style: IntesharType.sans(14, color: cs.onSurfaceVariant)),
-        const SizedBox(width: 8),
+        const SizedBox(width: IntesharSpacing.sm),
         Expanded(
           child: DropdownButtonFormField<String>(
             initialValue: _effectiveId,
@@ -969,7 +969,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         // descendant in a dropdown is what this picker was avoiding, so the
         // depth is reached by search instead — the same server-scoped picker
         // used by pricing and the POS network.
-        const SizedBox(width: 4),
+        const SizedBox(width: IntesharSpacing.xs),
         IconButton(
           icon: const Icon(Icons.manage_search),
           tooltip: s.searchAccounts,
@@ -1041,11 +1041,11 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
       for (var i = 0; i < tabs.length; i++)
         if (tabs[i].family == family) i,
     ];
-    if (inFamily.length < 2) return const SizedBox(height: 4);
+    if (inFamily.length < 2) return const SizedBox(height: IntesharSpacing.xs);
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
       child: Wrap(
-        spacing: 8,
+        spacing: IntesharSpacing.sm,
         runSpacing: 6,
         children: [
           for (final i in inFamily)
@@ -1076,7 +1076,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
             Expanded(child: _stockGovBar(s))
           else
             const Spacer(),
-          const SizedBox(width: 8),
+          const SizedBox(width: IntesharSpacing.sm),
           // UX-81: while an export is walking the feed the button spins, counts
           // the rows it has pulled, and refuses further taps — a second tap used
           // to start a whole parallel pull of the same 200 pages.
@@ -1102,7 +1102,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         // row of chrome on a 360dp phone (B-103).
         if (_exportScopeLabel(s, key) case final scope?)
           Padding(
-            padding: const EdgeInsetsDirectional.only(top: 4, bottom: 2),
+            padding: const EdgeInsetsDirectional.only(top: IntesharSpacing.xs, bottom: 2),
             child: Align(
               alignment: AlignmentDirectional.centerStart,
               child: Text(
@@ -1134,11 +1134,11 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
   Widget _emptyDated(_RS s) {
     final cs = Theme.of(context).colorScheme;
     return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.xl),
       children: [
         const SizedBox(height: 72),
         Center(child: Icon(Icons.event_busy_outlined, size: 48, color: cs.onSurfaceVariant)),
-        const SizedBox(height: 12),
+        const SizedBox(height: IntesharSpacing.md),
         Center(
           child: Text(
             _allDates ? s.empty : s.emptyInRange,
@@ -1147,16 +1147,16 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
           ),
         ),
         if (!_allDates) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: IntesharSpacing.xs),
           Center(
             child: Text('${_ymd(_from)} → ${_ymd(_to)}',
                 style: IntesharType.mono(12, color: cs.onSurfaceVariant)),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: IntesharSpacing.lg),
           Center(
             child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
+              spacing: IntesharSpacing.sm,
+              runSpacing: IntesharSpacing.sm,
               alignment: WrapAlignment.center,
               children: [
                 OutlinedButton.icon(
@@ -1192,7 +1192,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
           label: Text(label),
         ),
         if (_from != null) ...[
-          const SizedBox(width: 8),
+          const SizedBox(width: IntesharSpacing.sm),
           IconButton(
             icon: Icon(Icons.clear, size: 18, color: cs.onSurfaceVariant),
             // UX-150: a bare × beside a date range could plausibly close, reset
@@ -1314,7 +1314,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         return Column(children: [
           Expanded(child: body),
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10),
+            padding: const EdgeInsets.symmetric(vertical: IntesharSpacing.sm2),
             child: _loadingMoreFor == _sourceKey(key)
                 ? const SizedBox(
                     width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
@@ -1561,7 +1561,7 @@ class _ReportSurfaceState extends State<_ReportSurface> {
                     size: 16,
                     color: cs.onSurfaceVariant,
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: IntesharSpacing.sm),
                   Flexible(child: Text(widget.columns[c].label, overflow: TextOverflow.ellipsis)),
                 ]),
               ),
@@ -1569,7 +1569,7 @@ class _ReportSurfaceState extends State<_ReportSurface> {
               PopupMenuItem(value: -1, child: Text(widget.s.sortNone)),
           ],
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.sm, vertical: IntesharSpacing.sm),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               Icon(Icons.swap_vert, size: 15, color: cs.onSurfaceVariant),
               const SizedBox(width: 6),
@@ -1751,7 +1751,7 @@ class _ReportSurfaceState extends State<_ReportSurface> {
                     style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700)),
               ),
               if (trailing != null) ...[
-                const SizedBox(width: 10),
+                const SizedBox(width: IntesharSpacing.sm2),
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 150),
                   child: Column(
@@ -1779,7 +1779,7 @@ class _ReportSurfaceState extends State<_ReportSurface> {
             ],
           ),
           if (meta.isNotEmpty) ...[
-            const SizedBox(height: 3),
+            const SizedBox(height: IntesharSpacing.xs),
             Text(meta.join('  ·  '),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
@@ -1889,7 +1889,7 @@ class _RosterReportState extends State<_RosterReport> {
       s: s,
       partial: widget.partial,
       leading: Padding(
-        padding: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.only(bottom: IntesharSpacing.sm2),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           TextField(
             onChanged: (v) => setState(() => _q = v.trim()),
@@ -1947,7 +1947,7 @@ class _RosterReportState extends State<_RosterReport> {
           ],
       ],
       emptyRows: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+        padding: const EdgeInsets.symmetric(vertical: 28, horizontal: IntesharSpacing.lg),
         child: Center(
           child: Text(s.noMatchLoaded,
               textAlign: TextAlign.center,
@@ -2206,7 +2206,7 @@ class _PricesReport extends StatelessWidget {
                   ],
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: IntesharSpacing.sm2),
         ],
       ],
     );
@@ -2249,8 +2249,8 @@ class _StockReport extends StatelessWidget {
       padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 24),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 190,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
+        mainAxisSpacing: IntesharSpacing.md,
+        crossAxisSpacing: IntesharSpacing.md,
         mainAxisExtent: 214, // +18 for the total/used line
       ),
       itemCount: shown.length,
@@ -2258,7 +2258,7 @@ class _StockReport extends StatelessWidget {
         final sku = shown[i];
         final art = artBySku[sku.sku] ?? '';
         return InkCard(
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(IntesharSpacing.sm2),
           child: Column(children: [
             // The card picture — the point of this report.
             Expanded(
@@ -2285,7 +2285,7 @@ class _StockReport extends StatelessWidget {
                             )),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: IntesharSpacing.sm),
             Text(sku.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -2344,7 +2344,7 @@ class _DetailedReport extends StatelessWidget {
         // sounded identical on different bases, and a third gave this one a name
         // that pointed at the balance instead of at the stock.
         Padding(
-          padding: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.only(bottom: IntesharSpacing.sm2),
           child: Text(s.grandTotalBasis,
               style: IntesharType.sans(12,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -2552,7 +2552,7 @@ class _TotalStrip extends StatelessWidget {
         ],
       ),
       if (note != null) ...[
-        const SizedBox(height: 8),
+        const SizedBox(height: IntesharSpacing.sm),
         Row(children: [
           Icon(Icons.info_outline, size: 14, color: context.status.warn),
           const SizedBox(width: 6),
@@ -2565,9 +2565,9 @@ class _TotalStrip extends StatelessWidget {
       ],
       // UX-40: "…and that is 12% more than the previous 30 days".
       if (delta case final d?) ...[
-        const SizedBox(height: 10),
+        const SizedBox(height: IntesharSpacing.sm2),
         Divider(height: 1, thickness: 1, color: cs.outlineVariant),
-        const SizedBox(height: 8),
+        const SizedBox(height: IntesharSpacing.sm),
         _deltaLine(context, d),
       ],
       ]),
@@ -2581,7 +2581,7 @@ Widget _empty(BuildContext context, _RS s) {
     children: [
       const SizedBox(height: 80),
       Center(child: Icon(Icons.assessment_outlined, size: 48, color: cs.onSurfaceVariant)),
-      const SizedBox(height: 12),
+      const SizedBox(height: IntesharSpacing.md),
       Center(child: Text(s.empty, style: IntesharType.sans(14, color: cs.onSurfaceVariant))),
     ],
   );

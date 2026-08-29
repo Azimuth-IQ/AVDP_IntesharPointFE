@@ -1187,7 +1187,7 @@ class _HomeSliderState extends State<_HomeSlider> {
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       decoration: BoxDecoration(
                         color: Colors.black.withValues(alpha: 0.45),
-                        borderRadius: BorderRadius.circular(999),
+                        borderRadius: BorderRadius.circular(IntesharRadii.pill),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,

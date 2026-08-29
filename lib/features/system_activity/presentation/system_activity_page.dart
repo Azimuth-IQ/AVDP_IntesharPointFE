@@ -471,7 +471,7 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
             l: l,
             onFocus: _focusKpi,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: IntesharSpacing.md),
           _TabBar(
             current: _tab,
             onSelect: _onTab,
@@ -516,7 +516,7 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: IntesharSpacing.sm),
           Expanded(
             child: IndexedStack(
               index: _tab,
@@ -564,12 +564,12 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
           else
             _ExceptionsCard(rows: exceptions, ar: ar),
           if (_unpriced.isNotEmpty) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: IntesharSpacing.md),
             _UnpricedAgentsCard(rows: _unpriced, onTapAgent: _focusEntitySearch),
           ],
-          const SizedBox(height: 12),
+          const SizedBox(height: IntesharSpacing.md),
           _HealthHint(ar: ar),
-          const SizedBox(height: 16),
+          const SizedBox(height: IntesharSpacing.lg),
           // UX-105: the other half of the Oversight pair, named and linked
           // rather than left to be discovered by opening both and comparing.
           _SiblingSectionLink(
@@ -621,7 +621,7 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(_hPad, 2, _hPad, 32),
         itemCount: feed.items.length + 1,
-        separatorBuilder: (_, _) => const SizedBox(height: 10),
+        separatorBuilder: (_, _) => const SizedBox(height: IntesharSpacing.sm2),
         itemBuilder: (context, i) {
           if (i == feed.items.length) return _loadMoreTile(feed, l);
           return itemBuilder(feed.items[i]);
@@ -631,7 +631,7 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
   }
 
   Widget _loadMoreTile<T>(_PagedFeed<T> feed, AppLocalizations l) {
-    if (!feed.hasMore) return const SizedBox(height: 4);
+    if (!feed.hasMore) return const SizedBox(height: IntesharSpacing.xs);
     return Padding(
       padding: const EdgeInsets.only(top: 14),
       child: Center(
@@ -678,7 +678,7 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
               ),
               // UX-08: the account this feed is scoped to, and the way back out.
               if (_logEntityId != null) ...[
-                const SizedBox(height: 10),
+                const SizedBox(height: IntesharSpacing.sm2),
                 Align(
                   alignment: AlignmentDirectional.centerStart,
                   child: InputChip(
@@ -699,7 +699,7 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
                   ),
                 ),
               ],
-              const SizedBox(height: 10),
+              const SizedBox(height: IntesharSpacing.sm2),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
@@ -713,28 +713,28 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
                         _reload(_logsFeed);
                       }),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: IntesharSpacing.sm),
                     _FilterPill(
                       label: l.sysActLevelInfo,
                       tint: context.status.inFlight,
                       selected: _level == 'INFO',
                       onTap: () => _setLevel('INFO'),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: IntesharSpacing.sm),
                     _FilterPill(
                       label: l.sysActLevelWarn,
                       tint: context.tones.brandInk,
                       selected: _level == 'WARN',
                       onTap: () => _setLevel('WARN'),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: IntesharSpacing.sm),
                     _FilterPill(
                       label: l.sysActLevelError,
                       tint: context.status.danger,
                       selected: _level == 'ERROR',
                       onTap: () => _setLevel('ERROR'),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: IntesharSpacing.sm),
                     _FilterPill(
                       label: l.sysActFailuresOnly,
                       tint: context.status.danger,
@@ -808,7 +808,7 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
                   }),
                 ),
                 for (final s in TransactionStatus.values) ...[
-                  const SizedBox(width: 8),
+                  const SizedBox(width: IntesharSpacing.sm),
                   _FilterPill(
                     label: _txnStatusLabel(l, s),
                     tint: _txnStatusColor(context, s),
@@ -872,7 +872,7 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
                   _reload(_entityFeed);
                 },
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: IntesharSpacing.sm2),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
@@ -886,7 +886,7 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
                       }),
                     ),
                     for (final t in EntityType.values) ...[
-                      const SizedBox(width: 8),
+                      const SizedBox(width: IntesharSpacing.sm),
                       _FilterPill(
                         label: _entityTypeLabel(l, t),
                         tint: RoleBadge.colorFor(context, t),
@@ -1021,7 +1021,7 @@ class _SystemActivityPageState extends ConsumerState<SystemActivityPage> {
           if (row.entityType.isNotEmpty) _kv(sheetCtx, l.sysActEntities, row.entityType),
           const SizedBox(height: 6),
           if (row.entityId.isNotEmpty)
-            Wrap(spacing: 10, runSpacing: 10, children: [
+            Wrap(spacing: IntesharSpacing.sm2, runSpacing: IntesharSpacing.sm2, children: [
               OutlinedButton.icon(
                 onPressed: () {
                   Navigator.pop(sheetCtx);
@@ -1099,7 +1099,7 @@ class _AllClearCard extends StatelessWidget {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(ar ? 'كل شيء يعمل بشكل سليم' : 'Everything is running clean',
                 style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w800)),
-            const SizedBox(height: 3),
+            const SizedBox(height: IntesharSpacing.xs),
             Text(
               ar
                   ? 'لا توجد معاملات فاشلة ولا أخطاء في $windowLabel.'
@@ -1123,7 +1123,7 @@ class _ExceptionsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return InkCard(
-      padding: EdgeInsets.zero,
+      density: CardDensity.flush,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(
@@ -1152,7 +1152,7 @@ class _ExceptionsCard extends StatelessWidget {
                   ),
                   child: Icon(rows[i].icon, size: 18, color: rows[i].color),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: IntesharSpacing.md),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(rows[i].title,
@@ -1184,7 +1184,7 @@ class _HealthHint extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return Row(children: [
       Icon(Icons.info_outline, size: 15, color: cs.onSurfaceVariant),
-      const SizedBox(width: 8),
+      const SizedBox(width: IntesharSpacing.sm),
       Expanded(
         child: Text(
           ar
@@ -1227,18 +1227,18 @@ class _SiblingSectionLink extends StatelessWidget {
       density: CardDensity.dense,
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Icon(icon, size: 20, color: context.tones.brandInk),
-        const SizedBox(width: 12),
+        const SizedBox(width: IntesharSpacing.md),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(title,
                 style: IntesharType.sans(14,
                     color: cs.onSurface, w: FontWeight.w800)),
-            const SizedBox(height: 3),
+            const SizedBox(height: IntesharSpacing.xs),
             Text(body,
                 style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
           ]),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: IntesharSpacing.sm),
         Icon(Icons.chevron_right, size: 20, color: cs.onSurfaceVariant),
       ]),
     );
@@ -1354,7 +1354,7 @@ class _StatStrip extends StatelessWidget {
           padding: const EdgeInsetsDirectional.fromSTEB(_hPad, 4, _hPad, 0),
           child: Row(children: [
             for (var i = 0; i < tiles.length; i++) ...[
-              if (i > 0) const SizedBox(width: 10),
+              if (i > 0) const SizedBox(width: IntesharSpacing.sm2),
               SizedBox(width: 176, child: tiles[i]),
             ],
           ]),
@@ -1363,8 +1363,8 @@ class _StatStrip extends StatelessWidget {
       return Padding(
         padding: const EdgeInsetsDirectional.fromSTEB(_hPad, 4, _hPad, 0),
         child: Wrap(
-          spacing: 10,
-          runSpacing: 10,
+          spacing: IntesharSpacing.sm2,
+          runSpacing: IntesharSpacing.sm2,
           children: [for (final t in tiles) SizedBox(width: 176, child: t)],
         ),
       );
@@ -1481,7 +1481,7 @@ class _TabBar extends StatelessWidget {
       child: Row(
         children: [
           for (var i = 0; i < items.length; i++) ...[
-            if (i > 0) const SizedBox(width: 8),
+            if (i > 0) const SizedBox(width: IntesharSpacing.sm),
             _TabChip(spec: items[i], active: i == current, onTap: () => onSelect(i)),
           ],
         ],
@@ -1509,10 +1509,10 @@ class _TabChip extends StatelessWidget {
       minSize: const Size(0, 48),
       child: Material(
         color: active ? cs.primary.withValues(alpha: 0.18) : cs.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(IntesharRadii.pill),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(IntesharRadii.pill),
           child: Padding(
             padding: const EdgeInsets.symmetric(
                 horizontal: IntesharSpacing.md, vertical: IntesharSpacing.sm2),
@@ -1520,20 +1520,20 @@ class _TabChip extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(spec.icon, size: 16, color: fg),
-                const SizedBox(width: 7),
+                const SizedBox(width: IntesharSpacing.sm),
                 Text(spec.label,
                     style: IntesharType.sans(14,
                         color: fg, w: active ? FontWeight.w800 : IntesharWeight.semibold)),
-                const SizedBox(width: 7),
+                const SizedBox(width: IntesharSpacing.sm),
                 Tooltip(
                   message: spec.hint,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.sm, vertical: 2),
                     decoration: BoxDecoration(
                       color: active
                           ? cs.onSurface.withValues(alpha: 0.12)
                           : cs.onSurfaceVariant.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(999),
+                      borderRadius: BorderRadius.circular(IntesharRadii.pill),
                     ),
                     child: Text(
                         spec.approxCount
@@ -1580,10 +1580,10 @@ class _FilterPill extends StatelessWidget {
       minSize: const Size(0, 48),
       child: Material(
         color: bg,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(IntesharRadii.pill),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(IntesharRadii.pill),
           child: Padding(
             padding: const EdgeInsets.symmetric(
                 horizontal: IntesharSpacing.md, vertical: IntesharSpacing.sm),
@@ -1592,7 +1592,7 @@ class _FilterPill extends StatelessWidget {
               children: [
                 if (icon != null) ...[
                   Icon(icon, size: 14, color: fg),
-                  const SizedBox(width: 5),
+                  const SizedBox(width: IntesharSpacing.xs),
                 ],
                 Text(label,
                     style: IntesharType.sans(12,
@@ -1729,7 +1729,7 @@ class _LogRow extends StatelessWidget {
             ),
             child: Icon(v.icon, size: 18, color: v.color),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: IntesharSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1738,7 +1738,7 @@ class _LogRow extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700)),
-                const SizedBox(height: 4),
+                const SizedBox(height: IntesharSpacing.xs),
                 Text(meta,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1746,13 +1746,13 @@ class _LogRow extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: IntesharSpacing.sm),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               _logStatusPill(context, log),
               if (log.durationMs != null) ...[
-                const SizedBox(height: 5),
+                const SizedBox(height: IntesharSpacing.xs),
                 _ltr(Text('${log.durationMs}ms',
                     style: IntesharType.mono(11, color: IntesharColors.lichen))),
               ],
@@ -1785,7 +1785,7 @@ class _LogDetailSheet extends StatelessWidget {
         Row(
           children: [
             Icon(v.icon, size: 18, color: v.color),
-            const SizedBox(width: 8),
+            const SizedBox(width: IntesharSpacing.sm),
             Expanded(
               child: Text(
                 _logPrimaryLine(light, Localizations.localeOf(context).languageCode == 'ar'),
@@ -1806,7 +1806,7 @@ class _LogDetailSheet extends StatelessWidget {
                 ..._logKv(ctx, l, log, onEntity: onEntity),
                 if (loading)
                   const Padding(
-                    padding: EdgeInsets.only(top: 8),
+                    padding: EdgeInsets.only(top: IntesharSpacing.sm),
                     child: LinearProgressIndicator(minHeight: 2),
                   ),
               ],
@@ -1837,7 +1837,7 @@ List<Widget> _logKv(BuildContext context, AppLocalizations l, OperationLog log,
     // UX-08: the id above identifies an account nobody could reach from here.
     if (log.entityId.isNotEmpty && onEntity != null)
       Padding(
-        padding: const EdgeInsets.only(bottom: 9),
+        padding: const EdgeInsets.only(bottom: IntesharSpacing.sm),
         child: Align(
           alignment: AlignmentDirectional.centerStart,
           child: OutlinedButton.icon(
@@ -1856,11 +1856,11 @@ List<Widget> _logKv(BuildContext context, AppLocalizations l, OperationLog log,
     if (log.ip.isNotEmpty) _kv(context, l.sysActFieldIp, log.ip, mono: true),
     if (log.correlationId.isNotEmpty) _kv(context, l.sysActFieldCorrelation, log.correlationId, mono: true),
     if (log.errorMessage.isNotEmpty) ...[
-      const SizedBox(height: 8),
+      const SizedBox(height: IntesharSpacing.sm),
       _CodeBlock(label: l.sysActFieldError, text: log.errorMessage, tint: cs.error),
     ],
     if (log.stackTrace.isNotEmpty) ...[
-      const SizedBox(height: 8),
+      const SizedBox(height: IntesharSpacing.sm),
       _CodeBlock(label: l.sysActFieldStack, text: log.stackTrace),
     ],
   ];
@@ -1905,7 +1905,7 @@ class _TxnRow extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700)),
-                const SizedBox(height: 3),
+                const SizedBox(height: IntesharSpacing.xs),
                 _ltr(Text('#$shortId · ${row.date} ${row.time}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1913,12 +1913,12 @@ class _TxnRow extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: IntesharSpacing.sm2),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               StampPill(label: _txnStatusLabel(l, row.statusEnum), color: _txnStatusColor(context, row.statusEnum)),
-              const SizedBox(height: 5),
+              const SizedBox(height: IntesharSpacing.xs),
               Text(Formatters.iqd(row.totalAmount),
                   style: IntesharType.mono(12, color: cs.onSurface, w: FontWeight.w700)),
             ],
@@ -1946,20 +1946,20 @@ class _TxnDetailSheet extends StatelessWidget {
         _kv(context, l.txnsTo, row.destinationLabel),
         _kv(context, l.txnsMetaReference, row.id, mono: true),
         _kv(context, l.txnsMetaIssued, '${row.date} ${row.time}', mono: true),
-        const SizedBox(height: 12),
-        SectionLabel(l.txnsLineItems, padding: const EdgeInsets.only(bottom: 10)),
+        const SizedBox(height: IntesharSpacing.md),
+        SectionLabel(l.txnsLineItems, padding: const EdgeInsets.only(bottom: IntesharSpacing.sm2)),
         FutureBuilder<AppTransaction>(
           future: future,
           builder: (ctx, snap) {
             if (snap.connectionState != ConnectionState.done) {
               return const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
+                padding: EdgeInsets.symmetric(vertical: IntesharSpacing.md),
                 child: Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4))),
               );
             }
             if (snap.hasError || snap.data == null) {
               return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                padding: const EdgeInsets.symmetric(vertical: IntesharSpacing.sm),
                 child: Text(l.inventoryLoadCodesFailed,
                     style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
               );
@@ -1970,7 +1970,7 @@ class _TxnDetailSheet extends StatelessWidget {
               children: [
                 for (final ln in tx.lines)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.only(bottom: IntesharSpacing.sm),
                     child: Row(
                       children: [
                         Expanded(child: _ltr(Text(ln.sku, style: IntesharType.mono(12, color: cs.onSurface, w: FontWeight.w600)))),
@@ -1981,7 +1981,7 @@ class _TxnDetailSheet extends StatelessWidget {
                     ),
                   ),
                 if (tx.processMessage.isNotEmpty) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: IntesharSpacing.xs),
                   _kv(context, l.txnsMetaNote, tx.processMessage),
                 ],
               ],
@@ -2062,11 +2062,11 @@ class _EntityRow extends ConsumerWidget {
                           overflow: TextOverflow.ellipsis,
                           style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700)),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: IntesharSpacing.sm),
                     RoleBadge(type: row.type),
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: IntesharSpacing.xs),
                 Text(meta,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -2081,7 +2081,7 @@ class _EntityRow extends ConsumerWidget {
               ],
             ),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: IntesharSpacing.xs),
           EntityRowActionsButton(row: row, onChanged: onChanged, iconSize: 17),
         ],
       ),
@@ -2112,7 +2112,7 @@ class _EntityDetailSheet extends StatelessWidget {
       titleTrailing: RoleBadge(type: row.type),
       children: [
         if (onViewActivity != null || onOpenAgent != null) ...[
-          Wrap(spacing: 10, runSpacing: 10, children: [
+          Wrap(spacing: IntesharSpacing.sm2, runSpacing: IntesharSpacing.sm2, children: [
             if (onViewActivity != null)
               OutlinedButton.icon(
                 onPressed: onViewActivity,
@@ -2134,14 +2134,14 @@ class _EntityDetailSheet extends StatelessWidget {
         _kv(context, l.navChildren, '${row.childrenCount}'),
         _kv(context, l.dashboardProducts, '${row.productsCount}'),
         _kv(context, l.sysActUsers, '${row.userCount}'),
-        const SizedBox(height: 12),
-        SectionLabel(l.sysActUsers, padding: const EdgeInsets.only(bottom: 10)),
+        const SizedBox(height: IntesharSpacing.md),
+        SectionLabel(l.sysActUsers, padding: const EdgeInsets.only(bottom: IntesharSpacing.sm2)),
         FutureBuilder<Paged<AdminUserRow>>(
           future: usersFuture,
           builder: (ctx, snap) {
             if (snap.connectionState != ConnectionState.done) {
               return const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
+                padding: EdgeInsets.symmetric(vertical: IntesharSpacing.md),
                 child: Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4))),
               );
             }
@@ -2157,11 +2157,11 @@ class _EntityDetailSheet extends StatelessWidget {
               children: [
                 for (final u in users)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.only(bottom: IntesharSpacing.sm),
                     child: Row(
                       children: [
                         Icon(Icons.person_outline, size: 18, color: cs.onSurfaceVariant),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: IntesharSpacing.sm2),
                         Expanded(child: _ltr(Text(u.phone, style: IntesharType.mono(12)))),
                         _roleChip(context, u.roleEnum, l),
                       ],
@@ -2208,13 +2208,13 @@ class _UserRow extends StatelessWidget {
             ),
             child: Icon(Icons.person_outline, size: 20, color: cs.onSurfaceVariant),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: IntesharSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _ltr(Text(row.phone, style: IntesharType.mono(14, color: cs.onSurface, w: FontWeight.w600))),
-                const SizedBox(height: 3),
+                const SizedBox(height: IntesharSpacing.xs),
                 Row(
                   children: [
                     Flexible(
@@ -2229,10 +2229,10 @@ class _UserRow extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: IntesharSpacing.sm),
           _roleChip(context, row.roleEnum, l),
           if (onTap != null) ...[
-            const SizedBox(width: 4),
+            const SizedBox(width: IntesharSpacing.xs),
             Icon(Icons.chevron_right, size: 18, color: cs.onSurfaceVariant),
           ],
         ],
@@ -2309,7 +2309,7 @@ Widget _kv(BuildContext context, String label, String value, {bool mono = false}
           width: 116,
           child: Text(label, style: IntesharType.sans(12, color: context.status.neutral, w: IntesharWeight.semibold)),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: IntesharSpacing.md),
         Expanded(child: mono ? _ltr(valueWidget) : valueWidget),
       ],
     ),
@@ -2335,7 +2335,7 @@ class _NoticeState extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 360),
         child: Padding(
-          padding: const EdgeInsets.all(32),
+          padding: const EdgeInsets.all(IntesharSpacing.xxl),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -2378,7 +2378,7 @@ class _CodeBlock extends StatelessWidget {
         const SizedBox(height: 6),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(IntesharSpacing.md),
           decoration: BoxDecoration(
             color: cs.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(IntesharRadii.md),
@@ -2416,7 +2416,7 @@ class _UnpricedAgentsCard extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Icon(Icons.price_change_outlined, size: 18, color: context.tones.brandInk),
-          const SizedBox(width: 8),
+          const SizedBox(width: IntesharSpacing.sm),
           Expanded(
             child: Text(
               ar
@@ -2427,7 +2427,7 @@ class _UnpricedAgentsCard extends StatelessWidget {
           ),
         ]),
         const SizedBox(height: 6),
-        Wrap(spacing: 8, runSpacing: 6, children: [
+        Wrap(spacing: IntesharSpacing.sm, runSpacing: 6, children: [
           // UX-119: `compact` dropped these below the 48dp floor, and they are
           // laid out in a Wrap so neighbours sit 8px apart in both axes — the
           // worst case for a shrunken target. Each one navigates to a different

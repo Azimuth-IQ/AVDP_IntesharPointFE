@@ -325,7 +325,7 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
                     : (going.length == 1
                         ? 'This person can no longer sign in and their account moves to the archive. It can be restored later.'
                         : 'These people can no longer sign in and their accounts move to the archive. They can be restored later.')),
-                const SizedBox(height: 12),
+                const SizedBox(height: IntesharSpacing.md),
                 ...going.map((p) => Padding(
                       padding: const EdgeInsets.symmetric(vertical: 2),
                       child: Text(p,
@@ -402,7 +402,7 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
             // Existing users
             if (_users.isEmpty)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                padding: const EdgeInsets.symmetric(vertical: IntesharSpacing.md),
                 child: Text(
                   l.manageUsersEmpty,
                   style: Theme.of(context).textTheme.bodySmall,
@@ -421,7 +421,7 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
                 ),
               ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: IntesharSpacing.lg),
 
             // The sub-form is boxed so its own commit button reads as belonging
             // to it and not to the sheet. Two bare buttons stacked in one column
@@ -441,7 +441,7 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
                     l.manageUsersNewUser,
                     style: IntesharType.overline(color: cs.onPrimaryContainer),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: IntesharSpacing.md),
                   TextField(
                     controller: _phoneCtrl,
                     keyboardType: TextInputType.phone,
@@ -460,7 +460,7 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
                     ),
                     decoration: InputDecoration(labelText: l.manageUsersPhone),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: IntesharSpacing.md),
                   TextField(
                     controller: _passCtrl,
                     obscureText: _obscurePass,
@@ -488,7 +488,7 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: IntesharSpacing.md),
                   DropdownButtonFormField<UserRole>(
                     initialValue: _selectedRole,
                     decoration: InputDecoration(labelText: l.manageUsersRole),
@@ -504,13 +504,13 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
                   // want a till operator. It cannot make one — say so here,
                   // rather than let them find out from the POS screen later.
                   if (_isStore) ...[
-                    const SizedBox(height: 10),
+                    const SizedBox(height: IntesharSpacing.sm2),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Icon(Icons.info_outline,
                             size: 15, color: cs.onSurfaceVariant),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: IntesharSpacing.sm),
                         Expanded(
                           child: Text(
                             _t(
@@ -529,11 +529,11 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
                     ),
                   ],
                   if (_addError != null) ...[
-                    const SizedBox(height: 10),
+                    const SizedBox(height: IntesharSpacing.sm2),
                     Text(_addError!,
                         style: TextStyle(color: cs.error, fontSize: 12)),
                   ],
-                  const SizedBox(height: 12),
+                  const SizedBox(height: IntesharSpacing.md),
                   Align(
                     alignment: AlignmentDirectional.centerEnd,
                     child: FilledButton.tonalIcon(
@@ -593,14 +593,21 @@ class _UserRow extends StatelessWidget {
             ? cs.onPrimaryContainer
             : IntesharColors.sage;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: IntesharSpacing.xs),
       child: InkCard(
         ruleColor: color,
-        padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+        // UX-135: this was `EdgeInsets.fromLTRB(14, 10, 8, 10)` — physical
+        // edges on a card whose `ruleColor` stripe is drawn at the START edge.
+        // In Arabic the stripe moves to the right and the 14 of clearance for
+        // it stayed on the left, so the rule sat 8px from the row's content in
+        // the app's primary locale and 14px in English. Directional insets keep
+        // the clearance with the stripe.
+        padding: const EdgeInsetsDirectional.fromSTEB(
+            14, IntesharSpacing.sm2, IntesharSpacing.sm, IntesharSpacing.sm2),
         child: Row(
           children: [
             Icon(Icons.person_outline, size: 18, color: cs.onSurfaceVariant),
-            const SizedBox(width: 12),
+            const SizedBox(width: IntesharSpacing.md),
             Expanded(
               child: SelectableText(
                 user.phone,
@@ -619,7 +626,7 @@ class _UserRow extends StatelessWidget {
                   : user.role.name,
               color: color,
             ),
-            const SizedBox(width: 4),
+            const SizedBox(width: IntesharSpacing.xs),
             // A marked row offers only the way back. Leaving the menu live
             // would let it be "removed" twice and hide the undo behind it.
             if (markedForRemoval)

@@ -60,12 +60,12 @@ class _AppDownloadPageState extends State<AppDownloadPage> {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
               child: Center(
                 child: InkCard(
-                  padding: const EdgeInsets.all(24),
+                  density: CardDensity.roomy,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.qr_code_2, size: 28, color: context.tones.brandInk),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: IntesharSpacing.sm2),
                       Text(
                         ar ? 'امسح بكاميرا الهاتف للتثبيت' : 'Scan with your phone camera to install',
                         textAlign: TextAlign.center,
@@ -89,14 +89,14 @@ class _AppDownloadPageState extends State<AppDownloadPage> {
                                 errorCorrectionLevel: QrErrorCorrectLevel.M,
                               ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: IntesharSpacing.lg),
                       if (_url != null)
                         SelectableText(
                           _url!,
                           textAlign: TextAlign.center,
                           style: IntesharType.mono(12, color: cs.onSurfaceVariant),
                         ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: IntesharSpacing.md),
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [

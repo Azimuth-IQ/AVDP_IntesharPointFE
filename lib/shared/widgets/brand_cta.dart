@@ -147,10 +147,10 @@ class _Inner extends StatelessWidget {
               height: fontSize + 2,
               child: CircularProgressIndicator(strokeWidth: 2, color: fg),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: IntesharSpacing.sm2),
           ] else if (leading != null) ...[
             Icon(leading, size: fontSize + 4, color: fg),
-            const SizedBox(width: 10),
+            const SizedBox(width: IntesharSpacing.sm2),
           ],
           Flexible(
             child: Text(
@@ -169,7 +169,7 @@ class _Inner extends StatelessWidget {
             ),
           ),
           if (trailing != null) ...[
-            const SizedBox(width: 10),
+            const SizedBox(width: IntesharSpacing.sm2),
             Icon(trailing, size: fontSize + 4, color: fg),
           ],
         ],
@@ -193,7 +193,7 @@ class _Inner extends StatelessWidget {
         child: Container(
           height: height,
           alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.xl),
           decoration: BoxDecoration(
             color: cs.onSurface.withValues(alpha: 0.10),
             borderRadius: radius,
@@ -241,7 +241,7 @@ class _Inner extends StatelessWidget {
     Widget body = Container(
       height: height,
       alignment: Alignment.center,
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.xl),
       decoration: deco,
       child: _row(fg),
     );

@@ -65,6 +65,17 @@ class IntesharRadii {
   static const md = 14.0;
   static const lg = 20.0;
   static const xl = 28.0;
+
+  /// A **fully rounded** end cap — chips, stamps, status pills, the search
+  /// field, the slider dots. Not a step on the scale above: the intent is "half
+  /// my own height, whatever that turns out to be", which no fixed number can
+  /// express, so the idiom is an absurdly large radius that `BorderRadius`
+  /// clamps to the box.
+  ///
+  /// UX-135: this was a bare `999` at 25 sites. It read as a magic number and,
+  /// worse, made every audit of raw radii report 25 false positives — which is
+  /// how the real off-scale radii stayed invisible.
+  static const pill = 999.0;
 }
 
 /// The spacing scale (UX-135). Gaps, paddings and insets come from here.

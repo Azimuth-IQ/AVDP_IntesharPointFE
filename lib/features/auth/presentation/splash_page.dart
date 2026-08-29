@@ -41,7 +41,7 @@ class SplashPage extends ConsumerWidget {
                     l.appTitle,
                     style: IntesharType.display(44, color: cs.onSurface, w: FontWeight.w900),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: IntesharSpacing.sm2),
                   Text(
                     l.splashTagline,
                     style: TextStyle(

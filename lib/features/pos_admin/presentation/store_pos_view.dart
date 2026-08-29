@@ -133,9 +133,9 @@ class _StorePosViewState extends ConsumerState<StorePosView> {
               padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 28),
               children: [
                 _note(s, cs),
-                const SizedBox(height: 16),
+                const SizedBox(height: IntesharSpacing.lg),
                 if (store != null) _identityCard(s, store, loc, cs),
-                const SizedBox(height: 16),
+                const SizedBox(height: IntesharSpacing.lg),
                 _counterCard(s, counter, cs),
               ],
             ),
@@ -155,11 +155,11 @@ class _StorePosViewState extends ConsumerState<StorePosView> {
         ),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Icon(Icons.point_of_sale_outlined, size: 20, color: context.tones.brandInk),
-          const SizedBox(width: 12),
+          const SizedBox(width: IntesharSpacing.md),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(s.noteTitle, style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w800)),
-              const SizedBox(height: 3),
+              const SizedBox(height: IntesharSpacing.xs),
               Text(s.noteBody, style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
             ]),
           ),
@@ -174,7 +174,6 @@ class _StorePosViewState extends ConsumerState<StorePosView> {
     final address = store.profile?.address ?? '';
     final gov = store.meta.governorates.isNotEmpty ? store.meta.governorates.first : '';
     return InkCard(
-      padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(
@@ -200,7 +199,7 @@ class _StorePosViewState extends ConsumerState<StorePosView> {
   }
 
   Widget _row(String label, String value, ColorScheme cs) => Padding(
-        padding: const EdgeInsets.only(top: 8),
+        padding: const EdgeInsets.only(top: IntesharSpacing.sm),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           SizedBox(
             width: 104,
@@ -217,10 +216,9 @@ class _StorePosViewState extends ConsumerState<StorePosView> {
   Widget _counterCard(_S s, EntityUser? counter, ColorScheme cs) {
     if (counter == null) {
       return InkCard(
-        padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(s.noCounter, style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700)),
-          const SizedBox(height: 4),
+          const SizedBox(height: IntesharSpacing.xs),
           Text(s.noCounterBody, style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
         ]),
       );
@@ -229,16 +227,15 @@ class _StorePosViewState extends ConsumerState<StorePosView> {
     // would only produce a 403. Say why instead.
     final canManage = counter.isPos;
     return InkCard(
-      padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(s.counter, style: IntesharType.overline(color: cs.onSurfaceVariant)),
         const SizedBox(height: 6),
         Text(counter.phone, style: IntesharType.mono(14, color: cs.onSurface)),
-        const SizedBox(height: 12),
+        const SizedBox(height: IntesharSpacing.md),
         if (!canManage)
           Text(s.legacyCounter, style: IntesharType.sans(12, color: cs.onSurfaceVariant))
         else
-          Wrap(spacing: 8, runSpacing: 8, children: [
+          Wrap(spacing: IntesharSpacing.sm, runSpacing: IntesharSpacing.sm, children: [
             _actionButton('pin', s.resetPin, () => _resetPin(s, counter.phone)),
             _actionButton(
                 'password', s.resetPassword, () => _resetPassword(s, counter.phone)),
@@ -264,7 +261,7 @@ class _StorePosViewState extends ConsumerState<StorePosView> {
           content: Column(mainAxisSize: MainAxisSize.min, children: [
             Text(s.pinResetBody,
                 style: IntesharType.sans(14, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
-            const SizedBox(height: 16),
+            const SizedBox(height: IntesharSpacing.lg),
             SelectableText(
               pin,
               style: IntesharType.codec(size: 40, w: FontWeight.w900, letterSpacing: 8),

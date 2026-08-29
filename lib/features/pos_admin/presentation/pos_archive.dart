@@ -161,9 +161,9 @@ Future<String?> showArchivePosDialog(
                       'Its data is kept for $retentionDays days, after which it can '
                       'be deleted permanently.',
                 )),
-                const SizedBox(height: 16),
+                const SizedBox(height: IntesharSpacing.lg),
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(IntesharSpacing.md),
                   decoration: BoxDecoration(
                     color: downloaded ? cs.primaryContainer : cs.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(IntesharRadii.md),
@@ -175,7 +175,7 @@ Future<String?> showArchivePosDialog(
                             : Icons.download_outlined,
                         size: 18,
                         color: downloaded ? cs.onPrimaryContainer : cs.onSurfaceVariant),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: IntesharSpacing.sm2),
                     Expanded(
                       child: Text(
                         downloaded
@@ -188,7 +188,7 @@ Future<String?> showArchivePosDialog(
                     ),
                   ]),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: IntesharSpacing.sm),
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
@@ -349,9 +349,9 @@ class _PosArchiveViewState extends ConsumerState<PosArchiveView> {
                     '${row.operatorPhone ?? ''} can sign in with the same '
                     'credentials. Its balance and history are unchanged.',
               )),
-              const SizedBox(height: 12),
+              const SizedBox(height: IntesharSpacing.md),
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(IntesharSpacing.md),
                 decoration: BoxDecoration(
                   color: blocked ? cs.errorContainer : cs.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(IntesharRadii.md),
@@ -360,7 +360,7 @@ class _PosArchiveViewState extends ConsumerState<PosArchiveView> {
                   Icon(blocked ? Icons.block : Icons.confirmation_number_outlined,
                       size: 18,
                       color: blocked ? cs.onErrorContainer : cs.onSurfaceVariant),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: IntesharSpacing.sm2),
                   Expanded(
                     child: Text(
                       freePoints == null
@@ -457,14 +457,14 @@ class _PosArchiveViewState extends ConsumerState<PosArchiveView> {
   Widget build(BuildContext context) {
     if (_loading && _rows == null) {
       return const Center(child: Padding(
-          padding: EdgeInsets.all(32), child: CircularProgressIndicator()));
+          padding: EdgeInsets.all(IntesharSpacing.xxl), child: CircularProgressIndicator()));
     }
     if (_error != null) {
       return Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(IntesharSpacing.xl),
         child: Column(children: [
           Text(friendlyError(_error, context), textAlign: TextAlign.center),
-          const SizedBox(height: 12),
+          const SizedBox(height: IntesharSpacing.md),
           OutlinedButton(
               onPressed: _load, child: Text(_t(context, 'إعادة المحاولة', 'Try again'))),
         ]),
@@ -512,7 +512,7 @@ class PosArchiveList extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: rows.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 8),
+      separatorBuilder: (_, _) => const SizedBox(height: IntesharSpacing.sm),
       itemBuilder: (context, i) => _row(context, rows[i]),
     );
   }
@@ -548,15 +548,15 @@ class PosArchiveList extends StatelessWidget {
           ),
         ]),
         if (subtitle.isNotEmpty) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: IntesharSpacing.xs),
           Text(subtitle,
               style: Theme.of(context)
                   .textTheme
                   .bodySmall
                   ?.copyWith(color: cs.onSurfaceVariant)),
         ],
-        const SizedBox(height: 10),
-        Wrap(spacing: 8, runSpacing: 6, children: [
+        const SizedBox(height: IntesharSpacing.sm2),
+        Wrap(spacing: IntesharSpacing.sm, runSpacing: 6, children: [
           // Restore leads: it is the reason most people open this screen, and it
           // is available for the whole retention window — the countdown is a
           // deadline for deletion, not for changing your mind.

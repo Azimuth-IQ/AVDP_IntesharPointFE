@@ -182,7 +182,7 @@ class _EntityMultiSearchListState extends State<EntityMultiSearchList> {
           Text(friendlyError(_error!, context),
               textAlign: TextAlign.center,
               style: IntesharText.body(color: cs.onSurfaceVariant)),
-          const SizedBox(height: 8),
+          const SizedBox(height: IntesharSpacing.sm),
           OutlinedButton(onPressed: _reload, child: Text(s.retry)),
         ]),
       );
@@ -376,7 +376,7 @@ class _EntitySearchDialogState extends State<_EntitySearchDialog> {
           Text(friendlyError(_error!, context),
               textAlign: TextAlign.center,
               style: IntesharText.body(color: cs.onSurfaceVariant)),
-          const SizedBox(height: 8),
+          const SizedBox(height: IntesharSpacing.sm),
           OutlinedButton(onPressed: _reload, child: Text(s.retry)),
         ]),
       );

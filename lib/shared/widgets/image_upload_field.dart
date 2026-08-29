@@ -154,8 +154,8 @@ class _MultiImageUploadFieldState extends ConsumerState<MultiImageUploadField> {
         ],
         if (widget.values.isNotEmpty) ...[
           Wrap(
-            spacing: 10,
-            runSpacing: 10,
+            spacing: IntesharSpacing.sm2,
+            runSpacing: IntesharSpacing.sm2,
             children: [
               for (var i = 0; i < widget.values.length; i++)
                 _Thumb(
@@ -164,11 +164,11 @@ class _MultiImageUploadFieldState extends ConsumerState<MultiImageUploadField> {
                 ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: IntesharSpacing.sm2),
         ],
         if (_uploading)
           const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
+            padding: EdgeInsets.symmetric(vertical: IntesharSpacing.sm),
             child: SizedBox(
               width: 20,
               height: 20,
@@ -181,11 +181,11 @@ class _MultiImageUploadFieldState extends ConsumerState<MultiImageUploadField> {
             icon: const Icon(Icons.add_photo_alternate_outlined, size: 16),
             label: Text(isAr ? 'إضافة صورة' : 'Add image'),
             style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: IntesharSpacing.sm2),
             ),
           ),
         if (_error != null) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: IntesharSpacing.xs),
           Text(
             _error!,
             style: IntesharText.body(color: cs.error),
@@ -370,7 +370,7 @@ class _ImageUploadFieldState extends ConsumerState<ImageUploadField> {
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: IntesharSpacing.md),
             ],
             if (_uploading)
               const SizedBox(
@@ -385,13 +385,13 @@ class _ImageUploadFieldState extends ConsumerState<ImageUploadField> {
                 label: Text(hasImage ? 'Change' : 'Upload'),
                 style: OutlinedButton.styleFrom(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: IntesharSpacing.sm2),
                 ),
               ),
           ],
         ),
         if (_error != null) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: IntesharSpacing.xs),
           Text(
             _error!,
             style: IntesharText.body(color: cs.error),

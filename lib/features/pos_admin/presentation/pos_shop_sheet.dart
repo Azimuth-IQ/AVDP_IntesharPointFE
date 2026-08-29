@@ -250,14 +250,14 @@ class _PosShopSheetState extends State<_PosShopSheet> {
             else if (_error != null) ...[
               Text(friendlyError(_error!, context),
                   style: IntesharType.sans(14, color: cs.error)),
-              const SizedBox(height: 12),
+              const SizedBox(height: IntesharSpacing.md),
               OutlinedButton(
                   onPressed: _load, child: Text(_p('Try again', 'إعادة المحاولة'))),
             ] else ...[
               for (final g in _gates(_stats!)) _gateRow(g, cs),
               const SizedBox(height: 14),
               const Hairline(),
-              const SizedBox(height: 12),
+              const SizedBox(height: IntesharSpacing.md),
               _kv(_p('Cards sold (lifetime)', 'الكروت المباعة (الإجمالي)'),
                   Formatters.money(_stats!.printedCount), cs),
               _kv(_p('Cards held by the shop', 'الكروت لدى المتجر'),
@@ -292,10 +292,10 @@ class _PosShopSheetState extends State<_PosShopSheet> {
       _ => (Icons.remove_circle_outline, cs.onSurfaceVariant),
     };
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: IntesharSpacing.sm2),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Icon(icon, size: 17, color: tint),
-        const SizedBox(width: 10),
+        const SizedBox(width: IntesharSpacing.sm2),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(g.label,
@@ -319,7 +319,7 @@ class _PosShopSheetState extends State<_PosShopSheet> {
             child: Text(label,
                 style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: IntesharSpacing.md),
           Flexible(
             child: Text(value,
                 textAlign: TextAlign.end,

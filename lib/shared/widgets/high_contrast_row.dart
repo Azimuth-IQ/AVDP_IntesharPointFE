@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/display_prefs.dart';
+import 'package:inteshar/app/theme.dart';
 
 /// Label + switch that turns the high-contrast theme on (UX-153).
 ///
@@ -29,7 +30,7 @@ class HighContrastRow extends ConsumerWidget {
     return Row(
       children: [
         Icon(Icons.contrast_outlined, size: 18, color: cs.onSurfaceVariant),
-        const SizedBox(width: 10),
+        const SizedBox(width: IntesharSpacing.sm2),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

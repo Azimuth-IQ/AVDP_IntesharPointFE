@@ -136,7 +136,7 @@ class _SliderManagementPageState extends ConsumerState<SliderManagementPage> {
               'الصور التي تظهر على الشاشة الرئيسية لنقاط البيع، مع الاستهداف.',
               'Images shown on the POS home screen, with targeting.'),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: IntesharSpacing.lg),
         Align(
           alignment: AlignmentDirectional.centerStart,
           child: FilledButton.icon(
@@ -145,14 +145,14 @@ class _SliderManagementPageState extends ConsumerState<SliderManagementPage> {
             label: Text(_t(context, 'إضافة صورة', 'Add slide')),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: IntesharSpacing.lg),
         if (_loading)
           const Padding(padding: EdgeInsets.only(top: 40), child: Center(child: CircularProgressIndicator()))
         else if (_error != null)
           ErrorState(error: _error!, onRetry: _load)
         else if ((_sliders ?? const []).isEmpty)
           Padding(
-            padding: const EdgeInsets.only(top: 32),
+            padding: const EdgeInsets.only(top: IntesharSpacing.xxl),
             child: Center(
               child: Text(
                 _t(context, 'لا توجد صور بعد — أضف واحدة.', 'No slides yet — add one.'),
@@ -220,8 +220,8 @@ class _SliderRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(10),
+      margin: const EdgeInsets.only(bottom: IntesharSpacing.sm2),
+      padding: const EdgeInsets.all(IntesharSpacing.sm2),
       decoration: BoxDecoration(
         color: cs.surfaceContainer,
         borderRadius: BorderRadius.circular(IntesharRadii.md),
@@ -304,7 +304,7 @@ class _SliderRow extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(children: [thumb, const SizedBox(width: 12), Expanded(child: info)]),
+              Row(children: [thumb, const SizedBox(width: IntesharSpacing.md), Expanded(child: info)]),
               Align(
                 alignment: AlignmentDirectional.centerEnd,
                 child: Row(mainAxisSize: MainAxisSize.min, children: actions),
@@ -313,7 +313,7 @@ class _SliderRow extends StatelessWidget {
           );
         }
         return Row(
-          children: [thumb, const SizedBox(width: 12), Expanded(child: info), ...actions],
+          children: [thumb, const SizedBox(width: IntesharSpacing.md), Expanded(child: info), ...actions],
         );
       }),
     );
@@ -480,10 +480,10 @@ class _SliderEditorSheetState extends ConsumerState<_SliderEditorSheet> {
                       fit: BoxFit.cover),
                 ),
               ),
-            const SizedBox(height: 10),
+            const SizedBox(height: IntesharSpacing.sm2),
             if (_uploading)
               const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
+                padding: EdgeInsets.symmetric(vertical: IntesharSpacing.sm),
                 child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
               )
             else
@@ -502,11 +502,11 @@ class _SliderEditorSheetState extends ConsumerState<_SliderEditorSheet> {
               title: Text(_t(context, 'مُفعّلة', 'Active'),
                   style: IntesharType.sans(14, color: cs.onSurface, w: IntesharWeight.semibold)),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: IntesharSpacing.sm),
 
             Text(_t(context, 'العرض على', 'Show to'),
                 style: IntesharType.sans(12, color: cs.onSurfaceVariant, w: FontWeight.w700)),
-            const SizedBox(height: 8),
+            const SizedBox(height: IntesharSpacing.sm),
             SegmentedButton<_Aud>(
               showSelectedIcon: false,
               segments: [
@@ -521,7 +521,7 @@ class _SliderEditorSheetState extends ConsumerState<_SliderEditorSheet> {
             if (_aud == _Aud.tier) _tierPicker(cs),
             if (_aud == _Aud.entity) _entityPicker(cs),
             if (_aud == _Aud.governorate) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: IntesharSpacing.md),
               GovernorateMultiSelect(
                 selected: _govs,
                 onChanged: (v) => setState(() => _govs = v),
@@ -529,7 +529,7 @@ class _SliderEditorSheetState extends ConsumerState<_SliderEditorSheet> {
             ],
 
             if (_error != null) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: IntesharSpacing.sm2),
               Text(_error!, style: IntesharType.sans(12, color: cs.error)),
             ],
             IntesharSpacing.gapLg,
@@ -550,10 +550,10 @@ class _SliderEditorSheetState extends ConsumerState<_SliderEditorSheet> {
   Widget _tierPicker(ColorScheme cs) {
     final loc = Localizations.localeOf(context).languageCode;
     return Padding(
-      padding: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.only(top: IntesharSpacing.md),
       child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
+        spacing: IntesharSpacing.sm,
+        runSpacing: IntesharSpacing.sm,
         children: [
           for (final o in _tierOptions)
             FilterChip(
@@ -571,7 +571,7 @@ class _SliderEditorSheetState extends ConsumerState<_SliderEditorSheet> {
   // under an earlier search stay selected while the visible page changes.
   Widget _entityPicker(ColorScheme cs) {
     return Padding(
-      padding: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.only(top: IntesharSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

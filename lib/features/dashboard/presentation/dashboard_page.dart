@@ -365,7 +365,7 @@ class _StorePosNote extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(icon, size: 20, color: context.tones.brandInk),
-            const SizedBox(width: 12),
+            const SizedBox(width: IntesharSpacing.md),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -373,7 +373,7 @@ class _StorePosNote extends StatelessWidget {
                   Text(title,
                       style: IntesharType.sans(14,
                           color: cs.onSurface, w: FontWeight.w800)),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: IntesharSpacing.xs),
                   Text(body,
                       style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
                 ],
@@ -399,7 +399,7 @@ class _StorePosNote extends StatelessWidget {
                 ? 'للبيع والطباعة، سجّل الدخول بحساب نقطة البيع (حساب المستخدم) على تطبيق نقطة البيع.'
                 : 'To sell and print, sign in with your point-of-sale account (the USER login) in the POS app.',
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: IntesharSpacing.md),
           line(
             Icons.forum_outlined,
             ar ? 'المحادثات مع وكيلك' : 'Messages from your agent',
@@ -518,7 +518,7 @@ class _KpiRow extends StatelessWidget {
             children: tiles
                 .map(
                   (t) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.only(bottom: IntesharSpacing.md),
                     child: t,
                   ),
                 )
@@ -531,7 +531,7 @@ class _KpiRow extends StatelessWidget {
           final rowTiles = tiles.sublist(i, (i + cols).clamp(0, tiles.length));
           rows.add(
             Padding(
-              padding: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.only(bottom: IntesharSpacing.md),
               // IntrinsicHeight + stretch makes every tile in the row adopt the
               // tallest tile's height. Labels (maxLines: 2) and captions wrap to
               // different line counts per tile — especially in Arabic — which
@@ -541,12 +541,12 @@ class _KpiRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     for (var j = 0; j < rowTiles.length; j++) ...[
-                      if (j > 0) const SizedBox(width: 12),
+                      if (j > 0) const SizedBox(width: IntesharSpacing.md),
                       Expanded(child: rowTiles[j]),
                     ],
                     // Fill remaining cols with invisible spacers so row is uniform
                     for (var k = rowTiles.length; k < cols; k++) ...[
-                      const SizedBox(width: 12),
+                      const SizedBox(width: IntesharSpacing.md),
                       const Expanded(child: SizedBox()),
                     ],
                   ],
@@ -626,7 +626,7 @@ class _KpiTile extends StatelessWidget {
                 alignment: AlignmentDirectional.centerStart,
                 child: Text(value, style: IntesharText.displayLg(color: cs.onSurface)),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: IntesharSpacing.xs),
               Text(
                 caption,
                 style: IntesharType.sans(12, color: cs.onSurfaceVariant),
@@ -706,12 +706,12 @@ class _BodyRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(child: txnCard),
-              const SizedBox(width: 16),
+              const SizedBox(width: IntesharSpacing.lg),
               SizedBox(
                 width: 360,
                 child: Column(children: [
                   for (var i = 0; i < side.length; i++) ...[
-                    if (i > 0) const SizedBox(height: 16),
+                    if (i > 0) const SizedBox(height: IntesharSpacing.lg),
                     side[i],
                   ],
                 ]),
@@ -721,7 +721,7 @@ class _BodyRow extends StatelessWidget {
         }
         return Column(children: [
           txnCard,
-          for (final w in side) ...[const SizedBox(height: 16), w],
+          for (final w in side) ...[const SizedBox(height: IntesharSpacing.lg), w],
         ]);
       },
     );
@@ -748,7 +748,7 @@ class _ChildCreditCard extends StatelessWidget {
     final shown = rows.take(dry.length > 5 ? dry.length.clamp(0, 8) : 5).toList();
 
     return InkCard(
-      padding: EdgeInsets.zero,
+      density: CardDensity.flush,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -801,7 +801,7 @@ class _ChildCreditCard extends StatelessWidget {
                       style: IntesharType.sans(14, color: cs.onSurface, w: IntesharWeight.semibold),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: IntesharSpacing.sm),
                   Text(
                     Formatters.iqd(shown[i].available.round()),
                     style: IntesharType.mono(
@@ -858,7 +858,7 @@ class _RecentTransfersCard extends StatelessWidget {
     final ar = Localizations.localeOf(context).languageCode == 'ar';
 
     return InkCard(
-      padding: EdgeInsets.zero,
+      density: CardDensity.flush,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -918,7 +918,7 @@ class _RecentTransfersCard extends StatelessWidget {
                             color: tint,
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: IntesharSpacing.sm2),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1035,7 +1035,7 @@ class _InlineEmpty extends StatelessWidget {
               color: cs.onSurfaceVariant,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: IntesharSpacing.md),
           Expanded(
             child: Text(
               message,
@@ -1124,7 +1124,7 @@ class _BalanceCard extends ConsumerWidget {
                     Text(label,
                         style:
                             IntesharType.overline(color: cs.onSurfaceVariant)),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: IntesharSpacing.xs),
                     Text(
                       Formatters.iqd(balance.available.round()),
                       style: IntesharType.codec(
@@ -1153,24 +1153,24 @@ class _BalanceCard extends ConsumerWidget {
           if (showBreakdown) ...[
             const SizedBox(height: 14),
             const Hairline(),
-            const SizedBox(height: 10),
+            const SizedBox(height: IntesharSpacing.sm2),
             _BalanceLine(
               label: ar ? 'مُضاف لي' : 'Credited to me',
               amount: balance.base,
             ),
-            const SizedBox(height: 5),
+            const SizedBox(height: IntesharSpacing.xs),
             _BalanceLine(
               label: ar ? 'مُحوَّل إلى حساباتي' : 'Given to my accounts',
               amount: balance.grantsOut,
               negative: true,
             ),
-            const SizedBox(height: 5),
+            const SizedBox(height: IntesharSpacing.xs),
             _BalanceLine(
               label: ar ? 'المتبقي لديّ' : 'Left with me',
               amount: balance.available,
               strong: true,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: IntesharSpacing.sm),
             // What "credited" is measured in — the other half of UX-20. An
             // inventory-backed tier's credit is the value of the stock HQ
             // uploaded to it; a wallet tier's is credit its parent granted.
@@ -1186,7 +1186,7 @@ class _BalanceCard extends ConsumerWidget {
             ),
           ],
           if (canAsk) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: IntesharSpacing.xs),
             Align(
               alignment: AlignmentDirectional.centerStart,
               child: TextButton.icon(
@@ -1239,7 +1239,7 @@ class _BalanceLine extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: IntesharSpacing.sm2),
         Text(
           '${negative && amount != 0 ? '−' : ''}${Formatters.iqd(amount.round())}',
           style: IntesharType.mono(
@@ -1281,7 +1281,7 @@ class _LowStockCard extends ConsumerWidget {
     final lowNames = lowSkus.values.map((e) => e.name).join(ar ? '، ' : ', ');
 
     return InkCard(
-      padding: EdgeInsets.zero,
+      density: CardDensity.flush,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1348,7 +1348,7 @@ class _LowStockCard extends ConsumerWidget {
                       color: context.status.success,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: IntesharSpacing.md),
                   Expanded(
                     child: Text(
                       l.dashAllHealthy,
@@ -1389,7 +1389,7 @@ class _LowStockCard extends ConsumerWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: IntesharSpacing.sm),
                         Text(
                           '${e.value.count} ${l.dashUnitsLeft}',
                           style: IntesharType.sans(

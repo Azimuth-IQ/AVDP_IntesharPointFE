@@ -813,7 +813,7 @@ class _MobileLayout extends StatelessWidget {
         actions: [
           if (entity != null)
             Padding(
-              padding: const EdgeInsetsDirectional.only(end: 8),
+              padding: const EdgeInsetsDirectional.only(end: IntesharSpacing.sm),
               child: Center(child: RoleBadge(type: entity!.type)),
             ),
           IconButton(
@@ -986,7 +986,7 @@ class _MoreSheet extends StatelessWidget {
                         unreadCount: unreadCount,
                         onTap: () => onSelect(entry.itemIndex!),
                       ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: IntesharSpacing.sm),
                 ],
               ),
             ),
@@ -1036,7 +1036,7 @@ class _MoreRow extends StatelessWidget {
                 item.route,
                 unreadCount,
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: IntesharSpacing.lg),
               Expanded(
                 child: Text(
                   item.label,
@@ -1133,7 +1133,7 @@ class _TabletLayout extends StatelessWidget {
         actions: [
           if (entity != null)
             Padding(
-              padding: const EdgeInsetsDirectional.only(end: 12),
+              padding: const EdgeInsetsDirectional.only(end: IntesharSpacing.md),
               child: Center(child: RoleBadge(type: entity!.type)),
             ),
           IconButton(
@@ -1346,15 +1346,15 @@ class _Sidebar extends StatelessWidget {
                 child: _EntityChip(entity: entity!),
               )
             else
-              const SizedBox(height: 16),
+              const SizedBox(height: IntesharSpacing.lg),
             // Nav list with interleaved group headers (HQ and agent roles).
             // Headers are non-interactive separators; only _NavRow entries carry
             // selectable indices — so activeIndex / onSelect are unaffected.
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.symmetric(
-                  vertical: 8,
-                  horizontal: 10,
+                  vertical: IntesharSpacing.sm,
+                  horizontal: IntesharSpacing.sm2,
                 ),
                 itemCount: sidebarEntries.length,
                 itemBuilder: (ctx, e) {
@@ -1438,7 +1438,7 @@ class _EntityChip extends StatelessWidget {
               RoleBadge(type: entity.type),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: IntesharSpacing.sm),
           Text(
             entity.meta.name.isNotEmpty ? entity.meta.name : entity.id,
             // UX-127: was an off-scale 17.
@@ -1449,7 +1449,7 @@ class _EntityChip extends StatelessWidget {
             ),
             overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: IntesharSpacing.xs),
           Text(
             entity.id,
             style: GoogleFonts.jetBrainsMono(
@@ -1554,7 +1554,7 @@ class _NavRowState extends State<_NavRow> {
                       // Active: small star indicator instead of the editorial rule.
                       if (active)
                         Padding(
-                          padding: const EdgeInsetsDirectional.only(end: 10),
+                          padding: const EdgeInsetsDirectional.only(end: IntesharSpacing.sm2),
                           child: IntesharStar(
                             size: 14,
                             color: cs.onSurface,
@@ -1562,7 +1562,7 @@ class _NavRowState extends State<_NavRow> {
                           ),
                         )
                       else
-                        const SizedBox(width: 24),
+                        const SizedBox(width: IntesharSpacing.xl),
                       iconWidget,
                       const SizedBox(width: 14),
                       Expanded(
@@ -1606,7 +1606,7 @@ void _showAboutSheet(BuildContext context) {
         title: Row(
           children: [
             IntesharStar(size: 28, color: cs.onSurface),
-            const SizedBox(width: 12),
+            const SizedBox(width: IntesharSpacing.md),
             Text(l.aboutTitle),
           ],
         ),
@@ -1624,11 +1624,11 @@ void _showAboutSheet(BuildContext context) {
                   letterSpacing: 0.6,
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: IntesharSpacing.lg),
               SectionLabel(l.aboutSupportedPrinters),
               ...supportedPrinterModels.map(
                 (m) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  padding: const EdgeInsets.symmetric(vertical: IntesharSpacing.xs),
                   child: Row(
                     children: [
                       Icon(
@@ -1636,7 +1636,7 @@ void _showAboutSheet(BuildContext context) {
                         size: 14,
                         color: cs.onSurfaceVariant,
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: IntesharSpacing.sm),
                       Expanded(
                         child: Text(
                           m.name,
@@ -1655,7 +1655,7 @@ void _showAboutSheet(BuildContext context) {
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: IntesharSpacing.lg),
               Text(
                 l.aboutPrinterNote,
                 style: Theme.of(ctx).textTheme.bodySmall,
@@ -1709,7 +1709,7 @@ class _AboutDrawer extends StatelessWidget {
                     tagline: 'Inteshar',
                     onBrandSurface: true,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: IntesharSpacing.md),
                   Text(
                     l.aboutVersion,
                     style: GoogleFonts.jetBrainsMono(
@@ -1740,7 +1740,7 @@ class _AboutDrawer extends StatelessWidget {
             ),
             const Divider(),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: IntesharSpacing.md),
               child: Text(l.aboutPrinterNote, style: theme.textTheme.bodySmall),
             ),
             const Divider(height: 1),

@@ -118,7 +118,6 @@ class _HealthPageState extends ConsumerState<HealthPage> {
           SectionLabel(l.healthConnectionSection),
           InkCard(
             ruleColor: cs.outline,
-            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -132,14 +131,14 @@ class _HealthPageState extends ConsumerState<HealthPage> {
           SectionLabel(l.healthChecksSection),
           if (_loading)
             const Padding(
-              padding: EdgeInsets.all(32),
+              padding: EdgeInsets.all(IntesharSpacing.xxl),
               child: Center(child: CircularProgressIndicator()),
             )
           else if (_results.isEmpty)
             Text(l.healthNoResults)
           else
             ..._results.entries.map((e) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  padding: const EdgeInsets.symmetric(vertical: IntesharSpacing.xs),
                   child: _HealthCard(label: e.key, result: e.value),
                 )),
         ],
@@ -194,7 +193,7 @@ class _HealthCardState extends State<_HealthCard> {
     final ok = widget.result.ok;
     final tone = ok ? IntesharColors.sage : cs.error;
     return InkCard(
-      padding: EdgeInsets.zero,
+      density: CardDensity.flush,
       ruleColor: tone,
       child: Column(
         children: [
@@ -205,7 +204,7 @@ class _HealthCardState extends State<_HealthCard> {
               child: Row(
                 children: [
                   Icon(ok ? Icons.check_circle : Icons.error_outline, size: 18, color: tone),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: IntesharSpacing.md),
                   Expanded(
                     child: Text(
                       widget.label,

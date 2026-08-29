@@ -64,7 +64,7 @@ class OfflineStrip extends ConsumerWidget {
           child: Row(
             children: [
               Icon(Icons.wifi_off_rounded, size: 20, color: fg),
-              const SizedBox(width: 10),
+              const SizedBox(width: IntesharSpacing.sm2),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -89,7 +89,7 @@ class OfflineStrip extends ConsumerWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: IntesharSpacing.sm),
               MinTapTarget(
                 minSize: const Size(48, 48),
                 child: TextButton(

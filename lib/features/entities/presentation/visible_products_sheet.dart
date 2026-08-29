@@ -239,7 +239,7 @@ class _VisibleProductsSheetState extends ConsumerState<_VisibleProductsSheet> {
     }
     return ListView(
       shrinkWrap: true,
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: IntesharSpacing.sm),
       children: [
         for (final k in keys) ...[
           Padding(

@@ -273,7 +273,7 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
                     horizontal: IntesharSpacing.lg, vertical: IntesharSpacing.sm2),
                 decoration: BoxDecoration(
                   color: context.tones.brand.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(999),
+                  borderRadius: BorderRadius.circular(IntesharRadii.pill),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -283,7 +283,7 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
                       style: IntesharType.display(20,
                           color: context.tones.brandInk, w: FontWeight.w900),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: IntesharSpacing.sm),
                     Text(
                       l.defsTitlesLabel,
                       style: IntesharType.sans(14,
@@ -354,7 +354,7 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
                                 16, 0, 16, 24),
                             sliver: SliverToBoxAdapter(
                               child: InkCard(
-                                padding: EdgeInsets.zero,
+                                density: CardDensity.flush,
                                 child: Column(
                                   children: [
                                     // Column header
@@ -577,7 +577,7 @@ class _DefinitionRowState extends State<_DefinitionRow> {
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: IntesharSpacing.md),
               // Price (right-aligned, monospace)
               SizedBox(
                 width: 120,
@@ -755,7 +755,7 @@ class _DefinitionFormSheetState extends State<_DefinitionFormSheet> {
                 }
               },
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: IntesharSpacing.md),
             TextField(
               controller: widget.skuCtrl,
               textCapitalization: TextCapitalization.characters,
@@ -773,7 +773,7 @@ class _DefinitionFormSheetState extends State<_DefinitionFormSheet> {
                 if (_skuError != null) setState(() => _skuError = null);
               },
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: IntesharSpacing.md),
             TextField(
               controller: widget.priceCtrl,
               keyboardType: TextInputType.number,
@@ -792,13 +792,13 @@ class _DefinitionFormSheetState extends State<_DefinitionFormSheet> {
                   ? null
                   : (_) => setState(() => _priceError = null),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: IntesharSpacing.md),
             TextField(
               controller: widget.descCtrl,
               maxLines: 2,
               decoration: InputDecoration(labelText: l.defsFieldDescription),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: IntesharSpacing.md),
             ImageUploadField(
               value: _imageUrl.isEmpty ? null : _imageUrl,
               kind: 'product-image',
@@ -809,7 +809,7 @@ class _DefinitionFormSheetState extends State<_DefinitionFormSheet> {
               },
             ),
             if (widget.companies.isNotEmpty) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: IntesharSpacing.md),
               Builder(builder: (context) {
                 final ar = Localizations.localeOf(context).languageCode == 'ar';
                 return DropdownButtonFormField<String?>(
@@ -847,7 +847,7 @@ class _DefinitionFormSheetState extends State<_DefinitionFormSheet> {
             child: Text(l.defsCancel),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: IntesharSpacing.md),
         Expanded(
           child: FilledButton(
             onPressed: _saving

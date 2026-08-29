@@ -207,7 +207,7 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
                 style: IntesharType.sans(
                     12, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: IntesharSpacing.sm),
           TextField(
             controller: countCtrl,
             autofocus: true,
@@ -325,7 +325,7 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
         padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 28),
         children: [
           if (_summary != null) _kpiStrip(s, _summary!),
-          const SizedBox(height: 12),
+          const SizedBox(height: IntesharSpacing.md),
           // B-043: HQ is the sole distributor of POS points — grant to ANY account
           // (agent or store), so a store isn't stranded now that agents can't grant.
           SizedBox(
@@ -355,7 +355,7 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
               onChanged: (v) => setState(() => _selection = v),
             ),
           ]),
-          const SizedBox(height: 10),
+          const SizedBox(height: IntesharSpacing.sm2),
           SegmentedButton<String>(
             segments: [
               ButtonSegment(value: '', label: Text(s.all)),
@@ -367,7 +367,7 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
             onSelectionChanged: _bulkBusy ? null : (v) => _setTier(v.first),
           ),
           if (_selection.active) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: IntesharSpacing.sm2),
             SelectionBar(
               state: _selection,
               visibleIds: [for (final r in _rows) r.entityId],
@@ -387,10 +387,10 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
           else
             for (final r in _rows) _agentCard(s, r, cs),
           if (_hasMore) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: IntesharSpacing.sm),
             Center(
               child: _loadingMore
-                  ? const Padding(padding: EdgeInsets.all(8), child: SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)))
+                  ? const Padding(padding: EdgeInsets.all(IntesharSpacing.sm), child: SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)))
                   : OutlinedButton(onPressed: _loadMore, child: Text(s.loadMore)),
             ),
           ],
@@ -415,7 +415,7 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
     void toggle() =>
         setState(() => _selection = _selection.toggle(r.entityId));
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: IntesharSpacing.sm2),
       child: InkCard(
         density: CardDensity.dense,
         ruleColor: selected ? context.tones.brand : null,
@@ -433,14 +433,14 @@ class _PosNetworkViewState extends ConsumerState<PosNetworkView> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 Flexible(child: Text(r.name.isNotEmpty ? r.name : r.entityId, style: IntesharType.sans(16, color: cs.onSurface, w: FontWeight.w700), overflow: TextOverflow.ellipsis)),
-                const SizedBox(width: 8),
+                const SizedBox(width: IntesharSpacing.sm),
                 StampPill(label: isSub ? s.sub : s.main, color: isSub ? context.status.success : context.tones.brandInk),
               ]),
               if (isSub && (r.parentName ?? '').isNotEmpty) ...[
                 const SizedBox(height: 2),
                 Text(r.parentName!, style: IntesharType.sans(12, color: cs.onSurfaceVariant), overflow: TextOverflow.ellipsis),
               ],
-              const SizedBox(height: 8),
+              const SizedBox(height: IntesharSpacing.sm),
               Text('${Formatters.money(r.used)} ${s.used} · ${Formatters.money(r.available)} ${s.avail} ${s.ofTotal} ${Formatters.money(r.total)}',
                   style: IntesharType.mono(12, color: cs.onSurfaceVariant)),
             ]),

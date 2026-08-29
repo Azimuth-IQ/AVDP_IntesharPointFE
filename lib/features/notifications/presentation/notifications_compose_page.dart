@@ -230,7 +230,7 @@ class _NotificationsComposePageState extends ConsumerState<NotificationsComposeP
             ),
           ),
           ..._historySliver(s),
-          const SliverToBoxAdapter(child: SizedBox(height: 32)),
+          const SliverToBoxAdapter(child: SizedBox(height: IntesharSpacing.xxl)),
         ],
       ),
     );
@@ -238,7 +238,7 @@ class _NotificationsComposePageState extends ConsumerState<NotificationsComposeP
 
   List<Widget> _historySliver(_S s) {
     if (_historyLoading) {
-      return [const SliverToBoxAdapter(child: Padding(padding: EdgeInsets.all(32), child: Center(child: CircularProgressIndicator())))];
+      return [const SliverToBoxAdapter(child: Padding(padding: EdgeInsets.all(IntesharSpacing.xxl), child: Center(child: CircularProgressIndicator())))];
     }
     if (_historyError != null && _history.isEmpty) {
       return [SliverToBoxAdapter(child: ErrorState(error: _historyError!, onRetry: _loadHistory))];
@@ -251,7 +251,7 @@ class _NotificationsComposePageState extends ConsumerState<NotificationsComposeP
         padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 0),
         sliver: SliverList.separated(
           itemCount: _history.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 10),
+          separatorBuilder: (_, _) => const SizedBox(height: IntesharSpacing.sm2),
           itemBuilder: (ctx, i) => _HistoryCard(n: _history[i], s: s),
         ),
       ),
@@ -413,11 +413,11 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
           Text(s.composeHeading, style: IntesharType.sans(16, color: cs.onSurface, w: FontWeight.w800)),
           const SizedBox(height: 14),
           TextField(controller: _titleCtrl, decoration: InputDecoration(labelText: s.fieldTitle), textInputAction: TextInputAction.next),
-          const SizedBox(height: 12),
+          const SizedBox(height: IntesharSpacing.md),
           TextField(controller: _bodyCtrl, decoration: InputDecoration(labelText: s.fieldBody), maxLines: 4, minLines: 3),
-          const SizedBox(height: 16),
+          const SizedBox(height: IntesharSpacing.lg),
           Text(s.kindLabel, style: IntesharType.sans(12, color: cs.onSurfaceVariant, w: IntesharWeight.semibold)),
-          const SizedBox(height: 8),
+          const SizedBox(height: IntesharSpacing.sm),
           SegmentedButton<bool>(
             showSelectedIcon: false,
             segments: [
@@ -427,9 +427,9 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
             selected: {_isAlert},
             onSelectionChanged: (sel) => setState(() => _isAlert = sel.first),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: IntesharSpacing.lg),
           Text(s.audienceLabel, style: IntesharType.sans(12, color: cs.onSurfaceVariant, w: IntesharWeight.semibold)),
-          const SizedBox(height: 8),
+          const SizedBox(height: IntesharSpacing.sm),
           SegmentedButton<_Mode>(
             showSelectedIcon: false,
             segments: [
@@ -442,7 +442,7 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
           ),
           if (_mode == _Mode.type) _typePicker(s, cs),
           if (_mode == _Mode.entity) _entityPicker(s, cs),
-          const SizedBox(height: 12),
+          const SizedBox(height: IntesharSpacing.md),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             dense: true,
@@ -455,7 +455,7 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
             const SizedBox(height: 6),
             Text(_error!, style: IntesharType.sans(12, color: cs.error)),
           ],
-          const SizedBox(height: 12),
+          const SizedBox(height: IntesharSpacing.md),
           FilledButton.icon(
             onPressed: _sending ? null : _send,
             icon: _sending
@@ -472,10 +472,10 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
   }
 
   Widget _typePicker(_S s, ColorScheme cs) => Padding(
-        padding: const EdgeInsets.only(top: 12),
+        padding: const EdgeInsets.only(top: IntesharSpacing.md),
         child: Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: IntesharSpacing.sm,
+          runSpacing: IntesharSpacing.sm,
           children: [
             for (final (type, _) in _tierOptions)
               FilterChip(
@@ -492,7 +492,7 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
   // under an earlier search stay selected while the visible page changes.
   Widget _entityPicker(_S s, ColorScheme cs) {
     return Padding(
-      padding: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.only(top: IntesharSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -546,17 +546,17 @@ class _HistoryCard extends StatelessWidget {
               Expanded(child: Text(n.title, maxLines: 1, overflow: TextOverflow.ellipsis,
                   style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700))),
               if (n.sentAt != null) ...[
-                const SizedBox(width: 8),
+                const SizedBox(width: IntesharSpacing.sm),
                 Text(DateFormat('MM-dd HH:mm').format(n.sentAt!), style: IntesharType.mono(11, color: IntesharColors.lichen)),
               ],
             ],
           ),
           if (n.body.isNotEmpty) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: IntesharSpacing.xs),
             Text(n.body, maxLines: 2, overflow: TextOverflow.ellipsis, style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
           ],
-          const SizedBox(height: 8),
-          Wrap(spacing: 8, runSpacing: 6, children: [
+          const SizedBox(height: IntesharSpacing.sm),
+          Wrap(spacing: IntesharSpacing.sm, runSpacing: 6, children: [
             StampPill(label: audienceValue(), color: context.tones.brand, icon: Icons.people_outline),
             if (n.posOnly) StampPill(label: s.posBadge, color: context.status.success, icon: Icons.point_of_sale),
           ]),

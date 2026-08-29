@@ -132,7 +132,7 @@ class _SliderCropDialogState extends State<_SliderCropDialog> {
                   w: FontWeight.w800,
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: IntesharSpacing.xs),
               Text(
                 isAr
                     ? 'اسحب وكبّر لضبط الإطار — تُحفظ الصورة أفقية بحجم ١ م.ب كحد أقصى.'
@@ -162,10 +162,10 @@ class _SliderCropDialogState extends State<_SliderCropDialog> {
                 ),
               ),
               if (_error != null) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: IntesharSpacing.sm),
                 Text(_error!, style: IntesharText.body(color: cs.error)),
               ],
-              const SizedBox(height: 16),
+              const SizedBox(height: IntesharSpacing.lg),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -175,7 +175,7 @@ class _SliderCropDialogState extends State<_SliderCropDialog> {
                         : () => Navigator.of(context).pop(),
                     child: Text(isAr ? 'إلغاء' : 'Cancel'),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: IntesharSpacing.sm),
                   FilledButton.icon(
                     onPressed: _processing
                         ? null

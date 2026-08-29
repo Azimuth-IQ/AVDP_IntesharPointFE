@@ -126,19 +126,19 @@ class _ForcedUpdateScreen extends ConsumerWidget {
             // short screen or with a long changelog it was spilling off-screen
             // and the forced update couldn't be started (B-084).
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(IntesharSpacing.xl),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   IntesharStar(size: 56, color: cs.onSurface),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: IntesharSpacing.xl),
                   Text(
                     l.updateRequiredTitle,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: IntesharSpacing.sm2),
                   Text(
                     l.updateRequiredBody,
                     textAlign: TextAlign.center,
@@ -150,7 +150,7 @@ class _ForcedUpdateScreen extends ConsumerWidget {
                     const SizedBox(height: 20),
                     _ReleaseSummary(release: release),
                   ],
-                  const SizedBox(height: 24),
+                  const SizedBox(height: IntesharSpacing.xl),
                   _ActionArea(state: state),
                 ],
               ),
@@ -187,7 +187,7 @@ class _UpdateSheet extends ConsumerWidget {
               Row(
                 children: [
                   Icon(Icons.system_update_outlined, color: cs.primary),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: IntesharSpacing.md),
                   Expanded(
                     child: Text(
                       l.updateAvailableTitle,
@@ -203,7 +203,7 @@ class _UpdateSheet extends ConsumerWidget {
                   context,
                 ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: IntesharSpacing.lg),
               _ReleaseSummary(release: release),
               const SizedBox(height: 20),
               Row(
@@ -215,7 +215,7 @@ class _UpdateSheet extends ConsumerWidget {
                         child: Text(l.updateLater),
                       ),
                     ),
-                  if (state is! UpdateDownloading) const SizedBox(width: 12),
+                  if (state is! UpdateDownloading) const SizedBox(width: IntesharSpacing.md),
                   Expanded(flex: 2, child: _ActionArea(state: state)),
                 ],
               ),
@@ -267,12 +267,12 @@ class _ReleaseSummary extends StatelessWidget {
             ],
           ),
           if (changelog.isNotEmpty) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: IntesharSpacing.sm),
             Text(
               l.updateWhatsNew,
               style: Theme.of(context).textTheme.labelMedium,
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: IntesharSpacing.xs),
             Text(changelog, style: Theme.of(context).textTheme.bodySmall),
           ],
         ],
@@ -304,7 +304,7 @@ class _ActionArea extends ConsumerWidget {
               minHeight: 8,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: IntesharSpacing.sm),
           Text(
             p > 0
                 ? '${l.updateDownloading} ${(p * 100).round()}%'
@@ -324,7 +324,7 @@ class _ActionArea extends ConsumerWidget {
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall,
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: IntesharSpacing.sm2),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
@@ -335,7 +335,7 @@ class _ActionArea extends ConsumerWidget {
               label: Text(l.updatePermissionOpenSettings),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: IntesharSpacing.sm),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton(

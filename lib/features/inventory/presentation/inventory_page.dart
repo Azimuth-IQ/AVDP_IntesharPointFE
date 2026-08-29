@@ -467,7 +467,7 @@ class _InventoryValueCard extends StatelessWidget {
                       ),
                     ),
                     if (filterNote != null) ...[
-                      const SizedBox(width: 8),
+                      const SizedBox(width: IntesharSpacing.sm),
                       StampPill(
                         label: filterNote!,
                         color: context.tones.brandInk,
@@ -477,14 +477,14 @@ class _InventoryValueCard extends StatelessWidget {
                     ],
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: IntesharSpacing.xs),
                 Text(
                   Formatters.iqd(value.round()),
                   style: IntesharType.display(24, color: cs.onSurface, w: FontWeight.w900),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: IntesharSpacing.xs),
                 // UX-36: the basis, stated. "قيمة المخزون" names a server figure
                 // on the pricing screen and the detailed report; this one is
                 // summed here, from these rows, at these prices — so it says
@@ -504,7 +504,7 @@ class _InventoryValueCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: IntesharSpacing.md),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -544,8 +544,8 @@ class _Tallies extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
     return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+      spacing: IntesharSpacing.sm,
+      runSpacing: IntesharSpacing.sm,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         if (filterNote != null)
@@ -572,10 +572,10 @@ class _TallyChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.md, vertical: IntesharSpacing.sm),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(IntesharRadii.pill),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -634,7 +634,7 @@ class _FilterBar extends StatelessWidget {
               onChanged: onSearchChanged,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: IntesharSpacing.md),
           _StatusFilterChips(value: statusFilter, onChanged: onStatusChanged),
         ],
       ),
@@ -661,7 +661,7 @@ class _StatusFilterChips extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: cs.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(IntesharRadii.pill),
       ),
       padding: const EdgeInsets.all(IntesharSpacing.xs),
       child: Row(
@@ -671,7 +671,7 @@ class _StatusFilterChips extends StatelessWidget {
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 1),
             child: InkWell(
-              borderRadius: BorderRadius.circular(999),
+              borderRadius: BorderRadius.circular(IntesharRadii.pill),
               onTap: () => onChanged(opt.$1),
               // UX-119: the painted pill was ~31dp tall — five of them side by
               // side, on a handheld. It is floored at the 48dp target, and the
@@ -685,10 +685,10 @@ class _StatusFilterChips extends StatelessWidget {
                 duration: const Duration(milliseconds: 160),
                 constraints: const BoxConstraints(minHeight: 48),
                 alignment: Alignment.center,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
+                padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.md),
                 decoration: BoxDecoration(
                   color: active ? context.tones.brand : Colors.transparent,
-                  borderRadius: BorderRadius.circular(999),
+                  borderRadius: BorderRadius.circular(IntesharRadii.pill),
                 ),
                 child: Text(
                   opt.$2,
@@ -854,7 +854,7 @@ class _SkuGroupCardState extends ConsumerState<SkuGroupCard> {
                     : 'Serial: ${product.serialNumber}',
                 style: Theme.of(ctx).textTheme.bodySmall,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: IntesharSpacing.md),
               TextFormField(
                 controller: controller,
                 autofocus: true,
@@ -865,7 +865,7 @@ class _SkuGroupCardState extends ConsumerState<SkuGroupCard> {
                     ? (isAr ? 'أدخل الرمز الجديد' : 'Enter the new code')
                     : null,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: IntesharSpacing.md),
               Text(
                 isAr
                     ? 'الرمز الحالي غير معروض لأنه مشفّر. لا يمكن تعديل قسيمة تم بيعها.'
@@ -954,7 +954,7 @@ class _SkuGroupCardState extends ConsumerState<SkuGroupCard> {
                           'Pull "${s.name}" cards out of this agent\'s warehouse. '
                               '${s.available} available now. Sold cards cannot be taken back.',
                         )),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: IntesharSpacing.md),
                   TextFormField(
                     controller: controller,
                     autofocus: true,
@@ -973,7 +973,7 @@ class _SkuGroupCardState extends ConsumerState<SkuGroupCard> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: IntesharSpacing.sm),
                   Text(
                     _tr('إلى أين؟', 'Where to?'),
                     style: Theme.of(ctx).textTheme.labelLarge,
@@ -1051,7 +1051,7 @@ class _SkuGroupCardState extends ConsumerState<SkuGroupCard> {
                   if (destination == WithdrawDestination.transfer &&
                       transferTarget == null)
                     Padding(
-                      padding: const EdgeInsets.only(top: 8),
+                      padding: const EdgeInsets.only(top: IntesharSpacing.sm),
                       child: Text(
                         _tr('اختر الوكيل المستلم أولاً.',
                             'Choose the receiving agent first.'),
@@ -1230,7 +1230,7 @@ class _SkuGroupCardState extends ConsumerState<SkuGroupCard> {
     final s = widget.summary;
 
     return InkCard(
-      padding: EdgeInsets.zero,
+      density: CardDensity.flush,
       ruleColor: s.available > 0 ? context.status.success : null,
       child: Column(
         children: [
@@ -1251,7 +1251,7 @@ class _SkuGroupCardState extends ConsumerState<SkuGroupCard> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 3),
+                        const SizedBox(height: IntesharSpacing.xs),
                         // The SKU used to lead the row inside a 44px gold
                         // circle. A circle is an avatar treatment and a SKU is
                         // a part number: "ASIACELL-5000" is thirteen monospace
@@ -1290,7 +1290,7 @@ class _SkuGroupCardState extends ConsumerState<SkuGroupCard> {
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: IntesharSpacing.sm),
                             Flexible(
                               child: Text(
                                 '${Formatters.iqd(s.defaultPrice.round())}  ·  ${l.inventoryUnitCount(s.total)}',
@@ -1305,7 +1305,7 @@ class _SkuGroupCardState extends ConsumerState<SkuGroupCard> {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: IntesharSpacing.sm),
                   // Only the pills the filter is asking about (all three when
                   // there is no filter).
                   if (_showsPill(ProductStatus.AVAILABLE) && s.available > 0) ...[
@@ -1351,7 +1351,7 @@ class _SkuGroupCardState extends ConsumerState<SkuGroupCard> {
                               size: 18),
                       onPressed: _withdrawing ? null : _withdrawDialog,
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: IntesharSpacing.xs),
                   ],
                   AnimatedRotation(
                     duration: const Duration(milliseconds: 180),
@@ -1377,7 +1377,7 @@ class _SkuGroupCardState extends ConsumerState<SkuGroupCard> {
   Widget _expandedBody(AppLocalizations l, ColorScheme cs) {
     if (_loadingFirst) {
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 24),
+        padding: const EdgeInsets.symmetric(vertical: IntesharSpacing.xl),
         child: Center(
           child: LoadingState(
             compact: true,
@@ -1475,7 +1475,7 @@ class _GovBreakdown extends StatelessWidget {
             final label = b.isUntagged ? l.inventoryUntagged : governorateLabel(b.governorate, loc);
             final low = b.available < lowStock;
             return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 3),
+              padding: const EdgeInsets.symmetric(vertical: IntesharSpacing.xs),
               child: Row(
                 children: [
                   Container(
@@ -1486,7 +1486,7 @@ class _GovBreakdown extends StatelessWidget {
                       shape: BoxShape.circle,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: IntesharSpacing.sm),
                   Expanded(
                     child: Text(
                       label,
@@ -1498,7 +1498,7 @@ class _GovBreakdown extends StatelessWidget {
                   if (low) ...[
                     // UX-128: low stock is `warn` — attention, not a failure.
                     StampPill(label: l.inventoryLow, color: context.status.warn, fontSize: 10),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: IntesharSpacing.sm),
                   ],
                   Text(
                     '${b.available} / ${b.total}',
@@ -1543,7 +1543,7 @@ class _LoadMoreRow extends StatelessWidget {
               const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
             else if (canLoadMore)
               Icon(Icons.expand_more, size: 18, color: context.tones.brandInk),
-            if (loading || canLoadMore) const SizedBox(width: 8),
+            if (loading || canLoadMore) const SizedBox(width: IntesharSpacing.sm),
             // The position is permanent; "Load more" is the affordance beside it.
             Flexible(
               child: Text(
@@ -1554,7 +1554,7 @@ class _LoadMoreRow extends StatelessWidget {
               ),
             ),
             if (canLoadMore && !loading) ...[
-              const SizedBox(width: 8),
+              const SizedBox(width: IntesharSpacing.sm),
               Text(
                 l.inventoryLoadMore,
                 style: IntesharType.sans(14, color: context.tones.brandInk, w: FontWeight.w700),
@@ -1577,7 +1577,7 @@ class _ProductRowHeader extends StatelessWidget {
     return Row(
       children: [
         const SizedBox(width: 20), // dot spacer
-        const SizedBox(width: 12),
+        const SizedBox(width: IntesharSpacing.md),
         Expanded(child: Text(l.invColSnPin, style: style)),
         SizedBox(width: 96, child: Text(l.dashColStatus, style: style)),
         const SizedBox(width: 36), // menu spacer
@@ -1641,7 +1641,7 @@ class _ProductRow extends StatelessWidget {
             height: 8,
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: IntesharSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1649,7 +1649,7 @@ class _ProductRow extends StatelessWidget {
                 Row(
                   children: [
                     Text(l.inventorySnLabel, style: IntesharType.overline(color: cs.onSurfaceVariant, size: 9)),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: IntesharSpacing.sm),
                     Flexible(
                       child: monoText(
                         // UX-127: was an off-scale 13 at a raw `w500` that has
@@ -1664,11 +1664,11 @@ class _ProductRow extends StatelessWidget {
                 // PIN is encrypted at rest and stripped from list reads — only
                 // shown if a value is actually present (e.g. legacy plaintext).
                 if (product.pin.isNotEmpty) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: IntesharSpacing.xs),
                   Row(
                     children: [
                       Text(l.posPin, style: IntesharType.overline(color: cs.onSurfaceVariant, size: 9)),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: IntesharSpacing.sm),
                       monoText(product.pin, size: 12, color: IntesharColors.lichen, letterSpacing: 1.2),
                     ],
                   ),

@@ -167,7 +167,7 @@ class PrinterStatusChip extends StatelessWidget {
               color: info.tone == PrinterChipTone.neutral
                   ? cs.surfaceContainerHighest
                   : tint.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(999),
+              borderRadius: BorderRadius.circular(IntesharRadii.pill),
               border: Border.all(
                 color: info.tone == PrinterChipTone.neutral
                     ? cs.outline
@@ -193,7 +193,7 @@ class PrinterStatusChip extends StatelessWidget {
     // The padded target is raised to 48dp; `widthFactor: 1` keeps the Center
     // sized to the chip, so the app-bar row's horizontal budget is unchanged.
     return InkWell(
-      borderRadius: BorderRadius.circular(999),
+      borderRadius: BorderRadius.circular(IntesharRadii.pill),
       onTap: onTap,
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 48),

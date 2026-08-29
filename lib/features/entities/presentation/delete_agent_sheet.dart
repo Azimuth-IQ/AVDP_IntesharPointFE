@@ -285,7 +285,7 @@ class DeleteAgentSheetBody extends StatelessWidget {
               // Only while there IS a list to clear — repeating the instruction
               // over an empty, already-unlocked sheet reads as a refusal.
               if (deps != null && !deps.deletable) ...[
-                const SizedBox(height: 4),
+                const SizedBox(height: IntesharSpacing.xs),
                 Text(
                   _t(
                     context,
@@ -299,19 +299,19 @@ class DeleteAgentSheetBody extends StatelessWidget {
                       ?.copyWith(color: cs.onSurfaceVariant),
                 ),
               ],
-              const SizedBox(height: 16),
+              const SizedBox(height: IntesharSpacing.lg),
               if (loading && deps == null)
                 const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 32),
+                  padding: EdgeInsets.symmetric(vertical: IntesharSpacing.xxl),
                   child: Center(child: CircularProgressIndicator()),
                 )
               else if (error != null)
                 _errorBlock(context, cs)
               else if (deps != null) ...[
                 _progress(context, deps, cs),
-                const SizedBox(height: 12),
+                const SizedBox(height: IntesharSpacing.md),
                 Flexible(child: _dependentsList(context, deps, cs)),
-                const SizedBox(height: 12),
+                const SizedBox(height: IntesharSpacing.md),
                 _finalAction(context, deps, cs),
               ],
             ],
@@ -322,10 +322,10 @@ class DeleteAgentSheetBody extends StatelessWidget {
   }
 
   Widget _errorBlock(BuildContext context, ColorScheme cs) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 24),
+        padding: const EdgeInsets.symmetric(vertical: IntesharSpacing.xl),
         child: Column(children: [
           Text(friendlyError(error, context), textAlign: TextAlign.center),
-          const SizedBox(height: 12),
+          const SizedBox(height: IntesharSpacing.md),
           OutlinedButton(
             key: const Key('deleteAgentRetry'),
             onPressed: onRetry,
@@ -347,7 +347,7 @@ class DeleteAgentSheetBody extends StatelessWidget {
     ];
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: IntesharSpacing.md),
       decoration: BoxDecoration(
         color: done ? cs.primaryContainer : cs.errorContainer,
         borderRadius: BorderRadius.circular(IntesharRadii.md),
@@ -355,7 +355,7 @@ class DeleteAgentSheetBody extends StatelessWidget {
       child: Row(children: [
         Icon(done ? Icons.check_circle_outline : Icons.info_outline,
             size: 18, color: done ? cs.onPrimaryContainer : cs.onErrorContainer),
-        const SizedBox(width: 10),
+        const SizedBox(width: IntesharSpacing.sm2),
         Expanded(
           child: Text(
             done
@@ -382,7 +382,7 @@ class DeleteAgentSheetBody extends StatelessWidget {
           if (deps.stores.isNotEmpty) ...[
             SectionLabel(_t(context, 'نقاط البيع', 'Points of sale')),
             ...deps.stores.map((s) => _storeRow(context, s, cs)),
-            const SizedBox(height: 8),
+            const SizedBox(height: IntesharSpacing.sm),
           ],
           if (deps.subAgents.isNotEmpty) ...[
             SectionLabel(_t(context, 'الوكلاء الفرعيون', 'Sub-agents')),
@@ -451,10 +451,10 @@ class DeleteAgentSheetBody extends StatelessWidget {
     required ColorScheme cs,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: IntesharSpacing.xs),
       child: Row(children: [
         Icon(icon, size: 18, color: cs.onSurfaceVariant),
-        const SizedBox(width: 10),
+        const SizedBox(width: IntesharSpacing.sm2),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -498,7 +498,7 @@ class DeleteAgentSheetBody extends StatelessWidget {
           backgroundColor:
               deps.deletable ? cs.error : cs.surfaceContainerHighest,
           foregroundColor: deps.deletable ? cs.onError : cs.onSurfaceVariant,
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          padding: const EdgeInsets.symmetric(vertical: IntesharSpacing.lg),
         ),
         onPressed: (!deps.deletable || busy) ? null : onDeleteSelf,
         icon: busy

@@ -400,7 +400,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
         padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 28),
         children: [
           if (q != null) _quotaCard(s, q),
-          const SizedBox(height: 12),
+          const SizedBox(height: IntesharSpacing.md),
           // C-12: the archive is a view of the SAME screen, not a separate
           // destination — an operator who just archived a shop looks for it here.
           SegmentedButton<bool>(
@@ -425,7 +425,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
                       _selection = SelectionState.off;
                     }),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: IntesharSpacing.md),
           if (_showArchive) ...[
             // Restoring a shop moves it back into the Active segment and spends
             // one of the host's POS points, so both the list and the quota
@@ -448,7 +448,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
             ),
             // Only HQ drilling into an agent may grant points (B-043).
             if (_isDrill) ...[
-              const SizedBox(width: 12),
+              const SizedBox(width: IntesharSpacing.md),
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: _pageBusy ? null : () => _grantToTargetDialog(s),
@@ -462,7 +462,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
             ],
           ]),
           if (q != null && q.available <= 0) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: IntesharSpacing.sm),
             // UX-28: this line told the manager to "ask headquarters" and then
             // left them to work out where. Asking is the ONLY way POS points
             // arrive (B-043: HQ distributes them, a parent agent cannot), so
@@ -474,7 +474,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
                     style: IntesharType.sans(12, color: cs.error)),
               ),
               if (_canAskForSlots(q)) ...[
-                const SizedBox(width: 8),
+                const SizedBox(width: IntesharSpacing.sm),
                 TextButton.icon(
                   onPressed: () => showSupplyRequest(
                     context,
@@ -488,7 +488,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
               ],
             ]),
           ],
-          const SizedBox(height: 16),
+          const SizedBox(height: IntesharSpacing.lg),
           // B-129: find one shop without scrolling a paged list.
           Row(children: [
             Expanded(
@@ -523,7 +523,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
             ),
           ]),
           if (_selection.active) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: IntesharSpacing.sm),
             SelectionBar(
               state: _selection,
               visibleIds: [for (final st in _stores) st.id],
@@ -534,7 +534,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
               actions: _bulkActions(s),
             ),
           ],
-          const SizedBox(height: 12),
+          const SizedBox(height: IntesharSpacing.md),
           if (_stores.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 40),
@@ -550,7 +550,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
             for (final st in _stores) _posCard(s, st, loc, cs),
           if (_hasMore)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
+              padding: const EdgeInsets.symmetric(vertical: IntesharSpacing.md),
               child: Center(
                 child: _loadingMore
                     ? const SizedBox(
@@ -680,7 +680,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
             icon: Icons.location_off_outlined,
           ),
         ],
-        const SizedBox(height: 4),
+        const SizedBox(height: IntesharSpacing.xs),
         Text(phone, style: IntesharType.mono(12, color: cs.onSurfaceVariant)),
         if (owner.isNotEmpty) Text(owner, style: IntesharType.sans(12, color: cs.onSurface)),
         if (gov.isNotEmpty) Text(governorateLabel(gov, loc), style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
@@ -688,7 +688,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
         // "which of my shops is out of credit?" could not be asked anywhere.
         if (balance != null)
           Padding(
-            padding: const EdgeInsets.only(top: 3),
+            padding: const EdgeInsets.only(top: IntesharSpacing.xs),
             child: Row(children: [
               Text('${s.balance}: ',
                   style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
@@ -708,7 +708,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
         // as broken. Say the shop has no POS operator, which is the actual state.
         if (phone.isEmpty)
           Padding(
-            padding: const EdgeInsets.only(top: 4),
+            padding: const EdgeInsets.only(top: IntesharSpacing.xs),
             child: Text(
               loc == 'ar'
                   ? 'لا يوجد مستخدم نقطة بيع لهذا المتجر — إجراءات المستخدم غير متاحة'
@@ -716,10 +716,10 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
               style: IntesharType.sans(12, color: cs.error, w: IntesharWeight.semibold),
             ),
           ),
-        const SizedBox(height: 10),
+        const SizedBox(height: IntesharSpacing.sm2),
         // UX-83: each control carries its OWN progress and only this shop's row
         // waits — acting on one shop no longer greys out the whole list.
-        Wrap(spacing: 8, runSpacing: 8, children: [
+        Wrap(spacing: IntesharSpacing.sm, runSpacing: IntesharSpacing.sm, children: [
           _rowButton(store.id, 'edit', s.edit, () => _editDialog(s, store)),
           _rowButton(store.id, 'pin', s.resetPin,
               phone.isEmpty ? null : () => _resetPin(s, store.id, name, phone)),
@@ -817,7 +817,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
           title: Text(s.pinResetTitle),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
             Text(s.pinResetBody, style: IntesharType.sans(14, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
-            const SizedBox(height: 16),
+            const SizedBox(height: IntesharSpacing.lg),
             SelectableText(
               pin,
               style: IntesharType.codec(size: 40, w: FontWeight.w900, letterSpacing: 8),
@@ -918,7 +918,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
                   onChanged: (v) => setD(() => gov = v),
                 ),
                 _field(addr, s.address, validator: _req(s)),
-                const SizedBox(height: 8),
+                const SizedBox(height: IntesharSpacing.sm),
                 // B-131: paste the shared map link instead of pinning on a map.
                 // Pinning is awkward on a phone and impossible unless you are
                 // standing in the shop; in practice the location arrives as a
@@ -945,7 +945,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
                     });
                   },
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: IntesharSpacing.xs),
                 Align(
                   alignment: AlignmentDirectional.centerStart,
                   child: Text(
@@ -1029,7 +1029,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
           // it, and says "another agent" when they may not.
           Text(reason?.trim().isNotEmpty == true ? reason!.trim() : s.alreadyExistsBody,
               textAlign: TextAlign.center),
-          const SizedBox(height: 8),
+          const SizedBox(height: IntesharSpacing.sm),
           Text(phone, style: IntesharType.mono(14, color: cs.onSurface)),
         ]),
         actions: [
@@ -1156,7 +1156,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
       bool digitsOnly = false,
       String? Function(String?)? validator}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+      padding: const EdgeInsets.symmetric(vertical: IntesharSpacing.xs),
       child: obscure
           ? PasswordField(controller: c, label: label, isDense: true, validator: validator)
           : TextFormField(

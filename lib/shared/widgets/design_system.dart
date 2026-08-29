@@ -157,11 +157,23 @@ class SectionLabel extends StatelessWidget {
 
 /// How much air an [InkCard] puts around its content (UX-135).
 ///
-/// 55 of 61 `InkCard` sites overrode `padding` across **17 distinct values** —
-/// `all(14)`, `all(12)`, `all(10)`, `all(24)`, `symmetric(14, 12)`… Adjacent
-/// cards differing by 2px do not read as a deliberate hierarchy; they read as
-/// nobody having decided. Three named densities is the decision.
+/// `InkCard` sites used to override `padding` wholesale — `all(14)`, `all(12)`,
+/// `all(10)`, `all(24)`, `symmetric(14, 12)`… Adjacent cards differing by 2px do
+/// not read as a deliberate hierarchy; they read as nobody having decided. Named
+/// densities are the decision.
+///
+/// [flush] is the second pass. Re-measuring the call sites showed the single
+/// most common surviving override was not a *number* at all — eleven cards
+/// passed `EdgeInsets.zero` because their child is a stack of self-padded
+/// sections (a header strip, a divider, a body) and a uniform card inset would
+/// double up on every one of them. That is a real, recurring card shape, not an
+/// escape hatch, so it gets a name; the free-form [InkCard.padding] is then left
+/// to the genuine one-offs.
 enum CardDensity {
+  /// 0 — the child pads its own sections (header strip / divider / body). The
+  /// card contributes the surface, the radius and the clip, nothing else.
+  flush(0),
+
   /// 12 — list rows, chips-in-a-card, anything repeated many times per screen.
   dense(IntesharSpacing.md),
 
@@ -265,6 +277,14 @@ class _InkCardState extends State<InkCard> {
   /// across a roster does not leave a trail of tiles still animating.
   static const _hoverFade = Duration(milliseconds: 120);
 
+  /// The accent ridge's width — and, necessarily, the extra start-inset the
+  /// padding has to give back so the ridge does not sit under the content.
+  ///
+  /// UX-135: these were two independent `4`s, one in the ridge's `Container` and
+  /// one in an `EdgeInsetsDirectional.only(start: 4)`. Two numbers that must be
+  /// equal and are written apart eventually stop being equal.
+  static const _ruleWidth = IntesharSpacing.xs;
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -286,11 +306,12 @@ class _InkCardState extends State<InkCard> {
               start: 0,
               top: 0,
               bottom: 0,
-              child: Container(width: 4, color: widget.ruleColor),
+              child: Container(width: _ruleWidth, color: widget.ruleColor),
             ),
           Padding(
             padding: widget.ruleColor != null
-                ? insets.add(const EdgeInsetsDirectional.only(start: 4))
+                ? insets.add(
+                    const EdgeInsetsDirectional.only(start: _ruleWidth))
                 : insets,
             child: widget.child,
           ),
@@ -411,7 +432,7 @@ class StampPill extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: filled ? color.withValues(alpha: 0.14) : Colors.transparent,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(IntesharRadii.pill),
         border: filled
             ? null
             : Border.all(color: foreground.withValues(alpha: 0.5), width: 1),

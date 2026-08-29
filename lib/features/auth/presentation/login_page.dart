@@ -263,9 +263,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         return Padding(
           padding: EdgeInsets.only(
             bottom: MediaQuery.of(ctx).viewInsets.bottom,
-            left: 24,
-            right: 24,
-            top: 24,
+            left: IntesharSpacing.xl,
+            right: IntesharSpacing.xl,
+            top: IntesharSpacing.xl,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -281,13 +281,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: IntesharSpacing.lg),
               SectionLabel(lCtx.loginServerEndpoint),
               Text(
                 lCtx.loginServerUrl,
                 style: Theme.of(ctx).textTheme.bodyMedium,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: IntesharSpacing.lg),
               TextField(
                 controller: ctrl,
                 autofocus: true,
@@ -299,13 +299,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   hintText: 'http://192.168.1.x:8080',
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: IntesharSpacing.lg),
               BrandCTAButton(
                 label: lCtx.loginSaveEndpoint,
                 variant: BrandCTAVariant.inverse,
                 onPressed: save,
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: IntesharSpacing.xl),
             ],
           ),
         );
@@ -385,7 +385,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         child: ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 460),
                           child: SingleChildScrollView(
-                            padding: const EdgeInsets.all(32),
+                            padding: const EdgeInsets.all(IntesharSpacing.xxl),
                             child: formCard,
                           ),
                         ),
@@ -408,7 +408,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     Expanded(
                       child: LayoutBuilder(
                         builder: (context, c) => SingleChildScrollView(
-                          padding: const EdgeInsets.all(24),
+                          padding: const EdgeInsets.all(IntesharSpacing.xl),
                           child: ConstrainedBox(
                             constraints: BoxConstraints(
                               minHeight: c.maxHeight - 48,
@@ -467,7 +467,7 @@ class _TotpChallenge extends StatelessWidget {
           Row(
             children: [
               Icon(Icons.verified_user_outlined, color: cs.primary),
-              const SizedBox(width: 8),
+              const SizedBox(width: IntesharSpacing.sm),
               Expanded(
                 child: Text(
                   enroll
@@ -480,7 +480,7 @@ class _TotpChallenge extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: IntesharSpacing.sm),
           Text(
             enroll
                 ? (ar
@@ -492,10 +492,10 @@ class _TotpChallenge extends StatelessWidget {
             style: TextStyle(color: cs.onSurfaceVariant),
           ),
           if (enroll) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: IntesharSpacing.lg),
             Center(
               child: Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(IntesharSpacing.md),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(IntesharRadii.md),
@@ -503,12 +503,12 @@ class _TotpChallenge extends StatelessWidget {
                 child: QrImageView(data: otpauthUri, size: 184),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: IntesharSpacing.md),
             Text(
               ar ? 'أو أدخل المفتاح يدوياً:' : 'Or enter this key manually:',
               style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: IntesharSpacing.xs),
             SelectableText(
               secret,
               // UX-125: was a bare `fontFamily: 'JetBrainsMono'` literal naming a
@@ -517,19 +517,19 @@ class _TotpChallenge extends StatelessWidget {
               // through the helper now, which carries the mono fallback chain.
               style: IntesharType.mono(14, w: FontWeight.w400, letterSpacing: 1.5),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: IntesharSpacing.sm2),
             Text(
               ar
                   ? 'إذا كان الرمز السابق لا يعمل، احذف المدخل القديم من تطبيق المصادقة ثم امسح هذا الرمز من جديد.'
                   : 'If a previously scanned code no longer works, delete that old entry from your authenticator app and scan this QR again.',
               style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: IntesharSpacing.sm2),
             // Half-enrolled hint: if the user already added the entry in a
             // previous session that was abandoned, the server reuses the same
             // secret — they don't need to rescan, just enter the current code.
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.sm2, vertical: IntesharSpacing.sm),
               decoration: BoxDecoration(
                 color: cs.primaryContainer.withValues(alpha: 0.45),
                 borderRadius: BorderRadius.circular(IntesharRadii.sm),
@@ -543,7 +543,7 @@ class _TotpChallenge extends StatelessWidget {
                     size: 14,
                     color: cs.primary,
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: IntesharSpacing.sm),
                   Expanded(
                     child: Text(
                       ar
@@ -579,7 +579,7 @@ class _TotpChallenge extends StatelessWidget {
             onSubmitted: (_) => onVerify(),
           ),
           if (error != null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: IntesharSpacing.sm),
             Text(error!, style: TextStyle(color: cs.error)),
           ],
           const SizedBox(height: 18),
@@ -642,7 +642,7 @@ class _ChangePasswordForm extends StatelessWidget {
           Row(
             children: [
               Icon(Icons.lock_reset, color: cs.primary),
-              const SizedBox(width: 8),
+              const SizedBox(width: IntesharSpacing.sm),
               Expanded(
                 child: Text(
                   ar ? 'تغيير كلمة المرور' : 'Change your password',
@@ -651,14 +651,14 @@ class _ChangePasswordForm extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: IntesharSpacing.sm),
           Text(
             ar
                 ? 'يجب تعيين كلمة مرور جديدة قبل المتابعة.'
                 : 'You must set a new password before continuing.',
             style: TextStyle(color: cs.onSurfaceVariant),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: IntesharSpacing.sm),
           // B-080: say this BEFORE they submit. Changing the password mints no
           // token by design (B-011 — a token here would skip the second factor),
           // so the user lands back on sign-in. Without the warning that reads as
@@ -678,19 +678,19 @@ class _ChangePasswordForm extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: IntesharSpacing.lg),
           PasswordField(
             controller: newPassCtrl,
             label: ar ? 'كلمة المرور الجديدة' : 'New password',
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: IntesharSpacing.md),
           PasswordField(
             controller: confirmPassCtrl,
             label: ar ? 'تأكيد كلمة المرور' : 'Confirm password',
             onSubmitted: (_) => onSubmit(),
           ),
           if (error != null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: IntesharSpacing.sm),
             Text(error!, style: TextStyle(color: cs.error)),
           ],
           const SizedBox(height: 18),
@@ -740,7 +740,7 @@ class _BrandPanel extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   IntesharStar(size: 44, color: tones.brand),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: IntesharSpacing.xxl),
                   FittedBox(
                     fit: BoxFit.scaleDown,
                     alignment: AlignmentDirectional.centerStart,
@@ -801,7 +801,7 @@ class _MobileBrandHeader extends StatelessWidget {
             Row(
               children: [
                 IntesharStar(size: 30, color: tones.brand),
-                const SizedBox(width: 12),
+                const SizedBox(width: IntesharSpacing.md),
                 Text(
                   'Inteshar',
                   style: TextStyle(
@@ -815,7 +815,7 @@ class _MobileBrandHeader extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: IntesharSpacing.sm2),
             Text(
               l.loginBrandTaglineShort,
               style: TextStyle(
@@ -895,7 +895,7 @@ class _LoginForm extends ConsumerWidget {
               w: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: IntesharSpacing.sm),
           Text(
             l.loginSubtitle,
             style: Theme.of(
@@ -972,7 +972,7 @@ class _LoginForm extends ConsumerWidget {
               onTap: () => onToggleRemember(!remember),
               borderRadius: BorderRadius.circular(IntesharRadii.sm),
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
+                padding: const EdgeInsets.symmetric(vertical: IntesharSpacing.xs),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -986,7 +986,7 @@ class _LoginForm extends ConsumerWidget {
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: IntesharSpacing.sm),
                     Text(
                       ar ? 'تذكّر رقم الهاتف' : 'Remember my phone',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -999,7 +999,7 @@ class _LoginForm extends ConsumerWidget {
             ),
           ),
           if (error != null) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: IntesharSpacing.sm2),
             _Banner(
               tone: cs.error,
               icon: Icons.error_outline,
@@ -1007,7 +1007,7 @@ class _LoginForm extends ConsumerWidget {
               body: error!,
             ),
           ],
-          const SizedBox(height: 24),
+          const SizedBox(height: IntesharSpacing.xl),
           // The server-endpoint sheet is intentionally hidden behind a long-press
           // on the sign-in button (no visible field) — testers/admins can still
           // reach it to point the app at a different backend.
@@ -1055,7 +1055,7 @@ class _LoginForm extends ConsumerWidget {
                   : 'Enter your phone and a reset request will be sent to your agent.',
               style: Theme.of(ctx).textTheme.bodySmall,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: IntesharSpacing.md),
             TextField(
               controller: ctrl,
               keyboardType: TextInputType.phone,
@@ -1135,7 +1135,7 @@ class _Banner extends StatelessWidget {
           Row(
             children: [
               Icon(icon, size: 16, color: tone),
-              const SizedBox(width: 8),
+              const SizedBox(width: IntesharSpacing.sm),
               Text(
                 title,
                 style: TextStyle(
@@ -1148,7 +1148,7 @@ class _Banner extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: IntesharSpacing.sm),
           Text(
             body,
             style: TextStyle(

@@ -100,11 +100,11 @@ class _MapLocationPickerState extends State<_MapLocationPicker> {
             child: Card(
               color: cs.surface,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: IntesharSpacing.md),
                 child: Row(
                   children: [
                     Icon(Icons.touch_app_outlined, size: 20, color: cs.onSurfaceVariant),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: IntesharSpacing.sm2),
                     Expanded(
                       child: Text(
                         picked == null

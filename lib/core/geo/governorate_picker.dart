@@ -63,8 +63,8 @@ class GovernorateMultiSelect extends StatelessWidget {
         ? kGovernorates
         : kGovernorates.where((g) => allowedCodes!.contains(g.code)).toList();
     return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+      spacing: IntesharSpacing.sm,
+      runSpacing: IntesharSpacing.sm,
       children: options.map((g) {
         final on = selected.contains(g.code);
         return FilterChip(

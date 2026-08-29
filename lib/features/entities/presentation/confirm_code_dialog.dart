@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:inteshar/app/theme.dart';
 
 /// Asks for the operator's six-digit authenticator code before an irreversible
 /// delete, and explains what is about to disappear.
@@ -36,7 +37,7 @@ Future<String?> showConfirmCodeDialog(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(warning, style: Theme.of(ctx).textTheme.bodyMedium),
-              const SizedBox(height: 16),
+              const SizedBox(height: IntesharSpacing.lg),
               TextFormField(
                 controller: controller,
                 autofocus: true,

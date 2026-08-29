@@ -215,17 +215,17 @@ class _AgentDetailPageState extends ConsumerState<AgentDetailPage> {
           padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 32),
           children: [
             _identityCard(e, ar),
-            const SizedBox(height: 12),
+            const SizedBox(height: IntesharSpacing.md),
             if (s != null) ...[
               _readinessCard(e, s, ar),
-              const SizedBox(height: 12),
+              const SizedBox(height: IntesharSpacing.md),
             ],
             _stockCard(e, ar),
-            const SizedBox(height: 12),
+            const SizedBox(height: IntesharSpacing.md),
             _pricesCard(e, ar),
-            const SizedBox(height: 12),
+            const SizedBox(height: IntesharSpacing.md),
             _networkCard(e, ar),
-            const SizedBox(height: 12),
+            const SizedBox(height: IntesharSpacing.md),
             _usersCard(e, ar),
           ],
         ),
@@ -240,7 +240,6 @@ class _AgentDetailPageState extends ConsumerState<AgentDetailPage> {
     final locale = ar ? 'ar' : 'en';
     return InkCard(
       ruleColor: context.tones.brand,
-      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -254,11 +253,11 @@ class _AgentDetailPageState extends ConsumerState<AgentDetailPage> {
                   style: IntesharType.sans(20, color: cs.onSurface, w: FontWeight.w800),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: IntesharSpacing.sm),
               RoleBadge(type: e.type),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: IntesharSpacing.xs),
           SelectableText(e.id,
               style: IntesharType.mono(11, color: cs.onSurfaceVariant, letterSpacing: 0.3)),
           if (e.meta.slogan.isNotEmpty) ...[
@@ -284,10 +283,10 @@ class _AgentDetailPageState extends ConsumerState<AgentDetailPage> {
             ),
           const SizedBox(height: 14),
           const Hairline(),
-          const SizedBox(height: 12),
+          const SizedBox(height: IntesharSpacing.md),
           Wrap(
             spacing: 22,
-            runSpacing: 10,
+            runSpacing: IntesharSpacing.sm2,
             children: [
               _figure(
                 ar ? 'الرصيد' : 'Balance',
@@ -558,7 +557,7 @@ class _AgentDetailPageState extends ConsumerState<AgentDetailPage> {
                     child: Row(
                       children: [
                         Icon(Icons.person_outline, size: 17, color: cs.onSurfaceVariant),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: IntesharSpacing.sm2),
                         Expanded(
                           child: Directionality(
                             textDirection: TextDirection.ltr,
@@ -630,7 +629,7 @@ class _AgentDetailPageState extends ConsumerState<AgentDetailPage> {
                 overflow: TextOverflow.ellipsis,
                 style: IntesharType.sans(12, color: cs.onSurface)),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: IntesharSpacing.sm2),
           Text(v,
               style: IntesharType.mono(12,
                   color: danger ? context.status.warn : cs.onSurfaceVariant)),
@@ -700,7 +699,6 @@ class _Section extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return InkCard(
-      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -723,7 +721,7 @@ class _Section extends StatelessWidget {
               ?trailing,
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: IntesharSpacing.md),
           child,
         ],
       ),
@@ -772,7 +770,7 @@ class _StepRow extends StatelessWidget {
       child: Row(
         children: [
           Icon(markIcon, size: 18, color: tone),
-          const SizedBox(width: 10),
+          const SizedBox(width: IntesharSpacing.sm2),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

@@ -342,7 +342,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                   armed = false;
                 }),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: IntesharSpacing.md),
               TextField(
                 controller: amountCtrl,
                 keyboardType: TextInputType.number,
@@ -351,14 +351,14 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                 onChanged: (_) => setD(() => armed = false),
               ),
               if (known) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: IntesharSpacing.md),
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   Text(s.accountBalance,
                       style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
                   Text(Formatters.iqd(childBal.round()),
                       style: IntesharType.mono(12, color: cs.onSurface)),
                 ]),
-                const SizedBox(height: 4),
+                const SizedBox(height: IntesharSpacing.xs),
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   Text(s.afterTakeBack,
                       style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
@@ -368,13 +368,13 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                           color: after < 0 ? ctx.status.danger : cs.onSurface)),
                 ]),
                 if (after < 0) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: IntesharSpacing.xs),
                   Text(s.overChildBalance,
                       style: IntesharType.sans(12,
                           color: ctx.status.danger, w: IntesharWeight.semibold)),
                 ],
               ] else if (from != null) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: IntesharSpacing.md),
                 Text(
                   ar
                       ? 'رصيد هذا الحساب غير متاح لك — سيحدد الخادم الحد الأقصى.'
@@ -382,7 +382,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                   style: IntesharType.sans(12, color: cs.onSurfaceVariant),
                 ),
               ],
-              const SizedBox(height: 8),
+              const SizedBox(height: IntesharSpacing.sm),
               Align(
                 alignment: AlignmentDirectional.centerStart,
                 child: Text(s.takeBackHint,
@@ -541,7 +541,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                     disarm();
                   }),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: IntesharSpacing.sm),
               ],
               if (_children.length > 6)
                 TextField(
@@ -554,7 +554,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                   ),
                   onChanged: (v) => setD(() { query = v; disarm(); }),
                 ),
-              if (_children.length > 6) const SizedBox(height: 8),
+              if (_children.length > 6) const SizedBox(height: IntesharSpacing.sm),
               // The list itself — visible, not behind a tap.
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 260), // taller: rows gained a tier line
@@ -585,7 +585,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                         ),
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: IntesharSpacing.sm2),
               TextField(
                 controller: amountCtrl,
                 keyboardType: TextInputType.number,
@@ -597,7 +597,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                 ),
                 onChanged: (_) => setD(() { fieldError = null; disarm(); }),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: IntesharSpacing.md),
               // Live before → after so the sender sees the impact at decision time.
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 Text(ar ? 'الرصيد المتاح' : 'Available',
@@ -605,7 +605,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                 Text(Formatters.iqd(avail.round()),
                     style: IntesharType.mono(12, color: cs.onSurface)),
               ]),
-              const SizedBox(height: 4),
+              const SizedBox(height: IntesharSpacing.xs),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 Text(ar ? 'بعد التحويل' : 'After transfer',
                     style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
@@ -619,16 +619,16 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
               // was already funded. Hidden when the roster is unavailable (the
               // feed is VIEW_REPORTS-gated) rather than showing a misleading zero.
               if (dest != null && _childBal.containsKey(dest!.id)) ...[
-                const SizedBox(height: 10),
+                const SizedBox(height: IntesharSpacing.sm2),
                 Divider(height: 1, color: cs.outlineVariant),
-                const SizedBox(height: 10),
+                const SizedBox(height: IntesharSpacing.sm2),
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   Text(ar ? 'رصيد المستلم' : 'Recipient balance',
                       style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
                   Text(Formatters.iqd(_childBal[dest!.id]!.round()),
                       style: IntesharType.mono(12, color: cs.onSurface)),
                 ]),
-                const SizedBox(height: 4),
+                const SizedBox(height: IntesharSpacing.xs),
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   Text(ar ? 'بعد الاستلام' : 'After receiving',
                       style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
@@ -740,7 +740,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
         children: [
           TransferBalanceCard(
               label: s.available, amount: _balance?.available ?? 0),
-          const SizedBox(height: 12),
+          const SizedBox(height: IntesharSpacing.md),
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
@@ -751,7 +751,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
               label: Text(s.newTransfer),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: IntesharSpacing.sm),
           // B-034: the inverse a grant never had. Deliberately a SEPARATE action
           // rather than a mode inside the send dialog — that dialog has been the
           // subject of three regressions, and money moving the wrong way because
@@ -768,10 +768,10 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
           ),
           const SizedBox(height: 20),
           SectionLabel(s.history),
-          const SizedBox(height: 8),
+          const SizedBox(height: IntesharSpacing.sm),
           if (_grants.isEmpty)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 32),
+              padding: const EdgeInsets.symmetric(vertical: IntesharSpacing.xxl),
               child: Center(
                   child: Text(s.empty,
                       style:
@@ -812,7 +812,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
           ),
         ),
         if (_histFiltered) ...[
-          const SizedBox(width: 8),
+          const SizedBox(width: IntesharSpacing.sm),
           TextButton(
             onPressed: () => setState(() {
               _histFrom = null;
@@ -824,7 +824,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
           ),
         ],
       ]),
-      const SizedBox(height: 8),
+      const SizedBox(height: IntesharSpacing.sm),
       TextField(
         decoration: InputDecoration(
           isDense: true,
@@ -836,7 +836,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
           _histShown = _histPageSize;
         }),
       ),
-      const SizedBox(height: 10),
+      const SizedBox(height: IntesharSpacing.sm2),
       // Totals for exactly what the filters selected — the figure the agent is
       // actually looking for when they open the history at all.
       Row(children: [
@@ -848,7 +848,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
             tint: context.status.brand,
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: IntesharSpacing.sm),
         Expanded(
           child: _HistoryTotal(
             label: s.totalReceived,
@@ -857,7 +857,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
           ),
         ),
       ]),
-      const SizedBox(height: 10),
+      const SizedBox(height: IntesharSpacing.sm2),
       if (rows.isEmpty)
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 28),
@@ -869,7 +869,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
       else ...[
         for (final g in shown) _grantCard(s, g, cs),
         Padding(
-          padding: const EdgeInsets.only(top: 4, bottom: 4),
+          padding: const EdgeInsets.only(top: IntesharSpacing.xs, bottom: IntesharSpacing.xs),
           child: Row(children: [
             Expanded(
               child: Text(s.showingOf(shown.length, rows.length),
@@ -914,9 +914,9 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
     // `success` for what arrived — red stays available for things that broke.
     final tint = sent ? context.status.brand : context.status.success;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: IntesharSpacing.sm),
       child: InkCard(
-        padding: const EdgeInsets.all(12),
+        density: CardDensity.dense,
         child: Row(children: [
           Container(
             width: 32,
@@ -929,7 +929,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
             child: Icon(sent ? Icons.north_east : Icons.south_west,
                 size: 17, color: tint),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: IntesharSpacing.sm2),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(sent ? s.toName(other) : s.fromName(other),
@@ -971,10 +971,11 @@ class _HistoryTotal extends StatelessWidget {
       bordered: true,
       elevated: false,
       borderRadius: BorderRadius.circular(IntesharRadii.md),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      padding: const EdgeInsets.symmetric(
+          horizontal: IntesharSpacing.md, vertical: IntesharSpacing.sm2),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label, style: IntesharType.overline(color: cs.onSurfaceVariant)),
-        const SizedBox(height: 3),
+        const SizedBox(height: IntesharSpacing.xs),
         Text(Formatters.iqd(amount.round()),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -1037,7 +1038,7 @@ class TransferBalanceCard extends StatelessWidget {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(label,
                 style: IntesharType.overline(color: cs.onSurfaceVariant)),
-            const SizedBox(height: 4),
+            const SizedBox(height: IntesharSpacing.xs),
             Text(
               Formatters.iqd(amount.round()),
               style: IntesharType.codec(

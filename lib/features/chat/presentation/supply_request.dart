@@ -312,7 +312,7 @@ class _SupplyRequestDialogState extends State<_SupplyRequestDialog> {
                   .toList(),
               onChanged: (v) => setState(() => _to = v),
             ),
-          const SizedBox(height: 12),
+          const SizedBox(height: IntesharSpacing.md),
           if (_needsCategory) ...[
             TextField(
               controller: _category,
@@ -322,7 +322,7 @@ class _SupplyRequestDialogState extends State<_SupplyRequestDialog> {
               ),
               onChanged: (_) => setState(() {}),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: IntesharSpacing.md),
           ],
           TextField(
             controller: _amount,
@@ -348,7 +348,7 @@ class _SupplyRequestDialogState extends State<_SupplyRequestDialog> {
             onChanged: (_) => setState(() {}),
           ),
           if (widget.current != null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: IntesharSpacing.sm),
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               Text(_currentLabel(ar),
                   style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
@@ -361,7 +361,7 @@ class _SupplyRequestDialogState extends State<_SupplyRequestDialog> {
               ),
             ]),
           ],
-          const SizedBox(height: 12),
+          const SizedBox(height: IntesharSpacing.md),
           Text(
             ar
                 ? 'ستفتح المحادثة والرسالة جاهزة — يمكنك تعديلها قبل الإرسال.'

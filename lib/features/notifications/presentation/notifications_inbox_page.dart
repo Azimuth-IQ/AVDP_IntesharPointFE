@@ -162,10 +162,10 @@ class _NotificationsInboxPageState
           padding:
               const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 32),
           itemCount: _items.length + 1,
-          separatorBuilder: (_, _) => const SizedBox(height: 10),
+          separatorBuilder: (_, _) => const SizedBox(height: IntesharSpacing.sm2),
           itemBuilder: (ctx, i) {
             if (i == _items.length) {
-              if (!_hasMore) return const SizedBox(height: 4);
+              if (!_hasMore) return const SizedBox(height: IntesharSpacing.xs);
               return Padding(
                 padding: const EdgeInsets.only(top: 14),
                 child: Center(
@@ -254,7 +254,7 @@ class NotificationsUnreadBanner extends StatelessWidget {
             size: 18,
             color: context.tones.brandInk,
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: IntesharSpacing.sm2),
           Expanded(
             child: Text(
               label,
@@ -315,7 +315,7 @@ class _NotifCard extends StatelessWidget {
                   : cs.onSurfaceVariant,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: IntesharSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -331,7 +331,7 @@ class _NotifCard extends StatelessWidget {
                   ),
                 ),
                 if (n.body.isNotEmpty) ...[
-                  const SizedBox(height: 3),
+                  const SizedBox(height: IntesharSpacing.xs),
                   Text(
                     n.body,
                     maxLines: 2,
@@ -345,7 +345,7 @@ class _NotifCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: IntesharSpacing.sm),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             mainAxisSize: MainAxisSize.min,
@@ -360,7 +360,7 @@ class _NotifCard extends StatelessWidget {
                   ),
                 ),
               if (n.sentAt != null) ...[
-                const SizedBox(height: 4),
+                const SizedBox(height: IntesharSpacing.xs),
                 Text(
                   DateFormat('MM-dd HH:mm').format(n.sentAt!),
                   style: IntesharType.mono(
@@ -453,7 +453,7 @@ Widget _kvRow(BuildContext context, String label, String value) {
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: IntesharSpacing.md),
         Expanded(
           child: Text(
             value,

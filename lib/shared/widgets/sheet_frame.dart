@@ -121,7 +121,7 @@ class SheetFrame extends StatelessWidget {
               children: [
                 if (handle) ...[
                   const SizedBox(width: double.infinity, child: SheetHandle()),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: IntesharSpacing.lg),
                 ],
                 if (hasHeader) ...[
                   if (eyebrow != null) SectionLabel(eyebrow!, padding: const EdgeInsets.only(bottom: 6)),
@@ -136,7 +136,7 @@ class SheetFrame extends StatelessWidget {
                           ),
                         ),
                         if (trailing != null) ...[
-                          const SizedBox(width: 12),
+                          const SizedBox(width: IntesharSpacing.md),
                           trailing!,
                         ],
                       ],
@@ -157,7 +157,7 @@ class SheetFrame extends StatelessWidget {
                   child: scrollable ? SingleChildScrollView(child: child) : child,
                 ),
                 if (footer != null) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: IntesharSpacing.lg),
                   footer!,
                 ],
               ],

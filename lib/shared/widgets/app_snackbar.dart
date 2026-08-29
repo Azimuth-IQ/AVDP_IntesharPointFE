@@ -149,7 +149,7 @@ ScaffoldFeatureController<SnackBar, SnackBarClosedReason>? _show(
                 ? foreground
                 : contrastAdjusted(iconColor, background),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: IntesharSpacing.sm2),
           Expanded(
             child: Text(
               message,

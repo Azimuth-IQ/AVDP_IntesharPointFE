@@ -60,7 +60,7 @@ class WorkingHoursEditor extends StatelessWidget {
           onChanged: (v) => onChanged(wh.copyWith(enabled: v)),
         ),
         if (wh.enabled) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: IntesharSpacing.sm),
           Row(children: [
             Expanded(
               child: OutlinedButton.icon(
@@ -69,7 +69,7 @@ class WorkingHoursEditor extends StatelessWidget {
                 onPressed: () => pick(true),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: IntesharSpacing.sm2),
             Expanded(
               child: OutlinedButton.icon(
                 icon: const Icon(Icons.schedule, size: 18),
@@ -78,7 +78,7 @@ class WorkingHoursEditor extends StatelessWidget {
               ),
             ),
           ]),
-          const SizedBox(height: 10),
+          const SizedBox(height: IntesharSpacing.sm2),
           Text(
             ar ? 'الأيام المسموحة (لا شيء = كل الأيام)' : 'Allowed days (none = every day)',
             style: IntesharText.body(color: cs.onSurfaceVariant),

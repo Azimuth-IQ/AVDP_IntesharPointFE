@@ -67,7 +67,7 @@ class _PreviewPage extends StatelessWidget {
       backgroundColor: const Color(0xFFEDEEF1),
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(IntesharSpacing.xl),
           child: SizedBox(
             width: 560,
             child: Column(
@@ -75,7 +75,7 @@ class _PreviewPage extends StatelessWidget {
               children: [
                 const Text('Archive — waiting, nearly due, and ready',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                const SizedBox(height: 12),
+                const SizedBox(height: IntesharSpacing.md),
                 PosArchiveList(
                   rows: _rows,
                   busyIds: const {},

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
+import 'package:inteshar/app/theme.dart';
 
 /// UX-26 — the shell every money dialog on the transfers page is presented in.
 ///
@@ -76,7 +77,7 @@ Future<bool?> showMoneyDialog({
                     // room to wrap rather than being clipped mid-figure.
                     SizedBox(width: double.infinity, child: acts.last),
                     for (var i = acts.length - 2; i >= 0; i--) ...[
-                      const SizedBox(height: 4),
+                      const SizedBox(height: IntesharSpacing.xs),
                       SizedBox(width: double.infinity, child: acts[i]),
                     ],
                   ],

@@ -94,10 +94,10 @@ class _PreviewPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFEDEEF1),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(IntesharSpacing.xl),
         child: Wrap(
-          spacing: 24,
-          runSpacing: 24,
+          spacing: IntesharSpacing.xl,
+          runSpacing: IntesharSpacing.xl,
           children: [
             _panel(context, 'Blocked — 3 sub-agents, 4 shops', _blocked, const {}),
             _panel(context, 'Deleting one shop', _blocked, const {'s2'}),
@@ -115,7 +115,7 @@ class _PreviewPage extends StatelessWidget {
       children: [
         Text(label,
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-        const SizedBox(height: 8),
+        const SizedBox(height: IntesharSpacing.sm),
         Container(
           width: 460,
           decoration: BoxDecoration(

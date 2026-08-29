@@ -113,7 +113,7 @@ class _LoadingStateState extends State<LoadingState> {
             ),
           ),
           if (widget.message != null || status != null) ...[
-            const SizedBox(width: 10),
+            const SizedBox(width: IntesharSpacing.sm2),
             Flexible(
               child: Text(
                 status ?? widget.message!,
@@ -145,7 +145,7 @@ class _LoadingStateState extends State<LoadingState> {
                 ),
               ),
               if (widget.message != null) ...[
-                const SizedBox(height: 16),
+                const SizedBox(height: IntesharSpacing.lg),
                 Text(
                   widget.message!,
                   textAlign: TextAlign.center,
@@ -171,7 +171,7 @@ class _LoadingStateState extends State<LoadingState> {
                       color: cs.onSurfaceVariant),
                 ),
                 if (widget.onCancel != null) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: IntesharSpacing.lg),
                   OutlinedButton.icon(
                     onPressed: widget.onCancel,
                     icon: const Icon(Icons.close, size: 18),

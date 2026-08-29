@@ -128,7 +128,7 @@ class _HqUsersPageState extends ConsumerState<HqUsersPage> {
                     'the archive. The account is not deleted — you can restore it '
                     'later with the same password.',
               )),
-              const SizedBox(height: 12),
+              const SizedBox(height: IntesharSpacing.md),
               // The number staying taken is the surprise worth stating up front:
               // it is the one thing an admin will try to do next and be refused.
               Text(
@@ -292,7 +292,7 @@ class _HqUsersPageState extends ConsumerState<HqUsersPage> {
                       label: Text(_tr(context, 'إضافة مشرف', 'Add supervisor')),
                     ),
                   ),
-                const SizedBox(height: 10),
+                const SizedBox(height: IntesharSpacing.sm2),
                 SizedBox(
                   width: double.infinity,
                   child: SegmentedButton<bool>(
@@ -340,7 +340,7 @@ class _HqUsersPageState extends ConsumerState<HqUsersPage> {
       return ListView.separated(
         padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 24),
         itemCount: a.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 10),
+        separatorBuilder: (_, _) => const SizedBox(height: IntesharSpacing.sm2),
         itemBuilder: (_, i) =>
             _ArchivedUserCard(user: a[i], onRestore: () => _restore(a[i])),
       );
@@ -353,7 +353,7 @@ class _HqUsersPageState extends ConsumerState<HqUsersPage> {
     return ListView.separated(
       padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 24),
       itemCount: u.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      separatorBuilder: (_, _) => const SizedBox(height: IntesharSpacing.sm2),
       itemBuilder: (_, i) => _UserCard(
         user: u[i],
         onEdit: () => _openForm(existing: u[i]),
@@ -377,7 +377,6 @@ class _ArchivedUserCard extends StatelessWidget {
     final when = user.archivedAt?.toLocal().toString().substring(0, 16) ?? '';
     return InkCard(
       ruleColor: cs.outline,
-      padding: const EdgeInsets.all(IntesharSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -407,7 +406,7 @@ class _ArchivedUserCard extends StatelessWidget {
                   ?.copyWith(color: cs.onSurfaceVariant),
             ),
           ],
-          const SizedBox(height: 10),
+          const SizedBox(height: IntesharSpacing.sm2),
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: FilledButton.icon(
@@ -441,7 +440,6 @@ class _UserCard extends StatelessWidget {
     final caps = user.capabilities;
     final full = caps.isEmpty || caps.contains(Capability.AGENT_ADMIN);
     return InkCard(
-      padding: const EdgeInsets.all(IntesharSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -466,7 +464,7 @@ class _UserCard extends StatelessWidget {
                 onPressed: onRemove,
                 icon: Icon(Icons.inventory_2_outlined, size: 18, color: cs.error)),
           ]),
-          const SizedBox(height: 4),
+          const SizedBox(height: IntesharSpacing.xs),
           Wrap(
             spacing: 6,
             runSpacing: 6,
@@ -487,10 +485,10 @@ class _UserCard extends StatelessWidget {
   }
 
   Widget _chip(BuildContext c, String label, Color color) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.sm2, vertical: IntesharSpacing.xs),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(IntesharRadii.pill),
           border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         child: Text(label,
@@ -616,24 +614,24 @@ class _UserFormSheetState extends ConsumerState<_UserFormSheet> {
               ),
             ),
             if (!_isEdit) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: IntesharSpacing.md),
               // Masked: this is typed in an office, frequently with the new
               // supervisor (or anyone else) standing over the shoulder.
               PasswordField(
                 controller: _password,
                 label: _tr(context, 'كلمة المرور المبدئية', 'Initial password'),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: IntesharSpacing.xs),
               Text(
                 _tr(context, 'سيُطلب منه تغييرها عند أول تسجيل دخول',
                     'They will be asked to change it on first login'),
                 style: IntesharType.sans(12, color: cs.onSurfaceVariant),
               ),
             ],
-            const SizedBox(height: 16),
+            const SizedBox(height: IntesharSpacing.lg),
             Text(_tr(context, 'الصلاحيات', 'Capabilities'),
                 style: IntesharType.sans(12, color: cs.onSurfaceVariant, w: FontWeight.w700)),
-            const SizedBox(height: 4),
+            const SizedBox(height: IntesharSpacing.xs),
             ...Capability.values.map((c) {
               final hint = _capHint(context, c);
               return CheckboxListTile(
@@ -657,7 +655,7 @@ class _UserFormSheetState extends ConsumerState<_UserFormSheet> {
               );
             }),
             if (_error != null) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: IntesharSpacing.sm),
               Text(_error!, style: TextStyle(color: cs.error)),
             ],
           ],

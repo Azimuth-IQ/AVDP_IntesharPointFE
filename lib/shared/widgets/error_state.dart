@@ -24,9 +24,9 @@ class ErrorState extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420),
         child: Padding(
-          padding: const EdgeInsets.all(32),
+          padding: const EdgeInsets.all(IntesharSpacing.xxl),
           child: InkCard(
-            padding: const EdgeInsets.all(24),
+            density: CardDensity.roomy,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -36,7 +36,7 @@ class ErrorState extends StatelessWidget {
                   color: cs.error,
                   icon: Icons.warning_amber_rounded,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: IntesharSpacing.lg),
                 Text(
                   l.errorStateTitle,
                   style: IntesharText.titleLg(
@@ -45,7 +45,7 @@ class ErrorState extends StatelessWidget {
                     height: 1.2,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: IntesharSpacing.md),
                 Container(
                   padding: const EdgeInsets.all(IntesharSpacing.md),
                   decoration: BoxDecoration(
@@ -62,7 +62,7 @@ class ErrorState extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: IntesharSpacing.lg),
                 Align(
                   alignment: AlignmentDirectional.centerEnd,
                   child: BrandCTAButton(

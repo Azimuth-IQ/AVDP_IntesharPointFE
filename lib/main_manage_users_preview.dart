@@ -43,7 +43,7 @@ class _PreviewApp extends StatelessWidget {
           child: SizedBox(
             width: 520,
             child: Card(
-              margin: const EdgeInsets.all(24),
+              margin: const EdgeInsets.all(IntesharSpacing.xl),
               child: ManageUsersSheet(
                 entity: _entity,
                 onSave: (_) async {},

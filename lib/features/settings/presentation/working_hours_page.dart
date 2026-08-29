@@ -293,9 +293,9 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
     return InkCard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(s.totpTitle, style: IntesharType.sans(16, color: cs.onSurface, w: FontWeight.w800)),
-        const SizedBox(height: 4),
+        const SizedBox(height: IntesharSpacing.xs),
         Text(s.totpBody, style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
-        const SizedBox(height: 8),
+        const SizedBox(height: IntesharSpacing.sm),
         if (_totpLoading)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: IntesharSpacing.lg),
@@ -335,7 +335,7 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
           const SizedBox(height: IntesharSpacing.lg),
           if (_globalLoading)
             const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
+              padding: EdgeInsets.symmetric(vertical: IntesharSpacing.md),
               child: Center(child: CircularProgressIndicator()),
             )
           else if (_globalError != null)
@@ -379,7 +379,7 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
                           : cs.onSurfaceVariant,
                     ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: IntesharSpacing.xs),
             // UX-144: `cs.outline` is a hairline BORDER token — 1.22:1 as pill
             // text on white, so the inactive state was invisible. The icon was
             // already here; the colour just had to be a readable neutral.
@@ -424,11 +424,11 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
                 border: const OutlineInputBorder(),
                 contentPadding: const EdgeInsetsDirectional.symmetric(
                   horizontal: 14,
-                  vertical: 10,
+                  vertical: IntesharSpacing.sm2,
                 ),
                 suffixIcon: _entityResolving
                     ? const Padding(
-                        padding: EdgeInsets.all(10),
+                        padding: EdgeInsets.all(IntesharSpacing.sm2),
                         child: SizedBox(
                             width: 16,
                             height: 16,
@@ -451,12 +451,12 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
             ),
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: IntesharSpacing.lg),
 
           // Editor — shown only when an entity is chosen ───────────────────
           if (_selectedEntity == null)
             Padding(
-              padding: const EdgeInsets.only(top: 4, bottom: 8),
+              padding: const EdgeInsets.only(top: IntesharSpacing.xs, bottom: IntesharSpacing.sm),
               child: Text(
                 s.noEntitySelected,
                 style: IntesharText.bodyLg(color: cs.onSurfaceVariant),
@@ -470,7 +470,7 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
 
             if (_windowError != null)
               Padding(
-                padding: const EdgeInsets.only(top: 12),
+                padding: const EdgeInsets.only(top: IntesharSpacing.md),
                 child: Text(
                   _windowError!,
                   style: IntesharText.body(color: cs.error),

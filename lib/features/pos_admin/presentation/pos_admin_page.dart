@@ -611,7 +611,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
               loc == 'ar'
                   ? 'لا يوجد مستخدم نقطة بيع لهذا المتجر — إجراءات المستخدم غير متاحة'
                   : 'This shop has no POS user — operator actions are unavailable',
-              style: IntesharType.sans(12, color: cs.error, w: FontWeight.w600),
+              style: IntesharType.sans(12, color: cs.error, w: IntesharWeight.semibold),
             ),
           ),
         const SizedBox(height: 10),
@@ -716,7 +716,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
             const SizedBox(height: 16),
             SelectableText(
               pin,
-              style: const TextStyle(fontFamily: 'CodecPro', fontSize: 40, fontWeight: FontWeight.w900, letterSpacing: 8),
+              style: IntesharType.codec(size: 40, w: FontWeight.w900, letterSpacing: 8),
             ),
           ]),
           actions: [

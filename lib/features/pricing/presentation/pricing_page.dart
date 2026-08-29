@@ -753,7 +753,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                   value: applyToSelf,
                   onChanged: (v) => setD(() => applyToSelf = v ?? false),
                   title: Text(ar ? 'تطبيق على حسابي' : 'Apply to my account',
-                      style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w600)),
+                      style: IntesharType.sans(14, color: cs.onSurface, w: IntesharWeight.semibold)),
                 ),
                 Wrap(spacing: 6, runSpacing: 6, children: [
                   for (final e in extraAgents.entries)
@@ -1104,7 +1104,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
             alignment: AlignmentDirectional.centerStart,
             child: Text(
               s.scopedTo(_scopeLabel(s, loc)),
-              style: IntesharType.sans(12, color: cs.onSurfaceVariant, w: FontWeight.w600),
+              style: IntesharType.sans(12, color: cs.onSurfaceVariant, w: IntesharWeight.semibold),
             ),
           ),
         ],
@@ -1326,7 +1326,7 @@ class _BalanceHeader extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: IntesharType.sans(11,
                       color: onBrand.withValues(alpha: 0.75),
-                      w: FontWeight.w600),
+                      w: IntesharWeight.semibold),
                 ),
               ],
             ),
@@ -1666,7 +1666,7 @@ class _PriceField extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: IntesharType.sans(12,
                       color: dirty ? brandInk : cs.onSurfaceVariant,
-                      w: dirty ? FontWeight.w800 : FontWeight.w600),
+                      w: dirty ? FontWeight.w800 : IntesharWeight.semibold),
                 ),
               ),
             ]),

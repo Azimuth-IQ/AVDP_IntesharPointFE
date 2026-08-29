@@ -369,7 +369,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                   const SizedBox(height: 4),
                   Text(s.overChildBalance,
                       style: IntesharType.sans(12,
-                          color: ctx.status.danger, w: FontWeight.w600)),
+                          color: ctx.status.danger, w: IntesharWeight.semibold)),
                 ],
               ] else if (from != null) ...[
                 const SizedBox(height: 12),
@@ -934,7 +934,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: IntesharType.sans(14,
-                      color: cs.onSurface, w: FontWeight.w600)),
+                      color: cs.onSurface, w: IntesharWeight.semibold)),
               const SizedBox(height: 1),
               Text('${g.date} ${g.time}',
                   style: IntesharType.mono(11, color: cs.onSurfaceVariant)),
@@ -1038,10 +1038,9 @@ class TransferBalanceCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               Formatters.iqd(amount.round()),
-              style: TextStyle(
-                fontFamily: 'CodecPro',
-                fontSize: 32,
-                fontWeight: FontWeight.w900,
+              style: IntesharType.codec(
+                size: 32,
+                w: FontWeight.w900,
                 color: cs.onSurface,
                 letterSpacing: -0.8,
                 height: 1,

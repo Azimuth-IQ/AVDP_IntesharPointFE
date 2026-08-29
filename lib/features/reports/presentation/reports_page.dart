@@ -1109,7 +1109,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                 s.exportFollows(scope),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: IntesharType.sans(12, color: cs.onSurfaceVariant, w: FontWeight.w600),
+                style: IntesharType.sans(12, color: cs.onSurfaceVariant, w: IntesharWeight.semibold),
               ),
             ),
           ),
@@ -1515,7 +1515,7 @@ class _ReportSurfaceState extends State<_ReportSurface> {
         const SizedBox(width: 6),
         Expanded(
           child: Text(widget.s.sortedOf(n),
-              style: IntesharType.sans(12, color: warn, w: FontWeight.w600)),
+              style: IntesharType.sans(12, color: warn, w: IntesharWeight.semibold)),
         ),
       ]),
     );
@@ -1690,7 +1690,7 @@ class _ReportSurfaceState extends State<_ReportSurface> {
             w: col.trailing ? FontWeight.w800 : FontWeight.w600)
         : IntesharType.sans(14,
             color: cell.color ?? (col.primary ? cs.onSurface : cs.onSurfaceVariant),
-            w: col.primary ? FontWeight.w700 : FontWeight.w500);
+            w: col.primary ? FontWeight.w700 : IntesharWeight.regular);
     // Figures shrink rather than clip — a truncated amount is a lie (B-095/B-099).
     final text = Text(cell.text,
         maxLines: 1,
@@ -1908,7 +1908,7 @@ class _RosterReportState extends State<_RosterReport> {
           // UX-35: name the arithmetic once, above the table, rather than leaving
           // three money columns with no stated relationship to each other.
           Text(s.rosterComposition,
-              style: IntesharType.sans(12, color: cs.onSurfaceVariant, w: FontWeight.w600)),
+              style: IntesharType.sans(12, color: cs.onSurfaceVariant, w: IntesharWeight.semibold)),
         ]),
       ),
       columns: [
@@ -2295,7 +2295,7 @@ class _StockReport extends StatelessWidget {
             // The available count, directly beneath the image (the spec's
             // "اسفل كل صورة عدد الكروت المتوفر") — still the hero number.
             Text(Formatters.money(availOf(sku)),
-                style: IntesharType.mono(16, color: context.tones.brandInk, w: FontWeight.w900)),
+                style: IntesharType.mono(16, color: context.tones.brandInk, w: kMonoHeaviest)),
             const SizedBox(height: 1),
             // …with the two columns the export also carries (B-091), kept quiet
             // so they inform without competing with the available count.
@@ -2348,7 +2348,7 @@ class _DetailedReport extends StatelessWidget {
           child: Text(s.grandTotalBasis,
               style: IntesharType.sans(12,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  w: FontWeight.w600)),
+                  w: IntesharWeight.semibold)),
         ),
       ]),
       columns: [
@@ -2421,7 +2421,7 @@ class _TotalStrip extends StatelessWidget {
           Expanded(
             child: Text(text,
                 style: IntesharType.sans(12,
-                    color: color ?? cs.onSurfaceVariant, w: FontWeight.w600)),
+                    color: color ?? cs.onSurfaceVariant, w: IntesharWeight.semibold)),
           ),
         ]);
 
@@ -2559,7 +2559,7 @@ class _TotalStrip extends StatelessWidget {
           Expanded(
             child: Text(note!,
                 style: IntesharType.sans(12,
-                    color: context.status.warn, w: FontWeight.w600)),
+                    color: context.status.warn, w: IntesharWeight.semibold)),
           ),
         ]),
       ],

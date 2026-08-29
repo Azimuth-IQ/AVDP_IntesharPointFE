@@ -339,7 +339,7 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
           const SizedBox(height: 12),
           TextField(controller: _bodyCtrl, decoration: InputDecoration(labelText: s.fieldBody), maxLines: 4, minLines: 3),
           const SizedBox(height: 16),
-          Text(s.kindLabel, style: IntesharType.sans(12, color: cs.onSurfaceVariant, w: FontWeight.w600)),
+          Text(s.kindLabel, style: IntesharType.sans(12, color: cs.onSurfaceVariant, w: IntesharWeight.semibold)),
           const SizedBox(height: 8),
           SegmentedButton<bool>(
             showSelectedIcon: false,
@@ -351,7 +351,7 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
             onSelectionChanged: (sel) => setState(() => _isAlert = sel.first),
           ),
           const SizedBox(height: 16),
-          Text(s.audienceLabel, style: IntesharType.sans(12, color: cs.onSurfaceVariant, w: FontWeight.w600)),
+          Text(s.audienceLabel, style: IntesharType.sans(12, color: cs.onSurfaceVariant, w: IntesharWeight.semibold)),
           const SizedBox(height: 8),
           SegmentedButton<_Mode>(
             showSelectedIcon: false,
@@ -371,7 +371,7 @@ class _ComposeCardState extends ConsumerState<_ComposeCard> {
             dense: true,
             value: _posOnly,
             onChanged: (v) => setState(() => _posOnly = v),
-            title: Text(s.posOnly, style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w600)),
+            title: Text(s.posOnly, style: IntesharType.sans(14, color: cs.onSurface, w: IntesharWeight.semibold)),
             subtitle: Text(s.posOnlyHint, style: IntesharType.sans(11, color: cs.onSurfaceVariant)),
           ),
           if (_error != null) ...[

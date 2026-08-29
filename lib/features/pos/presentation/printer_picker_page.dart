@@ -730,7 +730,7 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
               style: IntesharType.sans(
                 12,
                 color: cs.onSurface,
-                w: FontWeight.w600,
+                w: IntesharWeight.semibold,
               ),
             ),
           ),

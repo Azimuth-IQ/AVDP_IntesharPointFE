@@ -108,7 +108,7 @@ class ColorHexField extends StatelessWidget {
             style: IntesharType.sans(
               12,
               color: ok ? cs.onSurfaceVariant : cs.error,
-              w: ok ? FontWeight.w500 : FontWeight.w700,
+              w: ok ? IntesharWeight.regular : FontWeight.w700,
             ),
           ),
         ),

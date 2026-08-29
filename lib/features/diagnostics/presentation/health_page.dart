@@ -209,7 +209,7 @@ class _HealthCardState extends State<_HealthCard> {
                   Expanded(
                     child: Text(
                       widget.label,
-                      style: IntesharType.serif(16, color: cs.onSurface, w: FontWeight.w600),
+                      style: IntesharType.serif(16, color: cs.onSurface, w: IntesharWeight.semibold),
                     ),
                   ),
                   StampPill(

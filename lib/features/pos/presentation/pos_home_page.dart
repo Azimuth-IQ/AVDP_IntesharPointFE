@@ -292,7 +292,7 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
                       shopName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontFamily: 'CodecPro', fontSize: 20, fontWeight: FontWeight.w800, color: cs.onSurface, letterSpacing: -0.3, height: 1),
+                      style: IntesharType.codec(size: 20, w: FontWeight.w800, color: cs.onSurface, letterSpacing: -0.3, height: 1),
                     ),
                     const SizedBox(height: 2),
                     // UX-89: "العداد المباشر" is a claim about freshness, so it
@@ -304,7 +304,7 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
                       _counterSubtitle(l),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontFamily: 'CodecPro', fontSize: 11, color: cs.onSurfaceVariant, letterSpacing: 0.2, fontWeight: FontWeight.w600),
+                      style: IntesharType.codec(size: 11, color: cs.onSurfaceVariant, letterSpacing: 0.2, w: IntesharWeight.semibold),
                     ),
                   ],
                 ),
@@ -442,7 +442,7 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
               _ar
                   ? 'تعذّر التحديث — الأعداد المعروضة قد تكون قديمة.'
                   : "Couldn't refresh — the counts shown may be out of date.",
-              style: TextStyle(fontFamily: 'CodecPro', fontSize: 12, fontWeight: FontWeight.w700, color: cs.onSurface),
+              style: IntesharType.codec(size: 12, w: FontWeight.w700, color: cs.onSurface),
             ),
           ),
           TextButton(
@@ -1025,7 +1025,7 @@ class _BalanceTally extends StatelessWidget {
                   // a test that pumps a locale gets that locale's unit.
                   balance == null ? '—' : Formatters.iqdOf(context, balance!.available),
                   maxLines: 1,
-                  style: TextStyle(fontFamily: 'CodecPro', fontSize: 19, color: cs.onSurface, fontWeight: FontWeight.w900, letterSpacing: -0.4, height: 1),
+                  style: IntesharType.codec(size: 19, color: cs.onSurface, w: FontWeight.w900, letterSpacing: -0.4, height: 1),
                 ),
               ),
             ],
@@ -1276,7 +1276,7 @@ class _CompanyCard extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
-              style: TextStyle(fontFamily: 'CodecPro', color: cs.onSurface, fontSize: 15, fontWeight: FontWeight.w800, letterSpacing: -0.2),
+              style: IntesharType.codec(color: cs.onSurface, size: 15, w: FontWeight.w800, letterSpacing: -0.2),
             ),
           ],
         ),
@@ -1330,7 +1330,7 @@ class _GovCard extends StatelessWidget {
               label,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontFamily: 'CodecPro', color: cs.onSurface, fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.2, height: 1.1),
+              style: IntesharType.codec(color: cs.onSurface, size: 16, w: FontWeight.w800, letterSpacing: -0.2, height: 1.1),
             ),
           ],
         ),
@@ -1418,12 +1418,11 @@ class _SkuCard extends StatelessWidget {
                       s.name,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: 'CodecPro',
+                      style: IntesharType.codec(
                         color: cs.onSurface,
-                        fontSize: 13,
+                        size: 13,
                         height: 1.15,
-                        fontWeight: FontWeight.w700,
+                        w: FontWeight.w700,
                         letterSpacing: -0.2,
                       ),
                     ),
@@ -1437,7 +1436,7 @@ class _SkuCard extends StatelessWidget {
                       child: Text(
                         s.price > 0 ? Formatters.iqd(s.price) : (ar ? 'السعر غير محدَّد' : 'Price not set'),
                         maxLines: 1,
-                        style: IntesharType.mono(20, color: context.tones.brandInk, w: FontWeight.w900),
+                        style: IntesharType.mono(20, color: context.tones.brandInk, w: kMonoHeaviest),
                       ),
                     ),
                     const SizedBox(height: 3),
@@ -1481,11 +1480,10 @@ class _SkuCard extends StatelessWidget {
                 : (ar ? 'يمكن بيع ${sellable.affordable}' : 'Can sell ${sellable.affordable}'),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontFamily: 'CodecPro',
-              fontSize: 11,
+            style: IntesharType.codec(
+              size: 11,
               height: 1.1,
-              fontWeight: FontWeight.w800,
+              w: FontWeight.w800,
               color: unaffordable ? color : cs.onSurfaceVariant,
             ),
           ),
@@ -1513,7 +1511,7 @@ class _SkuCard extends StatelessWidget {
       alignment: Alignment.center,
       child: Text(
         sku,
-        style: IntesharType.mono(20, color: legibleOn(mid), w: FontWeight.w900, letterSpacing: 1),
+        style: IntesharType.mono(20, color: legibleOn(mid), w: kMonoHeaviest, letterSpacing: 1),
       ),
     );
   }
@@ -2079,7 +2077,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                             ? t.headerText.trim().toUpperCase()
                             : (posShopName(ref).isNotEmpty ? posShopName(ref).toUpperCase() : 'POS'),
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontFamily: 'CodecPro', fontSize: 12, color: cs.onSurface, letterSpacing: 2.2, fontWeight: FontWeight.w900),
+                        style: IntesharType.codec(size: 12, color: cs.onSurface, letterSpacing: 2.2, w: FontWeight.w900),
                       ),
                       // Telecom company name (resolved on reveal) then the category
                       // name beneath it — each gated by its template flag.
@@ -2088,7 +2086,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                         Text(
                           _companyName!.trim().toUpperCase(),
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontFamily: 'CodecPro', fontSize: 15, color: cs.onSurface, fontWeight: FontWeight.w800, letterSpacing: 0.6),
+                          style: IntesharType.codec(size: 15, color: cs.onSurface, w: FontWeight.w800, letterSpacing: 0.6),
                         ),
                       ],
                       if (t.showCategoryName && (_categoryName ?? def.name).trim().isNotEmpty) ...[
@@ -2096,7 +2094,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                         Text(
                           (_categoryName ?? def.name).trim(),
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontFamily: 'CodecPro', fontSize: 13, color: cs.onSurfaceVariant, fontWeight: FontWeight.w600),
+                          style: IntesharType.codec(size: 13, color: cs.onSurfaceVariant, w: IntesharWeight.semibold),
                         ),
                       ],
                       if (t.showProductName) ...[
@@ -2104,7 +2102,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                         Text(
                           def.name,
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontFamily: 'CodecPro', fontSize: 22, color: cs.onSurface, fontWeight: FontWeight.w900, letterSpacing: -0.4),
+                          style: IntesharType.codec(size: 22, color: cs.onSurface, w: FontWeight.w900, letterSpacing: -0.4),
                         ),
                       ],
                       if (t.showPrice) ...[
@@ -2164,7 +2162,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                       Text(
                         t.footerText.trim().isNotEmpty ? t.footerText.trim() : l.posHomeScratchNote,
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontFamily: 'CodecPro', fontSize: 11.5, color: cs.onSurfaceVariant, fontWeight: FontWeight.w500),
+                        style: IntesharType.codec(size: 11.5, color: cs.onSurfaceVariant, w: IntesharWeight.regular),
                       ),
                     ],
                   ),
@@ -2212,7 +2210,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               maxLength: 4,
               textAlign: TextAlign.center,
-              style: IntesharType.mono(28, color: cs.onSurface, w: FontWeight.w900),
+              style: IntesharType.mono(28, color: cs.onSurface, w: kMonoHeaviest),
               decoration: InputDecoration(
                 counterText: '',
                 // The ceiling, stated where the number is entered — a typed 50
@@ -2404,7 +2402,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                     Expanded(
                       child: Text(
                         _printError!,
-                        style: TextStyle(fontFamily: 'CodecPro', fontSize: 12.5, height: 1.35, fontWeight: FontWeight.w700, color: cs.onErrorContainer),
+                        style: IntesharType.codec(size: 12.5, height: 1.35, w: FontWeight.w700, color: cs.onErrorContainer),
                       ),
                     ),
                   ],
@@ -2489,14 +2487,14 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                       Text(
                         s.companyName!.trim().toUpperCase(),
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontFamily: 'CodecPro', fontSize: 14, color: cs.onSurface, fontWeight: FontWeight.w800, letterSpacing: 0.6),
+                        style: IntesharType.codec(size: 14, color: cs.onSurface, w: FontWeight.w800, letterSpacing: 0.6),
                       ),
                       const SizedBox(height: 4),
                     ],
                     Text(
                       s.name,
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontFamily: 'CodecPro', fontSize: 22, color: cs.onSurface, fontWeight: FontWeight.w900, letterSpacing: -0.4),
+                      style: IntesharType.codec(size: 22, color: cs.onSurface, w: FontWeight.w900, letterSpacing: -0.4),
                     ),
                     const SizedBox(height: 6),
                     Text(
@@ -2508,7 +2506,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                     const SizedBox(height: 14),
                     Text(
                       Localizations.localeOf(context).languageCode == 'ar' ? 'المتوفر في مخزن الوكيل: ${s.available}' : 'In main-agent pool: ${s.available}',
-                      style: TextStyle(fontFamily: 'CodecPro', fontSize: 12, color: cs.onSurfaceVariant, fontWeight: FontWeight.w700),
+                      style: IntesharType.codec(size: 12, color: cs.onSurfaceVariant, w: FontWeight.w700),
                     ),
                     // UX-52: the tile's count and this pool count are DIFFERENT
                     // numbers (what your balance covers vs. what the agent holds),
@@ -2517,7 +2515,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                       const SizedBox(height: 2),
                       Text(
                         _ar ? 'رصيدك يكفي ${s.affordable} بطاقة' : 'Your balance covers ${s.affordable}',
-                        style: TextStyle(fontFamily: 'CodecPro', fontSize: 12, color: context.tones.brandInk, fontWeight: FontWeight.w800),
+                        style: IntesharType.codec(size: 12, color: context.tones.brandInk, w: FontWeight.w800),
                       ),
                     ],
                     // B-086: sell several cards at once (a shop asking for e.g. 10).
@@ -2581,7 +2579,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                       Expanded(
                         child: Text(
                           info.sentence ?? info.label,
-                          style: TextStyle(fontFamily: 'CodecPro', fontSize: 12, height: 1.35, fontWeight: FontWeight.w600, color: cs.onSurface),
+                          style: IntesharType.codec(size: 12, height: 1.35, w: IntesharWeight.semibold, color: cs.onSurface),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -2641,21 +2639,19 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                       children: [
                         Text(
                           _saleError!.headline,
-                          style: TextStyle(
-                              fontFamily: 'CodecPro',
-                              fontSize: 12.5,
+                          style: IntesharType.codec(
+                              size: 12.5,
                               height: 1.35,
-                              fontWeight: FontWeight.w800,
+                              w: FontWeight.w800,
                               color: _saleError!.outcomeUnknown ? cs.onSurface : cs.onErrorContainer),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           _saleError!.detail,
-                          style: TextStyle(
-                              fontFamily: 'CodecPro',
-                              fontSize: 11.5,
+                          style: IntesharType.codec(
+                              size: 11.5,
                               height: 1.35,
-                              fontWeight: FontWeight.w600,
+                              w: IntesharWeight.semibold,
                               color: _saleError!.outcomeUnknown ? cs.onSurface : cs.onErrorContainer),
                         ),
                       ],
@@ -2680,7 +2676,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                 Expanded(
                   child: Text(
                     l.posRevealWarning,
-                    style: TextStyle(fontFamily: 'CodecPro', fontSize: 12, height: 1.35, fontWeight: FontWeight.w600, color: cs.onSurface),
+                    style: IntesharType.codec(size: 12, height: 1.35, w: IntesharWeight.semibold, color: cs.onSurface),
                   ),
                 ),
               ],
@@ -2761,7 +2757,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                               ar
                                   ? 'فشلت الطباعة — الرمز مُباع.'
                                   : 'Print failed — the code is sold.',
-                              style: TextStyle(fontFamily: 'CodecPro', fontSize: 12.5, height: 1.35, fontWeight: FontWeight.w800, color: cs.onErrorContainer),
+                              style: IntesharType.codec(size: 12.5, height: 1.35, w: FontWeight.w800, color: cs.onErrorContainer),
                             ),
                             const SizedBox(height: 3),
                             // UX-49: the actual, actionable reason. It was being
@@ -2769,14 +2765,14 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                             // in favour of a fixed sentence.
                             Text(
                               _printError!,
-                              style: TextStyle(fontFamily: 'CodecPro', fontSize: 12.5, height: 1.35, fontWeight: FontWeight.w600, color: cs.onErrorContainer),
+                              style: IntesharType.codec(size: 12.5, height: 1.35, w: IntesharWeight.semibold, color: cs.onErrorContainer),
                             ),
                             const SizedBox(height: 3),
                             Text(
                               ar
                                   ? 'أو انسخ/شارك الرمز أدناه.'
                                   : 'Or copy/share the code below.',
-                              style: TextStyle(fontFamily: 'CodecPro', fontSize: 11.5, height: 1.3, fontWeight: FontWeight.w600, color: cs.onErrorContainer),
+                              style: IntesharType.codec(size: 11.5, height: 1.3, w: IntesharWeight.semibold, color: cs.onErrorContainer),
                             ),
                           ],
                         ),
@@ -2806,7 +2802,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                           ar
                               ? 'هذه الطابعة تعيد تنسيق الإيصال — قد يختلف شكله عن بقية الأجهزة.'
                               : 'This printer re-formats the receipt — it may not match other devices.',
-                          style: TextStyle(fontFamily: 'CodecPro', fontSize: 11.5, height: 1.3, fontWeight: FontWeight.w600, color: cs.onSurface),
+                          style: IntesharType.codec(size: 11.5, height: 1.3, w: IntesharWeight.semibold, color: cs.onSurface),
                         ),
                       ),
                     ],
@@ -2955,7 +2951,7 @@ class _ReceiptRow extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(fontFamily: 'CodecPro', color: cs.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.2),
+          style: IntesharType.codec(color: cs.onSurfaceVariant, size: 12, w: FontWeight.w700, letterSpacing: 0.2),
         ),
         SelectableText(
           value,

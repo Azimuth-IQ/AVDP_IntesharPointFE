@@ -466,7 +466,7 @@ class _CompanyDialogState extends State<_CompanyDialog> {
           ),
         );
     final labelStyle =
-        IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w600);
+        IntesharType.sans(14, color: cs.onSurface, w: IntesharWeight.semibold);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

@@ -327,7 +327,7 @@ class _NotifCard extends StatelessWidget {
                   style: IntesharType.sans(
                     14,
                     color: cs.onSurface,
-                    w: unread ? FontWeight.w800 : FontWeight.w600,
+                    w: unread ? FontWeight.w800 : IntesharWeight.semibold,
                   ),
                 ),
                 if (n.body.isNotEmpty) ...[
@@ -449,7 +449,7 @@ Widget _kvRow(BuildContext context, String label, String value) {
             style: IntesharType.sans(
               12,
               color: cs.onSurfaceVariant,
-              w: FontWeight.w600,
+              w: IntesharWeight.semibold,
             ),
           ),
         ),
@@ -460,7 +460,7 @@ Widget _kvRow(BuildContext context, String label, String value) {
             style: IntesharType.sans(
               14,
               color: cs.onSurface,
-              w: FontWeight.w500,
+              w: IntesharWeight.regular,
             ),
           ),
         ),

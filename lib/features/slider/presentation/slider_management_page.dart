@@ -500,7 +500,7 @@ class _SliderEditorSheetState extends ConsumerState<_SliderEditorSheet> {
               value: _active,
               onChanged: (v) => setState(() => _active = v),
               title: Text(_t(context, 'مُفعّلة', 'Active'),
-                  style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w600)),
+                  style: IntesharType.sans(14, color: cs.onSurface, w: IntesharWeight.semibold)),
             ),
             const SizedBox(height: 8),
 

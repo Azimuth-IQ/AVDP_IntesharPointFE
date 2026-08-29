@@ -330,11 +330,10 @@ class _LockForm extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     ar ? 'أدخل رمزك للمتابعة' : 'Enter your PIN to continue',
-                    style: TextStyle(
-                      fontFamily: 'CodecPro',
-                      fontSize: 13,
+                    style: IntesharType.codec(
+                      size: 13,
                       color: cs.onSurfaceVariant,
-                      fontWeight: FontWeight.w500,
+                      w: IntesharWeight.regular,
                     ),
                   ),
                 ],
@@ -393,11 +392,10 @@ class _LockForm extends StatelessWidget {
                 Expanded(
                   child: Text(
                     error!,
-                    style: TextStyle(
-                      fontFamily: 'CodecPro',
-                      fontSize: 13,
+                    style: IntesharType.codec(
+                      size: 13,
                       color: cs.onErrorContainer,
-                      fontWeight: FontWeight.w600,
+                      w: IntesharWeight.semibold,
                     ),
                   ),
                 ),

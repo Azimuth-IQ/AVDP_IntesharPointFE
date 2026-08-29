@@ -115,11 +115,19 @@ flutter:
     # even if something had asked. The TTFs stay in assets/fonts/ — re-add the
     # `style: italic` entries here if an italic is ever genuinely designed in.
     #
-    # NOTE (UX-127): the weights below are the ONLY faces that exist. There is no
-    # 600, so `FontWeight.w600` has no face — use `IntesharWeight.semibold`.
-    # `News` is registered at 500 but is Codec Pro's *third-lightest* face: it is
-    # lighter than Regular/400, so `w500` renders lighter than body text. Fixing
-    # that means re-registering it (a whole-app rendering change) — not done here.
+    # NOTE (UX-127): the six weights below are the ONLY CodecPro faces that
+    # exist — there is no SemiBold or Medium TTF in `assets/fonts/`, so **500
+    # and 600 have no face at all** and Flutter silently substitutes a
+    # neighbour. Never write `FontWeight.w500`/`w600` against this family; use
+    # an `IntesharWeight` token (`semibold` is an explicit alias of Bold). The
+    # numbers here are load-bearing in two directions and both are enforced by
+    # `test/core/theme/`: `font_weight_registration_test` checks this list
+    # against the faces' real darkness, and `weights_in_use_test` checks every
+    # `FontWeight` literal in `lib/` against this list, per family.
+    #
+    # (The earlier note here said News was registered at 500 and that fixing it
+    # was out of scope. UX-160 did fix it — News is at 300, below Regular, which
+    # is what the face actually is.)
     - family: CodecPro
       fonts:
         - asset: assets/fonts/CodecPro-Light.ttf

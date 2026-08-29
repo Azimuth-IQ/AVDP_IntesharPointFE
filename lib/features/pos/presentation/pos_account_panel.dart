@@ -48,7 +48,7 @@ class PosAccountPanel extends ConsumerWidget {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(label, style: IntesharType.sans(11, color: cs.onSurfaceVariant)),
-              Text(value, style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w600)),
+              Text(value, style: IntesharType.sans(14, color: cs.onSurface, w: IntesharWeight.semibold)),
             ]),
           ),
         ]),

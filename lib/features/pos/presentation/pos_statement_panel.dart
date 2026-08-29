@@ -304,7 +304,7 @@ class _PosStatementPanelState extends ConsumerState<PosStatementPanel> {
                         (r.receiptNo != null ? '  ·  #${r.receiptNo}' : ''),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w600),
+                style: IntesharType.sans(14, color: cs.onSurface, w: IntesharWeight.semibold),
               ),
               const SizedBox(height: 1),
               // UX-147: 11px was below the app's floor for text a cashier

@@ -867,7 +867,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
               'مكرر: ${res.skipped} • غير صالح: ${res.invalid}',
               'Duplicate: ${res.skipped} • invalid: ${res.invalid}',
             ),
-            style: IntesharType.sans(14, color: cs.onSurfaceVariant, w: FontWeight.w600),
+            style: IntesharType.sans(14, color: cs.onSurfaceVariant, w: IntesharWeight.semibold),
           ),
           // ── Partial upload (UX-85) ───────────────────────────────────
           if (partial != null) ...[
@@ -882,12 +882,12 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                     '${Formatters.money(partial.totalRows)} rows. The vouchers above '
                     'ARE already on the server and sellable — nothing was lost.',
               ),
-              style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w600),
+              style: IntesharType.sans(14, color: cs.onSurface, w: IntesharWeight.semibold),
             ),
             const SizedBox(height: 6),
             Text(
               friendlyError(partial.cause, context),
-              style: IntesharType.sans(12, color: context.status.danger, w: FontWeight.w600),
+              style: IntesharType.sans(12, color: context.status.danger, w: IntesharWeight.semibold),
             ),
             const SizedBox(height: 6),
             Text(
@@ -971,7 +971,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                     '(lines ${_attemptedRejected.take(10).map((r) => r.line).join(', ')}'
                     '${_attemptedRejected.length > 10 ? ' …' : ''})',
               ),
-              style: IntesharType.sans(12, color: context.status.danger, w: FontWeight.w600),
+              style: IntesharType.sans(12, color: context.status.danger, w: IntesharWeight.semibold),
             ),
           ],
         ],
@@ -1167,7 +1167,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                         style: IntesharType.sans(
                           12,
                           color: unanswered ? context.status.danger : cs.onSurfaceVariant,
-                          w: unanswered ? FontWeight.w700 : FontWeight.w500,
+                          w: unanswered ? FontWeight.w700 : IntesharWeight.regular,
                         ),
                       ),
                     ),
@@ -1273,7 +1273,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                         '(lines ${_rejected.take(10).map((r) => r.line).join(', ')}'
                         '${_rejected.length > 10 ? ' …' : ''})',
                   ),
-                  style: IntesharType.sans(12, color: context.status.danger, w: FontWeight.w600),
+                  style: IntesharType.sans(12, color: context.status.danger, w: IntesharWeight.semibold),
                 ),
               ],
               // B-090: the primary action sits ABOVE the preview — it used to be the
@@ -1285,7 +1285,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
                     '${_tr(context, 'مطلوب: ', 'Required: ')}${_missing().join(_tr(context, '، ', ', '))}',
-                    style: IntesharType.sans(12, color: context.status.danger, w: FontWeight.w600),
+                    style: IntesharType.sans(12, color: context.status.danger, w: IntesharWeight.semibold),
                   ),
                 ),
               ],

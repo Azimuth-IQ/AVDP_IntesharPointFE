@@ -301,7 +301,7 @@ class _PosShopSheetState extends State<_PosShopSheet> {
             Text(g.label,
                 style: IntesharType.sans(14,
                     color: cs.onSurface,
-                    w: g.ok == false ? FontWeight.w800 : FontWeight.w600)),
+                    w: g.ok == false ? FontWeight.w800 : IntesharWeight.semibold)),
             const SizedBox(height: 1),
             Text(g.detail,
                 style: IntesharType.sans(12,

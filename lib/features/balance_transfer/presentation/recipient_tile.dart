@@ -101,7 +101,7 @@ class RecipientTile extends StatelessWidget {
         row.label,
         overflow: TextOverflow.ellipsis,
         style: IntesharType.sans(14,
-            color: cs.onSurface, w: selected ? FontWeight.w800 : FontWeight.w600),
+            color: cs.onSurface, w: selected ? FontWeight.w800 : IntesharWeight.semibold),
       ),
       // Name the tier outright — with both lists behind one segment it must be
       // unambiguous which kind of account you just picked. Localized: the raw
@@ -110,7 +110,7 @@ class RecipientTile extends StatelessWidget {
         tierLabel(AppLocalizations.of(context)!, row.type),
         style: IntesharType.sans(11,
             color: selected ? ink : cs.onSurfaceVariant,
-            w: selected ? FontWeight.w700 : FontWeight.w500),
+            w: selected ? FontWeight.w700 : IntesharWeight.regular),
       ),
       // Ink, not the tier tint: a gold check on a gold-washed selected row is
       // ~1.9:1 against its own background. The check is the ONLY non-colour cue

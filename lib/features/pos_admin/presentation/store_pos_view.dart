@@ -267,8 +267,7 @@ class _StorePosViewState extends ConsumerState<StorePosView> {
             const SizedBox(height: 16),
             SelectableText(
               pin,
-              style: const TextStyle(
-                  fontFamily: 'CodecPro', fontSize: 40, fontWeight: FontWeight.w900, letterSpacing: 8),
+              style: IntesharType.codec(size: 40, w: FontWeight.w900, letterSpacing: 8),
             ),
           ]),
           actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: Text(s.close))],

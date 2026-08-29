@@ -1507,7 +1507,7 @@ class _TabChip extends StatelessWidget {
                 const SizedBox(width: 7),
                 Text(spec.label,
                     style: IntesharType.sans(14,
-                        color: fg, w: active ? FontWeight.w800 : FontWeight.w600)),
+                        color: fg, w: active ? FontWeight.w800 : IntesharWeight.semibold)),
                 const SizedBox(width: 7),
                 Tooltip(
                   message: spec.hint,
@@ -1580,7 +1580,7 @@ class _FilterPill extends StatelessWidget {
                 ],
                 Text(label,
                     style: IntesharType.sans(12,
-                        color: fg, w: selected ? FontWeight.w800 : FontWeight.w600)),
+                        color: fg, w: selected ? FontWeight.w800 : IntesharWeight.semibold)),
               ],
             ),
           ),
@@ -2282,7 +2282,7 @@ Widget _kv(BuildContext context, String label, String value, {bool mono = false}
     value,
     style: mono
         ? IntesharType.mono(12, color: cs.onSurface)
-        : IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w500),
+        : IntesharType.sans(14, color: cs.onSurface, w: IntesharWeight.regular),
   );
   return Padding(
     padding: const EdgeInsets.only(bottom: IntesharSpacing.sm),
@@ -2291,7 +2291,7 @@ Widget _kv(BuildContext context, String label, String value, {bool mono = false}
       children: [
         SizedBox(
           width: 116,
-          child: Text(label, style: IntesharType.sans(12, color: context.status.neutral, w: FontWeight.w600)),
+          child: Text(label, style: IntesharType.sans(12, color: context.status.neutral, w: IntesharWeight.semibold)),
         ),
         const SizedBox(width: 12),
         Expanded(child: mono ? _ltr(valueWidget) : valueWidget),
@@ -2328,7 +2328,7 @@ class _NoticeState extends StatelessWidget {
               Text(
                 message,
                 textAlign: TextAlign.center,
-                style: IntesharType.sans(14, color: cs.onSurfaceVariant, w: FontWeight.w600),
+                style: IntesharType.sans(14, color: cs.onSurfaceVariant, w: IntesharWeight.semibold),
               ),
               if (actionLabel != null && onAction != null) ...[
                 const SizedBox(height: 18),

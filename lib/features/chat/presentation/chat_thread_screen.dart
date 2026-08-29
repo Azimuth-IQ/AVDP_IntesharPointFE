@@ -310,7 +310,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                       ? p.reason!
                       : (ar ? 'لم تُرسل' : 'Not sent'),
                   style: IntesharType.sans(11,
-                      color: context.status.danger, w: FontWeight.w600),
+                      color: context.status.danger, w: IntesharWeight.semibold),
                 ),
               ),
             ]),

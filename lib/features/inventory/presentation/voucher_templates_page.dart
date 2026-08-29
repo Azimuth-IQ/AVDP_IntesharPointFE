@@ -568,7 +568,7 @@ class _SkuList extends StatelessWidget {
                               color: isSelected
                                   ? context.tones.onBrand
                                   : cs.onSurface,
-                              w: FontWeight.w900,
+                              w: kMonoHeaviest,
                               letterSpacing: 0.4),
                         ),
                       ),
@@ -763,7 +763,7 @@ class _TemplateEditor extends StatelessWidget {
                 ),
                 child: Text(
                   def.sku,
-                  style: IntesharType.mono(12, color: context.tones.onBrand, w: FontWeight.w900),
+                  style: IntesharType.mono(12, color: context.tones.onBrand, w: kMonoHeaviest),
                 ),
               ),
               const SizedBox(width: 10),
@@ -957,11 +957,10 @@ class _TemplateEditor extends StatelessWidget {
                     children: [
                       Text(
                         '${l.vtQrExample}: ',
-                        style: TextStyle(
-                          fontFamily: 'CodecPro',
-                          fontSize: 12,
+                        style: IntesharType.codec(
+                          size: 12,
                           color: cs.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
+                          w: IntesharWeight.semibold,
                         ),
                       ),
                       Expanded(
@@ -1076,11 +1075,10 @@ class _BrandSwitch extends StatelessWidget {
       contentPadding: const EdgeInsetsDirectional.fromSTEB(16, 0, 12, 0),
       title: Text(
         label,
-        style: TextStyle(
-          fontFamily: 'CodecPro',
-          fontSize: 14,
+        style: IntesharType.codec(
+          size: 14,
           color: cs.onSurface,
-          fontWeight: FontWeight.w500,
+          w: IntesharWeight.regular,
         ),
       ),
       value: value,
@@ -1237,7 +1235,7 @@ class _ReceiptPreview extends StatelessWidget {
               Text(
                 _samplePin,
                 textAlign: TextAlign.center,
-                style: IntesharType.mono(20, color: Colors.black, w: FontWeight.w900, letterSpacing: 2),
+                style: IntesharType.mono(20, color: Colors.black, w: kMonoHeaviest, letterSpacing: 2),
               ),
               const SizedBox(height: 8),
             ],

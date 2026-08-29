@@ -159,10 +159,9 @@ class _Inner extends StatelessWidget {
               softWrap: false,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'CodecPro',
-                fontSize: fontSize,
-                fontWeight: FontWeight.w800,
+              style: IntesharType.codec(
+                size: fontSize,
+                w: FontWeight.w800,
                 letterSpacing: 0.3,
                 color: fg,
                 height: 1,

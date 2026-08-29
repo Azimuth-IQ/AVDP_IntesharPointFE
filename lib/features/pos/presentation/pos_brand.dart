@@ -64,10 +64,9 @@ class PosBrandMark extends ConsumerWidget {
       decoration: BoxDecoration(color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
       child: Text(
         name.substring(0, 1).toUpperCase(),
-        style: TextStyle(
-          fontFamily: 'CodecPro',
-          fontSize: size * 0.5,
-          fontWeight: FontWeight.w900,
+        style: IntesharType.codec(
+          size: size * 0.5,
+          w: FontWeight.w900,
           color: color,
         ),
       ),
@@ -129,11 +128,10 @@ class PosBrandHero extends ConsumerWidget {
             alignment: AlignmentDirectional.centerStart,
             child: Text(
               headline,
-              style: TextStyle(
-                fontFamily: 'CodecPro',
+              style: IntesharType.codec(
                 color: onBrand,
-                fontSize: wide ? 52 : 32,
-                fontWeight: FontWeight.w900,
+                size: wide ? 52 : 32,
+                w: FontWeight.w900,
                 letterSpacing: wide ? -2.0 : -1.0,
                 height: 1.0,
               ),
@@ -143,12 +141,11 @@ class PosBrandHero extends ConsumerWidget {
             SizedBox(height: wide ? 20 : 6),
             Text(
               ar ? 'نقطة البيع' : 'Point of Sale',
-              style: TextStyle(
-                fontFamily: 'CodecPro',
+              style: IntesharType.codec(
                 color: onBrand.withValues(alpha: 0.78),
-                fontSize: wide ? 17 : 13,
+                size: wide ? 17 : 13,
                 height: 1.5,
-                fontWeight: FontWeight.w600,
+                w: IntesharWeight.semibold,
               ),
             ),
           ],

@@ -149,11 +149,10 @@ class PrinterStatusChip extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             softWrap: false,
-            style: TextStyle(
-              fontFamily: 'CodecPro',
-              fontSize: 12,
+            style: IntesharType.codec(
+              size: 12,
               color: tint,
-              fontWeight: FontWeight.w700,
+              w: FontWeight.w700,
               letterSpacing: 0.2,
             ),
           ),

@@ -201,6 +201,19 @@ class IntesharScale {
 /// A literal `FontWeight.w500` now resolves to **Regular** — no longer inverted,
 /// but no longer emphasis either. There is no face between body and Bold, so a
 /// site that wants "slightly bolder" has to choose one of them deliberately.
+///
+/// **UX-127 closed the gap at the call sites.** 57 of the app's 58 CodecPro
+/// `w600` literals now say [semibold], and 11 of its 13 `w500` literals say
+/// [regular]. In both cases the token names the face that was *already* being
+/// rendered, so nothing changed on screen; what changed is that the source
+/// stopped lying about it. (The three stragglers are in `features/auth/`, which
+/// another agent held that round — see the exemption list in the test.)
+///
+/// `test/core/theme/weights_in_use_test.dart` walks `lib/`, resolves the family
+/// each `FontWeight` literal lands on, and fails on any weight that family has
+/// no face for, so the hole cannot silently reopen. The check has to be
+/// family-aware: JetBrains Mono *does* register 500 and 600, so the same
+/// literal is correct on a serial and wrong on a label.
 class IntesharWeight {
   /// CodecPro-Light — registered at 200, the face's own declared weight.
   static const FontWeight light = FontWeight.w200;
@@ -694,6 +707,18 @@ extension StatusToneContext on BuildContext {
 /// face the family has.
 const String kMonoFamily = 'JetBrainsMono';
 
+/// The heaviest JetBrains Mono face that is actually bundled (UX-127).
+///
+/// The subset shipped in `pubspec.yaml` stops at ExtraBold/800, but nine call
+/// sites — every one of them a hero numeral: a POS price, a SKU chip, the PIN
+/// field, a report total — asked for `w900`. Flutter does not complain; it
+/// silently resolves to 800, so those sites were already rendering ExtraBold
+/// while claiming Heavy. Pointing them here is a no-op on screen and makes the
+/// source say what it does. If a 900 face is ever bundled, changing this one
+/// line opts all nine in deliberately, rather than nine sites changing weight
+/// the moment someone edits the font list.
+const FontWeight kMonoHeaviest = FontWeight.w800;
+
 /// Platform monospace families to fall back to if the bundled face is somehow
 /// unavailable — and, more usefully, for the glyphs it does not carry (UX-125).
 ///
@@ -737,6 +762,43 @@ class IntesharType {
     return cursiveScript ? null : tracking;
   }
 
+  /// The brand family and **nothing else** — the escape hatch (UX-127).
+  ///
+  /// Every field is exactly what the caller passes: no default `height`, no
+  /// default tracking, no `_track` suppression. It is the 1:1 replacement for a
+  /// hand-written `TextStyle(fontFamily: 'CodecPro', …)`, and it exists so that
+  /// **no widget in the app has to name the family**. 44 of them did; each one
+  /// was a place the family could silently drift out of step with the type
+  /// system, and where a weight with no registered face went unnoticed because
+  /// nothing in `theme.dart` was involved.
+  ///
+  /// Prefer [sans] or an [IntesharText] step. Those impose the app's line-height
+  /// and the UX-141 cursive tracking rule, which is what you almost always want;
+  /// this one does not, which is what makes it a safe mechanical substitution
+  /// for an existing raw style. Reach for it only when a call site genuinely
+  /// needs the font's own metrics or a tracking value that must survive Arabic.
+  /// [size] is **named**, unlike [sans]/[display]/[mono]. That is deliberate: it
+  /// made the 43-site migration off raw `TextStyle` a pure token substitution
+  /// (`TextStyle(fontFamily: 'CodecPro',` → `IntesharType.codec(`, `fontSize:` →
+  /// `size:`, `fontWeight:` → `w:`) with no argument reordering, so every
+  /// converted style is verifiably the same style it was. It also matches the
+  /// private `codec()` the theme itself uses to build the `TextTheme`.
+  static TextStyle codec({
+    required double size,
+    Color? color,
+    FontWeight w = IntesharWeight.regular,
+    double? height,
+    double? letterSpacing,
+  }) =>
+      TextStyle(
+        fontFamily: _kCodec,
+        fontSize: size,
+        fontWeight: w,
+        color: color,
+        height: height,
+        letterSpacing: letterSpacing,
+      );
+
   /// Heavy display — page wordmarks, hero numerals on ledger cards.
   ///
   /// Prefer the named steps [IntesharText.display] / [IntesharText.displayLg];
@@ -755,9 +817,12 @@ class IntesharType {
 
   /// Body sans — Regular by default.
   ///
-  /// Prefer the named steps on [IntesharText]. This is the 238-call-site legacy
-  /// entry point: every one of those sites passes an explicit size, which is
-  /// how the app ended up with 28 of them (UX-127).
+  /// Prefer the named steps on [IntesharText]. This is the legacy entry point —
+  /// **326** call sites as of UX-127's second pass, up from the 238 the original
+  /// audit counted — and every one of them passes an explicit size, which is how
+  /// the app grew 28 of them. They now cluster hard on the scale (142 at 12, 96
+  /// at 14, 37 at 11); what is left off-scale is a handful of half-points and
+  /// one-offs, listed on [IntesharScale].
   static TextStyle sans(double size,
           {Color? color,
           FontWeight w = IntesharWeight.regular,

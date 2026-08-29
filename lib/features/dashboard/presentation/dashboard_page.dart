@@ -1127,10 +1127,9 @@ class _BalanceCard extends ConsumerWidget {
                     const SizedBox(height: 4),
                     Text(
                       Formatters.iqd(balance.available.round()),
-                      style: TextStyle(
-                        fontFamily: 'CodecPro',
-                        fontSize: 32,
-                        fontWeight: FontWeight.w900,
+                      style: IntesharType.codec(
+                        size: 32,
+                        w: FontWeight.w900,
                         color: cs.onSurface,
                         letterSpacing: -0.8,
                         height: 1,

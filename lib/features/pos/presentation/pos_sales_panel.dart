@@ -581,7 +581,7 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
                     ? 'تعذّر حساب مجموع الفترة — ${friendlyError(_summaryError!, context)}'
                     : 'The window total could not be loaded — ${friendlyError(_summaryError!, context)}',
                 style: IntesharType.sans(12,
-                    color: context.status.danger, w: FontWeight.w600),
+                    color: context.status.danger, w: IntesharWeight.semibold),
               ),
             ),
             const SizedBox(width: 8),
@@ -635,7 +635,7 @@ class _PosSalesPanelState extends ConsumerState<PosSalesPanel> {
                   child: Text(line.category,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: IntesharType.sans(12, color: cs.onSurface, w: FontWeight.w600)),
+                      style: IntesharType.sans(12, color: cs.onSurface, w: IntesharWeight.semibold)),
                 ),
                 const SizedBox(width: 8),
                 Text('×${line.cards}',

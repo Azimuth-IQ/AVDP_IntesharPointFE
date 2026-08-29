@@ -11,6 +11,7 @@ import 'package:inteshar/features/inventory/data/definition_repository.dart';
 import 'package:inteshar/features/inventory/domain/product_definition.dart';
 import 'package:inteshar/features/inventory/domain/voucher_template.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
+import 'package:inteshar/shared/widgets/app_search_field.dart';
 import 'package:inteshar/shared/widgets/app_snackbar.dart';
 import 'package:inteshar/shared/widgets/confirm_dialog.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
@@ -251,6 +252,11 @@ class _DefinitionsPageState extends ConsumerState<DefinitionsPage> {
             Padding(
               padding: const EdgeInsetsDirectional.fromSTEB(16, 6, 16, 12),
               child: TextField(
+                // UX-12: the catalog is a find-a-SKU screen on the HQ web
+                // console, so the caret starts in the box there. Never on a
+                // handheld — see `desktopSearchAutofocus`.
+                autofocus: desktopSearchAutofocus(context),
+                textInputAction: TextInputAction.search,
                 decoration: InputDecoration(
                   hintText: l.defsSearchHint,
                   prefixIcon: const Icon(Icons.search, size: 18),
@@ -438,7 +444,7 @@ class _DefinitionRowState extends State<_DefinitionRow> {
                   // Hover paints the tile with the brand, so the SKU rides on
                   // the measured on-brand foreground, not a fixed ink.
                   color: _hover ? context.tones.onBrand : cs.onSurface,
-                  w: FontWeight.w900,
+                  w: kMonoHeaviest,
                   letterSpacing: 0.6,
                 ),
               ),

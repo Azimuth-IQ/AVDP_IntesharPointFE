@@ -449,6 +449,10 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
                       FilteringTextInputFormatter.digitsOnly,
                       LengthLimitingTextInputFormatter(11),
                     ],
+                    // UX-12: Enter walks phone → password → role instead of
+                    // doing nothing. Not a submit: the role dropdown below is
+                    // part of the same record.
+                    textInputAction: TextInputAction.next,
                     style: GoogleFonts.jetBrainsMono(
                       fontSize: 14,
                       color: cs.onSurface,
@@ -460,6 +464,7 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
                   TextField(
                     controller: _passCtrl,
                     obscureText: _obscurePass,
+                    textInputAction: TextInputAction.next,
                     style: GoogleFonts.jetBrainsMono(
                       fontSize: 14,
                       color: cs.onSurface,

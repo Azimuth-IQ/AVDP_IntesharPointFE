@@ -213,6 +213,10 @@ class _AgentsPageState extends ConsumerState<AgentsPage> {
             controller: _searchCtrl,
             hintText: s.searchHint,
             clearTooltip: s.ar ? 'مسح البحث' : 'Clear search',
+            // UX-12: this directory's whole job is finding one agent among
+            // hundreds, and it is an HQ-console screen. On the web admin the
+            // caret starts here; on a handheld it never does.
+            autofocus: desktopSearchAutofocus(context),
             onChanged: _onSearchChanged,
             // Only when the list is complete — otherwise this counts the page.
             resultCount: (_loading || _hasMore || _searchCtrl.text.trim().isEmpty)

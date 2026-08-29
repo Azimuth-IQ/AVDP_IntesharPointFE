@@ -291,7 +291,7 @@ class _SupplyRequestDialogState extends State<_SupplyRequestDialog> {
               Expanded(
                 child: Text(
                   ar ? 'إلى ${_to?.label ?? ''}' : 'To ${_to?.label ?? ''}',
-                  style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w600),
+                  style: IntesharType.sans(14, color: cs.onSurface, w: IntesharWeight.semibold),
                 ),
               ),
             ])
@@ -329,6 +329,18 @@ class _SupplyRequestDialogState extends State<_SupplyRequestDialog> {
             keyboardType: TextInputType.number,
             inputFormatters: const [ThousandsInputFormatter()],
             autofocus: true,
+            // UX-12: the amount is the last (and usually only) thing typed here
+            // and the dialog already autofocuses it. Enter now does what the
+            // button does — and is gated on the same `_ready`, so it cannot
+            // draft a request the button would have refused.
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) {
+              if (!_ready) return;
+              Navigator.pop(
+                context,
+                _Draft(_to!.withId, _to!.label, _compose(ar)),
+              );
+            },
             decoration: InputDecoration(
               labelText: _amountLabel(ar),
               isDense: true,

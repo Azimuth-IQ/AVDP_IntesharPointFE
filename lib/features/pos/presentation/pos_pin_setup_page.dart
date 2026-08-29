@@ -228,11 +228,10 @@ class _PinSetupForm extends StatelessWidget {
                     ar
                         ? 'رمز مكوّن من 4–6 أرقام يحمي جلسة البيع'
                         : '4–6 digit code that protects your POS session',
-                    style: TextStyle(
-                      fontFamily: 'CodecPro',
-                      fontSize: 13,
+                    style: IntesharType.codec(
+                      size: 13,
                       color: cs.onSurfaceVariant,
-                      fontWeight: FontWeight.w500,
+                      w: IntesharWeight.regular,
                     ),
                   ),
                 ],
@@ -249,6 +248,10 @@ class _PinSetupForm extends StatelessWidget {
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             maxLength: 6,
+            // UX-12: three short PIN boxes in a row. Enter walks to the next
+            // one (the last already submits), so the whole form is typeable
+            // without ever leaving the number pad.
+            textInputAction: TextInputAction.next,
             style: IntesharType.mono(18, color: cs.onSurface, letterSpacing: 8),
             decoration: InputDecoration(
               labelText: ar ? 'الرمز الحالي' : 'Current PIN',
@@ -277,6 +280,7 @@ class _PinSetupForm extends StatelessWidget {
           keyboardType: TextInputType.number,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           maxLength: 6,
+          textInputAction: TextInputAction.next,
           style: IntesharType.mono(18, color: cs.onSurface, letterSpacing: 8),
           decoration: InputDecoration(
             labelText: ar ? 'الرمز الجديد' : 'New PIN',
@@ -302,6 +306,7 @@ class _PinSetupForm extends StatelessWidget {
           keyboardType: TextInputType.number,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           maxLength: 6,
+          textInputAction: TextInputAction.done,
           style: IntesharType.mono(18, color: cs.onSurface, letterSpacing: 8),
           decoration: InputDecoration(
             labelText: ar ? 'تأكيد الرمز' : 'Confirm PIN',
@@ -345,11 +350,10 @@ class _PinSetupForm extends StatelessWidget {
                 ? 'يُستخدم هذا الرمز لقفل جلسة نقطة البيع'
                 : 'This PIN gates entry to each POS session',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: 'CodecPro',
-              fontSize: 12,
+            style: IntesharType.codec(
+              size: 12,
               color: cs.onSurfaceVariant,
-              fontWeight: FontWeight.w500,
+              w: IntesharWeight.regular,
             ),
           ),
         ),
@@ -383,11 +387,10 @@ class _ErrorBanner extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: TextStyle(
-                fontFamily: 'CodecPro',
-                fontSize: 13,
+              style: IntesharType.codec(
+                size: 13,
                 color: cs.onErrorContainer,
-                fontWeight: FontWeight.w600,
+                w: IntesharWeight.semibold,
               ),
             ),
           ),

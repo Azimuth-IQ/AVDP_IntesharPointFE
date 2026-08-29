@@ -230,6 +230,36 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       isScrollControlled: true,
       builder: (ctx) {
         final lCtx = AppLocalizations.of(ctx)!;
+        // UX-12: one field, one button — Enter has to mean "save". Extracted
+        // from the button's `onPressed` so the key and the tap run the SAME
+        // validation; a second copy is how the two drift.
+        Future<void> save() async {
+          // Validate before saving — a typo silently pointed the app at a
+          // dead backend with no feedback (B-080).
+          final url = ctrl.text.trim();
+          final uri = Uri.tryParse(url);
+          final valid =
+              url.isNotEmpty &&
+              uri != null &&
+              (uri.isScheme('http') || uri.isScheme('https')) &&
+              uri.host.isNotEmpty;
+          if (!valid) {
+            final ar = Localizations.localeOf(ctx).languageCode == 'ar';
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              SnackBar(
+                content: Text(
+                  ar
+                      ? 'أدخل رابطاً صحيحاً يبدأ بـ ‎http(s)://'
+                      : 'Enter a valid http(s):// URL',
+                ),
+              ),
+            );
+            return;
+          }
+          await sessionStorage.setBaseUrl(url);
+          if (ctx.mounted) Navigator.pop(ctx);
+        }
+
         return Padding(
           padding: EdgeInsets.only(
             bottom: MediaQuery.of(ctx).viewInsets.bottom,
@@ -260,6 +290,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               const SizedBox(height: 16),
               TextField(
                 controller: ctrl,
+                autofocus: true,
+                keyboardType: TextInputType.url,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => save(),
                 decoration: InputDecoration(
                   labelText: lCtx.loginBaseUrlLabel,
                   hintText: 'http://192.168.1.x:8080',
@@ -269,32 +303,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               BrandCTAButton(
                 label: lCtx.loginSaveEndpoint,
                 variant: BrandCTAVariant.inverse,
-                onPressed: () async {
-                  // Validate before saving — a typo silently pointed the app at a
-                  // dead backend with no feedback (B-080).
-                  final url = ctrl.text.trim();
-                  final uri = Uri.tryParse(url);
-                  final valid =
-                      url.isNotEmpty &&
-                      uri != null &&
-                      (uri.isScheme('http') || uri.isScheme('https')) &&
-                      uri.host.isNotEmpty;
-                  if (!valid) {
-                    final ar = Localizations.localeOf(ctx).languageCode == 'ar';
-                    ScaffoldMessenger.of(ctx).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          ar
-                              ? 'أدخل رابطاً صحيحاً يبدأ بـ ‎http(s)://'
-                              : 'Enter a valid http(s):// URL',
-                        ),
-                      ),
-                    );
-                    return;
-                  }
-                  await sessionStorage.setBaseUrl(url);
-                  if (ctx.mounted) Navigator.pop(ctx);
-                },
+                onPressed: save,
               ),
               const SizedBox(height: 24),
             ],
@@ -1050,6 +1059,12 @@ class _LoginForm extends ConsumerWidget {
             TextField(
               controller: ctrl,
               keyboardType: TextInputType.phone,
+              // UX-12: a one-field dialog. The caret starts here and Enter is
+              // "Send" — otherwise the only way out of a dialog you opened by
+              // mistyping a password is a mouse trip to a button.
+              autofocus: true,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => Navigator.pop(ctx, true),
               decoration: InputDecoration(
                 labelText: ar ? 'رقم الهاتف' : 'Phone',
                 hintText: '07701234567',

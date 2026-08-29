@@ -594,6 +594,11 @@ class _UserFormSheetState extends ConsumerState<_UserFormSheet> {
               controller: _phone,
               enabled: !_isEdit,
               keyboardType: TextInputType.phone,
+              // UX-12: Enter moves to the password instead of doing nothing.
+              // Deliberately NOT a submit: the capability toggles come after
+              // this pair, and saving from here would create the supervisor
+              // before anyone had chosen what they may do.
+              textInputAction: TextInputAction.next,
               decoration: InputDecoration(
                 labelText: _tr(context, 'رقم الهاتف', 'Phone'),
                 hintText: '07700000000',

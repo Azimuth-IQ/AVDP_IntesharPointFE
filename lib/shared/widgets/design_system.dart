@@ -253,6 +253,14 @@ class InkCard extends StatefulWidget {
 class _InkCardState extends State<InkCard> {
   bool _hovered = false;
 
+  /// UX-12: keyboard focus. `InkWell` was already a tab stop — it has always
+  /// been reachable — but its focus highlight is `Theme.focusColor` painted as
+  /// ink on the `Material` **beneath** the child, and the child here is an
+  /// opaque tile. So the highlight was drawn and then covered up, exactly as
+  /// UX-121 found for hover. A row you can tab to but cannot see is not
+  /// reachable in any way that matters, and these rows are the whole HQ console.
+  bool _focused = false;
+
   /// Long enough to read as a response, short enough that dragging the pointer
   /// across a roster does not leave a trail of tiles still animating.
   static const _hoverFade = Duration(milliseconds: 120);
@@ -267,6 +275,7 @@ class _InkCardState extends State<InkCard> {
         (widget.dense ? CardDensity.dense : widget.density).padding;
     final interactive = widget.onTap != null || widget.onLongPress != null;
     final hovered = interactive && _hovered;
+    final focused = interactive && _focused;
 
     final content = ClipRRect(
       borderRadius: radius,
@@ -319,6 +328,17 @@ class _InkCardState extends State<InkCard> {
             ? (hovered ? surfaces.shadowRaised : surfaces.shadow)
             : const [],
       ),
+      // UX-12: the focus ring goes in the FOREGROUND decoration, for the same
+      // reason the hover border only changes colour — a real border would inset
+      // the child and make the row's content twitch as focus moves down a list.
+      // `brandOnSurface` is the measured brand ink (≥4.5:1 on the page), the
+      // same token the text-field focus border uses.
+      foregroundDecoration: focused
+          ? BoxDecoration(
+              borderRadius: radius,
+              border: Border.all(color: tones.brandOnSurface, width: 2),
+            )
+          : null,
       child: content,
     );
 
@@ -334,6 +354,9 @@ class _InkCardState extends State<InkCard> {
         // fires for a real pointer — a finger never triggers it.
         onHover: (h) {
           if (h != _hovered) setState(() => _hovered = h);
+        },
+        onFocusChange: (f) {
+          if (f != _focused) setState(() => _focused = f);
         },
         splashColor: tones.brand.withValues(alpha: 0.10),
         highlightColor: tones.brand.withValues(alpha: 0.05),
@@ -1100,7 +1123,14 @@ class _PressableScaleState extends State<PressableScale> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    // UX-12: the ring was `cs.primary` — the RAW brand gold, which measures
+    // 2.05:1 on the white tile it is drawn over. A focus ring nobody can see is
+    // not a focus indicator, and it is the only thing telling a keyboard user
+    // which of nine POS tiles Enter is about to open. `brandOnSurface` is the
+    // same measured "brand as ink" token the text-field focus border already
+    // uses (theme.dart, `focusedBorder`), so the two cannot drift apart, and it
+    // carries a white-label brand through the same correction.
+    final ring = context.tones.brandOnSurface;
     return Semantics(
       button: true,
       enabled: widget.onTap != null,
@@ -1134,7 +1164,7 @@ class _PressableScaleState extends State<PressableScale> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(widget.focusRadius),
                 border: _focused
-                    ? Border.all(color: cs.primary, width: 2)
+                    ? Border.all(color: ring, width: 2)
                     : const Border.fromBorderSide(BorderSide.none),
               ),
               child: widget.child,

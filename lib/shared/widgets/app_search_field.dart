@@ -1,5 +1,29 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:inteshar/app/theme.dart';
+import 'package:inteshar/shared/widgets/responsive.dart';
+
+/// Whether a list screen's search box may claim focus the moment the screen
+/// opens (UX-12).
+///
+/// The HQ console is a full-time keyboard workload and every one of its
+/// directories exists to *find a row* — yet on arrival the caret was nowhere, so
+/// finding an agent began with a mouse trip to a box that was already the only
+/// thing on the toolbar. Autofocus fixes that for free.
+///
+/// It is deliberately **not** unconditional. `autofocus` on a handheld raises
+/// the on-screen keyboard over the list the operator came to look at, and on the
+/// POS that list is the sale itself. Both halves of this condition are load-
+/// bearing:
+///
+/// * [kIsWeb] — the Android POS build never autofocuses anything, whatever size
+///   screen it is bolted to. A Sunmi terminal has no keyboard to drive.
+/// * width — the same web bundle opened on a phone browser is still a phone.
+///
+/// Screens whose first action is more likely to be *scrolling* (the hierarchy
+/// tree, the POS sale grid) should not call this at all — see the notes at their
+/// call sites.
+bool desktopSearchAutofocus(BuildContext context) => kIsWeb && context.isWide;
 
 /// **The** search box (UX-133).
 ///

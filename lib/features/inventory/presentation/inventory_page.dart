@@ -18,6 +18,7 @@ import 'package:inteshar/features/entities/presentation/confirm_code_dialog.dart
 import 'package:inteshar/shared/widgets/entity_search_picker.dart';
 import 'package:inteshar/features/system_activity/domain/feed_rows.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
+import 'package:inteshar/shared/widgets/app_search_field.dart';
 import 'package:inteshar/shared/widgets/app_snackbar.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
@@ -328,7 +329,7 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
                         final s = filtered[i];
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 6),
-                          child: _SkuGroupCard(
+                          child: SkuGroupCard(
                             key: ValueKey(s.sku),
                             summary: s,
                             entityId: _entityId!,
@@ -460,7 +461,7 @@ class _InventoryValueCard extends StatelessWidget {
                       child: Text(
                         l.inventoryValueLabel,
                         style: IntesharType.sans(12,
-                            color: cs.onSurfaceVariant, w: FontWeight.w600),
+                            color: cs.onSurfaceVariant, w: IntesharWeight.semibold),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -621,6 +622,11 @@ class _FilterBar extends StatelessWidget {
         children: [
           Expanded(
             child: TextField(
+              // UX-12: inventory is a find-a-serial screen. Autofocused on the
+              // web console only — this same page runs on the POS handheld,
+              // where an unbidden keyboard would cover the stock list.
+              autofocus: desktopSearchAutofocus(context),
+              textInputAction: TextInputAction.search,
               decoration: InputDecoration(
                 hintText: l.inventorySearchHint,
                 prefixIcon: const Icon(Icons.search, size: 18),
@@ -705,7 +711,7 @@ class _StatusFilterChips extends StatelessWidget {
 
 // ── SKU group ─────────────────────────────────────────────────────────────────
 
-class _SkuGroupCard extends ConsumerStatefulWidget {
+class SkuGroupCard extends ConsumerStatefulWidget {
   final SkuSummary summary;
   final String entityId;
   final bool readOnly;
@@ -724,7 +730,7 @@ class _SkuGroupCard extends ConsumerStatefulWidget {
   /// card shows only that status's pill: filtering to Damaged used to leave big
   /// green "available" pills on every row, which reads as the filter not working.
   final ProductStatus? statusFilter;
-  const _SkuGroupCard({
+  const SkuGroupCard({
     super.key,
     required this.summary,
     required this.entityId,
@@ -737,10 +743,10 @@ class _SkuGroupCard extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<_SkuGroupCard> createState() => _SkuGroupCardState();
+  ConsumerState<SkuGroupCard> createState() => _SkuGroupCardState();
 }
 
-class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
+class _SkuGroupCardState extends ConsumerState<SkuGroupCard> {
   static const _pageSize = 50;
 
   bool _open = false;
@@ -1235,29 +1241,6 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: s.available > 0 ? context.tones.brand : cs.surfaceContainerHighest,
-                      // UX-135: was `circular(22)` — a raw half-of-44 that reads
-                      // as an off-scale radius. It is a circle; say so.
-                      shape: BoxShape.circle,
-                    ),
-                    child: Text(
-                      s.sku,
-                      style: IntesharType.mono(
-                        12,
-                        color: s.available > 0
-                            ? context.tones.onBrand
-                            : cs.onSurfaceVariant,
-                        w: FontWeight.w900,
-                        letterSpacing: 0.6,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1268,12 +1251,56 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${Formatters.iqd(s.defaultPrice.round())}  ·  ${l.inventoryUnitCount(s.total)}',
-                          style: IntesharType.sans(12, color: cs.onSurfaceVariant),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        const SizedBox(height: 3),
+                        // The SKU used to lead the row inside a 44px gold
+                        // circle. A circle is an avatar treatment and a SKU is
+                        // a part number: "ASIACELL-5000" is thirteen monospace
+                        // characters, about 100px of text, so it wrapped to
+                        // three lines and clipped inside a 44px box — and it
+                        // painted the brand at full saturation on every row,
+                        // which fought the status rule already running down the
+                        // card's start edge for the same "in stock" signal.
+                        //
+                        // It is a code, so it is set as one: monospace, on a
+                        // quiet plate, in the metadata line where the rest of
+                        // the identifying detail lives. Full SKU, no clipping.
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Container(
+                                padding: const EdgeInsetsDirectional.fromSTEB(
+                                    6, 1, 6, 2),
+                                decoration: BoxDecoration(
+                                  color: cs.surfaceContainerHighest,
+                                  borderRadius:
+                                      BorderRadius.circular(IntesharRadii.xs),
+                                ),
+                                child: Text(
+                                  s.sku,
+                                  // UX-147: full-strength ink, not the muted
+                                  // variant. This is now the only place the SKU
+                                  // appears, and it is content an operator
+                                  // reads back — the class of text that item
+                                  // says must not sit at chrome contrast.
+                                  style: IntesharType.mono(11,
+                                      color: cs.onSurface,
+                                      w: FontWeight.w500),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                '${Formatters.iqd(s.defaultPrice.round())}  ·  ${l.inventoryUnitCount(s.total)}',
+                                style: IntesharType.sans(12,
+                                    color: cs.onSurfaceVariant),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -1367,7 +1394,7 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
             Expanded(
               child: Text(
                 l.inventoryLoadCodesFailed,
-                style: IntesharType.sans(14, color: context.status.danger, w: FontWeight.w600),
+                style: IntesharType.sans(14, color: context.status.danger, w: IntesharWeight.semibold),
               ),
             ),
             TextButton(onPressed: _loadFirst, child: Text(l.retryButton)),
@@ -1463,7 +1490,7 @@ class _GovBreakdown extends StatelessWidget {
                   Expanded(
                     child: Text(
                       label,
-                      style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w600),
+                      style: IntesharType.sans(14, color: cs.onSurface, w: IntesharWeight.semibold),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1521,7 +1548,7 @@ class _LoadMoreRow extends StatelessWidget {
             Flexible(
               child: Text(
                 l.inventoryShowingCount(shown, total),
-                style: IntesharType.sans(14, color: cs.onSurfaceVariant, w: FontWeight.w600),
+                style: IntesharType.sans(14, color: cs.onSurfaceVariant, w: IntesharWeight.semibold),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),

@@ -34,7 +34,7 @@ import 'package:inteshar/shared/widgets/responsive.dart';
 /// that: region-locked stock outside the destination's governorates, expired
 /// cards and supplier-recalled batches are all skipped. Pulling those back to
 /// HQ is fine; handing them to an agent who cannot sell them is not.
-enum _WithdrawDestination {
+enum WithdrawDestination {
   /// Back to HQ's own shelf, still sellable. The original behaviour.
   hq,
 
@@ -44,6 +44,33 @@ enum _WithdrawDestination {
   /// Out of circulation for good — non-sellable, kept for audit, restorable by HQ.
   retire,
 }
+
+/// Which destinations the "move stock out" dialog may offer, given whether the
+/// warehouse on screen belongs to the viewer.
+///
+/// [WithdrawDestination.hq] means "put these cards back on HQ's own shelf". When
+/// the warehouse on screen already IS HQ's, that is a move to where the cards
+/// already sit — and the server says so twice: `POST /product/transfer` answers
+/// `from == to` with a 400 ("Source and destination are the same account"), and
+/// `InventoryHelper.transferStock` guards it again with
+/// `!fromEntityId.equals(toEntityId)`. Offering it would be a control whose only
+/// possible outcome is an error, so it is dropped rather than disabled.
+///
+/// The other two survive: transferring out to an agent is the core distribution
+/// act, and retiring takes cards off the shelf wherever they are.
+List<WithdrawDestination> stockDestinationsFor({required bool isOwnWarehouse}) =>
+    isOwnWarehouse
+        ? const [WithdrawDestination.transfer, WithdrawDestination.retire]
+        : const [
+            WithdrawDestination.hq,
+            WithdrawDestination.transfer,
+            WithdrawDestination.retire,
+          ];
+
+/// The destination a freshly opened dialog starts on — always the first one
+/// actually offered, so the dialog never opens on a choice it does not show.
+WithdrawDestination defaultStockDestination({required bool isOwnWarehouse}) =>
+    stockDestinationsFor(isOwnWarehouse: isOwnWarehouse).first;
 
 /// The one stock screen, reached through four doors:
 ///
@@ -59,7 +86,7 @@ enum _WithdrawDestination {
 /// mode they were in.
 ///
 /// What the viewer may do is now decided from **who is signed in** and **whose
-/// warehouse is on screen** (see `_canEditProducts` / `_canWithdrawFrom`), never
+/// warehouse is on screen** (see `_canEditProducts` / `_canMoveStock`), never
 /// from the route. The only thing the route still decides is navigation: the
 /// standalone screen carries the "viewing inventory of" picker, the pushed
 /// drill-in carries a back-aware AppBar naming one account.
@@ -151,11 +178,23 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
   /// recalled by HQ, and a sub-agent/shop holds no cards at all (draw-on-print).
   bool get _canEditProducts => !widget.readOnly && _viewerIsHq;
 
-  /// Withdraw is pulling stock back out of SOMEBODY ELSE's warehouse — the same
-  /// authority as [_canEditProducts], minus the case where there is nowhere to
-  /// pull it to (your own holding).
-  bool _canWithdrawFrom(String entityId) =>
-      _canEditProducts && entityId != _selfId;
+  /// May this viewer move stock out of the warehouse currently on screen?
+  ///
+  /// The same authority as [_canEditProducts]. This used to additionally require
+  /// the warehouse to belong to somebody ELSE, on the reasoning that there was
+  /// "nowhere to pull it to" from your own holding. That was true while the only
+  /// destination was *back to HQ* — but C-19 added **transfer to another agent**
+  /// and **retire**, and both are meaningful from HQ's own warehouse. Moving
+  /// stock out of it to an agent is, in fact, the core distribution act.
+  ///
+  /// With the exclusion in place, anything already sitting in HQ's own warehouse
+  /// was stranded: the only way to get cards to an agent was to name the target
+  /// at batch-load time, so a batch loaded without one had no control on it at
+  /// all. Reported by the client 2026-08-29 as
+  /// "بضاعة بالمخزن بدون تحكم" — stock in the warehouse with nothing you can do
+  /// to it. The server never carried this restriction: `/product/transfer` is
+  /// HQ-only and rejects only `from == to`.
+  bool get _canMoveStock => _canEditProducts;
 
   int _statusCount(SkuSummary s, ProductStatus status) => switch (status) {
         ProductStatus.AVAILABLE => s.available,
@@ -297,7 +336,11 @@ class _InventoryPageState extends ConsumerState<InventoryPage> {
                             readOnly: !_canEditProducts,
                             lowStock: lowStock,
                             statusFilter: _statusFilter,
-                            canWithdraw: _canWithdrawFrom(_entityId!),
+                            canWithdraw: _canMoveStock,
+                            // Decides the DESTINATIONS offered, not whether the
+                            // action exists: "back to the HQ warehouse" is a
+                            // no-op when HQ's warehouse is the one on screen.
+                            isOwnWarehouse: _entityId == _selfId,
                             onChanged: _load,
                           ),
                         );
@@ -668,9 +711,14 @@ class _SkuGroupCard extends ConsumerStatefulWidget {
   final bool readOnly;
   final int lowStock;
   final VoidCallback onChanged;
-  /// HQ looking at ANOTHER account's warehouse — the only case where pulling
-  /// stock back means anything.
+  /// Whether this viewer may move stock out of this warehouse at all.
   final bool canWithdraw;
+
+  /// Whether the warehouse on screen is the viewer's OWN. Narrows the choice of
+  /// destinations rather than removing the action: "back to the HQ warehouse" is
+  /// a no-op when you already are the HQ warehouse, but transferring to an agent
+  /// and retiring both still apply.
+  final bool isOwnWarehouse;
 
   /// The status the list is filtered to, or null for "all". When it is set the
   /// card shows only that status's pill: filtering to Damaged used to leave big
@@ -684,6 +732,7 @@ class _SkuGroupCard extends ConsumerStatefulWidget {
     required this.lowStock,
     required this.onChanged,
     this.canWithdraw = false,
+    this.isOwnWarehouse = false,
     this.statusFilter,
   });
 
@@ -862,15 +911,23 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
     final s = widget.summary;
     final controller = TextEditingController(text: '${s.available}');
     final formKey = GlobalKey<FormState>();
-    var destination = _WithdrawDestination.hq;
+    final offered =
+        stockDestinationsFor(isOwnWarehouse: widget.isOwnWarehouse);
+    // On your own warehouse "back to HQ" is not offered, so it cannot be the
+    // default either — transfer is the reason you opened this.
+    final fallback =
+        defaultStockDestination(isOwnWarehouse: widget.isOwnWarehouse);
+    var destination = fallback;
     EntitySummaryRow? transferTarget;
 
     final entered =
-        await showDialog<(int, _WithdrawDestination, EntitySummaryRow?)>(
+        await showDialog<(int, WithdrawDestination, EntitySummaryRow?)>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) => AlertDialog(
-          title: Text(_tr('سحب من المخزن', 'Withdraw from warehouse')),
+          title: Text(widget.isOwnWarehouse
+              ? _tr('تحويل أو إخراج بضاعة', 'Move stock out')
+              : _tr('سحب من المخزن', 'Withdraw from warehouse')),
           content: SingleChildScrollView(
             child: Form(
               key: formKey,
@@ -878,12 +935,19 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(_tr(
-                    'سحب كروت "${s.name}" من مخزن هذا الوكيل. '
-                        'المتاح الآن ${s.available}. الكروت المباعة لا يمكن سحبها.',
-                    'Pull "${s.name}" cards out of this agent\'s warehouse. '
-                        '${s.available} available now. Sold cards cannot be taken back.',
-                  )),
+                  Text(widget.isOwnWarehouse
+                      ? _tr(
+                          'إخراج كروت "${s.name}" من مخزنك. '
+                              'المتاح الآن ${s.available}. الكروت المباعة لا يمكن سحبها.',
+                          'Move "${s.name}" cards out of your warehouse. '
+                              '${s.available} available now. Sold cards cannot be taken back.',
+                        )
+                      : _tr(
+                          'سحب كروت "${s.name}" من مخزن هذا الوكيل. '
+                              'المتاح الآن ${s.available}. الكروت المباعة لا يمكن سحبها.',
+                          'Pull "${s.name}" cards out of this agent\'s warehouse. '
+                              '${s.available} available now. Sold cards cannot be taken back.',
+                        )),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: controller,
@@ -908,25 +972,25 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
                     _tr('إلى أين؟', 'Where to?'),
                     style: Theme.of(ctx).textTheme.labelLarge,
                   ),
-                  RadioGroup<_WithdrawDestination>(
+                  RadioGroup<WithdrawDestination>(
                     groupValue: destination,
-                    onChanged: (v) =>
-                        setLocal(() => destination = v ?? _WithdrawDestination.hq),
+                    onChanged: (v) => setLocal(() => destination = v ?? fallback),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        RadioListTile<_WithdrawDestination>(
-                          value: _WithdrawDestination.hq,
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(_tr(
-                              'إلى مخزن المركز', 'To the HQ warehouse')),
-                          subtitle: Text(_tr(
-                            'تبقى الكروت صالحة للبيع ويمكن توزيعها من جديد.',
-                            'The cards stay sellable and can be handed out again.',
-                          )),
-                        ),
-                        RadioListTile<_WithdrawDestination>(
-                          value: _WithdrawDestination.transfer,
+                        if (offered.contains(WithdrawDestination.hq))
+                          RadioListTile<WithdrawDestination>(
+                            value: WithdrawDestination.hq,
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(_tr(
+                                'إلى مخزن المركز', 'To the HQ warehouse')),
+                            subtitle: Text(_tr(
+                              'تبقى الكروت صالحة للبيع ويمكن توزيعها من جديد.',
+                              'The cards stay sellable and can be handed out again.',
+                            )),
+                          ),
+                        RadioListTile<WithdrawDestination>(
+                          value: WithdrawDestination.transfer,
                           contentPadding: EdgeInsets.zero,
                           title:
                               Text(_tr('تحويل لوكيل آخر', 'To another agent')),
@@ -951,7 +1015,7 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
                               if (picked != null) {
                                 setLocal(() {
                                   transferTarget = picked;
-                                  destination = _WithdrawDestination.transfer;
+                                  destination = WithdrawDestination.transfer;
                                 });
                               }
                             },
@@ -960,8 +1024,8 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
                                 : _tr('تغيير', 'Change')),
                           ),
                         ),
-                        RadioListTile<_WithdrawDestination>(
-                          value: _WithdrawDestination.retire,
+                        RadioListTile<WithdrawDestination>(
+                          value: WithdrawDestination.retire,
                           contentPadding: EdgeInsets.zero,
                           title: Text(_tr('إخراج من السستم نهائياً',
                               'Out of the system permanently')),
@@ -978,7 +1042,7 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
                   // Naming the destination is part of the instruction, not a
                   // detail: "transfer" with nobody chosen would otherwise fall
                   // through to a silent no-op at the server.
-                  if (destination == _WithdrawDestination.transfer &&
+                  if (destination == WithdrawDestination.transfer &&
                       transferTarget == null)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
@@ -1001,7 +1065,7 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
               child: Text(_tr('إلغاء', 'Cancel')),
             ),
             FilledButton(
-              onPressed: destination == _WithdrawDestination.transfer &&
+              onPressed: destination == WithdrawDestination.transfer &&
                       transferTarget == null
                   ? null
                   : () {
@@ -1014,9 +1078,9 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
                       }
                     },
               child: Text(switch (destination) {
-                _WithdrawDestination.retire => _tr('إخراج نهائي', 'Retire'),
-                _WithdrawDestination.transfer => _tr('تحويل', 'Transfer'),
-                _WithdrawDestination.hq => _tr('سحب', 'Withdraw'),
+                WithdrawDestination.retire => _tr('إخراج نهائي', 'Retire'),
+                WithdrawDestination.transfer => _tr('تحويل', 'Transfer'),
+                WithdrawDestination.hq => _tr('سحب', 'Withdraw'),
               }),
             ),
           ],
@@ -1030,7 +1094,7 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
     // money-backed codes off the shelf — so it is confirmed by the person doing
     // it, like /entity/delete and the POS revoke.
     String? code;
-    if (dest == _WithdrawDestination.retire) {
+    if (dest == WithdrawDestination.retire) {
       code = await showConfirmCodeDialog(
         context,
         title: _tr('إخراج من السستم نهائياً', 'Retire permanently'),
@@ -1051,7 +1115,7 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
     // `_withdrawing` and shows a spinner instead.
     setState(() => _withdrawing = true);
     try {
-      if (dest == _WithdrawDestination.retire) {
+      if (dest == WithdrawDestination.retire) {
         final res = await _repo.retireStock(
           fromEntityId: widget.entityId,
           sku: s.sku,
@@ -1074,7 +1138,7 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
           actionLabel: ref == null ? null : _tr('تراجع', 'Undo'),
           onAction: ref == null ? null : () => _restoreRetired(ref),
         );
-      } else if (dest == _WithdrawDestination.transfer && target != null) {
+      } else if (dest == WithdrawDestination.transfer && target != null) {
         final res = await _repo.transferStock(
           fromEntityId: widget.entityId,
           toEntityId: target.id,
@@ -1241,13 +1305,23 @@ class _SkuGroupCardState extends ConsumerState<_SkuGroupCard> {
                   // looking at somebody else's stock that is still sellable.
                   if (widget.canWithdraw && s.available > 0) ...[
                     IconButton(
-                      tooltip: _tr('سحب من المخزن', 'Withdraw from warehouse'),
+                      // "Undo" reads as pulling stock BACK, which is only what
+                      // this does on someone else's warehouse. On your own the
+                      // same control sends stock out to an agent or retires it,
+                      // so it is named and drawn for that.
+                      tooltip: widget.isOwnWarehouse
+                          ? _tr('تحويل أو إخراج', 'Transfer or retire')
+                          : _tr('سحب من المخزن', 'Withdraw from warehouse'),
                       icon: _withdrawing
                           ? const SizedBox(
                               width: 18,
                               height: 18,
                               child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Icon(Icons.undo_outlined, size: 18),
+                          : Icon(
+                              widget.isOwnWarehouse
+                                  ? Icons.move_down_outlined
+                                  : Icons.undo_outlined,
+                              size: 18),
                       onPressed: _withdrawing ? null : _withdrawDialog,
                     ),
                     const SizedBox(width: 4),

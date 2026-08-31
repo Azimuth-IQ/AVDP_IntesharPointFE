@@ -1016,7 +1016,20 @@ class _SkuGroupCardState extends ConsumerState<SkuGroupCard> {
                                 repository: EntityRepository(
                                     ref.read(apiClientProvider)),
                                 title: _tr('اختر الوكيل', 'Pick the agent'),
-                                where: (r) => r.id != widget.entityId,
+                                // Only tiers that HOLD stock may receive it.
+                                // A Sub-Agent and a shop draw from their parent
+                                // Main Agent's pool at print time, so cards
+                                // handed to them sit where nothing can sell
+                                // them: the POS sells by drawing on the PARENT,
+                                // and no screen browses a shop's own warehouse.
+                                // The picker offered every entity, so "transfer
+                                // to a POS" looked like a supported operation —
+                                // reported by the client 2026-08-31, after five
+                                // vouchers had already been stranded that way.
+                                // What flows down to a POS is balance.
+                                where: (r) =>
+                                    r.id != widget.entityId &&
+                                    r.type.inventoryBacked,
                               );
                               if (picked != null) {
                                 setLocal(() {

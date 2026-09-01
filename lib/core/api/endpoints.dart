@@ -199,6 +199,15 @@ class Endpoints {
   static const settingsWorkingHours = '/api/settings/auth.workinghours.enabled';
   static const settingsWorkingHoursEntity = '/api/entity/workingHours';
   /// B-107: per-tier 2FA requirement. `<TIER>` is an EntityType name.
+  ///
+  /// The `$` was ESCAPED here, so every call — read and write, for all four
+  /// tiers — hit the literal path `auth.totp.required.$tier` and `tier` was
+  /// never interpolated. The write succeeded, the read-back returned what had
+  /// just been written, and the switch stayed on, so the screen looked correct.
+  /// But `SystemSettingHelper.isTotpRequiredFor` looks up
+  /// `"auth.totp.required." + tier.name()`, which nothing ever wrote — so the
+  /// toggle never required 2FA for anyone, and all four tier switches shared
+  /// one key, meaning flipping any one changed what the other three displayed.
   static String settingsTotpRequired(String tier) =>
-      '/api/settings/auth.totp.required.\$tier';
+      '/api/settings/auth.totp.required.$tier';
 }

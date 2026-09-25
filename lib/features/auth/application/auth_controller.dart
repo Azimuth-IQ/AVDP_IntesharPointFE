@@ -200,12 +200,18 @@ class AuthController extends AsyncNotifier<AuthState> {
   }
 
   /// Best-effort branding fetch — a failure must never block login, so it falls
-  /// back to an empty [BrandInfo] (the app then uses the entity's own theme).
-  Future<BrandInfo> _loadBrand(ApiClient api) async {
+  /// back to [fallback] (empty at login: the app then uses the entity's own
+  /// theme).
+  ///
+  /// On a REFRESH the fallback is the brand already on screen, never an empty
+  /// [BrandInfo]: a transient network blip must not repaint a branded account
+  /// back to the default Inteshar lockup.
+  Future<BrandInfo> _loadBrand(ApiClient api,
+      {BrandInfo fallback = const BrandInfo()}) async {
     try {
       return await EntityRepository(api).branding();
     } catch (_) {
-      return const BrandInfo();
+      return fallback;
     }
   }
 
@@ -238,19 +244,29 @@ class AuthController extends AsyncNotifier<AuthState> {
   /// Re-resolve the signed-in entity from `/entity/me` in place, keeping the
   /// session (B-054: the POS location gate lifts once the shop confirms). A
   /// failure leaves the current state untouched.
+  ///
+  /// This also re-resolves the white-label BRAND. Branding used to be fetched
+  /// only in [build] (session restore) and [login], and this method carried the
+  /// old [BrandInfo] forward verbatim — so when HQ changed a Main Agent's logo or
+  /// colours, every signed-in session kept the old one until a full sign-out and
+  /// sign-in. On the resident Android app that is indefinite: the 2026-09-24
+  /// report ("الشعار الرئيسي لم يتغير عند الوكيل") was a POS that had not
+  /// re-read branding for eight hours while happily polling everything else.
+  /// Pull-to-refresh is the gesture users already reach for, so it resolves both.
   Future<void> refresh() async {
     final auth = state.valueOrNull;
     if (auth is! AuthAuthenticated) return;
     try {
       final api = ref.read(apiClientProvider);
       final entity = await EntityRepository(api).me();
+      final brand = await _loadBrand(api, fallback: auth.brand);
       state = AsyncValue.data(AuthAuthenticated(
         entity: entity,
         role: auth.role,
         isPosUser: auth.isPosUser,
         capabilities: auth.capabilities,
         effectiveCapabilities: entity.effectiveCapabilities,
-        brand: auth.brand,
+        brand: brand,
       ));
     } catch (_) {
       // Keep the current session on a transient failure.

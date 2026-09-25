@@ -200,7 +200,15 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     return MaxWidthBox(
       child: RefreshIndicator(
         // UX-84: the arc IS the progress indicator — don't also tear the page down.
-        onRefresh: () => _load(silent: true),
+        //
+        // Pull-to-refresh also re-resolves the session's white-label BRAND
+        // (2026-09-24): an HQ logo/colour change used to reach a signed-in
+        // account only after a full sign-out and sign-in. Awaited before the
+        // dashboard load so one pull repaints the masthead too.
+        onRefresh: () async {
+          await ref.read(authStateProvider.notifier).refresh();
+          await _load(silent: true);
+        },
         child: (_loading || _data == null)
             ? const Center(child: CircularProgressIndicator())
             : _error != null

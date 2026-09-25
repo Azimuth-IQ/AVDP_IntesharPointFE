@@ -1,15 +1,22 @@
 /// Supplier voucher-batch upload formats (spec r12–r13). Both are comma-separated
 /// with NO header row and dates in DD/MM/YYYY (day-first):
-///   NEW/SEW (Asiacell, Zain — region-locked):  serial,pin,expiry
-///   OTHER   (everything else — region-free):    serial,pin,expiry,label
+///   NEW/SEW (Asiacell, Zain):   serial,pin,expiry
+///   OTHER   (everything else):  serial,pin,expiry,label
+///
+/// The format says which COLUMNS to read — nothing more. Either format can be
+/// region-locked to a governorate; that is the operator's separate sale-scope
+/// answer on the import screen.
 enum ImportFormat { newSew, other }
 
 extension ImportFormatX on ImportFormat {
   /// Wire value sent to the backend.
   String get wire => this == ImportFormat.newSew ? 'NEW' : 'OTHER';
 
-  /// Whether this format is region-locked (carries a governorate).
-  bool get regionLocked => this == ImportFormat.newSew;
+  // There is deliberately no `regionLocked` here any more. It tied the
+  // governorate tag to the FILE FORMAT, so the OTHER format could not be
+  // region-locked at all and shipped `governorate: null` — the 2026-09-24
+  // report. The format decides which COLUMNS to parse; the operator's sale-scope
+  // answer decides where the cards may be sold. See `batchImportMissing`.
 }
 
 /// One parsed voucher row. [expiry] is normalized ISO yyyy-MM-dd (or null).

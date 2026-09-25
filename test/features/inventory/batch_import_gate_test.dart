@@ -6,16 +6,18 @@ import 'package:inteshar/features/inventory/presentation/batch_add_page.dart';
 /// Two customer-visible incidents came from this rule, not from the import: the
 /// sale scope defaulting to "answered" (C-08, stock sellable in all 18
 /// governorates), and the warehouse defaulting to the first agent in a truncated
-/// list (UX-14, thousands of codes to whoever sorted first). Both were a required
-/// question that did not look required, so these tests assert on what must BLOCK
-/// as hard as on what must pass.
+/// list (UX-14, thousands of codes to whoever sorted first). A third followed on
+/// 2026-09-24: the scope was asked only for the NEW format, so the OTHER format
+/// shipped `governorate: null` and could not be region-locked at all. All three
+/// were a required question that did not look required, so these tests assert on
+/// what must BLOCK as hard as on what must pass.
 void main() {
-  /// Everything answered, region-free format — the baseline that must be clean.
+  /// Defaults leave the sale scope UNANSWERED — that is now a blocking gap for
+  /// every file format, so each passing case has to answer it explicitly.
   List<BatchImportRequirement> missing({
     bool hasCategory = true,
     bool hasWarehouse = true,
     bool hasVouchers = true,
-    bool regionLockedFormat = false,
     bool? regionLockedScope,
     bool hasGovernorate = false,
   }) =>
@@ -23,13 +25,12 @@ void main() {
         hasCategory: hasCategory,
         hasWarehouse: hasWarehouse,
         hasVouchers: hasVouchers,
-        regionLockedFormat: regionLockedFormat,
         regionLockedScope: regionLockedScope,
         hasGovernorate: hasGovernorate,
       );
 
-  test('a fully answered region-free import is not blocked', () {
-    expect(missing(), isEmpty);
+  test('a fully answered sell-everywhere import is not blocked', () {
+    expect(missing(regionLockedScope: false), isEmpty);
   });
 
   group('the warehouse (UX-14)', () {
@@ -42,8 +43,8 @@ void main() {
       // The regression shape: a default made this unreachable, so the import
       // sailed through with a warehouse the operator never looked at.
       expect(
-        missing(hasWarehouse: false, regionLockedFormat: true,
-            regionLockedScope: true, hasGovernorate: true),
+        missing(hasWarehouse: false, regionLockedScope: true,
+            hasGovernorate: true),
         [BatchImportRequirement.warehouse],
         reason: 'a chosen-by-default warehouse is the same bug as a '
             'chosen-by-default sale scope',
@@ -52,38 +53,39 @@ void main() {
   });
 
   group('the sale scope (C-08)', () {
-    test('an unanswered scope blocks a region-locked import', () {
-      expect(missing(regionLockedFormat: true, regionLockedScope: null),
+    test('an unanswered scope blocks the import', () {
+      expect(missing(regionLockedScope: null),
           contains(BatchImportRequirement.saleScope));
     });
 
     test('deliberately region-free is an ANSWER, not a gap', () {
       // The whole point of C-08: sell-everywhere stays available, it just has to
       // be chosen. Blocking it here would push operators back to the default.
-      expect(missing(regionLockedFormat: true, regionLockedScope: false),
-          isEmpty);
+      expect(missing(regionLockedScope: false), isEmpty);
     });
 
     test('one governorate requires naming which one', () {
       expect(
-        missing(regionLockedFormat: true, regionLockedScope: true,
-            hasGovernorate: false),
+        missing(regionLockedScope: true, hasGovernorate: false),
         contains(BatchImportRequirement.governorate),
       );
       expect(
-        missing(regionLockedFormat: true, regionLockedScope: true,
-            hasGovernorate: true),
+        missing(regionLockedScope: true, hasGovernorate: true),
         isEmpty,
       );
     });
 
-    test('a region-FREE format never asks about scope or governorate', () {
-      // Asking would be noise, and worse, would train the operator to dismiss
-      // the question on the format where it matters.
-      final m = missing(regionLockedFormat: false, regionLockedScope: null,
-          hasGovernorate: false);
-      expect(m, isNot(contains(BatchImportRequirement.saleScope)));
-      expect(m, isNot(contains(BatchImportRequirement.governorate)));
+    test('the scope is asked regardless of the file format (2026-09-24)', () {
+      // The rule deliberately takes NO format argument any more. It used to skip
+      // the question for the OTHER format, which is how 25 PALY-10 cards went up
+      // sellable in every governorate: the picker was never drawn and the upload
+      // hard-coded `governorate: null`. A file layout says which columns to
+      // parse; it must never decide who may sell the cards.
+      expect(missing(regionLockedScope: null),
+          contains(BatchImportRequirement.saleScope));
+      expect(missing(regionLockedScope: true, hasGovernorate: false),
+          contains(BatchImportRequirement.governorate));
+      expect(missing(regionLockedScope: true, hasGovernorate: true), isEmpty);
     });
   });
 
@@ -93,7 +95,7 @@ void main() {
       // turns one upload into four round trips.
       expect(
         missing(hasCategory: false, hasWarehouse: false, hasVouchers: false,
-            regionLockedFormat: true, regionLockedScope: null),
+            regionLockedScope: null),
         [
           BatchImportRequirement.category,
           BatchImportRequirement.warehouse,
@@ -112,7 +114,7 @@ void main() {
       // They are the same decision at two depths; listing both reads as two
       // separate failures for one unanswered question.
       for (final scope in <bool?>[null, true, false]) {
-        final m = missing(regionLockedFormat: true, regionLockedScope: scope);
+        final m = missing(regionLockedScope: scope);
         expect(
           m.contains(BatchImportRequirement.saleScope) &&
               m.contains(BatchImportRequirement.governorate),

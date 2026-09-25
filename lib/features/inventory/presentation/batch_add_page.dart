@@ -76,11 +76,12 @@ enum BatchImportRequirement {
   warehouse,
   vouchers,
 
-  /// Region-locked formats only: whether these are for one governorate or
-  /// deliberately region-free.
+  /// Whether these cards are for one governorate or deliberately region-free.
+  /// Asked for EVERY file format — see the 2026-09-24 note on
+  /// [batchImportMissing].
   saleScope,
 
-  /// Region-locked and scoped to one governorate: which one.
+  /// Scoped to one governorate: which one.
   governorate,
 }
 
@@ -98,14 +99,19 @@ enum BatchImportRequirement {
 /// - **UX-14** — the warehouse defaulted to the first agent in a truncated list,
 ///   which made [warehouse] unreachable and quietly sent thousands of codes to
 ///   whoever sorted first.
+/// - **2026-09-24** — the scope question was asked only for the NEW (Asia/Zain)
+///   format, so the OTHER format could not be region-locked AT ALL: it hard-coded
+///   `governorate: null` and never rendered the picker. The first non-Asia/Zain
+///   SKU (PALY-10, 25 cards) therefore went up sellable everywhere, which is C-08
+///   again by a different road. The scope is now asked for every format — the
+///   file layout says which COLUMNS to parse, never who may sell the cards.
 ///
-/// Both were a required question that did not look required. That is the class of
-/// bug this function exists to make testable.
+/// All three were a required question that did not look required. That is the
+/// class of bug this function exists to make testable.
 List<BatchImportRequirement> batchImportMissing({
   required bool hasCategory,
   required bool hasWarehouse,
   required bool hasVouchers,
-  required bool regionLockedFormat,
   required bool? regionLockedScope,
   required bool hasGovernorate,
 }) {
@@ -113,12 +119,10 @@ List<BatchImportRequirement> batchImportMissing({
   if (!hasCategory) missing.add(BatchImportRequirement.category);
   if (!hasWarehouse) missing.add(BatchImportRequirement.warehouse);
   if (!hasVouchers) missing.add(BatchImportRequirement.vouchers);
-  if (regionLockedFormat) {
-    if (regionLockedScope == null) {
-      missing.add(BatchImportRequirement.saleScope);
-    } else if (regionLockedScope && !hasGovernorate) {
-      missing.add(BatchImportRequirement.governorate);
-    }
+  if (regionLockedScope == null) {
+    missing.add(BatchImportRequirement.saleScope);
+  } else if (regionLockedScope && !hasGovernorate) {
+    missing.add(BatchImportRequirement.governorate);
   }
   return missing;
 }
@@ -252,7 +256,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
   String? _selectedGovernorate;
   /// null = not answered yet (blocks the import), true = one governorate,
   /// false = deliberately region-free.
-  bool? _regionLockedScope; // region-lock (NEW only)
+  bool? _regionLockedScope; // sale scope — asked for every format
   bool _loading = true;
   Object? _loadError;
 
@@ -451,7 +455,6 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
         hasCategory: _selectedDef != null,
         hasWarehouse: _target != null,
         hasVouchers: _preview != null && _preview!.isNotEmpty,
-        regionLockedFormat: _format.regionLocked,
         regionLockedScope: _regionLockedScope,
         hasGovernorate: _selectedGovernorate != null,
       ).map((r) => switch (r) {
@@ -626,7 +629,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
     // Second gate, deliberately duplicated: an unanswered sale scope must not be
     // able to reach the wire as `governorate: null` (C-08), whatever state the
     // button is in.
-    if (_format.regionLocked && _regionLockedScope == null) return;
+    if (_regionLockedScope == null) return;
     final rows = _preview!;
     final rejected = _rejected;
     final targetLabel = target.label;
@@ -644,7 +647,10 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
     });
     try {
       final repo = ProductRepository(ref.read(apiClientProvider));
-      final gov = _format.regionLocked ? _selectedGovernorate : null;
+      // The SCOPE answer decides this, not the file format: "one governorate"
+      // carries the tag, "all governorates" clears it (the segment handler nulls
+      // _selectedGovernorate when the operator picks region-free).
+      final gov = _regionLockedScope == true ? _selectedGovernorate : null;
       var res = await repo.batchImport(
         definitionId: def.id,
         ownerId: target.id,
@@ -982,10 +988,10 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
             const SizedBox(height: 6),
             Text(
               isNew
-                  ? _tr(context, 'serial,pin,expiry — مقيّد بالمحافظة',
-                      'serial,pin,expiry — region-locked')
-                  : _tr(context, 'serial,pin,expiry,label — غير مقيّد',
-                      'serial,pin,expiry,label — region-free'),
+                  ? _tr(context, 'الأعمدة: serial,pin,expiry',
+                      'Columns: serial,pin,expiry')
+                  : _tr(context, 'الأعمدة: serial,pin,expiry,label',
+                      'Columns: serial,pin,expiry,label'),
               style: IntesharType.mono(12, color: cs.onSurfaceVariant),
             ),
             IntesharSpacing.gapXl,
@@ -1057,7 +1063,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
               ),
             IntesharSpacing.gapXl,
 
-            // ── City / governorate (NEW only) ────────────────────────────
+            // ── City / governorate (every format) ────────────────────────
             //
             // C-08: this used to be one optional dropdown that defaulted to
             // "not geo-locked", and nothing asked about it before importing. So
@@ -1067,73 +1073,76 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
             //
             // The scope is now a decision with two named outcomes. Region-free
             // is still available; it just has to be chosen.
-            if (isNew) ...[
-              SectionLabel(_tr(context, 'نطاق البيع', 'Where these can be sold')),
-              // An unanswered scope must LOOK unanswered: `{_regionLockedScope ??
-              // true}` painted "One governorate" as already chosen while the
-              // value was still null, so nothing on the page looked missing.
-              SegmentedButton<bool>(
-                segments: [
-                  ButtonSegment(
-                      value: true,
-                      label: Text(_tr(context, 'محافظة محددة', 'One governorate'))),
-                  ButtonSegment(
-                      value: false,
-                      label: Text(_tr(context, 'كل المحافظات', 'All governorates'))),
-                ],
-                selected: _regionLockedScope == null
-                    ? const <bool>{}
-                    : {_regionLockedScope!},
-                emptySelectionAllowed: true,
-                onSelectionChanged: (v) => setState(() {
-                  // An empty selection here would be the operator un-choosing;
-                  // keep the last answer rather than silently reopening the hole.
-                  if (v.isEmpty) return;
-                  _regionLockedScope = v.first;
-                  if (!v.first) _selectedGovernorate = null;
-                }),
-              ),
-              if (_regionLockedScope == true) ...[
-                const SizedBox(height: IntesharSpacing.md),
-                GovernorateDropdown(
-                  value: _selectedGovernorate,
-                  // Inside the "one governorate" branch the null option is an
-                  // unanswered question, not a second way to say "everywhere" —
-                  // that choice is the segment above, and leaving this on null
-                  // now blocks the import rather than shipping sell-anywhere stock.
-                  noneLabel: _tr(context, '— اختر المحافظة —', '— Choose a governorate —'),
-                  labelText: l.batchAddGovernorate,
-                  onChanged: (v) => setState(() => _selectedGovernorate = v),
-                ),
+            //
+            // 2026-09-24: this block used to be wrapped in `if (isNew)`, so the
+            // OTHER format never even drew the question and always uploaded
+            // `governorate: null`. Asked for every format now — the file layout
+            // picks the COLUMNS, not who may sell the cards.
+            SectionLabel(_tr(context, 'نطاق البيع', 'Where these can be sold')),
+            // An unanswered scope must LOOK unanswered: `{_regionLockedScope ??
+            // true}` painted "One governorate" as already chosen while the
+            // value was still null, so nothing on the page looked missing.
+            SegmentedButton<bool>(
+              segments: [
+                ButtonSegment(
+                    value: true,
+                    label: Text(_tr(context, 'محافظة محددة', 'One governorate'))),
+                ButtonSegment(
+                    value: false,
+                    label: Text(_tr(context, 'كل المحافظات', 'All governorates'))),
               ],
-              const SizedBox(height: IntesharSpacing.sm),
-              Builder(builder: (context) {
-                // While the scope is still open the summary is not a note, it is
-                // the outstanding question — so it carries the error colour.
-                final unanswered = _regionLockedScope == null ||
-                    (_regionLockedScope == true && _selectedGovernorate == null);
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (unanswered) ...[
-                      Icon(Icons.error_outline, size: 15, color: context.status.danger),
-                      const SizedBox(width: 6),
-                    ],
-                    Expanded(
-                      child: Text(
-                        _scopeSummary(context),
-                        style: IntesharType.sans(
-                          12,
-                          color: unanswered ? context.status.danger : cs.onSurfaceVariant,
-                          w: unanswered ? FontWeight.w700 : IntesharWeight.regular,
-                        ),
+              selected: _regionLockedScope == null
+                  ? const <bool>{}
+                  : {_regionLockedScope!},
+              emptySelectionAllowed: true,
+              onSelectionChanged: (v) => setState(() {
+                // An empty selection here would be the operator un-choosing;
+                // keep the last answer rather than silently reopening the hole.
+                if (v.isEmpty) return;
+                _regionLockedScope = v.first;
+                if (!v.first) _selectedGovernorate = null;
+              }),
+            ),
+            if (_regionLockedScope == true) ...[
+              const SizedBox(height: IntesharSpacing.md),
+              GovernorateDropdown(
+                value: _selectedGovernorate,
+                // Inside the "one governorate" branch the null option is an
+                // unanswered question, not a second way to say "everywhere" —
+                // that choice is the segment above, and leaving this on null
+                // now blocks the import rather than shipping sell-anywhere stock.
+                noneLabel: _tr(context, '— اختر المحافظة —', '— Choose a governorate —'),
+                labelText: l.batchAddGovernorate,
+                onChanged: (v) => setState(() => _selectedGovernorate = v),
+              ),
+            ],
+            const SizedBox(height: IntesharSpacing.sm),
+            Builder(builder: (context) {
+              // While the scope is still open the summary is not a note, it is
+              // the outstanding question — so it carries the error colour.
+              final unanswered = _regionLockedScope == null ||
+                  (_regionLockedScope == true && _selectedGovernorate == null);
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (unanswered) ...[
+                    Icon(Icons.error_outline, size: 15, color: context.status.danger),
+                    const SizedBox(width: 6),
+                  ],
+                  Expanded(
+                    child: Text(
+                      _scopeSummary(context),
+                      style: IntesharType.sans(
+                        12,
+                        color: unanswered ? context.status.danger : cs.onSurfaceVariant,
+                        w: unanswered ? FontWeight.w700 : IntesharWeight.regular,
                       ),
                     ),
-                  ],
-                );
-              }),
-              IntesharSpacing.gapXl,
-            ],
+                  ),
+                ],
+              );
+            }),
+            IntesharSpacing.gapXl,
 
             // ── File pick + template ─────────────────────────────────────
             Row(

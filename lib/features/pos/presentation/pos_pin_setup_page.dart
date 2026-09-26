@@ -50,8 +50,9 @@ class _PosPinSetupPageState extends ConsumerState<PosPinSetupPage> {
     final pin = _pinCtrl.text.trim();
     final confirm = _confirmCtrl.text.trim();
 
-    if (pin.length < 4) {
-      setState(() => _error = _ar ? 'يجب أن يكون الرمز 4 أرقام على الأقل' : 'PIN must be at least 4 digits');
+    if (pin.length != kPosPinLength) {
+      setState(() => _error =
+          _ar ? 'يجب أن يكون الرمز 4 أرقام' : 'PIN must be 4 digits');
       return;
     }
     if (pin != confirm) {
@@ -75,11 +76,6 @@ class _PosPinSetupPageState extends ConsumerState<PosPinSetupPage> {
         currentPin: widget.requireCurrent ? _currentCtrl.text.trim() : null,
       );
       if (!mounted) return;
-      // UX-54: the lock screen's keypad auto-submits on the last digit, and the
-      // server never tells it how many digits that is. Record the LENGTH (never
-      // the PIN) here so a PIN changed in-app doesn't leave the pad firing at
-      // the old length.
-      rememberPinLength(pin.length);
       // Unlock the session and go to POS home
       ref.read(posUnlockedProvider.notifier).state = true;
       context.go('/pos/home');
@@ -226,8 +222,8 @@ class _PinSetupForm extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     ar
-                        ? 'رمز مكوّن من 4–6 أرقام يحمي جلسة البيع'
-                        : '4–6 digit code that protects your POS session',
+                        ? 'رمز مكوّن من 4 أرقام يحمي جلسة البيع'
+                        : '4-digit code that protects your POS session',
                     style: IntesharType.codec(
                       size: 13,
                       color: cs.onSurfaceVariant,
@@ -247,7 +243,7 @@ class _PinSetupForm extends StatelessWidget {
             obscureText: obscureCurrent,
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            maxLength: 6,
+            maxLength: kPosPinLength,
             // UX-12: three short PIN boxes in a row. Enter walks to the next
             // one (the last already submits), so the whole form is typeable
             // without ever leaving the number pad.
@@ -279,7 +275,7 @@ class _PinSetupForm extends StatelessWidget {
           obscureText: obscurePin,
           keyboardType: TextInputType.number,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          maxLength: 6,
+          maxLength: kPosPinLength,
           textInputAction: TextInputAction.next,
           style: IntesharType.mono(18, color: cs.onSurface, letterSpacing: 8),
           decoration: InputDecoration(
@@ -305,7 +301,7 @@ class _PinSetupForm extends StatelessWidget {
           obscureText: obscureConfirm,
           keyboardType: TextInputType.number,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          maxLength: 6,
+          maxLength: kPosPinLength,
           textInputAction: TextInputAction.done,
           style: IntesharType.mono(18, color: cs.onSurface, letterSpacing: 8),
           decoration: InputDecoration(

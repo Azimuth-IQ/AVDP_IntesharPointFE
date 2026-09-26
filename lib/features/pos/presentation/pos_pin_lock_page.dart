@@ -47,19 +47,12 @@ class _PosPinLockPageState extends ConsumerState<PosPinLockPage> {
   /// authority, and a stray `context.go` mid-submit is a lost unlock.
   bool _touched = false;
 
-  /// The length that auto-submitted last time this device unlocked. Null until
-  /// it is known, in which case only a full 6 digits auto-submits.
-  int? _knownPinLength;
-
   @override
   void initState() {
     super.initState();
     // Both of these run WITHOUT holding up the first frame: the keypad is on
     // screen immediately and the operator can start typing into it.
     WidgetsBinding.instance.addPostFrameCallback((_) => _probe());
-    readRememberedPinLength().then((v) {
-      if (mounted && v != null) setState(() => _knownPinLength = v);
-    });
   }
 
   @override
@@ -69,10 +62,6 @@ class _PosPinLockPageState extends ConsumerState<PosPinLockPage> {
   }
 
   bool get _ar => Localizations.localeOf(context).languageCode == 'ar';
-
-  /// The digit count that ends entry: the remembered length, else the 6-digit
-  /// maximum (which cannot be a partial PIN, so it is always safe to submit).
-  int get _autoSubmitAt => _knownPinLength ?? 6;
 
   /// Background probe with an empty PIN. It may redirect to setup, or surface a
   /// "shop is shut" reason — it may NOT show a spinner, block the pad, or turn a
@@ -131,21 +120,12 @@ class _PosPinLockPageState extends ConsumerState<PosPinLockPage> {
       final result = await repo.verifyPin(pin);
       if (!mounted) return;
       if (result.isOk) {
-        // Length only, never the PIN — so the next relock ends on the last digit
-        // instead of an extra tap.
-        rememberPinLength(pin.length);
         ref.read(posUnlockedProvider.notifier).state = true;
         context.go('/pos/home');
       } else if (result.reason == PinVerifyReason.noPin) {
         context.go('/pos/pin-setup');
         return;
       } else {
-        // A rejected PIN invalidates the remembered length — if the PIN was
-        // changed elsewhere, the pad must stop firing at the old length.
-        if (result.reason == PinVerifyReason.wrongPin) {
-          forgetRememberedPinLength();
-          if (mounted) setState(() => _knownPinLength = null);
-        }
         setState(() {
           _error = posPinReasonText(result, _ar);
           _loading = false;
@@ -172,13 +152,13 @@ class _PosPinLockPageState extends ConsumerState<PosPinLockPage> {
   /// "type four digits" and nothing else.
   void _onDigit(String d) {
     if (_loading) return;
-    if (_pinCtrl.text.length >= 6) return;
+    if (_pinCtrl.text.length >= kPosPinLength) return;
     setState(() {
       _touched = true;
       _error = null;
       _pinCtrl.text = _pinCtrl.text + d;
     });
-    if (_pinCtrl.text.length >= _autoSubmitAt) _submit();
+    if (_pinCtrl.text.length >= kPosPinLength) _submit();
   }
 
   void _onBackspace() {
@@ -417,8 +397,9 @@ class _LockForm extends StatelessWidget {
         ],
 
         const SizedBox(height: 24),
-        // Still here even with the pad: the PIN length is not known on the first
-        // unlock of a device, and a 4- or 5-digit PIN then needs one deliberate tap.
+        // The pad submits on the fourth digit by itself, so this is a fallback,
+        // not the normal path: the wide/TextField layout, a retry after an error,
+        // and anyone who prefers a deliberate tap.
         BrandCTAButton(
           label: loading
               ? (ar ? 'جارٍ التحقق...' : 'Verifying…')
@@ -471,7 +452,7 @@ class _PinDots extends StatelessWidget {
           ? Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                for (var i = 0; i < 6; i++)
+                for (var i = 0; i < kPosPinLength; i++)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 6),
                     child: Container(

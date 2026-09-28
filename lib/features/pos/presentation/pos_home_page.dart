@@ -595,10 +595,14 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
 
   bool get _ar => Localizations.localeOf(context).languageCode == 'ar';
 
+  /// Columns for the company and governorate grids. Mobile was 2, which on the
+  /// 5" handhelds the shops actually use put four operators' worth of companies
+  /// below the fold; the client asked for three (2026-09-28). The tiles are
+  /// logo-first with a one-line name, so they still read at ~110dp.
   int _gridCols() => switch (context.screenSize) {
         ScreenSize.desktop => 4,
         ScreenSize.tablet => 3,
-        ScreenSize.mobile => 2,
+        ScreenSize.mobile => 3,
       };
 
   double _skuTileExtent() => switch (context.screenSize) {

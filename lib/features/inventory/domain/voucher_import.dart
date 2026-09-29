@@ -154,8 +154,10 @@ class BatchImportResult {
   final List<String> skippedSerials;
 
   /// Ids of the `VoucherBatch` documents this import created. The upload is
-  /// chunked, and the server opens ONE batch per POST — so a 2,000-row file
-  /// produces two ids, not one. Empty when nothing was imported.
+  /// chunked, but since 2026-09-29 the first chunk opens the batch and the rest
+  /// are appended to it, so a whole file is normally ONE id. More than one only
+  /// when the server refused an append and the client had to open a new batch.
+  /// Empty when nothing was imported.
   final List<String> batchIds;
 
   /// The AGENT1 the stock was handed to, echoed by the server (null = HQ kept it).
@@ -191,7 +193,12 @@ class BatchImportResult {
         skipped: skipped + o.skipped,
         invalid: invalid + o.invalid,
         skippedSerials: [...skippedSerials, ...o.skippedSerials],
-        batchIds: [...batchIds, ...o.batchIds],
+        // Every chunk of a grouped upload echoes the same id — keep it once.
+        batchIds: [
+          ...batchIds,
+          for (final id in o.batchIds)
+            if (!batchIds.contains(id)) id,
+        ],
         assignedTo: o.assignedTo ?? assignedTo,
       );
 }
@@ -218,11 +225,17 @@ class PartialImportException implements Exception {
   /// Rows in the whole file.
   final int totalRows;
 
+  /// The batch the successful chunks went into. The retry passes it back so the
+  /// remaining rows are appended to the SAME batch instead of opening a second
+  /// one for the tail of the file.
+  final String? batchId;
+
   const PartialImportException({
     required this.partial,
     required this.cause,
     required this.sentRows,
     required this.totalRows,
+    this.batchId,
   });
 
   /// Rows that never reached the server.

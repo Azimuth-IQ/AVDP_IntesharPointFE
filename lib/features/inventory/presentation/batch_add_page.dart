@@ -634,8 +634,14 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
     final rejected = _rejected;
     final targetLabel = target.label;
     // Carry the earlier chunks' counts through a retry so the banner keeps
-    // reporting the WHOLE upload, not just the tail.
+    // reporting the WHOLE upload, not just the tail — and the batch they went
+    // into, so the tail is appended to it rather than opening a second batch.
+    // Read before the setState below clears _partial.
     final carried = from > 0 ? _result : null;
+    final openBatch = from > 0
+        ? (_partial?.batchId ??
+            ((carried?.batchIds.isNotEmpty ?? false) ? carried!.batchIds.first : null))
+        : null;
     setState(() {
       _importing = true;
       _progress = from == 0 ? 0 : from / rows.length;
@@ -658,6 +664,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
         type: _format.wire,
         vouchers: rows,
         from: from,
+        batchId: openBatch,
         onProgress: (done, total) {
           if (mounted) {
             setState(() {
@@ -723,6 +730,7 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
           cause: e,
           sentRows: from,
           totalRows: rows.length,
+          batchId: openBatch,
         );
         _uploadedRows = from;
       });

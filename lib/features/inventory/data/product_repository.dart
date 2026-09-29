@@ -194,7 +194,14 @@ class ProductRepository {
   /// Bulk voucher import (HQ "الرفع"). Sends the parsed batch in chunks of [chunk]
   /// to `POST /api/inventory/product/batch` (the backend encrypts each PIN, dedups
   /// by serial, and bulk-inserts), aggregating the per-chunk results. [governorate]
-  /// region-locks NEW/SEW batches; null leaves OTHER vouchers region-free.
+  /// region-locks the vouchers; null leaves them region-free.
+  ///
+  /// One batch per FILE (2026-09-29): the first chunk opens the batch and the
+  /// server returns its id; every later chunk passes that id back and is appended.
+  /// A 6,500-row file used to become seven batches — one per request — and every
+  /// per-batch operation (pause, withdraw, delete, export, the uploads report)
+  /// then had to be done seven times. [batchId] lets a retry continue the batch
+  /// the failed attempt had already opened.
   ///
   /// UX-85: a chunk that fails after an earlier one succeeded throws a
   /// [PartialImportException] carrying the counts so far — the vouchers from the
@@ -209,10 +216,12 @@ class ProductRepository {
     required List<ParsedVoucher> vouchers,
     int chunk = 1000,
     int from = 0,
+    String? batchId,
     void Function(int done, int total)? onProgress,
   }) async {
     var agg = const BatchImportResult();
     var sent = from;
+    var openBatch = batchId;
     for (var i = from; i < vouchers.length; i += chunk) {
       final end = (i + chunk) < vouchers.length ? (i + chunk) : vouchers.length;
       final slice = vouchers.sublist(i, end);
@@ -222,6 +231,7 @@ class ProductRepository {
         'type': type,
         if (governorate != null && governorate.isNotEmpty)
           'governorate': governorate,
+        'batchId': ?openBatch,
         'vouchers': slice
             .map((v) => {
                   'serialNumber': v.serial,
@@ -237,6 +247,8 @@ class ProductRepository {
             (d) => BatchImportResult.fromJson(d as Map<String, dynamic>));
         agg = agg.merge(res);
         sent = end;
+        // Chunk 1 opened the batch; everything after appends to it.
+        openBatch ??= res.batchIds.isNotEmpty ? res.batchIds.first : null;
       } catch (e) {
         if (agg.isEmpty) rethrow;
         throw PartialImportException(
@@ -244,6 +256,7 @@ class ProductRepository {
           cause: e,
           sentRows: sent,
           totalRows: vouchers.length,
+          batchId: openBatch,
         );
       }
       onProgress?.call(end, vouchers.length);

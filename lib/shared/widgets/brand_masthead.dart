@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
+import 'package:inteshar/core/utils/image_decode.dart';
 
 /// Widest a white-label logo may render, as a multiple of its slot height
 /// (UX-117). 4:1 covers a normal wordmark; anything wider is scaled down to fit
@@ -72,6 +73,7 @@ class BrandMasthead extends ConsumerWidget {
               child: Image.network(
                 logoUrl,
                 fit: BoxFit.contain,
+                cacheHeight: decodePx(context, h),
                 // A broken/blocked logo must never leave an empty masthead.
                 errorBuilder: (_, _, _) => lockup,
               ),

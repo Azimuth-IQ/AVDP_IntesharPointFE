@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inteshar/core/utils/image_decode.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 
 /// Paints the signed-in account's white-label **background image** (its nearest
@@ -20,14 +21,23 @@ class BrandBackdrop extends ConsumerWidget {
     final auth = ref.watch(authStateProvider).valueOrNull;
     final url = auth is AuthAuthenticated ? auth.brand.agentBackgroundUrl : '';
     if (url.trim().isEmpty) return child;
+    // Perf (POS lag, 2026-10): this sits behind EVERY POS frame, full screen.
+    // - It was wrapped in `Opacity`, which renders the subtree into an offscreen
+    //   layer and composites it back — a full-screen saveLayer on every frame the
+    //   page repaints. `Image.opacity` applies the same alpha inside the draw call.
+    // - It decoded the uploaded original (often a phone photo); at 10% opacity the
+    //   screen width is far more resolution than anyone can see.
+    // - RepaintBoundary keeps scrolling the grid on top from repainting it.
     return Stack(
       children: [
         Positioned.fill(
-          child: Opacity(
-            opacity: opacity,
+          child: RepaintBoundary(
             child: Image.network(
               url,
               fit: BoxFit.cover,
+              opacity: AlwaysStoppedAnimation(opacity),
+              cacheWidth: decodePx(context, MediaQuery.sizeOf(context).width),
+              filterQuality: FilterQuality.low,
               errorBuilder: (_, _, _) => const SizedBox.shrink(),
             ),
           ),

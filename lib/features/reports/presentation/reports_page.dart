@@ -23,6 +23,7 @@ import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/entity_search_picker.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
+import 'package:inteshar/core/utils/image_decode.dart';
 
 /// The Reports section (client spec `Docs/spec/سستم.xlsx` → التقارير). Phase 1 (Prices #7,
 /// Stock #8, Detailed #9) + Phase 2 (POS balances #1, Agent balances #2, Transfers #3).
@@ -2278,6 +2279,8 @@ class _StockReport extends StatelessWidget {
                         semanticLabel: sku.name,
                         width: double.infinity,
                         fit: BoxFit.cover,
+                        // The grid's maxCrossAxisExtent bounds the tile width.
+                        cacheWidth: decodePx(context, 190),
                         errorBuilder: (_, _, _) => Container(
                               color: cs.surfaceContainerHighest,
                               child: Icon(Icons.style_outlined,

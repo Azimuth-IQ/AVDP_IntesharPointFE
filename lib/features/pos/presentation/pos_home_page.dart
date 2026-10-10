@@ -15,6 +15,7 @@ import 'package:inteshar/core/printing/print_queue.dart';
 import 'package:inteshar/core/printing/printer_errors.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:inteshar/core/utils/formatters.dart';
+import 'package:inteshar/core/utils/image_decode.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/chat/application/chat_provider.dart';
 import 'package:inteshar/features/inventory/data/product_repository.dart';
@@ -687,7 +688,7 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
                       mainAxisExtent: skuRowHeight,
                     ),
                     delegate: SliverChildBuilderDelegate(
-                      (context, i) => _SkuCard(sellable: matches[i], onTap: () => _showVoucher(matches[i])),
+                      (context, i) => _SkuCard(sellable: matches[i], decodeWidth: skuExtent, onTap: () => _showVoucher(matches[i])),
                       childCount: matches.length,
                     ),
                   ),
@@ -729,6 +730,7 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
                         final key = keys[i];
                         final rows = groups[key]!;
                         return _CompanyCard(
+                          decodeWidth: MediaQuery.sizeOf(context).width / _gridCols(),
                           name: _companyLabel(key),
                           logoUrl: rows.firstWhere((s) => (s.companyLogoUrl ?? '').isNotEmpty, orElse: () => rows.first).companyLogoUrl,
                           onTap: () => _openCompany(key, rows),
@@ -833,7 +835,7 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
                   itemCount: cards.length,
                   itemBuilder: (context, i) {
                     final s = cards[i];
-                    return _SkuCard(sellable: s, onTap: () => _showVoucher(s));
+                    return _SkuCard(sellable: s, decodeWidth: tileExtent, onTap: () => _showVoucher(s));
                   },
                 ),
               ),
@@ -1132,14 +1134,14 @@ class _HomeSliderState extends State<_HomeSlider> {
           child: SizedBox(
             width: width,
             height: width * 9 / 16,
-            child: _frame(cs),
+            child: _frame(cs, width),
           ),
         );
       }),
     );
   }
 
-  Widget _frame(ColorScheme cs) {
+  Widget _frame(ColorScheme cs, double width) {
     final ar = Localizations.localeOf(context).languageCode == 'ar';
     return ClipRRect(
       borderRadius: BorderRadius.circular(IntesharRadii.lg),
@@ -1161,6 +1163,9 @@ class _HomeSliderState extends State<_HomeSlider> {
                     widget.urls[i],
                     fit: BoxFit.cover,
                     width: double.infinity,
+                    // Slides are cropped 16:9 at upload, the frame is 16:9 too, so the
+                    // frame width is exactly the decode width (see decodePx).
+                    cacheWidth: decodePx(context, width),
                     // UX-150: no POS image carried a description. The slide
                     // itself is promotional and its content is unknown to us,
                     // so it announces its position rather than pretending to
@@ -1242,7 +1247,9 @@ class _CompanyCard extends StatelessWidget {
   final String name;
   final String? logoUrl;
   final VoidCallback onTap;
-  const _CompanyCard({required this.name, required this.logoUrl, required this.onTap});
+  /// Logical width the logo can occupy at most — the decode size (see decodePx).
+  final double decodeWidth;
+  const _CompanyCard({required this.name, required this.logoUrl, required this.onTap, required this.decodeWidth});
 
   @override
   Widget build(BuildContext context) {
@@ -1266,6 +1273,7 @@ class _CompanyCard extends StatelessWidget {
                     ? Image.network(
                         logoUrl!,
                         fit: BoxFit.contain,
+                        cacheWidth: decodePx(context, decodeWidth),
                         // UX-150: the logo IS the company name for a screen
                         // reader — the text below it is the only other clue.
                         semanticLabel: name,
@@ -1348,7 +1356,9 @@ class _GovCard extends StatelessWidget {
 class _SkuCard extends StatelessWidget {
   final SellableSku sellable;
   final VoidCallback onTap;
-  const _SkuCard({required this.sellable, required this.onTap});
+  /// The grid's max tile extent — the most width the artwork is ever drawn at.
+  final double decodeWidth;
+  const _SkuCard({required this.sellable, required this.onTap, required this.decodeWidth});
 
   @override
   Widget build(BuildContext context) {
@@ -1391,6 +1401,7 @@ class _SkuCard extends StatelessWidget {
                     Image.network(
                       s.imageUrl!,
                       fit: BoxFit.cover,
+                      cacheWidth: decodePx(context, decodeWidth),
                       // UX-150: the card artwork is how an operator recognises
                       // the denomination at a glance; name it.
                       semanticLabel: s.name,
@@ -2059,6 +2070,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                       if (t.showAgentLogo && (_agentLogoUrl ?? '').trim().isNotEmpty) ...[
                         Image.network(_agentLogoUrl!,
                             height: 44,
+                            cacheHeight: decodePx(context, 44, minRatio: 3),
                             fit: BoxFit.contain,
                             semanticLabel: _ar ? 'شعار الوكيل' : 'Agent logo',
                             errorBuilder: (_, _, _) => const SizedBox.shrink()),
@@ -2067,6 +2079,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                       if (t.showCompanyLogo && (_companyLogoUrl ?? '').trim().isNotEmpty) ...[
                         Image.network(_companyLogoUrl!,
                             height: 36,
+                            cacheHeight: decodePx(context, 36, minRatio: 3),
                             fit: BoxFit.contain,
                             semanticLabel: (_companyName ?? '').trim().isNotEmpty
                                 ? _companyName!.trim()

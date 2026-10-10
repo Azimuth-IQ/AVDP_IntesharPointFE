@@ -5,6 +5,7 @@ import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:inteshar/core/upload/upload_repository.dart';
+import 'package:inteshar/core/utils/image_decode.dart';
 
 /// Preview slot for [ImageUploadField] — deliberately WIDE and letterboxed
 /// (UX-117). Roughly the 4:1 budget `BrandMasthead` gives a white-label logo, so
@@ -216,6 +217,7 @@ class _Thumb extends StatelessWidget {
             width: 72,
             height: 72,
             fit: BoxFit.cover,
+            cacheWidth: decodePx(context, 72),
             // Each thumbnail is a removable item, not decoration — without a
             // name a screen reader reads a row of ✕ buttons with nothing
             // attached to them (UX-150).
@@ -354,6 +356,7 @@ class _ImageUploadFieldState extends ConsumerState<ImageUploadField> {
                 child: Image.network(
                   widget.value!,
                   fit: BoxFit.contain,
+                  cacheWidth: decodePx(context, _kPreviewW),
                   // UX-150: this preview IS the content being managed — the
                   // logo or slide the operator just uploaded — so unlike the
                   // decorative brand art it needs a name. Flutter announces

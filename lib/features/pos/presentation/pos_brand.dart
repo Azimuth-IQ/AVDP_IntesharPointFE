@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/theme.dart';
+import 'package:inteshar/core/utils/image_decode.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/shared/widgets/brand_band.dart';
 
@@ -41,6 +42,8 @@ class PosBrandMark extends ConsumerWidget {
       return Image.network(
         logo,
         height: size,
+        // Decode at the drawn height, not the uploaded original (see decodePx).
+        cacheHeight: decodePx(context, size),
         fit: BoxFit.contain,
         // UX-150: the brand mark stands in for the shop's own name in the app
         // bar and on the voucher — without a description it is announced as an
@@ -114,6 +117,7 @@ class PosBrandHero extends ConsumerWidget {
               child: Image.network(
                 logo,
                 height: wide ? 64 : 40,
+                cacheHeight: decodePx(context, wide ? 64 : 40),
                 fit: BoxFit.contain,
                 semanticLabel: name.isNotEmpty ? name : headline,
                 errorBuilder: (_, _, _) =>

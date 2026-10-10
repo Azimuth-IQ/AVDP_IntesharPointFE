@@ -15,6 +15,7 @@ import 'package:inteshar/shared/widgets/entity_search_picker.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/sheet_frame.dart';
 import 'package:inteshar/shared/widgets/slider_image_crop_dialog.dart';
+import 'package:inteshar/core/utils/image_decode.dart';
 
 String _t(BuildContext c, String ar, String en) =>
     Localizations.localeOf(c).languageCode == 'ar' ? ar : en;
@@ -241,6 +242,7 @@ class _SliderRow extends StatelessWidget {
               width: 84,
               height: 47, // ~16:9
               fit: BoxFit.cover,
+              cacheWidth: decodePx(context, 84),
               errorBuilder: (_, _, _) => Container(
                 width: 84,
                 height: 47,
@@ -477,6 +479,8 @@ class _SliderEditorSheetState extends ConsumerState<_SliderEditorSheet> {
                   child: Image.network(_imageUrl,
                       // UX-150: the preview of the slide being edited.
                       semanticLabel: _t(context, 'معاينة الصورة', 'Slide preview'),
+                      // A sheet is never wider than a phone/tablet column.
+                      cacheWidth: decodePx(context, 600),
                       fit: BoxFit.cover),
                 ),
               ),

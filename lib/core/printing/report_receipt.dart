@@ -111,7 +111,7 @@ Future<PrintJob> buildSalesReportPrintJob({
   final raster = await renderReceiptRaster(width: width, blocks: blocks);
 
   final out = <int>[];
-  out.addAll(g.imageRaster(raster));
+  out.addAll(await escPosRaster(g, raster));
   // Same cutterless-head reasoning as the voucher: `cut()` costs five blank
   // lines plus a tear-off advance on heads that have no cutter.
   out.addAll(g.feed(2));

@@ -1,5 +1,8 @@
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart' show Generator;
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/painting.dart';
 import 'package:image/image.dart' as img;
 import 'package:inteshar/app/theme.dart' show kMonoFamily, kMonoFallback;
@@ -47,19 +50,53 @@ Future<img.Image> renderReceiptRaster({
 
   final picture = recorder.endRecording();
   final uiImage = await picture.toImage(width, h);
-  final png = await uiImage.toByteData(format: ui.ImageByteFormat.png);
+  // Perf (POS lag, 2026-10): read the pixels RAW. This used to have the engine
+  // encode a PNG only to decode it again in pure Dart, and that decode plus the
+  // grayscale pass ran on the UI isolate — which since Flutter 3.29 IS the Android
+  // main thread, so the till froze for as long as they took, on every print. The
+  // pixels are identical: the receipt is painted opaque, so rawRgba's premultiplied
+  // alpha is a no-op.
+  final rgba = await uiImage.toByteData(format: ui.ImageByteFormat.rawRgba);
   picture.dispose();
   uiImage.dispose();
-  if (png == null) {
+  if (rgba == null) {
     throw StateError('Could not rasterize the receipt');
   }
-  final decoded = img.decodePng(png.buffer.asUint8List());
-  if (decoded == null) {
-    throw StateError('Could not decode the rasterized receipt');
-  }
-  // Grayscale keeps imageRaster's luminance threshold predictable.
-  return img.grayscale(decoded);
+  return compute(_grayscaleRaster, (
+    rgba.buffer.asUint8List(rgba.offsetInBytes, rgba.lengthInBytes),
+    width,
+    h,
+  ));
 }
+
+/// Off the UI isolate (see [renderReceiptRaster]). Grayscale keeps imageRaster's
+/// luminance threshold predictable.
+img.Image _grayscaleRaster((Uint8List, int, int) job) {
+  final (rgba, width, height) = job;
+  final image = img.Image.fromBytes(
+    width: width,
+    height: height,
+    // A received view may not start at 0 — hand the decoder exactly its bytes.
+    bytes: Uint8List.fromList(rgba).buffer,
+    numChannels: 4,
+    order: img.ChannelOrder.rgba,
+  );
+  return img.grayscale(image);
+}
+
+/// The ESC/POS raster command for [raster], built off the UI isolate.
+///
+/// `Generator.imageRaster` walks every pixel of the receipt in pure Dart (copy,
+/// grayscale, invert, then bit-packing ~400k pixels into a growable list) — tens
+/// to hundreds of milliseconds on a POS handheld, which used to be a frozen till
+/// right after every sale. The generator is copied into the worker; the only state
+/// it mutates there is its current style, and nothing after the raster in a
+/// receipt depends on it (feed/cut carry no style).
+Future<List<int>> escPosRaster(Generator g, img.Image raster) =>
+    compute(_escPosRasterJob, (g, raster));
+
+List<int> _escPosRasterJob((Generator, img.Image) job) =>
+    job.$1.imageRaster(job.$2);
 
 /// One vertical element of the receipt.
 abstract class ReceiptBlock {

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show compute;
 import 'package:image/image.dart' as img;
 
 final _cache = <String, img.Image?>{};
@@ -75,16 +76,29 @@ Future<img.Image?> _fetch(String key, int width) async {
     final resp = await _dio.get<List<int>>(key);
     final data = resp.data;
     if (data == null) return _cache[key] = null;
-    var image = img.decodeImage(Uint8List.fromList(data));
-    if (image == null) return _cache[key] = null;
-    if (image.width > width) {
-      image = img.copyResize(image, width: width);
-    }
-    image = img.grayscale(image);
+    // Perf (POS lag, 2026-10): decode + resize + grayscale of a full-size logo is
+    // pure-Dart CPU — often hundreds of milliseconds on a POS handheld — and the
+    // "warm-up" runs right after a sale. On the UI isolate (the Android main thread
+    // since Flutter 3.29) that froze the till exactly when the operator was
+    // reaching for the next customer. `compute` runs it on a worker isolate (and
+    // inline on the web, which has none — same as before there).
+    final image = await compute(_receiptLogo, (Uint8List.fromList(data), width));
     return _cache[key] = image;
   } catch (_) {
     // Cached as "no logo" for the run, exactly as before: a receipt must never
     // pay for the same failing download twice.
     return _cache[key] = null;
   }
+}
+
+/// Worker-isolate half of [_fetch]: bytes → thermal-friendly raster (at most
+/// `width` dots wide, grayscale), or null when the bytes are not an image.
+img.Image? _receiptLogo((Uint8List, int) job) {
+  final (bytes, width) = job;
+  var image = img.decodeImage(bytes);
+  if (image == null) return null;
+  if (image.width > width) {
+    image = img.copyResize(image, width: width);
+  }
+  return img.grayscale(image);
 }

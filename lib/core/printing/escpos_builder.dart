@@ -174,7 +174,7 @@ Future<List<int>> buildVoucherReceipt({
   final raster = await renderReceiptRaster(width: width, blocks: blocks);
 
   final out = <int>[];
-  out.addAll(g.imageRaster(raster));
+  out.addAll(await escPosRaster(g, raster));
   // Paper handling, NOT content. `Generator.cut()` emits FIVE blank lines plus a
   // full-cut command, and the built-in heads in this fleet (Sunmi, Centerm/Rovo)
   // have no cutter — their firmware treats a cut as "advance to the tear-off
@@ -381,7 +381,7 @@ Future<List<int>> buildTestReceipt({bool cutAtEnd = false}) async {
 
   final raster = await renderReceiptRaster(width: width, blocks: blocks);
   final out = <int>[];
-  out.addAll(g.imageRaster(raster));
+  out.addAll(await escPosRaster(g, raster));
   // Same cutterless-head reasoning as the voucher receipt above — and it matters
   // more here, because this is the slip you print repeatedly while triaging an
   // unknown printer. A cut on a cutterless head spends a receipt's worth of

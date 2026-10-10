@@ -124,8 +124,9 @@ class _NotificationsInboxPageState
             item.id == n.id ? item.copyWith(isRead: true) : item,
         ];
       });
-      // Refresh the nav-badge provider so the badge count decrements.
-      ref.invalidate(notificationsUnreadCountProvider);
+      // Refresh the shared inbox head so the badge count (and, for an ALERT, the
+      // banner) follows. Invalidating a derived provider would re-read a stale head.
+      ref.invalidate(inboxHeadProvider);
     } catch (_) {
       // Silent: leave the item in its current read state.
     }

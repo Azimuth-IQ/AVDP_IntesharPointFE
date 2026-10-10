@@ -37,8 +37,8 @@ class _PushListenerState extends ConsumerState<PushListener> {
         // Refresh the providers the shell watches. Cheap; deduped by autoDispose.
         // B-133: chat is included, otherwise a pushed message lights nothing
         // until the next cold start — which is exactly the complaint.
-        ref.invalidate(unreadAlertsProvider);
-        ref.invalidate(notificationsUnreadCountProvider);
+        // The badge and the alert banner both derive from the one inbox fetch.
+        ref.invalidate(inboxHeadProvider);
         ref.invalidate(chatUnreadCountProvider);
       },
     )..start();

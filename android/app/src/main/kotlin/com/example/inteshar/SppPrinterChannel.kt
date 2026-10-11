@@ -7,10 +7,12 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothSocket
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.IOException
@@ -55,6 +57,22 @@ class SppPrinterChannel(private val context: Context) : MethodChannel.MethodCall
         when (call.method) {
             "isSupported" -> result.success(adapter()?.isEnabled == true && hasConnectPermission())
 
+            // B-150: "absent" | "off" | "on". isEnabled needs no runtime grant, so
+            // this answers before "Nearby devices" is allowed — exactly when the UI
+            // has to tell "Bluetooth is off" apart from "not allowed to look".
+            "adapterState" -> result.success(adapterState())
+
+            "openBluetoothSettings" -> {
+                try {
+                    context.startActivity(
+                        Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                    result.success(true)
+                } catch (e: Exception) {
+                    result.success(false)
+                }
+            }
+
             "bondedDevices" -> result.success(bondedDevices())
 
             "connect" -> {
@@ -98,6 +116,15 @@ class SppPrinterChannel(private val context: Context) : MethodChannel.MethodCall
 
     private fun adapter(): BluetoothAdapter? =
         (context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
+
+    private fun adapterState(): String {
+        val a = adapter() ?: return "absent"
+        return try {
+            if (a.isEnabled) "on" else "off"
+        } catch (e: SecurityException) {
+            "off"
+        }
+    }
 
     /** Android 12+ gates every Classic call behind a runtime permission. */
     private fun hasConnectPermission(): Boolean {

@@ -7,7 +7,9 @@ import 'package:inteshar/core/printing/escpos_builder.dart';
 import 'package:inteshar/core/printing/printer_service.dart';
 import 'package:inteshar/core/printing/printer_target.dart';
 import 'package:inteshar/core/printing/transports/network_printer.dart';
+import 'package:inteshar/core/printing/transports/spp_printer.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
+import 'package:permission_handler/permission_handler.dart' show openAppSettings;
 import 'package:inteshar/shared/widgets/brand_cta.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 
@@ -35,7 +37,8 @@ class PrinterPickerPage extends ConsumerStatefulWidget {
   ConsumerState<PrinterPickerPage> createState() => _PrinterPickerPageState();
 }
 
-class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
+class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage>
+    with WidgetsBindingObserver {
   PrinterInventory _inv = const PrinterInventory();
   List<ScanResult> _scanResults = [];
   bool _scanning = false;
@@ -56,12 +59,21 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _service = ref.read(printerServiceProvider.notifier);
     _refresh();
   }
 
+  /// B-150: the Bluetooth card sends the operator to Android's settings; coming
+  /// back must show the printer that just became visible, not the stale list.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && !_loading) _refresh();
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _service.stopScan();
     _macController.dispose();
     _hostController.dispose();
@@ -98,6 +110,10 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
   Future<void> _findMyPrinter() async {
     final ar = Localizations.localeOf(context).languageCode == 'ar';
     final messenger = ScaffoldMessenger.of(context);
+    // B-150: until "Nearby devices" is allowed the paired list is empty, so the
+    // operator asking to find the printer is the moment to ask Android for it.
+    if (_inv.bluetooth == BluetoothAccess.askable) await _service.allowBluetooth();
+    if (!mounted) return;
     await _refresh();
     if (!mounted) return;
 
@@ -370,6 +386,7 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
               tint: context.status.warn,
               text: l.printerPickerChooseOne,
             ),
+          ?_bluetoothNotice(cs, ar, connected: hasPrinter),
           if (hasPrinter) ...[
             _connectedCard(l, cs, printerState, ar),
             const SizedBox(height: 18),
@@ -706,11 +723,65 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
     );
   }
 
+  /// B-150: why the list may be missing the printer, with the one tap that fixes
+  /// it. Only when nothing non-Bluetooth will print — on a Sunmi the head works
+  /// with Bluetooth off, and "the printer can't be found" would be false there.
+  Widget? _bluetoothNotice(ColorScheme cs, bool ar, {required bool connected}) {
+    if (connected || _loading || _inv.hasNonBluetoothPrinter) return null;
+    return switch (_inv.bluetooth) {
+      BluetoothAccess.askable => _noticeCard(
+          cs,
+          icon: Icons.bluetooth_disabled,
+          tint: context.status.warn,
+          text: ar
+              ? 'للعثور على الطابعة، اسمح للتطبيق برؤية «الأجهزة المجاورة».'
+              : 'To find the printer, allow Inteshar Point to see "Nearby devices".',
+          actionLabel: ar ? 'السماح' : 'Allow',
+          onAction: _allowBluetooth,
+        ),
+      BluetoothAccess.blocked => _noticeCard(
+          cs,
+          icon: Icons.bluetooth_disabled,
+          tint: context.status.danger,
+          text: ar
+              ? 'التطبيق غير مسموح له برؤية «الأجهزة المجاورة»، لذلك لا يمكن العثور على الطابعة. من الإعدادات: الأذونات ← الأجهزة المجاورة ← سماح.'
+              : 'Inteshar Point is not allowed to see "Nearby devices", so the printer can\'t be found. In settings: Permissions → Nearby devices → Allow.',
+          actionLabel: ar ? 'فتح الإعدادات' : 'Open settings',
+          onAction: openAppSettings,
+        ),
+      BluetoothAccess.off => _noticeCard(
+          cs,
+          icon: Icons.bluetooth_disabled,
+          tint: context.status.warn,
+          text: ar
+              ? 'البلوتوث متوقف، لذلك لا يمكن العثور على الطابعة. شغّله ثم ارجع إلى هنا.'
+              : 'Bluetooth is off, so the printer can\'t be found. Turn it on, then come back.',
+          actionLabel: ar ? 'إعدادات البلوتوث' : 'Bluetooth settings',
+          onAction: SppPrinter.openBluetoothSettings,
+        ),
+      _ => null,
+    };
+  }
+
+  Future<void> _allowBluetooth() async {
+    final granted = await _service.allowBluetooth();
+    if (!mounted) return;
+    // Granted: go straight on to finding and adopting the printer. Refused: just
+    // re-read, so the card turns into "open settings" once Android stops asking.
+    if (granted) {
+      await _findMyPrinter();
+    } else {
+      await _refresh();
+    }
+  }
+
   Widget _noticeCard(
     ColorScheme cs, {
     required IconData icon,
     required Color tint,
     required String text,
+    String? actionLabel,
+    VoidCallback? onAction,
   }) => Padding(
     padding: const EdgeInsets.only(bottom: 16),
     child: Container(
@@ -734,6 +805,10 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage> {
               ),
             ),
           ),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(width: 8),
+            TextButton(onPressed: onAction, child: Text(actionLabel)),
+          ],
         ],
       ),
     ),

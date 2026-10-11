@@ -24,6 +24,10 @@ class PrinterInventory {
   final List<UsbPrinterDevice> usbDevices;
   final PrinterTarget? remembered;
 
+  /// Whether [bondedClassic] could be read at all — when it is not
+  /// [BluetoothAccess.ready], an empty list means "can't look", not "none" (B-150).
+  final BluetoothAccess bluetooth;
+
   const PrinterInventory({
     this.sunmiAvailable = false,
     this.centermAvailable = false,
@@ -31,7 +35,20 @@ class PrinterInventory {
     this.bondedClassic = const [],
     this.usbDevices = const [],
     this.remembered,
+    this.bluetooth = BluetoothAccess.ready,
   });
+
+  /// Something here prints without Bluetooth: a built-in AIDL head, a USB printer
+  /// we may already write to, or a remembered USB/network printer. The vendor
+  /// intent does not count — it is the lossy last resort a real head should beat.
+  bool get hasNonBluetoothPrinter {
+    final r = remembered;
+    return sunmiAvailable ||
+        centermAvailable ||
+        usbDevices.any((d) => d.isPrinterClass && d.hasPermission) ||
+        (r != null &&
+            (r.transport == PrinterTransport.usb || r.transport == PrinterTransport.tcp));
+  }
 
   /// A bonded Classic device that plausibly IS a printer. Class first (when the
   /// unit bothers to declare one), name heuristic second — most cheap ESC/POS
@@ -78,6 +95,7 @@ class PrinterService extends Notifier<PrinterState> {
   // its printer across the upgrade) and still written for the MAC prefill.
   static const _prefLegacyId = 'last_printer_id';
   static const _prefLegacyName = 'last_printer_name';
+  static const _prefAskedBluetooth = 'printer_bluetooth_asked_at_start';
 
   @override
   PrinterState build() {
@@ -116,6 +134,7 @@ class PrinterService extends Notifier<PrinterState> {
     final sunmi = await _safeBool(SunmiPrinter.isAvailable);
     final centerm = await _safeBool(CentermPrinter.isAvailable);
     final intent = await _safeBool(RovoPrinter.isAvailable);
+    final bluetooth = await SppPrinter.access();
     final classic = await SppPrinter.bondedDevices();
     final usb = await UsbPrinter.list();
     classic.sort((a, b) {
@@ -131,8 +150,13 @@ class PrinterService extends Notifier<PrinterState> {
       bondedClassic: classic,
       usbDevices: usb,
       remembered: await rememberedTarget(),
+      bluetooth: bluetooth,
     );
   }
+
+  /// Shows Android's "Nearby devices" prompt — the operator asked to find the
+  /// printer, so this is the moment (B-150). True when the grant is now held.
+  Future<bool> allowBluetooth() => SppPrinter.requestAccess();
 
   static Future<bool> _safeBool(Future<bool> Function() f) async {
     try {
@@ -149,10 +173,25 @@ class PrinterService extends Notifier<PrinterState> {
   /// otherwise ask*.
   Future<void> autoConnect() async {
     try {
-      final inv = await discover();
+      var inv = await discover();
       // Detection is slow enough that an impatient operator can open the picker
       // and connect while it runs. Their choice wins — never reset it.
       if (_target != null) return;
+
+      // B-150: a printer behind Bluetooth — a paired one, or a head like the
+      // Topwise T6's — is invisible until the app holds "Nearby devices", and
+      // nothing used to ask for it. When nothing else here will print, ask: once
+      // per install, at POS start, before the first customer. Unlike USB the
+      // grant persists, so this is one prompt, not one per shift. A refusal is
+      // not re-asked here; the printer screen says why and offers the way back.
+      if (inv.bluetooth == BluetoothAccess.askable &&
+          !inv.hasNonBluetoothPrinter &&
+          await _firstBluetoothAsk()) {
+        if (await SppPrinter.requestAccess()) {
+          inv = await discover();
+          if (_target != null) return;
+        }
+      }
 
       // A printer can be paired but switched off. Each failure is retired and
       // the decision retaken, so a dead remembered device falls through to the
@@ -593,6 +632,15 @@ class PrinterService extends Notifier<PrinterState> {
       looksLikePrinterName(device.platformName);
 
   // ------------------------------------------------------------- persistence
+
+  /// True the first time only: the start-up Bluetooth prompt is asked once per
+  /// install, whatever the answer was.
+  Future<bool> _firstBluetoothAsk() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_prefAskedBluetooth) ?? false) return false;
+    await prefs.setBool(_prefAskedBluetooth, true);
+    return true;
+  }
 
   Future<void> _remember(PrinterTarget target) async {
     final prefs = await SharedPreferences.getInstance();

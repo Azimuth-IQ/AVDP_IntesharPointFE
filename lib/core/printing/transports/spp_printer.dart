@@ -1,6 +1,30 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:inteshar/core/printing/printer_target.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+/// What stands between the app and the bonded-device list (B-150).
+///
+/// Android 12+ hides EVERY bonded device — the paired printer and a terminal's
+/// built-in head alike (the Topwise T6 presents its head that way) — until the
+/// app holds "Nearby devices" (`BLUETOOTH_CONNECT`). Without it the list is
+/// simply empty, which used to read as "no printer here".
+enum BluetoothAccess {
+  /// The radio is on and the grant is held (always held below Android 12).
+  ready,
+
+  /// Not granted yet, and the system prompt can still be shown.
+  askable,
+
+  /// Denied for good: only the app's settings page can grant it now.
+  blocked,
+
+  /// Granted, but the radio is switched off.
+  off,
+
+  /// No Bluetooth to talk to: not Android, or no adapter.
+  none,
+}
 
 /// A Bluetooth **Classic** device the OS has already bonded.
 class SppDevice {
@@ -56,6 +80,42 @@ class SppPrinter {
     } catch (_) {
       return false;
     }
+  }
+
+  /// Whether [bondedDevices] can see anything, and if not, why (B-150).
+  ///
+  /// A lookup that fails (no plugin, an old embedding) answers [BluetoothAccess.ready]:
+  /// "unknown" must never turn into a permission prompt.
+  static Future<BluetoothAccess> access() async {
+    if (!_supportedPlatform) return BluetoothAccess.none;
+    try {
+      final radio = await _channel.invokeMethod<String>('adapterState');
+      if (radio == 'absent') return BluetoothAccess.none;
+      final status = await Permission.bluetoothConnect.status;
+      if (status.isPermanentlyDenied || status.isRestricted) return BluetoothAccess.blocked;
+      if (!status.isGranted) return BluetoothAccess.askable;
+      return radio == 'off' ? BluetoothAccess.off : BluetoothAccess.ready;
+    } catch (_) {
+      return BluetoothAccess.ready;
+    }
+  }
+
+  /// Shows the system "Nearby devices" prompt. True when the grant is held after it.
+  static Future<bool> requestAccess() async {
+    if (!_supportedPlatform) return false;
+    try {
+      return (await Permission.bluetoothConnect.request()).isGranted;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Opens Android's Bluetooth screen, for when the radio is off.
+  static Future<void> openBluetoothSettings() async {
+    if (!_supportedPlatform) return;
+    try {
+      await _channel.invokeMethod('openBluetoothSettings');
+    } catch (_) {}
   }
 
   /// Every bonded Classic device — printers, but also headsets, phones and car

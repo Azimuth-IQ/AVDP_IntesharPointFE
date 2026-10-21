@@ -6,13 +6,18 @@
 //
 //   BASE_URL=http://34.185.153.95 node e2e/seed.mjs
 //
-// Requires Node 18+ (global fetch). Assumes HQ 07705371953 / root exists and AUTH_TOTP_ENABLED
+// Requires Node 18+ (global fetch). Assumes the HQ admin (HQ_PHONE / HQ_PASS) exists and AUTH_TOTP_ENABLED
 // is false on the target backend (login here sends no TOTP code).
 
 const BASE = process.env.BASE_URL || 'http://34.185.153.95';
 const HQ_PHONE = process.env.HQ_PHONE || '07705371953';
-const HQ_PASS = process.env.HQ_PASS || 'root';
-const PASS = process.env.E2E_PASS || 'FMg557ory';
+const HQ_PASS = process.env.HQ_PASS;
+const PASS = process.env.E2E_PASS;
+// No default credentials in the repo (audit G13): both must come from the environment.
+if (!HQ_PASS || !PASS) {
+  console.error('Set HQ_PASS (the HQ admin password) and E2E_PASS (the password for the seeded test accounts).');
+  process.exit(2);
+}
 
 // Kept in sync with the *_PHONE defaults in tests/06,07,08 + 03.
 const A1 = { id: 'e2e-agent1', phone: process.env.A1_PHONE || '07960226000', gov: 'BASRA' };

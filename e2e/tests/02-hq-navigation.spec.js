@@ -21,7 +21,7 @@ const ROUTES = [
 ];
 
 test('HQ reaches every section and it renders', async ({ page }) => {
-  await F.login(page, process.env.HQ_PHONE || '07705371953', process.env.HQ_PASS || 'root');
+  await F.login(page, process.env.HQ_PHONE || '07705371953', process.env.HQ_PASS);
   for (const r of ROUTES) {
     await F.goRoute(page, '#' + r);
     expect(page.url(), `should be on ${r}`).toContain(r);

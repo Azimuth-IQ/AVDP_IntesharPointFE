@@ -27,7 +27,7 @@ test('wrong POS PIN does not unlock the counter', async ({ page }) => {
 });
 
 test('Main Agent wizard will not advance without a name', async ({ page }) => {
-  await F.login(page, process.env.HQ_PHONE || '07705371953', process.env.HQ_PASS || 'root');
+  await F.login(page, process.env.HQ_PHONE || '07705371953', process.env.HQ_PASS);
   await F.goRoute(page, '#/hq/main-agents');
   await F.tap(page, 'وكيل رئيسي جديد'); // New Main Agent
   await page.waitForTimeout(1500);

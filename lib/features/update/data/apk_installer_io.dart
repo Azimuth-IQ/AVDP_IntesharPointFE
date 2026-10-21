@@ -47,14 +47,18 @@ Future<void> installApk(
     },
   );
 
-  // 3. Integrity: refuse to install if the bytes don't match the published hash.
+  // 3. Integrity: refuse to install unless the bytes match the published hash. A release
+  //    without a hash is refused too (audit G02) — skipping the check when it was missing
+  //    meant anyone able to tamper with the release record could ship any APK.
   final expected = release.sha256;
-  if (expected != null && expected.isNotEmpty) {
-    final digest = await sha256.bind(file.openRead()).first;
-    if (digest.toString().toLowerCase() != expected.toLowerCase()) {
-      await file.delete();
-      throw Exception('APK integrity check failed (sha256 mismatch)');
-    }
+  if (expected == null || expected.isEmpty) {
+    await file.delete();
+    throw Exception('APK integrity check failed (the release has no sha256)');
+  }
+  final digest = await sha256.bind(file.openRead()).first;
+  if (digest.toString().toLowerCase() != expected.toLowerCase()) {
+    await file.delete();
+    throw Exception('APK integrity check failed (sha256 mismatch)');
   }
 
   // 4. Hand the APK to the system installer.

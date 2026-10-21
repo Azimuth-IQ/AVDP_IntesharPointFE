@@ -118,7 +118,7 @@ db.entities.replaceOne(
 );
 ```
 
-Login (this local-seed example): `07701234567` / `password`. (The canonical UAT/seeded HQ admin is `07705371953` / `root` — see the root CLAUDE.md.) Everything else can be built from inside the app using the "Seed demo" button (visible on the HQ dashboard when fewer than two entities exist).
+Login (this local-seed example): `07701234567` / `password`. (The UAT HQ admin is `07705371953`; its password is held by the owner, never written down here — see the root CLAUDE.md.) Everything else can be built from inside the app using the "Seed demo" button (visible on the HQ dashboard when fewer than two entities exist).
 
 MongoDB dev URI: `mongodb://admin:password@localhost:27017/avdp?authSource=admin`
 

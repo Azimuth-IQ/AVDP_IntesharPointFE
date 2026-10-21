@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/app/router.dart';
 import 'package:inteshar/core/api/session_invalidation.dart';
+import 'package:inteshar/core/auth/jwt_expiry.dart';
+import 'package:inteshar/core/storage/session_storage.dart';
 
 /// Shows a single friendly "session ended — sign in again" dialog when the API layer signals
 /// an INVOLUNTARY session end (it ticks [sessionInvalidationProvider] on a 401 /
@@ -18,8 +20,34 @@ class SessionExpiryGate extends ConsumerStatefulWidget {
   ConsumerState<SessionExpiryGate> createState() => _SessionExpiryGateState();
 }
 
-class _SessionExpiryGateState extends ConsumerState<SessionExpiryGate> {
+class _SessionExpiryGateState extends ConsumerState<SessionExpiryGate> with WidgetsBindingObserver {
   bool _showing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // B-151: a POS or browser tab left open past the token's 24h life ends the session the
+  // moment it comes back to the foreground, not on the first failing tap.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _endIfExpired();
+  }
+
+  Future<void> _endIfExpired() async {
+    final token = await sessionStorage.getToken();
+    if (token == null || !isJwtExpired(token)) return;
+    await sessionStorage.clear();
+    if (mounted) ref.read(sessionInvalidationProvider.notifier).state++;
+  }
 
   @override
   Widget build(BuildContext context) {

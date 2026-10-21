@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/core/api/api_exception.dart';
 import 'package:inteshar/core/api/connectivity.dart';
 import 'package:inteshar/core/api/session_invalidation.dart';
+import 'package:inteshar/core/auth/jwt_expiry.dart';
 import 'package:inteshar/core/logging/client_log_reporter.dart';
 import 'package:inteshar/core/logging/device_context.dart';
 import 'package:inteshar/core/storage/session_storage.dart';
@@ -62,6 +63,18 @@ class _AuthInterceptor extends Interceptor {
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
     final token = await sessionStorage.getToken();
     if (token != null) {
+      // B-151: a token past its 24h life is refused by the server anyway — end the session
+      // here, without a network round trip, so the user lands on sign-in at once.
+      if (isJwtExpired(token)) {
+        await sessionStorage.clear();
+        _ref.read(sessionInvalidationProvider.notifier).state++;
+        handler.reject(DioException(
+          requestOptions: options,
+          error: ApiException('Session expired — sign in again', 401, const {'data': 'TOKEN_EXPIRED'}),
+          type: DioExceptionType.cancel,
+        ));
+        return;
+      }
       options.headers['Authorization'] = 'Bearer $token';
     }
     // Operational-logging context — recorded by the server request log.
@@ -102,7 +115,11 @@ class _AuthInterceptor extends Interceptor {
     }
     final code = err.response?.statusCode;
     final data = err.response?.data;
-    final sessionEnded = code == 401 ||
+    // B-151: the server now answers 401 to ANY call without a valid session. Only a call
+    // that carried our token can mean "the session we had is over" — a pre-login call
+    // getting 401 must not pop the session-ended dialog over the sign-in screen.
+    final sentToken = err.requestOptions.headers.containsKey('Authorization');
+    final sessionEnded = (code == 401 && sentToken) ||
         (code == 403 && data is Map && data['data'] == 'OUTSIDE_WORKING_HOURS');
     if (sessionEnded) {
       await sessionStorage.clear();

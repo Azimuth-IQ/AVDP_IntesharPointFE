@@ -10,7 +10,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  API_BASE: http://34.185.153.95
+  # The platform's https address — baked into the APK, and where CI uploads/publishes it.
+  API_BASE: https://inteshar.smartsolutionsiraq.net
   # NOT named CHANNEL — subosito/flutter-action reads $CHANNEL and would treat
   # it as the Flutter channel.
   RELEASE_CHANNEL: uat

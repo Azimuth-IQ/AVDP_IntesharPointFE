@@ -68,7 +68,10 @@ jobs:
           VERSION_NAME=$(grep '^version:' pubspec.yaml | sed -E 's/version:[[:space:]]*([0-9.]+).*/\1/')
           echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
           # run_number = monotonic Android versionCode (strictly increasing).
+          # ARM only: every POS terminal and phone is ARM, and the x86_64 libraries (emulators,
+          # Chromebooks) were a third of the file every device downloads on each update.
           flutter build apk --release \
+            --target-platform android-arm,android-arm64 \
             --dart-define=API_BASE=${API_BASE} \
             --build-number=${{ github.run_number }} \
             --build-name="$VERSION_NAME"

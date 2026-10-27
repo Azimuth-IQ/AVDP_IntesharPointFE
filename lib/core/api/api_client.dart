@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inteshar/core/api/api_exception.dart';
 import 'package:inteshar/core/api/connectivity.dart';
+import 'package:inteshar/core/api/keep_alive.dart';
 import 'package:inteshar/core/api/session_invalidation.dart';
 import 'package:inteshar/core/auth/jwt_expiry.dart';
 import 'package:inteshar/core/logging/client_log_reporter.dart';
@@ -46,6 +47,7 @@ Duration? retryDelay({
 
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(BaseOptions(connectTimeout: const Duration(seconds: 10), receiveTimeout: const Duration(seconds: 15), sendTimeout: const Duration(seconds: 10)));
+  keepConnectionsAlive(dio);
   dio.interceptors.add(_AuthInterceptor(ref));
   // _RetryInterceptor is added AFTER _AuthInterceptor so that in the reverse
   // error-processing order it fires FIRST: it retries GETs on transport errors

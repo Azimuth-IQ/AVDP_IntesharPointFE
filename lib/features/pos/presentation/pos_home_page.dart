@@ -180,11 +180,15 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
   /// * only the Store tab — the other tabs don't show pool counts;
   /// * only when this route is on top, so a poll can never rebuild the screen
   ///   beneath an open voucher sheet or confirm dialog;
-  /// * never on top of a load already in flight.
+  /// * never on top of a load already in flight;
+  /// * never while the app is in the background or the screen is off — nobody is
+  ///   looking, and an idle terminal polling all shift is most of a fleet's server
+  ///   traffic. Coming back reloads at once (see [didChangeAppLifecycleState]).
   void _startPolling() {
     _poll?.cancel();
     _poll = Timer.periodic(_pollEvery, (_) {
       if (!mounted || _tab != 0 || _loading || _refreshing) return;
+      if (_backgroundedAt != null) return;
       if (ModalRoute.of(context)?.isCurrent != true) return;
       if (!ref.read(posUnlockedProvider)) return;
       unawaited(_load());

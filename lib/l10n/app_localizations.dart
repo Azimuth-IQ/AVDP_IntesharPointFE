@@ -2846,6 +2846,12 @@ abstract class AppLocalizations {
   /// **'Too many attempts — wait a moment and try again'**
   String get errTooManyAttempts;
 
+  /// No description provided for @errTooManyAttemptsMinutes.
+  ///
+  /// In en, this message translates to:
+  /// **'Too many attempts — try again in {minutes} min'**
+  String errTooManyAttemptsMinutes(int minutes);
+
   /// No description provided for @errAccessDenied.
   ///
   /// In en, this message translates to:

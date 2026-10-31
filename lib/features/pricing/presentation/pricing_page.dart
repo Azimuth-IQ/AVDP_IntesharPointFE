@@ -323,13 +323,13 @@ class _PricingPageState extends ConsumerState<PricingPage> {
   /// The signed-in entity's own tier. UX-01: the page is mounted at `/hq/pricing`
   /// as well as `/agent1/pricing`, and HQ is the one tier that has no cost.
   EntityType? get _callerType =>
-      (ref.read(authStateProvider).valueOrNull as AuthAuthenticated?)?.entity.type;
+      ref.read(authStateProvider).signedIn?.entity.type;
   bool get _callerIsHq => _callerType == EntityType.INTESHAR;
 
   /// The signed-in entity's id — the account the prices belong to when no target
   /// is picked, and the one row the agent picker must not offer as a "target".
   String get _myId =>
-      (ref.read(authStateProvider).valueOrNull as AuthAuthenticated?)?.entity.id ??
+      ref.read(authStateProvider).signedIn?.entity.id ??
       '';
 
   /// The tier of the account currently being priced for, or null when pricing my

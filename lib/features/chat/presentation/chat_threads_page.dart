@@ -32,7 +32,7 @@ class _ChatThreadsPageState extends ConsumerState<ChatThreadsPage> {
   Timer? _poll;
 
   bool get _isHq =>
-      (ref.read(authStateProvider).valueOrNull as AuthAuthenticated?)?.entity.type ==
+      ref.read(authStateProvider).signedIn?.entity.type ==
       EntityType.INTESHAR;
 
   @override

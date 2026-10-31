@@ -1049,6 +1049,12 @@
   "@errWrongCredentials": {},
   "errTooManyAttempts": "Too many attempts — wait a moment and try again",
   "@errTooManyAttempts": {},
+  "errTooManyAttemptsMinutes": "Too many attempts — try again in {minutes} min",
+  "@errTooManyAttemptsMinutes": {
+    "placeholders": {
+      "minutes": {"type": "int"}
+    }
+  },
   "errAccessDenied": "You don't have permission to do that",
   "@errAccessDenied": {},
   "errNotFound": "Not found",

@@ -860,7 +860,7 @@ class _ReprintSheetState extends ConsumerState<_ReprintSheet> {
     setState(() => _printing = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final auth = ref.read(authStateProvider).valueOrNull as AuthAuthenticated?;
+      final auth = ref.read(authStateProvider).signedIn;
       final p = widget.recovered.product;
       final def = p.productDefinition;
       final t = def.template;

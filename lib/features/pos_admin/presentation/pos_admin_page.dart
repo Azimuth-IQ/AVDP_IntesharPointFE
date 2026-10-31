@@ -190,8 +190,8 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
   bool get _pageBusy => _busy.any((k) => k.startsWith('page:'));
 
   PosAdminRepository get _repo => PosAdminRepository(ref.read(apiClientProvider));
-  String? get _myId => (ref.read(authStateProvider).valueOrNull as AuthAuthenticated?)?.entity.id;
-  EntityType? get _signedInType => (ref.read(authStateProvider).valueOrNull as AuthAuthenticated?)?.entity.type;
+  String? get _myId => ref.read(authStateProvider).signedIn?.entity.id;
+  EntityType? get _signedInType => ref.read(authStateProvider).signedIn?.entity.type;
 
   /// HQ drilling into an agent (from the network view) vs managing the signed-in entity.
   bool get _isDrill => widget.targetEntityId != null;

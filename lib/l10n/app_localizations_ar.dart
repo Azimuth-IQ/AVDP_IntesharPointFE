@@ -1526,6 +1526,11 @@ class AppLocalizationsAr extends AppLocalizations {
       'محاولات كثيرة — انتظر قليلاً ثم أعد المحاولة';
 
   @override
+  String errTooManyAttemptsMinutes(int minutes) {
+    return 'محاولات كثيرة — أعد المحاولة بعد $minutes دقيقة';
+  }
+
+  @override
   String get errAccessDenied => 'ليس لديك صلاحية للقيام بذلك';
 
   @override

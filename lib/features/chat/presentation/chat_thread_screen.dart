@@ -67,7 +67,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
   Timer? _poll;
 
   String get _myId =>
-      (ref.read(authStateProvider).valueOrNull as AuthAuthenticated?)?.entity.id ?? '';
+      ref.read(authStateProvider).signedIn?.entity.id ?? '';
 
   ChatRepository get _repo => ChatRepository(ref.read(apiClientProvider));
 

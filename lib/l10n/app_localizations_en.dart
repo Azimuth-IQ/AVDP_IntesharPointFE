@@ -1535,6 +1535,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Too many attempts — wait a moment and try again';
 
   @override
+  String errTooManyAttemptsMinutes(int minutes) {
+    return 'Too many attempts — try again in $minutes min';
+  }
+
+  @override
   String get errAccessDenied => 'You don\'t have permission to do that';
 
   @override

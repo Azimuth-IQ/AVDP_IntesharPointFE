@@ -298,7 +298,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
   bool _booting = true;
 
   ReportsRepository get _repo => ReportsRepository(ref.read(apiClientProvider));
-  Entity? get _me => (ref.read(authStateProvider).valueOrNull as AuthAuthenticated?)?.entity;
+  Entity? get _me => ref.read(authStateProvider).signedIn?.entity;
   bool get _isHq => _me?.type == EntityType.INTESHAR;
   String get _effectiveId => _targetId ?? _me?.id ?? '';
 
@@ -453,11 +453,11 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
   /// The headline figure for [key] as a NUMBER. `_exportTotal` returns the same
   /// quantity already formatted; this is the one the arithmetic runs on.
   num? _headlineValue(String key, dynamic data) => switch (key) {
-        'transfers' => ((data as List<TransferRow>?) ?? const [])
+        'transfers' => (rowsOf<TransferRow>(data))
             .fold<num>(0, (a, r) => a + r.amount),
-        'sold' || 'totalSold' => ((data as List<SalesRow>?) ?? const [])
+        'sold' || 'totalSold' => (rowsOf<SalesRow>(data))
             .fold<int>(0, (a, r) => a + r.count),
-        'uploaded' => ((data as List<UploadsRow>?) ?? const [])
+        'uploaded' => (rowsOf<UploadsRow>(data))
             .fold<int>(0, (a, r) => a + r.count),
         _ => null,
       };
@@ -764,14 +764,14 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         final c = data as PricingCatalog?;
         return c == null ? null : (s.grandTotal, Formatters.iqd(c.inventoryWorth.round()));
       case 'transfers':
-        final rows = (data as List<TransferRow>?) ?? const [];
+        final rows = rowsOf<TransferRow>(data);
         return (s.totalMoved, Formatters.iqd(rows.fold<num>(0, (a, r) => a + r.amount).round()));
       case 'sold':
       case 'totalSold':
-        final rows = (data as List<SalesRow>?) ?? const [];
+        final rows = rowsOf<SalesRow>(data);
         return (s.totalSoldCards, Formatters.money(rows.fold<int>(0, (a, r) => a + r.count)));
       case 'uploaded':
-        final rows = (data as List<UploadsRow>?) ?? const [];
+        final rows = rowsOf<UploadsRow>(data);
         return (s.totalUploaded, Formatters.money(rows.fold<int>(0, (a, r) => a + r.count)));
       default:
         return null;
@@ -818,7 +818,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         ];
         return _Export([s.agentLabel, s.company, s.category, s.governorate, s.base, s.agent, s.effective], rows, 'prices');
       case 'stock':
-        final list = (data as List<SkuSummary>?) ?? const [];
+        final list = rowsOf<SkuSummary>(data);
         // UX-43: the SAME projection the grid renders, governorate filter included.
         final rows = <List<XlsxCell>>[
           for (final l in stockExportLines(list, _stockGov))
@@ -836,7 +836,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         return _Export([s.category, s.governorate, s.available, s.effective, s.value], rows, 'detailed');
       case 'posBalances':
       case 'agentBalances':
-        final list = (data as List<BalanceRosterRow>?) ?? const [];
+        final list = rowsOf<BalanceRosterRow>(data);
         // UX-34: name the identity column after the TAB, and carry the tier —
         // without it an AGENT1 and an AGENT2 row are identical in the sheet too.
         final rows = <List<XlsxCell>>[
@@ -858,7 +858,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
               s.subAgent, s.balance, s.spent, s.posPoints, s.givenOut],
             rows, key);
       case 'transfers':
-        final list = (data as List<TransferRow>?) ?? const [];
+        final list = rowsOf<TransferRow>(data);
         final rows = <List<XlsxCell>>[
           for (final r in list)
             [r.date, r.time, r.sourceName, r.destName, r.amount, r.balanceAfter,
@@ -868,7 +868,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
             [s.date, s.time, s.source, s.destination, s.transferAmount, s.balanceAfter, s.owner, s.phone, s.governorate, s.mainAgent, s.subAgent],
             rows, 'transfers');
       case 'sold':
-        final list = (data as List<SalesRow>?) ?? const [];
+        final list = rowsOf<SalesRow>(data);
         final rows = <List<XlsxCell>>[
           for (final r in list)
             [r.storeName, r.ownerName, r.userPhone, gov(r.governorate), r.companyName, r.category,
@@ -878,7 +878,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
             [s.store, s.owner, s.phone, s.governorate, s.company, s.category, s.mainAgent, s.subAgent, s.cards],
             rows, 'sold_cards');
       case 'totalSold':
-        final list = (data as List<SalesRow>?) ?? const [];
+        final list = rowsOf<SalesRow>(data);
         final totals = <String, int>{};
         final meta = <String, SalesRow>{};
         for (final r in list) {
@@ -893,7 +893,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         ];
         return _Export([s.mainAgent, s.subAgent, s.governorate, s.company, s.category, s.cards], rows, 'total_sold');
       case 'uploaded':
-        final list = (data as List<UploadsRow>?) ?? const [];
+        final list = rowsOf<UploadsRow>(data);
         final rows = <List<XlsxCell>>[
           for (final r in list)
             [r.agentName, gov(r.governorate), r.companyName, r.category, r.count],
@@ -1224,7 +1224,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     return FutureBuilder<dynamic>(
       future: data,
       builder: (context, snap) {
-        final list = (snap.data as List<SkuSummary>?) ?? const [];
+        final list = rowsOf<SkuSummary>(snap.data);
         final govs = <String>{
           for (final sku in list)
             for (final g in sku.governorates) g.governorate,
@@ -1285,24 +1285,24 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
           child: switch (key) {
             'prices' => _PricesReport(catalog: data as PricingCatalog, s: s, agentLabel: _currentAgentLabel),
             'stock' => _StockReport(
-                summary: (data as List<SkuSummary>?) ?? const [],
+                summary: rowsOf<SkuSummary>(data),
                 artBySku: _artBySku,
                 gov: _stockGov,
                 s: s),
             'detailed' => _DetailedReport(catalog: data as PricingCatalog, s: s),
             'transfers' => _TransfersReport(
-                rows: (data as List<TransferRow>?) ?? const [],
+                rows: rowsOf<TransferRow>(data),
                 s: s,
                 partial: more,
                 delta: delta),
             'sold' => _SalesReport(
-                rows: (data as List<SalesRow>?) ?? const [], s: s, delta: delta),
+                rows: rowsOf<SalesRow>(data), s: s, delta: delta),
             'totalSold' => _TotalSoldReport(
-                rows: (data as List<SalesRow>?) ?? const [], s: s, delta: delta),
+                rows: rowsOf<SalesRow>(data), s: s, delta: delta),
             'uploaded' => _UploadsReport(
-                rows: (data as List<UploadsRow>?) ?? const [], s: s, delta: delta),
+                rows: rowsOf<UploadsRow>(data), s: s, delta: delta),
             _ => _RosterReport(
-                rows: (data as List<BalanceRosterRow>?) ?? const [],
+                rows: rowsOf<BalanceRosterRow>(data),
                 s: s,
                 identityLabel: _labelFor(key, s),
                 partial: more),

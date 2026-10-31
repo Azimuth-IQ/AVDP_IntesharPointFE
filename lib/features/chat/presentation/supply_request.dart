@@ -50,6 +50,10 @@ Future<void> showSupplyRequest(
   final auth = ref.read(authStateProvider).valueOrNull;
   final entity = auth is AuthAuthenticated ? auth.entity : null;
   if (entity == null) return;
+  // Read now, not inside the builder: the dialog rebuilds (the keyboard opening is
+  // enough) after the page that handed us [ref] may have been rebuilt away, and a
+  // ref.read then throws (iPhone, 2026-10-29).
+  final repo = ChatRepository(ref.read(apiClientProvider));
 
   final draft = await showDialog<_Draft>(
     context: context,
@@ -59,7 +63,7 @@ Future<void> showSupplyRequest(
       current: current,
       accountName: entity.meta.name.isNotEmpty ? entity.meta.name : entity.id,
       parentId: entity.parent,
-      repo: ChatRepository(ref.read(apiClientProvider)),
+      repo: repo,
     ),
   );
   if (draft == null || !context.mounted) return;

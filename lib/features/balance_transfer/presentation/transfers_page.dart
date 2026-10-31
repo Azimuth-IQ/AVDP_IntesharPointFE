@@ -176,7 +176,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
   }
 
   String get _myId =>
-      (ref.read(authStateProvider).valueOrNull as AuthAuthenticated?)
+      ref.read(authStateProvider).signedIn
           ?.entity
           .id ??
       '';

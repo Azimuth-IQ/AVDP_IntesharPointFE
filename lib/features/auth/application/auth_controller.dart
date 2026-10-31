@@ -93,6 +93,19 @@ class LoginPasswordChanged extends LoginOutcome {
 
 final authStateProvider = AsyncNotifierProvider<AuthController, AuthState>(AuthController.new);
 
+/// The signed-in session, or null in any other state.
+///
+/// Use this, never `valueOrNull as AuthAuthenticated?`: that cast THROWS once the
+/// state is [AuthUnauthenticated] — it is a different subtype, not null — so every
+/// page still open at sign-out crashed the web app as it rebuilt (field test
+/// 2026-10-29: the POS-users page, the reports page).
+extension SignedInSession on AsyncValue<AuthState> {
+  AuthAuthenticated? get signedIn {
+    final s = valueOrNull;
+    return s is AuthAuthenticated ? s : null;
+  }
+}
+
 class AuthController extends AsyncNotifier<AuthState> {
   @override
   Future<AuthState> build() async {

@@ -166,6 +166,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       final granted = grants
           .where((g) => g.sourceId == entity.id && g.date.startsWith(monthPrefix))
           .fold<num>(0, (a, g) => a + g.amount);
+      // The user can leave while this loads; a setState then throws (field reports
+      // from a sub-agent's phone, 2026-10-29).
+      if (!mounted) return;
       setState(() {
         _data = _DashData(
           stock: stock,
@@ -179,6 +182,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         _loading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e;
         _loading = false;

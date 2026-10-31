@@ -1783,7 +1783,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
     // Captured before any await: the printed labels must match the voucher the
     // operator is looking at, and context must not be read across an async gap.
     final labels = _receiptLabels();
-    final auth = ref.read(authStateProvider).valueOrNull as AuthAuthenticated?;
+    final auth = ref.read(authStateProvider).signedIn;
     final p = card.product;
     final def = p.productDefinition;
     final t = def.template;
@@ -1926,7 +1926,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
       _printError = null; // clear the last failure while a retry is in flight
     });
     try {
-      final auth = ref.read(authStateProvider).valueOrNull as AuthAuthenticated?;
+      final auth = ref.read(authStateProvider).signedIn;
       final def = revealed.productDefinition;
       final t = def.template;
       // Logos are best-effort AND time-boxed (UX-59): the code on this sheet is
@@ -3116,8 +3116,16 @@ class _PosChatTabState extends ConsumerState<_PosChatTab> {
     final parentId = auth is AuthAuthenticated ? auth.entity.parent : '';
     if (parentId.isEmpty) return;
     try {
-      final parent = await EntityRepository(ref.read(apiClientProvider)).read(parentId);
-      if (mounted) setState(() => _agentName = parent.meta.name);
+      // The ancestor chain, not GET /entity/read: a shop may not read its agent's
+      // account (users, KYC), so that call was refused every time this tab opened
+      // and the thread was titled "Agent" (field test 2026-10-29).
+      final chain = await EntityRepository(ref.read(apiClientProvider)).chain();
+      for (final row in chain) {
+        if (row.id == parentId) {
+          if (mounted) setState(() => _agentName = row.name);
+          break;
+        }
+      }
     } catch (_) {
       // Keep the generic label on failure.
     }

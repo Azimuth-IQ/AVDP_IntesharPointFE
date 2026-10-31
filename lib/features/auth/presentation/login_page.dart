@@ -155,6 +155,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   /// unreadable. Status-keyed text remains the fallback for empty/technical bodies.
   String _friendlyLoginError(int? statusCode, [String? backend]) {
     final l = AppLocalizations.of(context)!;
+    // The server names the wait ("Try again in 30 minutes."). It used to say "a
+    // minute" for a 30-minute block, and a user who believed it kept retrying.
+    if (statusCode == 429) {
+      final m = RegExp(r'(\d+) minute').firstMatch(backend ?? '');
+      return m == null ? l.errTooManyAttempts : l.errTooManyAttemptsMinutes(int.parse(m.group(1)!));
+    }
     final real = backendMessage(backend);
     if (real != null) return real;
     return switch (statusCode) {

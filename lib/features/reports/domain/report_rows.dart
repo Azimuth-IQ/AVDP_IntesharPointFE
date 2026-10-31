@@ -1,5 +1,13 @@
 /// One row of the balance reports (#1 POS balances, #2 agent balances) from
 /// `GET /api/reports/balances`. Mirrors backend `Pricing/DTOs/BalanceRosterRow`.
+/// [data] as rows of [T].
+///
+/// The paged feeds gather their rows into a `List<dynamic>` (load-more and export
+/// both walk pages into one list), and `data as List<T>?` THROWS on that list even
+/// when every row is a [T] — which is how exporting the balances and transfers
+/// reports crashed (field test 2026-10-29). `cast` checks the rows, not the list.
+List<T> rowsOf<T>(Object? data) => data is List ? data.cast<T>() : <T>[];
+
 class BalanceRosterRow {
   final String entityId;
   final String name;

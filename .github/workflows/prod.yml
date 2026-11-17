@@ -1,0 +1,69 @@
+name: Production — Web
+
+# Deploy = push the release to the `prod` branch. Analyze + test, build the web app for
+# https://inteshar.azimuth-iraq.com, push the image to the registry in Doha, then roll the app
+# servers onto it (2 new healthy before the old 2 go). Signs in to Google Cloud without a key
+# file (Workload Identity, prod branch of this repo only). The APK is apk.yml.
+
+on:
+  push:
+    branches: [prod]
+  workflow_dispatch:
+
+concurrency:
+  group: prod-web
+  cancel-in-progress: false
+
+env:
+  REGION: me-central1
+  IMAGE: me-central1-docker.pkg.dev/inteshar-515009/inteshar/web
+  MIG: inteshar-app
+  API_BASE: https://inteshar.azimuth-iraq.com
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+      # The web app is served from the same origin as the API (/api through the load balancer).
+      - run: flutter build web --release --dart-define=API_BASE=${API_BASE}
+
+      - name: Sign in to Google Cloud (Workload Identity, no key file)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.PROD_WIF_PROVIDER }}
+          service_account: ${{ vars.PROD_DEPLOY_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and push the image (tagged with the commit and as prod)
+        run: |
+          gcloud auth configure-docker me-central1-docker.pkg.dev --quiet
+          docker build -t "$IMAGE:${{ github.sha }}" -t "$IMAGE:prod" .
+          docker push "$IMAGE:${{ github.sha }}"
+          docker push "$IMAGE:prod"
+
+      - name: Roll the app servers onto the new image
+        run: |
+          gcloud compute instance-groups managed rolling-action replace "$MIG" \
+            --region "$REGION" --max-surge 2 --max-unavailable 0
+          gcloud compute instance-groups managed wait-until "$MIG" --stable \
+            --region "$REGION" --timeout 1500
+
+      - name: Smoke test through the load balancer
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' "$API_BASE/")
+          echo "GET / -> $code"
+          [ "$code" = "200" ]

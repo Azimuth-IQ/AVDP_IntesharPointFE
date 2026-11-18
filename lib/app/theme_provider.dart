@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inteshar/features/auth/data/login_brand.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/locale/locale_controller.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
@@ -30,6 +31,15 @@ final brandThemeProvider =
     return buildBrandThemes(
       primaryHex: auth.brand.primaryColor.isNotEmpty ? auth.brand.primaryColor : meta.primaryColor,
       secondaryHex: auth.brand.secondaryColor.isNotEmpty ? auth.brand.secondaryColor : meta.secondaryColor,
+      cursiveScript: cursive,
+    );
+  }
+  // PROD-006: before sign-in, paint the sign-in screen in the agent colours this device remembers.
+  final remembered = ref.watch(rememberedLoginBrandProvider).valueOrNull;
+  if (remembered != null && remembered.hasColors) {
+    return buildBrandThemes(
+      primaryHex: remembered.primaryColor,
+      secondaryHex: remembered.secondaryColor,
       cursiveScript: cursive,
     );
   }

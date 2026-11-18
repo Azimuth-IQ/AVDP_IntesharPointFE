@@ -51,11 +51,14 @@ class UpdateCheck {
   final bool updateAvailable;
   final bool mandatory;
   final AppRelease? latest;
+  /// PROD-006: may the sign-in screen show the Inteshar brand (HQ setting). Missing = yes.
+  final bool showIntesharOnLogin;
 
   const UpdateCheck({
     required this.updateAvailable,
     required this.mandatory,
     required this.latest,
+    this.showIntesharOnLogin = true,
   });
 
   factory UpdateCheck.fromJson(Map<String, dynamic> j) => UpdateCheck(
@@ -64,5 +67,6 @@ class UpdateCheck {
         latest: j['latest'] != null
             ? AppRelease.fromJson(j['latest'] as Map<String, dynamic>)
             : null,
+        showIntesharOnLogin: j['showIntesharOnLogin'] as bool? ?? true,
       );
 }

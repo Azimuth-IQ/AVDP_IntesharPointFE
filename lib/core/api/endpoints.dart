@@ -197,6 +197,8 @@ class Endpoints {
   // Platform settings: the global working-hours toggle is a generic key/value
   // setting; the per-entity window is a targeted patch on the entity.
   static const settingsWorkingHours = '/api/settings/auth.workinghours.enabled';
+  /// PROD-006: HQ's switch — may the sign-in screen show the Inteshar brand.
+  static const settingsLoginShowInteshar = '/api/settings/branding.login.showInteshar';
   static const settingsWorkingHoursEntity = '/api/entity/workingHours';
   /// B-107: per-tier 2FA requirement. `<TIER>` is an EntityType name.
   ///

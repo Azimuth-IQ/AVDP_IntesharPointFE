@@ -37,6 +37,17 @@ class SettingsRepository {
     );
   }
 
+  /// PROD-006: whether the sign-in screen may show the Inteshar brand on a device with no agent
+  /// brand remembered. `null` = never set, which the server treats as "show".
+  Future<bool?> getLoginShowInteshar() async {
+    final r = await _api.get(Endpoints.settingsLoginShowInteshar);
+    return _api.unwrap(r, (d) => d is bool ? d : null);
+  }
+
+  Future<void> setLoginShowInteshar(bool show) async {
+    await _api.post(Endpoints.settingsLoginShowInteshar, data: {'value': show});
+  }
+
   /// B-107: whether [tier] must satisfy TOTP (Google Authenticator) at login.
   ///
   /// `null` = never set, so the backend applies its default — which is "not

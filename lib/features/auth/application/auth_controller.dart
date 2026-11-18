@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inteshar/features/auth/data/login_brand.dart';
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/api_exception.dart';
 import 'package:inteshar/core/api/session_invalidation.dart';
@@ -222,7 +224,11 @@ class AuthController extends AsyncNotifier<AuthState> {
   Future<BrandInfo> _loadBrand(ApiClient api,
       {BrandInfo fallback = const BrandInfo()}) async {
     try {
-      return await EntityRepository(api).branding();
+      final brand = await EntityRepository(api).branding();
+      // PROD-006: the sign-in screen shows this device's agent from now on. Only a successful
+      // fetch reaches here, so a network blip never wipes a shop's remembered brand.
+      unawaited(LoginBrandStore.remember(brand).catchError((_) {}));
+      return brand;
     } catch (_) {
       return fallback;
     }

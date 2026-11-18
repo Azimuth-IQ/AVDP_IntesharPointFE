@@ -207,8 +207,6 @@ void main() {
   const exempt = <String>{
     // `FontWeight.w600` on the splash tagline.
     'lib/features/auth/presentation/splash_page.dart',
-    // `FontWeight.w500` on two raw `TextStyle(fontFamily: 'CodecPro', …)`.
-    'lib/features/auth/presentation/login_page.dart',
   };
 
   List<String> scan({required bool includeExempt}) {
@@ -267,6 +265,6 @@ void main() {
     // If this fails because a file was FIXED, delete its entry — that is the
     // intended end state. If it fails because one was ADDED, the addition is
     // the bug.
-    expect(exempt, hasLength(2));
+    expect(exempt, hasLength(1)); // login_page.dart fixed in PROD-006
   });
 }

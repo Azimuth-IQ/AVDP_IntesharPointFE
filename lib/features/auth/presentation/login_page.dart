@@ -9,10 +9,10 @@ import 'package:inteshar/core/api/endpoints.dart';
 import 'package:inteshar/core/locale/locale_controller.dart';
 import 'package:inteshar/core/storage/session_storage.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
+import 'package:inteshar/features/auth/presentation/login_brand_header.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/brand_cta.dart';
-import 'package:inteshar/shared/widgets/brand_star.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/password_field.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
@@ -385,7 +385,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           child: isWide
               ? Row(
                   children: [
-                    Expanded(child: _BrandPanel()),
+                    const Expanded(child: LoginBrandPanel()),
                     Expanded(
                       child: Center(
                         child: ConstrainedBox(
@@ -404,7 +404,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     GestureDetector(
                       onLongPress: () => context.push('/diagnostics'),
                       behavior: HitTestBehavior.opaque,
-                      child: const _MobileBrandHeader(),
+                      child: const LoginMobileBrandHeader(),
                     ),
                     // B-094: centre the card in the space that's left instead of
                     // top-aligning it. `Center` inside a scroll view does nothing
@@ -722,123 +722,6 @@ class _ChangePasswordForm extends StatelessWidget {
 /// B-094: the sign-in brand panel is now WHITE-dominant. It used to be a full-bleed
 /// gold band, which is why the whole app read as gold no matter what we re-themed.
 /// Gold survives as a precise accent — the star and a short rule — over paper.
-class _BrandPanel extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final l = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
-    final tones = context.tones;
-    return GestureDetector(
-      onLongPress: () => context.push('/diagnostics'),
-      behavior: HitTestBehavior.opaque,
-      child: ColoredBox(
-        color: cs.surface,
-        // B-094: centre a fixed-width brand block in this half rather than letting
-        // it hug the outer edge — with the form centred in the other half, edge-
-        // aligning here opened a dead channel down the middle of the page.
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 56, 24, 56),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  IntesharStar(size: 44, color: tones.brand),
-                  const SizedBox(height: IntesharSpacing.xxl),
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: AlignmentDirectional.centerStart,
-                    child: Text(
-                      'Inteshar',
-                      style: TextStyle(
-                        fontFamily: 'CodecPro',
-                        color: cs.onSurface,
-                        fontSize: 76,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -2.6,
-                        height: 1.0,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  // The one deliberate flash of brand colour on the panel.
-                  Container(width: 56, height: 3, color: tones.brand),
-                  const SizedBox(height: 20),
-                  Text(
-                    l.loginBrandTagline,
-                    style: TextStyle(
-                      fontFamily: 'CodecPro',
-                      color: cs.onSurfaceVariant,
-                      fontSize: 16.5,
-                      height: 1.55,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// B-094: the mobile sign-in header — white, compact, typographic. Replaces the
-/// gold band that dominated the first screen every operator sees.
-class _MobileBrandHeader extends StatelessWidget {
-  const _MobileBrandHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    final l = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
-    final tones = context.tones;
-    return ColoredBox(
-      color: cs.surface,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(28, 36, 28, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                IntesharStar(size: 30, color: tones.brand),
-                const SizedBox(width: IntesharSpacing.md),
-                Text(
-                  'Inteshar',
-                  style: TextStyle(
-                    fontFamily: 'CodecPro',
-                    color: cs.onSurface,
-                    fontSize: 34,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -1.2,
-                    height: 1.0,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: IntesharSpacing.sm2),
-            Text(
-              l.loginBrandTaglineShort,
-              style: TextStyle(
-                fontFamily: 'CodecPro',
-                fontSize: 14,
-                color: cs.onSurfaceVariant,
-                fontWeight: FontWeight.w500,
-                height: 1.4,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _LoginForm extends ConsumerWidget {
   final GlobalKey<FormState> formKey;
   final TextEditingController phoneCtrl;

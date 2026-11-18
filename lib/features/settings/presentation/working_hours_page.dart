@@ -64,6 +64,16 @@ class _S {
           'اختر حسابًا أعلاه لضبط نافذته الزمنية.');
   String get save => p('Save window', 'حفظ النافذة');
   String get savedMsg => p('Working hours saved.', 'تم حفظ ساعات العمل.');
+
+  // PROD-006: sign-in screen branding
+  String get loginBrandSection => p('Sign-in screen', 'شاشة تسجيل الدخول');
+  String get loginBrandDesc => p(
+        'A device that has signed in before shows its main agent\'s logo and colours on the sign-in screen. '
+        'This switch decides what a device that has never signed in shows.',
+        'الجهاز الذي سُجّل الدخول منه سابقاً يعرض شعار وألوان وكيله الرئيسي في شاشة الدخول. '
+        'هذا الخيار يحدد ما يظهر على جهاز لم يُسجَّل الدخول منه بعد.');
+  String get loginBrandToggle => p('Show Inteshar on the sign-in screen', 'إظهار انتشار في شاشة تسجيل الدخول');
+  String get loginBrandOff => p('Hidden — a new device shows a plain sign-in screen.', 'مخفي — الجهاز الجديد يعرض شاشة دخول بلا شعار.');
 }
 
 // ─── Page ───────────────────────────────────────────────────────────────────
@@ -97,6 +107,9 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
   bool _totpLoading = true;
   EntityType? _totpSaving;
   bool _globalLoading = true;
+  // PROD-006: null = never set (shown).
+  bool? _loginShowInteshar;
+  bool _loginBrandSaving = false;
   bool _globalSaving = false;
   Object? _globalError;
 
@@ -130,6 +143,7 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
     });
     try {
       final enabled = await _settingsRepo.getGlobalWorkingHoursEnabled();
+      final loginShow = await _settingsRepo.getLoginShowInteshar();
       final totp = <EntityType, bool?>{};
       for (final t in _totpTiers) {
         totp[t] = await _settingsRepo.getTotpRequired(t);
@@ -137,6 +151,7 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
       if (!mounted) return;
       setState(() {
         _globalEnabled = enabled;
+        _loginShowInteshar = loginShow;
         _totp
           ..clear()
           ..addAll(totp);
@@ -246,6 +261,8 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
                   const SizedBox(height: 20),
                   _totpCard(s),
                   const SizedBox(height: 20),
+                  _loginBrandCard(s),
+                  const SizedBox(height: 20),
                   _entityWindowCard(s),
                 ],
               ),
@@ -253,6 +270,52 @@ class _WorkingHoursPageState extends ConsumerState<WorkingHoursPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _toggleLoginBrand(bool value) async {
+    setState(() => _loginBrandSaving = true);
+    try {
+      await _settingsRepo.setLoginShowInteshar(value);
+      if (!mounted) return;
+      setState(() {
+        _loginShowInteshar = value;
+        _loginBrandSaving = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loginBrandSaving = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+    }
+  }
+
+  Widget _loginBrandCard(_S s) {
+    final cs = Theme.of(context).colorScheme;
+    final shown = _loginShowInteshar ?? true; // never set = shown, as the server does
+    return InkCard(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(s.loginBrandSection, style: IntesharType.sans(16, color: cs.onSurface, w: FontWeight.w800)),
+        const SizedBox(height: IntesharSpacing.xs),
+        Text(s.loginBrandDesc, style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
+        const SizedBox(height: IntesharSpacing.sm),
+        if (_globalLoading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: IntesharSpacing.lg),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else
+          SwitchListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            title: Text(s.loginBrandToggle, style: IntesharType.sans(14, color: cs.onSurface)),
+            subtitle: shown
+                ? null
+                : Text(s.loginBrandOff, style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
+            value: shown,
+            onChanged: _loginBrandSaving ? null : _toggleLoginBrand,
+          ),
+      ]),
     );
   }
 

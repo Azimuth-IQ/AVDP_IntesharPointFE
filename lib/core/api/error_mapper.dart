@@ -32,8 +32,53 @@ String? backendMessage(String? raw) {
       lower.startsWith('http status') ||
       lower.contains('status code') ||
       lower == 'unknown error' ||
-      lower == 'network error';
+      lower == 'network error' ||
+      _isTransportWording(lower);
   return technical ? null : msg;
+}
+
+/// PROD-016: the network library's own wording when no server answered — Dio's
+/// `DioException.message` for connection errors and timeouts, and the socket /
+/// TLS / browser errors underneath it. A Sunmi V2 with no internet showed
+/// "The connection errored: Failed host lookup: 'inteshar.azimuth-iraq.com' This
+/// indicates an error which most likely cannot be solved by the library" because
+/// none of the markers above matched it.
+bool _isTransportWording(String lower) =>
+    lower.startsWith('the connection errored') ||
+    lower.startsWith('the request connection took longer') ||
+    lower.startsWith('the request took longer') ||
+    lower.contains('failed host lookup') ||
+    lower.contains('socketexception') ||
+    lower.contains('handshakeexception') ||
+    lower.contains('connection refused') ||
+    lower.contains('connection reset') ||
+    lower.contains('network is unreachable') ||
+    lower.contains('xmlhttprequest') ||
+    lower.contains('cannot be solved by the library');
+
+/// The sign-in screen's error text (B-108, PROD-016).
+///
+/// * No HTTP status = the server never answered (offline, DNS, timeout): always
+///   the plain network message, whatever text the network library produced.
+/// * A 429 names the wait; a user-facing backend message wins otherwise
+///   ("Closed now — working hours are 09:00–21:00"); status-keyed text is the
+///   fallback for empty or technical bodies.
+String loginErrorText(AppLocalizations l, int? statusCode, [String? backend]) {
+  if (statusCode == null) return l.errNetwork;
+  // The server names the wait ("Try again in 30 minutes."). It used to say "a
+  // minute" for a 30-minute block, and a user who believed it kept retrying.
+  if (statusCode == 429) {
+    final m = RegExp(r'(\d+) minute').firstMatch(backend ?? '');
+    return m == null ? l.errTooManyAttempts : l.errTooManyAttemptsMinutes(int.parse(m.group(1)!));
+  }
+  final real = backendMessage(backend);
+  if (real != null) return real;
+  return switch (statusCode) {
+    401 => l.errWrongCredentials,
+    403 => l.errAccessDenied,
+    int s when s >= 500 => l.errServer,
+    _ => l.errGeneric,
+  };
 }
 
 /// Same as [friendlyError] when you already hold the [AppLocalizations] instance.

@@ -72,4 +72,42 @@ void main() {
       }
     });
   });
+
+  // PROD-016: a Sunmi V2 with no internet showed this, word for word, on the sign-in screen.
+  const v2Offline = "The connection errored: Failed host lookup: 'inteshar.azimuth-iraq.com' "
+      'This indicates an error which most likely cannot be solved by the library.';
+
+  group('the network library\'s own words never reach the user (PROD-016)', () {
+    test('Dio connection and timeout wording is technical', () {
+      for (final raw in [
+        v2Offline,
+        'The request connection took longer than 0:00:20.000000 and it was aborted.',
+        'The request took longer than 0:00:30.000000 to receive data.',
+        'SocketException: Connection refused (OS Error: Connection refused, errno = 111)',
+        'HandshakeException: Handshake error in client',
+        'The XMLHttpRequest onError callback was called.',
+      ]) {
+        expect(backendMessage(raw), isNull, reason: 'should reject: $raw');
+      }
+    });
+
+    test('offline sign-in reads as a network problem', () {
+      expect(loginErrorText(l, null, v2Offline), l.errNetwork);
+      expect(loginErrorText(l, null), l.errNetwork);
+    });
+
+    test('a status with the same wording still never shows it', () {
+      expect(loginErrorText(l, 403, v2Offline), l.errAccessDenied);
+      expect(friendlyErrorL(const ApiException(v2Offline, 400), l), l.errValidation);
+    });
+
+    test('real server reasons still win on sign-in', () {
+      expect(loginErrorText(l, 403, 'Closed now — working hours are 09:00–21:00'),
+          'Closed now — working hours are 09:00–21:00');
+      expect(loginErrorText(l, 401), l.errWrongCredentials);
+      expect(loginErrorText(l, 429, 'Too many attempts. Try again in 30 minutes.'),
+          l.errTooManyAttemptsMinutes(30));
+      expect(loginErrorText(l, 503), l.errServer);
+    });
+  });
 }

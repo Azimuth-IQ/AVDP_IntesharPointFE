@@ -1497,6 +1497,11 @@ class _SkuCard extends StatelessWidget {
 
 // ── Voucher sheet ───────────────────────────────────────────────────────────
 
+/// PROD-014: whether a sale prints by itself. A selected printer — reachable or not, the same
+/// rule as the Print button (UX-55: a probe can be wrong) — prints straight after the draw.
+/// With no printer the code is shown on screen with Copy/Share, as before.
+bool autoPrintAfterSale(PrinterState printer) => printer.hasPrinter;
+
 class _VoucherSheet extends ConsumerStatefulWidget {
   final SellableSku sku;
   // Fired the instant a card is drawn from the pool (a successful sale) so the parent
@@ -1713,6 +1718,8 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
         if (t.showAgentLogo) loadReceiptLogo(first.agentLogoUrl);
         if (t.showCompanyLogo) loadReceiptLogo(first.companyLogoUrl);
       }
+      // PROD-014: the batch prints at once too; failures are listed for reprint.
+      if (autoPrintAfterSale(ref.read(printerServiceProvider))) unawaited(_printAll(res));
     } catch (e) {
       if (mounted) {
         setState(() => _saleError =
@@ -1865,6 +1872,9 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
         final t = full.product.productDefinition.template;
         if (t.showAgentLogo) loadReceiptLogo(full.agentLogoUrl);
         if (t.showCompanyLogo) loadReceiptLogo(full.companyLogoUrl);
+        // PROD-014: one tap sells AND prints — no scrolling down to a Print button.
+        // A failed print keeps the persistent banner + Reprint (the code is sold).
+        if (autoPrintAfterSale(ref.read(printerServiceProvider))) unawaited(_print());
       }
     } catch (e) {
       if (!mounted) return;
@@ -2484,8 +2494,8 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                       s.price > 0 ? Formatters.iqd(s.price) : (Localizations.localeOf(context).languageCode == 'ar' ? 'السعر غير محدَّد' : 'Price not set'),
                       style: IntesharType.mono(16, color: context.tones.brandInk, w: FontWeight.w800),
                     ),
-                    const SizedBox(height: 16),
-                    _LockedQr(label: l.posPinHidden),
+                    // PROD-014: the locked "مخفي حتى الإظهار" box is gone — the code
+                    // appears (and prints) the moment the cashier taps Sell.
                     // PROD-013: no stock count here (it was the main agent's pool). A shop
                     // that can sell several sees the stepper, which states only the shop's
                     // own limits (daily cap, balance).
@@ -2674,8 +2684,14 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                               ? (ar
                                   ? 'بيع $_qty بطاقة · ${Formatters.iqd(((_quote?.unitPrice ?? widget.sku.price.toDouble()) * _qty).round())}'
                                   : 'Sell $_qty cards · ${Formatters.iqd(((_quote?.unitPrice ?? widget.sku.price.toDouble()) * _qty).round())}')
-                              : (ar ? 'بيع وإظهار' : 'Sell & reveal'))),
-                  leading: _revealing ? null : Icons.lock_open_outlined,
+                              : (autoPrintAfterSale(ref.watch(printerServiceProvider))
+                                  ? (ar ? 'بيع وطباعة' : 'Sell & print')
+                                  : (ar ? 'بيع وإظهار' : 'Sell & reveal')))),
+                  leading: _revealing
+                      ? null
+                      : (autoPrintAfterSale(ref.watch(printerServiceProvider))
+                          ? Icons.print_outlined
+                          : Icons.lock_open_outlined),
                   loading: _revealing,
                   onPressed: _revealing ? null : _reveal,
                 ),

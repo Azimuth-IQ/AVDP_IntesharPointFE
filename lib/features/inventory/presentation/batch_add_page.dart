@@ -1087,43 +1087,16 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
             // `governorate: null`. Asked for every format now — the file layout
             // picks the COLUMNS, not who may sell the cards.
             SectionLabel(_tr(context, 'نطاق البيع', 'Where these can be sold')),
-            // An unanswered scope must LOOK unanswered: `{_regionLockedScope ??
-            // true}` painted "One governorate" as already chosen while the
-            // value was still null, so nothing on the page looked missing.
-            SegmentedButton<bool>(
-              segments: [
-                ButtonSegment(
-                    value: true,
-                    label: Text(_tr(context, 'محافظة محددة', 'One governorate'))),
-                ButtonSegment(
-                    value: false,
-                    label: Text(_tr(context, 'كل المحافظات', 'All governorates'))),
-              ],
-              selected: _regionLockedScope == null
-                  ? const <bool>{}
-                  : {_regionLockedScope!},
-              emptySelectionAllowed: true,
-              onSelectionChanged: (v) => setState(() {
-                // An empty selection here would be the operator un-choosing;
-                // keep the last answer rather than silently reopening the hole.
-                if (v.isEmpty) return;
-                _regionLockedScope = v.first;
-                if (!v.first) _selectedGovernorate = null;
+            // PROD-015: one dropdown — all governorates, Baghdad, then the rest — instead of
+            // two buttons and a second list. Still unanswered until chosen (see the widget).
+            SaleScopeDropdown(
+              regionLocked: _regionLockedScope,
+              governorate: _selectedGovernorate,
+              onChanged: (locked, gov) => setState(() {
+                _regionLockedScope = locked;
+                _selectedGovernorate = gov;
               }),
             ),
-            if (_regionLockedScope == true) ...[
-              const SizedBox(height: IntesharSpacing.md),
-              GovernorateDropdown(
-                value: _selectedGovernorate,
-                // Inside the "one governorate" branch the null option is an
-                // unanswered question, not a second way to say "everywhere" —
-                // that choice is the segment above, and leaving this on null
-                // now blocks the import rather than shipping sell-anywhere stock.
-                noneLabel: _tr(context, '— اختر المحافظة —', '— Choose a governorate —'),
-                labelText: l.batchAddGovernorate,
-                onChanged: (v) => setState(() => _selectedGovernorate = v),
-              ),
-            ],
             const SizedBox(height: IntesharSpacing.sm),
             Builder(builder: (context) {
               // While the scope is still open the summary is not a note, it is
@@ -1152,37 +1125,13 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
             }),
             IntesharSpacing.gapXl,
 
-            // ── File pick + template ─────────────────────────────────────
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: _pickFile,
-                    icon: const Icon(Icons.upload_file_outlined, size: 18),
-                    label: Text(l.batchAddPickFile),
-                  ),
-                ),
-                const SizedBox(width: IntesharSpacing.sm2),
-                OutlinedButton.icon(
-                  onPressed: _downloadTemplate,
-                  icon: const Icon(Icons.file_download_outlined, size: 18),
-                  label: Text(_tr(context, 'قالب', 'Template')),
-                ),
-              ],
-            ),
-            if (_fileName != null) ...[
-              const SizedBox(height: IntesharSpacing.sm),
-              Text('📄 $_fileName',
-                  style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
-            ],
-
-            // ── Or paste rows (auto-detects NEW vs OTHER from the columns) ──
-            const SizedBox(height: IntesharSpacing.lg),
-            SectionLabel(_tr(context, 'أو الصق الصفوف', 'Or paste rows')),
+            // PROD-015: pasting comes first («الاولوية للنسخ»); the file button is a small
+            // one under the box. Pasted rows auto-detect NEW vs OTHER from the columns.
+            SectionLabel(_tr(context, 'الصق الصفوف', 'Paste rows')),
             TextField(
               controller: _pasteCtrl,
-              minLines: 3,
-              maxLines: 8,
+              minLines: 4,
+              maxLines: 10,
               style: IntesharType.mono(12),
               decoration: InputDecoration(
                 hintText: isNew
@@ -1193,6 +1142,31 @@ class _UploadTabState extends ConsumerState<_UploadTab> {
               ),
               onChanged: _onPasteChanged,
             ),
+            const SizedBox(height: IntesharSpacing.md),
+            Wrap(
+              spacing: IntesharSpacing.sm2,
+              runSpacing: IntesharSpacing.sm,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _pickFile,
+                  style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
+                  icon: const Icon(Icons.upload_file_outlined, size: 16),
+                  label: Text(_tr(context, 'أو اختر ملف CSV / XLSX', 'Or choose a CSV / XLSX file')),
+                ),
+                TextButton.icon(
+                  onPressed: _downloadTemplate,
+                  style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                  icon: const Icon(Icons.file_download_outlined, size: 16),
+                  label: Text(_tr(context, 'قالب', 'Template')),
+                ),
+              ],
+            ),
+            if (_fileName != null) ...[
+              const SizedBox(height: IntesharSpacing.sm),
+              Text('📄 $_fileName',
+                  style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
+            ],
 
             // ── Error banner ─────────────────────────────────────────────
             if (_error != null) ...[

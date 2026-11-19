@@ -34,6 +34,7 @@ import 'package:inteshar/features/notifications/presentation/alert_banner.dart';
 import 'package:inteshar/features/pos/presentation/pos_account_panel.dart';
 import 'package:inteshar/features/pos/presentation/pos_brand.dart';
 import 'package:inteshar/features/pos/presentation/pos_app_bar_title.dart';
+import 'package:inteshar/core/geo/device_location.dart';
 import 'package:inteshar/features/pos/presentation/pos_sales_panel.dart';
 import 'package:inteshar/features/pos/presentation/pos_statement_panel.dart';
 import 'package:inteshar/features/pos/presentation/print_queue_indicator.dart';
@@ -2782,6 +2783,7 @@ class _LocationGate extends ConsumerStatefulWidget {
 
 class _LocationGateState extends ConsumerState<_LocationGate> {
   bool _busy = false;
+  bool _locating = false;
 
   Future<void> _confirm() async {
     // B-080: start on the hint the onboarding agent dropped (if any) rather than
@@ -2791,10 +2793,26 @@ class _LocationGateState extends ConsumerState<_LocationGate> {
     final hint = (prof?.latitude != null && prof?.longitude != null)
         ? LatLng(prof!.latitude!, prof.longitude!)
         : null;
-    final picked = await pickLocationOnMap(context, initial: hint);
+    // PROD-010: the tap reads the device's own position («مجرد ما اضغط يجيبه الموقع مالتي»)
+    // and the map opens already pinned there — the cashier only confirms. A fix is never
+    // saved unseen (a coarse network fix can be off by a street). No fix at all (location
+    // off, permission refused, nothing indoors) → the map as before, on the agent's hint.
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _locating = true);
+    final here = await currentDeviceLocation();
+    if (!mounted) return;
+    setState(() => _locating = false);
+    if (here == null) {
+      final ar = Localizations.localeOf(context).languageCode == 'ar';
+      messenger.showSnackBar(SnackBar(
+        content: Text(ar
+            ? 'تعذّر تحديد موقع الجهاز — شغّل الموقع أو حدّده على الخريطة.'
+            : 'Could not get the device location — turn location on or pick it on the map.'),
+      ));
+    }
+    final picked = await pickLocationOnMap(context, initial: here ?? hint);
     if (picked == null || !mounted) return;
     setState(() => _busy = true);
-    final messenger = ScaffoldMessenger.of(context);
     try {
       await PosSelfRepository(ref.read(apiClientProvider))
           .confirmLocation(latitude: picked.latitude, longitude: picked.longitude);
@@ -2835,10 +2853,12 @@ class _LocationGateState extends ConsumerState<_LocationGate> {
             ),
             const SizedBox(height: 22),
             BrandCTAButton(
-              label: ar ? 'تحديد الموقع على الخريطة' : 'Pick location on map',
-              leading: Icons.map_outlined,
-              loading: _busy,
-              onPressed: _busy ? null : _confirm,
+              label: _locating
+                  ? (ar ? 'جارٍ تحديد موقعك…' : 'Finding your location…')
+                  : (ar ? 'تحديد موقعي الحالي' : 'Use my current location'),
+              leading: Icons.my_location_outlined,
+              loading: _busy || _locating,
+              onPressed: (_busy || _locating) ? null : _confirm,
             ),
           ]),
         ),

@@ -121,6 +121,7 @@ class PrinterStatusChip extends StatelessWidget {
     this.onTap,
     this.maxWidth = 132,
     this.filled = false,
+    this.iconOnly = false,
   });
 
   final PrinterState state;
@@ -132,11 +133,36 @@ class PrinterStatusChip extends StatelessWidget {
   /// chip stays flat.
   final bool filled;
 
+  /// PROD-011: just the icon, in the status colour, with the label as its tooltip and semantics —
+  /// for the POS app bar on a 5" terminal, where the words crowded out the shop's name.
+  final bool iconOnly;
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final info = printerStatusInfo(state, ar: ar);
     final tint = info.tone.color(context);
+
+    if (iconOnly) {
+      final icon = Semantics(
+        label: info.label,
+        button: onTap != null,
+        child: Tooltip(
+          message: info.label,
+          child: SizedBox(
+            width: 48,
+            height: 48,
+            child: Center(child: Icon(info.icon, size: 22, color: tint)),
+          ),
+        ),
+      );
+      if (onTap == null) return icon;
+      return InkWell(
+        borderRadius: BorderRadius.circular(IntesharRadii.pill),
+        onTap: onTap,
+        child: icon,
+      );
+    }
 
     final row = Row(
       mainAxisSize: MainAxisSize.min,

@@ -33,6 +33,7 @@ import 'package:inteshar/features/entities/data/entity_repository.dart';
 import 'package:inteshar/features/notifications/presentation/alert_banner.dart';
 import 'package:inteshar/features/pos/presentation/pos_account_panel.dart';
 import 'package:inteshar/features/pos/presentation/pos_brand.dart';
+import 'package:inteshar/features/pos/presentation/pos_app_bar_title.dart';
 import 'package:inteshar/features/pos/presentation/pos_sales_panel.dart';
 import 'package:inteshar/features/pos/presentation/pos_statement_panel.dart';
 import 'package:inteshar/features/pos/presentation/print_queue_indicator.dart';
@@ -267,7 +268,6 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
     final auth = ref.watch(authStateProvider).valueOrNull;
     // Show the shop's own trade name as the title (falls back to a generic label).
     final shopName = (auth is AuthAuthenticated && auth.entity.meta.name.isNotEmpty)
@@ -277,45 +277,10 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 16,
-        title: GestureDetector(
+        // PROD-011: logo + the shop's full name (up to two lines); no "live counter" line.
+        title: PosAppBarTitle(
+          shopName: shopName,
           onLongPress: () => context.push('/diagnostics'),
-          child: Row(
-            children: [
-              // White-label: the owning agent's logo (falls back to the shop's
-              // initial), never the Inteshar star (B-083).
-              const PosBrandMark(size: 26),
-              const SizedBox(width: 12),
-              // Expanded so both lines actually ellipsise: a Row lays non-flex
-              // children out unbounded, which is where a long shop name gets to
-              // overflow instead of truncating.
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      shopName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: IntesharType.codec(size: 20, w: FontWeight.w800, color: cs.onSurface, letterSpacing: -0.3, height: 1),
-                    ),
-                    const SizedBox(height: 2),
-                    // UX-89: "العداد المباشر" is a claim about freshness, so it
-                    // now carries the evidence — when these counts were last
-                    // fetched. The counter is genuinely live (resume + poll, see
-                    // _startPolling); the stamp is how the operator can tell,
-                    // and it stops moving the moment a refresh starts failing.
-                    Text(
-                      _counterSubtitle(l),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: IntesharType.codec(size: 11, color: cs.onSurfaceVariant, letterSpacing: 0.2, w: IntesharWeight.semibold),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
         ),
         actions: [
           // UX-55/UX-63: one chip, one vocabulary (see printer_status_chip.dart).
@@ -329,6 +294,9 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
               child: PrinterStatusChip(
                 state: ref.watch(printerServiceProvider),
                 ar: _ar,
+                // PROD-011: on a phone-width terminal the printer is an icon in its status
+                // colour (the words are its tooltip and on the printer page).
+                iconOnly: MediaQuery.sizeOf(ctx).width < 600,
                 onTap: () => Navigator.push<void>(
                     ctx, MaterialPageRoute(builder: (_) => const PrinterPickerPage())),
               ),
@@ -388,17 +356,6 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
   /// "Just now" for the first minute (the poll interval — anything finer would
   /// be a ticking number nobody reads), then the clock time it was fetched, so a
   /// stale screen is obvious at a glance rather than implied.
-  String _counterSubtitle(AppLocalizations l) {
-    final at = _updatedAt;
-    if (at == null) return l.posHomeLiveCounter;
-    final age = DateTime.now().difference(at);
-    final ar = _ar;
-    final stamp = age < const Duration(minutes: 1)
-        ? (ar ? 'الآن' : 'just now')
-        : '${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}';
-    return '${l.posHomeLiveCounter} · ${ar ? 'حُدّث' : 'updated'} $stamp';
-  }
-
   /// Builds only the selected tab (lazy) — see the body comment above.
   Widget _tabBody(AppLocalizations l) {
     switch (_tab) {

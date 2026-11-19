@@ -57,10 +57,6 @@ class PosHomePage extends ConsumerStatefulWidget {
   ConsumerState<PosHomePage> createState() => _PosHomePageState();
 }
 
-/// Sentinel governorate bucket for region-free (untagged) vouchers, kept distinct
-/// from a real governorate name in the drill-down grouping.
-const String _kRegionFree = '\u0000region-free';
-
 class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingObserver {
   List<SellableSku>? _sellable;
   AgentBalance? _balance;
@@ -95,15 +91,11 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
   /// rebuild the screen under a sale in progress.
   Timer? _poll;
   static const _pollEvery = Duration(seconds: 60);
-  final TextEditingController _searchCtrl = TextEditingController();
-  String _search = '';
   int _tab = 0; // bottom nav: 0=Store, 1=الحسابات, 2=التقارير, 3=التواصل, 4=الحساب
 
-  // Drill-down navigation state: Home (companies) → Governorate (only when a
-  // company spans >1 region bucket) → Card types. Null [_company] == the home step.
+  // Drill-down navigation state: Home (companies) → Card types (PROD-012: no
+  // governorate step). Null [_company] == the home step.
   String? _company;      // selected company key ('' = the "Other" bucket)
-  bool _govChosen = false;
-  String? _gov;          // chosen governorate; null (with [_govChosen]) = region-free
 
   // B-065: when the app was backgrounded, re-lock the session on return if it was
   // away long enough to be a walk-away — but NOT for the brief background caused by
@@ -125,7 +117,6 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _poll?.cancel();
-    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -441,95 +432,14 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
     return m;
   }
 
-  /// Distinct governorate buckets for [rows] (region-free represented by
-  /// [_kRegionFree]), named governorates first then region-free last.
-  List<String> _buckets(List<SellableSku> rows) {
-    final set = <String>{};
-    for (final s in rows) {
-      final g = (s.governorate ?? '').trim();
-      set.add(g.isEmpty ? _kRegionFree : g);
-    }
-    final list = set.toList()
-      ..sort((a, b) {
-        if (a == _kRegionFree) return 1;
-        if (b == _kRegionFree) return -1;
-        return a.compareTo(b);
-      });
-    return list;
-  }
+  /// PROD-012: the card types of the chosen company — one tile per card type, never a governorate
+  /// name or a governorate step (see [posMergeRegions]).
+  List<SellableSku> _currentCards() =>
+      posMergeRegions(_companyGroups()[_company] ?? const <SellableSku>[]);
 
-  /// The SKU cards for the current (company, chosen bucket), filtered by search.
-  List<SellableSku> _currentCards() {
-    var rows = _companyGroups()[_company] ?? const <SellableSku>[];
-    if (_govChosen) {
-      rows = rows.where((s) {
-        final g = (s.governorate ?? '').trim();
-        return _gov == null ? g.isEmpty : g == _gov;
-      }).toList();
-    }
-    if (_search.isEmpty) return rows;
-    final q = _search.toLowerCase();
-    return rows
-        .where((s) => s.name.toLowerCase().contains(q) || s.sku.toLowerCase().contains(q))
-        .toList();
-  }
+  void _openCompany(String companyKey) => setState(() => _company = companyKey);
 
-  /// B-064: every sellable SKU matching [q] across ALL companies/governorates —
-  /// the home-step global search that skips the company→region→card drill.
-  List<SellableSku> _globalMatches(String q) {
-    final query = q.trim().toLowerCase();
-    return (_sellable ?? const <SellableSku>[])
-        .where((s) =>
-            s.name.toLowerCase().contains(query) ||
-            s.sku.toLowerCase().contains(query) ||
-            (s.companyName ?? '').toLowerCase().contains(query))
-        .toList();
-  }
-
-  /// UX-60: the query and the box that shows it are one thing — resetting one
-  /// without the other left the screen contradicting itself (results cleared,
-  /// the typed text still sitting in the field).
-  void _clearSearchField() {
-    _searchCtrl.clear();
-    _search = '';
-  }
-
-  void _openCompany(String companyKey, List<SellableSku> rows) {
-    final buckets = _buckets(rows);
-    setState(() {
-      _company = companyKey;
-      _clearSearchField();
-      if (buckets.length > 1) {
-        _govChosen = false; // route through the governorate step
-        _gov = null;
-      } else {
-        _govChosen = true; // single bucket — straight to cards
-        _gov = buckets.first == _kRegionFree ? null : buckets.first;
-      }
-    });
-  }
-
-  void _openBucket(String bucket) => setState(() {
-        _govChosen = true;
-        _gov = bucket == _kRegionFree ? null : bucket;
-        _clearSearchField();
-      });
-
-  void _back() {
-    final rows = _companyGroups()[_company] ?? const <SellableSku>[];
-    final multiBucket = _buckets(rows).length > 1;
-    setState(() {
-      _clearSearchField();
-      if (_govChosen && multiBucket) {
-        _govChosen = false; // cards → governorate
-        _gov = null;
-      } else {
-        _company = null; // → home
-        _govChosen = false;
-        _gov = null;
-      }
-    });
-  }
+  void _back() => setState(() => _company = null);
 
   // ── Step router ─────────────────────────────────────────────────────────────
 
@@ -547,8 +457,6 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
       });
     }
     if (_company == null) return _homeStep(l);
-    final rows = _companyGroups()[_company] ?? const <SellableSku>[];
-    if (!_govChosen && _buckets(rows).length > 1) return _governorateStep(l, rows);
     return _cardsStep(l);
   }
 
@@ -594,67 +502,13 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
     final keys = groups.keys.toList()
       ..sort((a, b) => _companyLabel(a).toLowerCase().compareTo(_companyLabel(b).toLowerCase()));
 
-    final searching = _search.trim().isNotEmpty;
-    final matches = searching ? _globalMatches(_search) : const <SellableSku>[];
-
-    // SKU-card grid geometry for the global search results.
-    final skuExtent = _skuTileExtent();
-    final skuRowHeight = _skuRowHeight();
-
     return MaxWidthBox(
       child: RefreshIndicator(
         onRefresh: _load,
         child: CustomScrollView(
           slivers: [
             SliverToBoxAdapter(child: _header(l, title: l.posHomePickDenomination, subtitle: l.posHomeCounterSubtitle)),
-            // Global search: type a company/name/SKU and sell straight from the
-            // results — no company→region→card drill for a known card (B-064).
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
-                child: TextField(
-                  // UX-60: controller-backed, so clearing the query clears the box.
-                  controller: _searchCtrl,
-                  decoration: InputDecoration(
-                    hintText: l.posHomeSearchHint,
-                    prefixIcon: const Icon(Icons.search, size: 18),
-                    suffixIcon: searching
-                        ? IconButton(
-                            icon: const Icon(Icons.close, size: 18),
-                            tooltip: _ar ? 'مسح البحث' : 'Clear search',
-                            onPressed: () => setState(_clearSearchField),
-                          )
-                        : null,
-                  ),
-                  onChanged: (v) => setState(() => _search = v),
-                ),
-              ),
-            ),
-            if (searching) ...[
-              if (matches.isEmpty)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 40),
-                    child: EmptyState(message: l.posHomeNoMatches(_search)),
-                  ),
-                )
-              else
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
-                  sliver: SliverGrid(
-                    gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: skuExtent,
-                      mainAxisSpacing: 14,
-                      crossAxisSpacing: 14,
-                      mainAxisExtent: skuRowHeight,
-                    ),
-                    delegate: SliverChildBuilderDelegate(
-                      (context, i) => _SkuCard(sellable: matches[i], decodeWidth: skuExtent, onTap: () => _showVoucher(matches[i])),
-                      childCount: matches.length,
-                    ),
-                  ),
-                ),
-            ] else ...[
+            // PROD-012: no search bar (the client: «الغي شريط البحث ما احتاجة»).
               if (_sliderUrls.isNotEmpty)
                 SliverToBoxAdapter(child: _HomeSlider(urls: _sliderUrls)),
               SliverToBoxAdapter(
@@ -694,47 +548,15 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
                           decodeWidth: MediaQuery.sizeOf(context).width / _gridCols(),
                           name: _companyLabel(key),
                           logoUrl: rows.firstWhere((s) => (s.companyLogoUrl ?? '').isNotEmpty, orElse: () => rows.first).companyLogoUrl,
-                          onTap: () => _openCompany(key, rows),
+                          onTap: () => _openCompany(key),
                         );
                       },
                       childCount: keys.length,
                     ),
                   ),
                 ),
-            ],
           ],
         ),
-      ),
-    );
-  }
-
-  // Governorate step: shown only when the chosen company spans >1 region bucket.
-  Widget _governorateStep(AppLocalizations l, List<SellableSku> rows) {
-    final buckets = _buckets(rows);
-    return MaxWidthBox(
-      child: Column(
-        children: [
-          _header(l, title: _companyLabel(_company!), subtitle: _ar ? 'اختر المحافظة' : 'Choose a governorate', onBack: _back),
-          Expanded(
-            child: GridView.builder(
-              padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: _gridCols(),
-                mainAxisSpacing: 14,
-                crossAxisSpacing: 14,
-                mainAxisExtent: 118,
-              ),
-              itemCount: buckets.length,
-              itemBuilder: (context, i) {
-                final b = buckets[i];
-                return _GovCard(
-                  label: b == _kRegionFree ? (_ar ? 'بدون تخصيص' : 'Region-free') : b,
-                  onTap: () => _openBucket(b),
-                );
-              },
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -742,10 +564,8 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
   // Card-types step: the SKUs (with artwork) for the chosen company/governorate.
   Widget _cardsStep(AppLocalizations l) {
     final cards = _currentCards();
-    final all = _companyGroups()[_company] ?? const <SellableSku>[];
-    final subtitle = _govChosen && _gov != null
-        ? _gov!
-        : (_ar ? 'اختر نوع البطاقة' : 'Choose a card type');
+    // PROD-012: never a governorate name («اخفاء اسماء المحافظات بالتطبيق»).
+    final subtitle = _ar ? 'اختر نوع البطاقة' : 'Choose a card type';
     final tileExtent = _skuTileExtent();
     final rowHeight = _skuRowHeight();
 
@@ -753,30 +573,11 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
       child: Column(
         children: [
           _header(l, title: _companyLabel(_company!), subtitle: subtitle, onBack: _back),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-            child: TextField(
-              // UX-60: same controller as the home step, and a clear button this
-              // field never had.
-              controller: _searchCtrl,
-              decoration: InputDecoration(
-                hintText: l.posHomeSearchHint,
-                prefixIcon: const Icon(Icons.search, size: 18),
-                suffixIcon: _search.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.close, size: 18),
-                        tooltip: _ar ? 'مسح البحث' : 'Clear search',
-                        onPressed: () => setState(_clearSearchField),
-                      )
-                    : null,
-              ),
-              onChanged: (v) => setState(() => _search = v),
-            ),
-          ),
+          const SizedBox(height: 8),
           if (cards.isEmpty)
             Expanded(
               child: EmptyState(
-                message: all.isEmpty ? l.posHomeNoVouchers : l.posHomeNoMatches(_search),
+                message: l.posHomeNoVouchers,
                 actionLabel: l.retryButton,
                 onAction: _load,
               ),
@@ -1274,44 +1075,6 @@ class _CompanyCard extends StatelessWidget {
       );
 }
 
-// ── Governorate card ──────────────────────────────────────────────────────────
-
-class _GovCard extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-  const _GovCard({required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return PressableScale(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: cs.surfaceContainer,
-          borderRadius: BorderRadius.circular(IntesharRadii.lg),
-          boxShadow: IntesharShadows.elev1,
-        ),
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(Icons.location_on_outlined, color: context.tones.brandInk, size: 26),
-            const Spacer(),
-            Text(
-              label,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: IntesharType.codec(color: cs.onSurface, size: 16, w: FontWeight.w800, letterSpacing: -0.2, height: 1.1),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 // ── SKU card (card type with artwork) ─────────────────────────────────────────
 
 class _SkuCard extends StatelessWidget {
@@ -1496,6 +1259,27 @@ class _SkuCard extends StatelessWidget {
 }
 
 // ── Voucher sheet ───────────────────────────────────────────────────────────
+
+/// PROD-012: one tile per card type for a shop. With governorates hidden, a company's cards for the
+/// shop's own governorate and its all-Iraq (untagged) cards of the same type show as ONE tile. The
+/// tile stands for the bucket the next sale should draw from: one the shop can afford first, then one
+/// in stock, and the shop's own governorate before all-Iraq. Each sale still names that bucket's
+/// governorate to the server, so the server-side geo-lock and per-governorate prices are unchanged.
+List<SellableSku> posMergeRegions(List<SellableSku> rows) {
+  int rank(SellableSku s) {
+    final stock = s.affordable > 0 ? 0 : (s.available > 0 ? 1 : 2);
+    final allIraq = (s.governorate ?? '').trim().isEmpty ? 1 : 0;
+    return stock * 2 + allIraq;
+  }
+
+  final bySku = <String, List<SellableSku>>{};
+  for (final s in rows) {
+    bySku.putIfAbsent(s.sku, () => []).add(s);
+  }
+  return [
+    for (final group in bySku.values) (List.of(group)..sort((a, b) => rank(a).compareTo(rank(b)))).first,
+  ];
+}
 
 /// PROD-014: whether a sale prints by itself. A selected printer — reachable or not, the same
 /// rule as the Print button (UX-55: a probe can be wrong) — prints straight after the draw.

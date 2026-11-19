@@ -1845,8 +1845,15 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                             errorBuilder: (_, _, _) => const SizedBox.shrink()),
                         const SizedBox(height: 8),
                       ],
-                      const PosBrandMark(size: 40),
-                      const SizedBox(height: 10),
+                      // PROD-014 follow-up: the brand mark IS the agent's logo, so drawing it
+                      // after the template's agent logo showed that logo twice (the client's
+                      // video; reproduced on the emulator). The paper prints it once
+                      // (escpos_builder.dart), so the preview now does too; the mark stays only
+                      // when no agent logo is drawn above.
+                      if (!(t.showAgentLogo && (_agentLogoUrl ?? '').trim().isNotEmpty)) ...[
+                        const PosBrandMark(size: 40),
+                        const SizedBox(height: 10),
+                      ],
                       Text(
                         t.headerText.trim().isNotEmpty
                             ? t.headerText.trim().toUpperCase()

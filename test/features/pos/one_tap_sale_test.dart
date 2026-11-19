@@ -55,4 +55,12 @@ void main() {
       expect(presale, isNot(contains('_LockedQr(label: l.posPinHidden)')));
     });
   });
+
+  test('the receipt preview draws the agent logo once (PROD-014 follow-up)', () {
+    final src = File('lib/features/pos/presentation/pos_home_page.dart').readAsStringSync();
+    final start = src.indexOf('Branding logos actually printed on the receipt');
+    final block = src.substring(start, src.indexOf('t.headerText.trim().isNotEmpty', start));
+    expect(block, contains("if (!(t.showAgentLogo && (_agentLogoUrl ?? '').trim().isNotEmpty)) ...["));
+    expect(RegExp(r'^\s*const PosBrandMark\(size: 40\),', multiLine: true).allMatches(block), hasLength(1));
+  });
 }

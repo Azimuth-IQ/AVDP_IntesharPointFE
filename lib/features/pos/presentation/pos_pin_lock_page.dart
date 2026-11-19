@@ -386,7 +386,7 @@ class _LockForm extends StatelessWidget {
 
         if (usePad) ...[
           const SizedBox(height: 18),
-          _NumericPad(
+          PosPinPad(
             enabled: !loading,
             onDigit: onDigit,
             onBackspace: onBackspace,
@@ -450,6 +450,8 @@ class _PinDots extends StatelessWidget {
       ),
       child: obscure
           ? Row(
+              // PROD-009: fill left to right, the same way the pad reads.
+              textDirection: TextDirection.ltr,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 for (var i = 0; i < kPosPinLength; i++)
@@ -480,7 +482,11 @@ class _PinDots extends StatelessWidget {
 /// A 3×4 numeric pad sized for a thumb on a 5" handheld. No OS keyboard, so
 /// nothing slides up over the screen and the digits stay where the operator's
 /// muscle memory left them.
-class _NumericPad extends StatelessWidget {
+///
+/// PROD-009: always left-to-right — 1 2 3 on top, like every phone and card
+/// terminal. Rows follow the text direction, so in Arabic the pad used to read
+/// 3 2 1 and cashiers typed the wrong PIN by habit.
+class PosPinPad extends StatelessWidget {
   final bool enabled;
   final ValueChanged<String> onDigit;
   final VoidCallback onBackspace;
@@ -488,7 +494,8 @@ class _NumericPad extends StatelessWidget {
   final bool obscure;
   final ColorScheme cs;
 
-  const _NumericPad({
+  const PosPinPad({
+    super.key,
     required this.enabled,
     required this.onDigit,
     required this.onBackspace,
@@ -527,21 +534,24 @@ class _NumericPad extends StatelessWidget {
           ),
         );
 
-    return Column(
-      children: [
-        for (final row in const [
-          ['1', '2', '3'],
-          ['4', '5', '6'],
-          ['7', '8', '9'],
-        ])
-          Row(children: [for (final d in row) key(d)]),
-        Row(children: [
-          key('', onTap: onToggleObscure,
-              icon: obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-          key('0'),
-          key('', onTap: onBackspace, icon: Icons.backspace_outlined),
-        ]),
-      ],
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: Column(
+        children: [
+          for (final row in const [
+            ['1', '2', '3'],
+            ['4', '5', '6'],
+            ['7', '8', '9'],
+          ])
+            Row(children: [for (final d in row) key(d)]),
+          Row(children: [
+            key('', onTap: onToggleObscure,
+                icon: obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+            key('0'),
+            key('', onTap: onBackspace, icon: Icons.backspace_outlined),
+          ]),
+        ],
+      ),
     );
   }
 }

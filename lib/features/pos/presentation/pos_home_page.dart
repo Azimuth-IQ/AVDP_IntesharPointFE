@@ -1484,7 +1484,8 @@ class _SkuCard extends StatelessWidget {
     );
   }
 
-  /// How many of this card can actually be sold right now — or why none can.
+  /// Whether this card can be sold right now — or why not. PROD-013: no count; the client does not
+  /// want shops to see how many cards the main agent holds.
   Widget _availabilityLine(BuildContext context, {required bool ar, required bool unaffordable}) {
     final cs = Theme.of(context).colorScheme;
     final color = unaffordable ? context.status.warn : context.status.success;
@@ -1496,7 +1497,8 @@ class _SkuCard extends StatelessWidget {
           child: Text(
             unaffordable
                 ? (ar ? 'الرصيد لا يكفي' : 'Balance too low')
-                : (ar ? 'يمكن بيع ${sellable.affordable}' : 'Can sell ${sellable.affordable}'),
+                // PROD-013: never a count — the number was the main agent's stock.
+                : (ar ? 'متاح للبيع' : 'Available'),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: IntesharType.codec(
@@ -2234,9 +2236,9 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
               style: IntesharType.mono(28, color: cs.onSurface, w: kMonoHeaviest),
               decoration: InputDecoration(
                 counterText: '',
-                // The ceiling, stated where the number is entered — a typed 50
-                // against a max of 12 is otherwise a silent correction.
-                helperText: ar ? 'الحد الأقصى $_maxQty' : 'Max $_maxQty',
+                // PROD-013: the ceiling is not printed (it is the agent's stock); a
+                // larger number is clamped, and the stepper says so.
+                helperText: ar ? 'تُخفَّض الكمية الأكبر من المتاح تلقائياً' : 'More than available is reduced automatically',
                 helperMaxLines: 2,
               ),
               onSubmitted: (_) => submit(),
@@ -2248,7 +2250,8 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
               runSpacing: 8,
               alignment: WrapAlignment.center,
               children: [
-                for (final n in <int>{5, 10, 20, 50, _maxQty}.where((n) => n > 1 && n <= _maxQty).toList()..sort())
+                // PROD-013: no chip for the exact maximum — it would print the stock.
+                for (final n in <int>{5, 10, 20, 50}.where((n) => n <= _maxQty).toList()..sort())
                   ActionChip(
                     label: Text('$n'),
                     onPressed: () => Navigator.pop(ctx, n),
@@ -2276,18 +2279,20 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
     final total = unit * _qty;
 
     // Explain the binding constraint so the operator isn't left guessing.
+    // PROD-013: only the SHOP's own limits carry a number (its daily cap, its balance).
+    // Stock, or a bare maximum that equals it, is never printed — at the ceiling the
+    // operator just sees that no more are available.
     String? hint;
     if (_maxQty <= 1) {
       hint = null;
     } else if (q != null && _maxQty < q.configuredLimit) {
       hint = switch (q.limitedBy) {
         'CAP' => ar ? 'الحد اليومي: $_maxQty متبقية' : 'Daily limit — $_maxQty left',
-        'STOCK' => ar ? 'المتوفر: $_maxQty فقط' : 'Only $_maxQty in stock',
         'BALANCE' => ar ? 'رصيدك يكفي $_maxQty' : 'Your balance covers $_maxQty',
-        _ => ar ? 'الحد الأقصى $_maxQty' : 'Max $_maxQty',
+        _ => _qty >= _maxQty ? (ar ? 'لا توجد كمية إضافية متاحة' : 'No more available') : null,
       };
     } else {
-      hint = ar ? 'الحد الأقصى $_maxQty' : 'Max $_maxQty';
+      hint = _qty >= _maxQty ? (ar ? 'لا توجد كمية إضافية متاحة' : 'No more available') : null;
     }
 
     return Padding(
@@ -2524,21 +2529,9 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                     ),
                     const SizedBox(height: 16),
                     _LockedQr(label: l.posPinHidden),
-                    const SizedBox(height: 14),
-                    Text(
-                      Localizations.localeOf(context).languageCode == 'ar' ? 'المتوفر في مخزن الوكيل: ${s.available}' : 'In main-agent pool: ${s.available}',
-                      style: IntesharType.codec(size: 12, color: cs.onSurfaceVariant, w: FontWeight.w700),
-                    ),
-                    // UX-52: the tile's count and this pool count are DIFFERENT
-                    // numbers (what your balance covers vs. what the agent holds),
-                    // which read as a contradiction. Say both when they differ.
-                    if (s.affordable < s.available) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        _ar ? 'رصيدك يكفي ${s.affordable} بطاقة' : 'Your balance covers ${s.affordable}',
-                        style: IntesharType.codec(size: 12, color: context.tones.brandInk, w: FontWeight.w800),
-                      ),
-                    ],
+                    // PROD-013: no stock count here (it was the main agent's pool). A shop
+                    // that can sell several sees the stepper, which states only the shop's
+                    // own limits (daily cap, balance).
                     // B-086: sell several cards at once (a shop asking for e.g. 10).
                     // Only rendered when this account is actually allowed more than one.
                     if (_bulkAvailable) _quantityStepper(cs),

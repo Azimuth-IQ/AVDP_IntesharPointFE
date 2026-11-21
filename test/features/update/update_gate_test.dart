@@ -41,13 +41,16 @@ class _Counter extends StatefulWidget {
   const _Counter();
   static int created = 0;
   @override
-  State<_Counter> createState() {
-    created++;
-    return _CounterState();
-  }
+  State<_Counter> createState() => _CounterState();
 }
 
 class _CounterState extends State<_Counter> {
+  @override
+  void initState() {
+    super.initState();
+    _Counter.created++;
+  }
+
   @override
   Widget build(BuildContext context) => const Text('SALE ON SCREEN');
 }

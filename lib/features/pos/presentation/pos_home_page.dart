@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
@@ -1320,6 +1319,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
   String? _categoryName;
   bool _revealing = false;
   bool _printing = false;
+  bool _printedOnce = false; // PROD-020: the sheet stays open after printing; the button reads «إعادة الطباعة»
   /// Last draw/sale failure — shown as a persistent in-sheet banner. Classified
   /// (UX-62) so "the server refused" and "we never heard back" don't read the
   /// same: only the second one may have consumed a card.
@@ -1721,7 +1721,9 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
       // printer failures.
       await ref.read(printQueueProvider).enqueue(job);
       await _confirmPrinted();
-      if (mounted) widget.onPrinted();
+      // PROD-020: the sold card stays on screen until the cashier taps «تم» or Back —
+      // it used to close by itself the moment the receipt printed.
+      if (mounted) setState(() => _printedOnce = true);
     } catch (e) {
       // The code is already sold; a failed print must NOT be a fleeting snackbar the
       // operator can miss and then tap "Done" believing it printed. Keep the sheet open
@@ -1737,22 +1739,6 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
     } finally {
       if (mounted) setState(() => _printing = false);
     }
-  }
-
-  /// A plain-text receipt for Copy/Share fallbacks (when no printer is connected
-  /// or a print failed) — mirrors the reprint sheet's format.
-  String _receiptText() {
-    final p = _sent;
-    if (p == null) return '';
-    final def = p.productDefinition;
-    return [
-      _companyName ?? '',
-      def.name,
-      'SN: ${p.serialNumber}',
-      'PIN: ${p.pin}',
-      if (p.expiryDate != null && p.expiryDate!.isNotEmpty) 'EXP: ${p.expiryDate}',
-      '#$_receiptNo',
-    ].where((s) => s.isNotEmpty).join('\n');
   }
 
   /// B-054: confirm this sale's physical print outcome (best-effort — a failure
@@ -2623,7 +2609,7 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                     child: BrandCTAButton(
                       label: _printing
                           ? l.posHomePrinting
-                          : (_printError != null ? (ar ? 'إعادة الطباعة' : 'Reprint') : l.posPrintVoucher),
+                          : (_printError != null || _printedOnce ? (ar ? 'إعادة الطباعة' : 'Reprint') : l.posPrintVoucher),
                       leading: _printing ? null : Icons.print_outlined,
                       loading: _printing,
                       onPressed: (_printing || !canPrint) ? null : _print,
@@ -2631,47 +2617,9 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              // Always-available fallback so a code is never trapped behind a missing or
-              // failing printer: copy the PIN, or share the whole receipt to any app.
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () async {
-                        final pin = _sent?.pin ?? '';
-                        await Clipboard.setData(ClipboardData(text: pin));
-                        if (ctx.mounted) {
-                          ScaffoldMessenger.of(ctx).showSnackBar(
-                              SnackBar(content: Text(ar ? 'تم النسخ' : 'Copied')));
-                        }
-                      },
-                      icon: const Icon(Icons.copy, size: 16),
-                      label: Text(ar ? 'نسخ الرمز' : 'Copy PIN'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () async {
-                        try {
-                          await SharePlus.instance.share(ShareParams(text: _receiptText()));
-                        } catch (_) {
-                          await Clipboard.setData(ClipboardData(text: _receiptText()));
-                          if (ctx.mounted) {
-                            ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                                content: Text(ar
-                                    ? 'نُسخ الإيصال — ألصقه في أي تطبيق للمشاركة'
-                                    : 'Receipt copied — paste it anywhere to share')));
-                          }
-                        }
-                      },
-                      icon: const Icon(Icons.share_outlined, size: 16),
-                      label: Text(ar ? 'مشاركة' : 'Share'),
-                    ),
-                  ),
-                ],
-              ),
+              // PROD-020: no Copy / Share here. The client wants a sold code to leave the
+              // shop only on paper; without a printer it is still read off this screen,
+              // and a sold card can be reprinted from التقارير.
             ],
           );
         },

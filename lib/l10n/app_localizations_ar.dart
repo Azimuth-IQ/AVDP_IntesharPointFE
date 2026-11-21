@@ -1283,6 +1283,61 @@ class AppLocalizationsAr extends AppLocalizations {
   String get vtSaved => 'تم حفظ القالب';
 
   @override
+  String get vtCompanyTemplate => 'قالب الشركة';
+
+  @override
+  String get vtFollowsCompany => 'يتبع الشركة';
+
+  @override
+  String get vtOwnTemplate => 'قالب خاص';
+
+  @override
+  String get vtNoCompany => 'بدون شركة';
+
+  @override
+  String vtFollowsBanner(String company) {
+    return 'هذه الفئة تطبع بقالب $company. أي تغيير على قالب الشركة يظهر هنا وعلى كل البطاقات في المخزون.';
+  }
+
+  @override
+  String get vtCustomise => 'تخصيص لهذه الفئة';
+
+  @override
+  String get vtEditCompany => 'تعديل قالب الشركة';
+
+  @override
+  String vtOwnBanner(String company) {
+    return 'لهذه الفئة قالب خاص، ولا تتأثر بتغييرات قالب $company.';
+  }
+
+  @override
+  String get vtBackToCompany => 'الرجوع لقالب الشركة';
+
+  @override
+  String vtBackToCompanyBody(String company) {
+    return 'ستطبع هذه الفئة بقالب $company بدل قالبها الخاص.';
+  }
+
+  @override
+  String get vtMakeCompany => 'اجعله قالب الشركة';
+
+  @override
+  String vtMakeCompanyBody(String company, int count) {
+    return 'يصبح هذا القالب قالب $company، وتطبع به كل الفئات التي تتبع الشركة ($count).';
+  }
+
+  @override
+  String vtCompanyScope(int follow, int own) {
+    return 'يُطبَّق على $follow من فئات الشركة · $own لها قالب خاص';
+  }
+
+  @override
+  String get vtNoCompanyNote => 'هذه الفئة بلا شركة، فقالبها خاص بها.';
+
+  @override
+  String get vtConfirmChange => 'تغيير';
+
+  @override
   String get vtSaveFailed => 'تعذّر حفظ القالب';
 
   @override

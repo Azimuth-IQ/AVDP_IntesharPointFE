@@ -55,6 +55,8 @@ class Endpoints {
   static const definitionReadAll = '/api/inventory/definition/readall';
   static const definitionUpdate = '/api/inventory/definition/update';
   static const definitionDelete = '/api/inventory/definition/delete';
+  // PROD-023: a category's own template and/or "follows its company".
+  static const definitionTemplate = '/api/inventory/definition/template';
   // B-081: per-agent voucher-definition visibility (HQ-only).
   static const definitionRestrict = '/api/inventory/definition/restrict';
   static const definitionRestrictions = '/api/inventory/definition/restrictions';
@@ -117,6 +119,7 @@ class Endpoints {
   static const companyReadAll = '/api/company/readall';
   static const companyUpdate = '/api/company/update';
   static const companyDelete = '/api/company/delete';
+  static const companyTemplate = '/api/company/template'; // PROD-023
   static const companyRestrict = '/api/company/restrict';      // B-058 per-agent restriction
   static const companyRestrictions = '/api/company/restrictions';
   static const pricingCatalog = '/api/pricing/catalog';

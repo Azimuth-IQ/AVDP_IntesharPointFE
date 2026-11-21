@@ -1292,6 +1292,62 @@ class AppLocalizationsEn extends AppLocalizations {
   String get vtSaved => 'Template saved';
 
   @override
+  String get vtCompanyTemplate => 'Company template';
+
+  @override
+  String get vtFollowsCompany => 'Follows company';
+
+  @override
+  String get vtOwnTemplate => 'Own template';
+
+  @override
+  String get vtNoCompany => 'No company';
+
+  @override
+  String vtFollowsBanner(String company) {
+    return 'This category prints with $company\'s template. A change to the company template shows here and on every card in stock.';
+  }
+
+  @override
+  String get vtCustomise => 'Customise this category';
+
+  @override
+  String get vtEditCompany => 'Edit the company template';
+
+  @override
+  String vtOwnBanner(String company) {
+    return 'This category has its own template. Changes to $company\'s template don\'t affect it.';
+  }
+
+  @override
+  String get vtBackToCompany => 'Back to the company template';
+
+  @override
+  String vtBackToCompanyBody(String company) {
+    return 'This category will print with $company\'s template instead of its own.';
+  }
+
+  @override
+  String get vtMakeCompany => 'Make it the company template';
+
+  @override
+  String vtMakeCompanyBody(String company, int count) {
+    return 'This template becomes $company\'s, and every category that follows the company ($count) prints with it.';
+  }
+
+  @override
+  String vtCompanyScope(int follow, int own) {
+    return 'Applies to $follow of the company\'s categories · $own have their own template';
+  }
+
+  @override
+  String get vtNoCompanyNote =>
+      'This category has no company, so its template is its own.';
+
+  @override
+  String get vtConfirmChange => 'Change';
+
+  @override
   String get vtSaveFailed => 'Could not save template';
 
   @override

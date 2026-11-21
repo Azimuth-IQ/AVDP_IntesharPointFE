@@ -6,8 +6,11 @@ import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/printing/escpos_builder.dart';
 import 'package:inteshar/core/utils/formatters.dart';
+import 'package:inteshar/features/companies/data/company_repository.dart';
+import 'package:inteshar/features/companies/domain/company.dart';
 import 'package:inteshar/features/inventory/data/definition_repository.dart';
 import 'package:inteshar/features/inventory/domain/product_definition.dart';
+import 'package:inteshar/features/inventory/domain/template_inheritance.dart';
 import 'package:inteshar/features/inventory/domain/voucher_template.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
@@ -38,10 +41,15 @@ class VoucherTemplatesPage extends ConsumerStatefulWidget {
 
 class _VoucherTemplatesPageState extends ConsumerState<VoucherTemplatesPage> {
   List<ProductDefinition>? _defs;
+  // PROD-023: companies carry the template their categories follow.
+  List<Company> _companies = const [];
   Object? _error;
   bool _loading = true;
 
   ProductDefinition? _selected;
+
+  /// PROD-023: set while a COMPANY's template is being edited (then [_selected] is null).
+  Company? _selectedCompany;
   VoucherTemplate _edited = const VoucherTemplate();
   bool _saving = false;
 
@@ -80,18 +88,24 @@ class _VoucherTemplatesPageState extends ConsumerState<VoucherTemplatesPage> {
     });
     try {
       final api = ref.read(apiClientProvider);
-      final repo = DefinitionRepository(api);
-      final defs = await repo.readAll();
+      // Companies are best-effort: without them the page still edits every
+      // category on its own, as it did before PROD-023.
+      final companiesF = CompanyRepository(api).readAll().catchError((_) => <Company>[]);
+      final defs = await DefinitionRepository(api).readAll();
+      final companies = await companiesF;
       if (mounted) {
+        // Keep the selection updated after a refresh — but NOT while the operator
+        // has unsaved edits, or a background refresh would silently discard them (B-072).
+        final keep = !_dirty;
         setState(() {
           _defs = defs;
-          if (_selected != null && !_dirty) {
-            // Keep selection updated after refresh — but NOT while the operator has
-            // unsaved edits, or a background refresh would silently discard them (B-072).
+          _companies = companies;
+          if (keep && _selectedCompany != null) {
+            final c = companies.where((c) => c.id == _selectedCompany!.id);
+            if (c.isNotEmpty) _applyCompany(c.first);
+          } else if (keep && _selected != null) {
             final refreshed = defs.where((d) => d.id == _selected!.id);
-            if (refreshed.isNotEmpty) {
-              _selectDef(refreshed.first);
-            }
+            if (refreshed.isNotEmpty) _applyDef(refreshed.first);
           }
         });
       }
@@ -102,20 +116,30 @@ class _VoucherTemplatesPageState extends ConsumerState<VoucherTemplatesPage> {
     }
   }
 
-  /// Unsaved edits: the in-progress template differs from the selected SKU's saved one.
-  bool get _dirty =>
-      _selected != null && !mapEquals(_edited.toJson(), _selected!.template.toJson());
+  /// The saved template the editor compares against; null when nothing on screen is
+  /// editable (a category that follows its company shows the company's, read-only).
+  VoucherTemplate? get _savedTemplate {
+    final c = _selectedCompany;
+    if (c != null) return c.voucherTemplate ?? const VoucherTemplate();
+    final d = _selected;
+    if (d == null || followsCompany(d, companyOf(d, _companies))) return null;
+    return d.template;
+  }
+
+  /// Unsaved edits: the in-progress template differs from the saved one.
+  bool get _dirty {
+    final saved = _savedTemplate;
+    return saved != null && !mapEquals(_edited.toJson(), saved.toJson());
+  }
 
   /// UX-78: set for the single frame in which an answered discard prompt lets
   /// the route pop, so [PopScope] does not veto its own retry forever. Same
   /// idiom as the pricing grid's dirty guard.
   bool _allowPop = false;
 
-  /// UX-78: the ONE unsaved-edits prompt, shared by both exits that throw the
-  /// edits away — switching SKU (which reloads every controller) and leaving the
-  /// route. `_dirty` was already computed and correct, and guarded only the
-  /// first of those two; the nav rail lost a designed template silently, which
-  /// is precisely the loss the SKU guard exists to prevent.
+  /// UX-78: the ONE unsaved-edits prompt, shared by every exit that throws the
+  /// edits away — switching SKU or company (which reloads every controller) and
+  /// leaving the route.
   Future<bool> _confirmDiscard() async {
     if (!_dirty) return true;
     final l = AppLocalizations.of(context)!;
@@ -131,23 +155,58 @@ class _VoucherTemplatesPageState extends ConsumerState<VoucherTemplatesPage> {
     );
   }
 
-  /// Switch SKUs, guarding unsaved edits with a discard/keep prompt (B-072).
+  /// Switch to a category, guarding unsaved edits with a discard/keep prompt (B-072).
   Future<void> _trySelect(ProductDefinition def) async {
-    if (_selected?.id == def.id) return;
+    if (_selectedCompany == null && _selected?.id == def.id) return;
     if (!await _confirmDiscard() || !mounted) return;
-    _selectDef(def);
+    setState(() => _applyDef(def));
   }
 
-  void _selectDef(ProductDefinition def) {
-    setState(() {
-      _selected = def;
-      _edited = def.template;
-      _headerCtrl.text = def.template.headerText;
-      _footerCtrl.text = def.template.footerText;
-      _redeemCtrl.text = def.template.redeemInstructions;
-      _prefixCtrl.text = def.template.qrPrefix;
-      _suffixCtrl.text = def.template.qrSuffix;
-    });
+  /// PROD-023: switch to a company's template, with the same guard.
+  Future<void> _trySelectCompany(Company c) async {
+    if (_selectedCompany?.id == c.id) return;
+    if (!await _confirmDiscard() || !mounted) return;
+    setState(() => _applyCompany(c));
+  }
+
+  /// Narrow layout: the dropdown's value is `co:<id>` or `def:<id>`.
+  void _onPick(String key) {
+    if (key.startsWith('co:')) {
+      final id = key.substring(3);
+      final c = _companies.where((c) => c.id == id);
+      if (c.isNotEmpty) _trySelectCompany(c.first);
+    } else if (key.startsWith('def:')) {
+      final id = key.substring(4);
+      final d = (_defs ?? const <ProductDefinition>[]).where((d) => d.id == id);
+      if (d.isNotEmpty) _trySelect(d.first);
+    }
+  }
+
+  String? get _pickKey => _selectedCompany != null
+      ? 'co:${_selectedCompany!.id}'
+      : (_selected != null ? 'def:${_selected!.id}' : null);
+
+  // The _apply* helpers only mutate; callers wrap them in setState.
+  void _applyDef(ProductDefinition def) {
+    _selectedCompany = null;
+    _selected = def;
+    // A following category shows its company's template — what its paper prints.
+    _loadEditor(effectiveTemplate(def, companyOf(def, _companies)));
+  }
+
+  void _applyCompany(Company c) {
+    _selected = null;
+    _selectedCompany = c;
+    _loadEditor(c.voucherTemplate ?? const VoucherTemplate());
+  }
+
+  void _loadEditor(VoucherTemplate t) {
+    _edited = t;
+    _headerCtrl.text = t.headerText;
+    _footerCtrl.text = t.footerText;
+    _redeemCtrl.text = t.redeemInstructions;
+    _prefixCtrl.text = t.qrPrefix;
+    _suffixCtrl.text = t.qrSuffix;
   }
 
   void _onHeaderChanged(String v) =>
@@ -165,20 +224,25 @@ class _VoucherTemplatesPageState extends ConsumerState<VoucherTemplatesPage> {
   void _onSuffixChanged(String v) =>
       setState(() => _edited = _edited.copyWith(qrSuffix: v));
 
-  Future<void> _save() async {
-    final def = _selected;
-    if (def == null) return;
+  void _putDef(ProductDefinition d) {
+    final i = _defs!.indexWhere((x) => x.id == d.id);
+    if (i >= 0) _defs![i] = d;
+  }
+
+  void _putCompany(Company c) {
+    final list = [..._companies];
+    final i = list.indexWhere((x) => x.id == c.id);
+    if (i >= 0) list[i] = c;
+    _companies = list;
+  }
+
+  /// One template write, with the spinner and the saved / failed message.
+  Future<void> _write(Future<void> Function(ApiClient api) body) async {
     setState(() => _saving = true);
     try {
-      final api = ref.read(apiClientProvider);
-      final repo = DefinitionRepository(api);
-      final updated = await repo.update(def.copyWith(template: _edited));
+      await body(ref.read(apiClientProvider));
       if (mounted) {
-        setState(() {
-          final idx = _defs!.indexWhere((d) => d.id == updated.id);
-          if (idx >= 0) _defs![idx] = updated;
-          _selected = updated;
-        });
+        setState(() {});
         showOk(context, AppLocalizations.of(context)!.vtSaved);
       }
     } catch (e) {
@@ -186,6 +250,199 @@ class _VoucherTemplatesPageState extends ConsumerState<VoucherTemplatesPage> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Future<void> _save() async {
+    final company = _selectedCompany;
+    final def = _selected;
+    if (company == null && def == null) return;
+    final t = _edited;
+    await _write((api) async {
+      if (company != null) {
+        final updated = await CompanyRepository(api).setTemplate(company.id, t);
+        _putCompany(updated);
+        _selectedCompany = updated;
+      } else {
+        final updated = await DefinitionRepository(api).setTemplate(def!.id, template: t);
+        _putDef(updated);
+        _selected = updated;
+      }
+    });
+  }
+
+  /// PROD-023: a following category takes its own template — a copy of the
+  /// company's, so nothing on paper changes until HQ edits it.
+  Future<void> _customise() async {
+    final def = _selected;
+    if (def == null) return;
+    final from = effectiveTemplate(def, companyOf(def, _companies));
+    await _write((api) async {
+      final updated = await DefinitionRepository(api).setTemplate(def.id, followsCompany: false, template: from);
+      _putDef(updated);
+      _applyDef(updated);
+    });
+  }
+
+  Future<void> _backToCompany() async {
+    final def = _selected;
+    final company = def == null ? null : companyOf(def, _companies);
+    if (def == null || company == null) return;
+    final l = AppLocalizations.of(context)!;
+    final ok = await showConfirm(
+      context,
+      title: l.vtBackToCompany,
+      body: l.vtBackToCompanyBody(company.name),
+      confirmLabel: l.vtConfirmChange,
+      cancelLabel: l.defsCancel,
+      icon: Icons.link,
+    );
+    if (!ok || !mounted) return;
+    await _write((api) async {
+      final updated = await DefinitionRepository(api).setTemplate(def.id, followsCompany: true);
+      _putDef(updated);
+      _applyDef(updated);
+    });
+  }
+
+  /// PROD-023: what is on screen becomes the company's template, and this
+  /// category follows it from now on.
+  Future<void> _makeCompanyTemplate() async {
+    final def = _selected;
+    final company = def == null ? null : companyOf(def, _companies);
+    if (def == null || company == null) return;
+    final l = AppLocalizations.of(context)!;
+    final followers = (_defs ?? const <ProductDefinition>[])
+        .where((d) => d.id != def.id && followsCompany(d, company))
+        .length;
+    final ok = await showConfirm(
+      context,
+      title: l.vtMakeCompany,
+      body: l.vtMakeCompanyBody(company.name, followers + 1),
+      confirmLabel: l.vtConfirmChange,
+      cancelLabel: l.defsCancel,
+      icon: Icons.apartment_outlined,
+    );
+    if (!ok || !mounted) return;
+    final t = _edited;
+    await _write((api) async {
+      _putCompany(await CompanyRepository(api).setTemplate(company.id, t));
+      final updated = await DefinitionRepository(api).setTemplate(def.id, followsCompany: true);
+      _putDef(updated);
+      _applyDef(updated);
+    });
+  }
+
+  /// Companies in catalog order, each with its categories; then the
+  /// categories with no (known) company.
+  List<_Group> _groups(List<ProductDefinition> defs) {
+    final sorted = [..._companies]
+      ..sort((a, b) => a.displayOrder != b.displayOrder
+          ? a.displayOrder.compareTo(b.displayOrder)
+          : a.name.compareTo(b.name));
+    final out = <_Group>[];
+    final placed = <String>{};
+    for (final c in sorted) {
+      final mine = defs.where((d) => d.companyId == c.id).toList();
+      out.add(_Group(c, mine));
+      placed.addAll(mine.map((d) => d.id));
+    }
+    final rest = defs.where((d) => !placed.contains(d.id)).toList();
+    if (rest.isNotEmpty) out.add(_Group(null, rest));
+    return out;
+  }
+
+  _TemplateEditor _editor({required String code, required String title, bool monoCode = true, Widget? notice}) =>
+      _TemplateEditor(
+        code: code,
+        title: title,
+        monoCode: monoCode,
+        notice: notice,
+        edited: _edited,
+        saving: _saving,
+        headerCtrl: _headerCtrl,
+        footerCtrl: _footerCtrl,
+        redeemCtrl: _redeemCtrl,
+        prefixCtrl: _prefixCtrl,
+        suffixCtrl: _suffixCtrl,
+        onHeaderChanged: _onHeaderChanged,
+        onFooterChanged: _onFooterChanged,
+        onRedeemChanged: _onRedeemChanged,
+        onPrefixChanged: _onPrefixChanged,
+        onSuffixChanged: _onSuffixChanged,
+        onToggle: (t) => setState(() => _edited = t),
+        onSave: _save,
+        dirty: _dirty,
+        inScrollable: true,
+      );
+
+  /// The editing column for the current selection; null when nothing is selected.
+  Widget? _editorPane(AppLocalizations l) {
+    final company = _selectedCompany;
+    if (company != null) {
+      final mine = (_defs ?? const <ProductDefinition>[]).where((d) => d.companyId == company.id).toList();
+      final follow = mine.where((d) => followsCompany(d, company)).length;
+      return _editor(
+        code: l.vtCompanyTemplate,
+        title: company.name,
+        monoCode: false,
+        notice: _InheritanceNote(
+          icon: Icons.apartment_outlined,
+          text: l.vtCompanyScope(follow, mine.length - follow),
+        ),
+      );
+    }
+    final def = _selected;
+    if (def == null) return null;
+    final co = companyOf(def, _companies);
+    if (followsCompany(def, co)) {
+      return _FollowingPanel(
+        def: def,
+        companyName: co!.name,
+        busy: _saving,
+        onCustomise: _customise,
+        onEditCompany: () => _trySelectCompany(co),
+      );
+    }
+    return _editor(
+      code: def.sku,
+      title: def.name,
+      notice: co != null
+          ? _InheritanceNote(
+              icon: Icons.tune,
+              text: l.vtOwnBanner(co.name),
+              actions: [
+                TextButton.icon(
+                  onPressed: _saving ? null : _backToCompany,
+                  icon: const Icon(Icons.link, size: 16),
+                  label: Text(l.vtBackToCompany),
+                ),
+                TextButton.icon(
+                  onPressed: _saving ? null : _makeCompanyTemplate,
+                  icon: const Icon(Icons.apartment_outlined, size: 16),
+                  label: Text(l.vtMakeCompany),
+                ),
+              ],
+            )
+          : _InheritanceNote(icon: Icons.info_outline, text: l.vtNoCompanyNote),
+    );
+  }
+
+  /// The paper preview of what the current selection prints.
+  Widget? _previewPane() {
+    final company = _selectedCompany;
+    if (company != null) {
+      final sample = (_defs ?? const <ProductDefinition>[]).where((d) => d.companyId == company.id);
+      return _ReceiptPreview(
+        def: sample.isNotEmpty
+            ? sample.first
+            : ProductDefinition(id: '', name: company.name, defaultPrice: '10000', sku: ''),
+        template: _edited,
+        companyName: company.name,
+      );
+    }
+    final def = _selected;
+    if (def == null) return null;
+    return _ReceiptPreview(def: def, template: _edited, companyName: companyOf(def, _companies)?.name);
   }
 
   @override
@@ -205,7 +462,7 @@ class _VoucherTemplatesPageState extends ConsumerState<VoucherTemplatesPage> {
 
     final defs = _defs ?? [];
 
-    if (defs.isEmpty) {
+    if (defs.isEmpty && _companies.isEmpty) {
       return Scaffold(
         body: MaxWidthBox(
           child: Column(
@@ -221,6 +478,10 @@ class _VoucherTemplatesPageState extends ConsumerState<VoucherTemplatesPage> {
         ),
       );
     }
+
+    final groups = _groups(defs);
+    final editor = _editorPane(l);
+    final preview = _previewPane();
 
     // UX-78: leaving via the nav rail threw away every edit with no prompt —
     // the same loss the SKU switch already guards against.
@@ -252,44 +513,20 @@ class _VoucherTemplatesPageState extends ConsumerState<VoucherTemplatesPage> {
                 Expanded(
                   child: isWide
                       ? _WideLayout(
-                          defs: defs,
-                          selected: _selected,
-                          edited: _edited,
-                          saving: _saving,
-                          headerCtrl: _headerCtrl,
-                          footerCtrl: _footerCtrl,
-                          redeemCtrl: _redeemCtrl,
-                          prefixCtrl: _prefixCtrl,
-                          suffixCtrl: _suffixCtrl,
-                          onSelect: _trySelect,
-                          onHeaderChanged: _onHeaderChanged,
-                          onFooterChanged: _onFooterChanged,
-                          onRedeemChanged: _onRedeemChanged,
-                          onPrefixChanged: _onPrefixChanged,
-                          onSuffixChanged: _onSuffixChanged,
-                          onToggle: (t) => setState(() => _edited = t),
-                          onSave: _save,
-                          dirty: _dirty,
+                          list: _TemplateList(
+                            groups: groups,
+                            selectedDefId: _selectedCompany == null ? _selected?.id : null,
+                            selectedCompanyId: _selectedCompany?.id,
+                            onSelectDef: _trySelect,
+                            onSelectCompany: _trySelectCompany,
+                          ),
+                          editor: editor,
+                          preview: preview,
                         )
                       : _NarrowLayout(
-                          defs: defs,
-                          selected: _selected,
-                          edited: _edited,
-                          saving: _saving,
-                          headerCtrl: _headerCtrl,
-                          footerCtrl: _footerCtrl,
-                          redeemCtrl: _redeemCtrl,
-                          prefixCtrl: _prefixCtrl,
-                          suffixCtrl: _suffixCtrl,
-                          onSelect: _trySelect,
-                          onHeaderChanged: _onHeaderChanged,
-                          onFooterChanged: _onFooterChanged,
-                          onRedeemChanged: _onRedeemChanged,
-                          onPrefixChanged: _onPrefixChanged,
-                          onSuffixChanged: _onSuffixChanged,
-                          onToggle: (t) => setState(() => _edited = t),
-                          onSave: _save,
-                          dirty: _dirty,
+                          picker: _TargetDropdown(groups: groups, value: _pickKey, onPick: _onPick),
+                          editor: editor,
+                          preview: preview,
                         ),
                 ),
               ],
@@ -306,114 +543,55 @@ class _VoucherTemplatesPageState extends ConsumerState<VoucherTemplatesPage> {
 
 typedef _TemplateToggleCb = void Function(VoucherTemplate);
 
+/// PROD-023: one company and its categories (company null = "No company").
+class _Group {
+  final Company? company;
+  final List<ProductDefinition> defs;
+  const _Group(this.company, this.defs);
+}
+
 // ─── Wide layout (≥900px) ────────────────────────────────────────────────────
 
 class _WideLayout extends StatelessWidget {
-  final List<ProductDefinition> defs;
-  final ProductDefinition? selected;
-  final VoucherTemplate edited;
-  final bool saving;
-  final TextEditingController headerCtrl;
-  final TextEditingController footerCtrl;
-  final TextEditingController redeemCtrl;
-  final TextEditingController prefixCtrl;
-  final TextEditingController suffixCtrl;
-  final ValueChanged<ProductDefinition> onSelect;
-  final ValueChanged<String> onHeaderChanged;
-  final ValueChanged<String> onFooterChanged;
-  final ValueChanged<String> onRedeemChanged;
-  final ValueChanged<String> onPrefixChanged;
-  final ValueChanged<String> onSuffixChanged;
-  final _TemplateToggleCb onToggle;
-  final VoidCallback onSave;
+  final Widget list;
+  final Widget? editor;
+  final Widget? preview;
 
-  /// UX-78: the template on screen differs from the saved one.
-  final bool dirty;
-
-  const _WideLayout({
-    required this.defs,
-    required this.selected,
-    required this.edited,
-    required this.saving,
-    required this.headerCtrl,
-    required this.footerCtrl,
-    required this.redeemCtrl,
-    required this.prefixCtrl,
-    required this.suffixCtrl,
-    required this.onSelect,
-    required this.onHeaderChanged,
-    required this.onFooterChanged,
-    required this.onRedeemChanged,
-    required this.onPrefixChanged,
-    required this.onSuffixChanged,
-    required this.onToggle,
-    required this.onSave,
-    required this.dirty,
-  });
+  const _WideLayout({required this.list, required this.editor, required this.preview});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // SKU list column
-        SizedBox(
-          width: 260,
-          child: _SkuList(
-            defs: defs,
-            selected: selected,
-            onSelect: onSelect,
-          ),
-        ),
+        // Company / category list column
+        SizedBox(width: 280, child: list),
         const VerticalDivider(width: 1),
         // Editor + preview column
         Expanded(
-          child: selected == null
+          child: editor == null
               ? _SelectPrompt()
               : Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Editor
                     Expanded(
                       flex: 5,
-                      child: _TemplateEditor(
-                        def: selected!,
-                        edited: edited,
-                        saving: saving,
-                        headerCtrl: headerCtrl,
-                        footerCtrl: footerCtrl,
-                        redeemCtrl: redeemCtrl,
-                        prefixCtrl: prefixCtrl,
-                        suffixCtrl: suffixCtrl,
-                        onHeaderChanged: onHeaderChanged,
-                        onFooterChanged: onFooterChanged,
-                        onRedeemChanged: onRedeemChanged,
-                        onPrefixChanged: onPrefixChanged,
-                        onSuffixChanged: onSuffixChanged,
-                        onToggle: onToggle,
-                        onSave: onSave,
-                        dirty: dirty,
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsetsDirectional.fromSTEB(24, 20, 24, 32),
+                        child: editor,
                       ),
                     ),
                     const VerticalDivider(width: 1),
-                    // Preview
                     Expanded(
                       flex: 4,
                       child: SingleChildScrollView(
-                        padding: const EdgeInsetsDirectional.fromSTEB(
-                            24, 24, 24, 32),
+                        padding: const EdgeInsetsDirectional.fromSTEB(24, 24, 24, 32),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            SectionLabel(
-                                AppLocalizations.of(context)!.vtPreview),
+                            SectionLabel(AppLocalizations.of(context)!.vtPreview),
                             const SizedBox(height: IntesharSpacing.lg),
-                            Center(
-                              child: _ReceiptPreview(
-                                def: selected!,
-                                template: edited,
-                              ),
-                            ),
+                            Center(child: preview),
                           ],
                         ),
                       ),
@@ -429,47 +607,11 @@ class _WideLayout extends StatelessWidget {
 // ─── Narrow layout (<900px) ──────────────────────────────────────────────────
 
 class _NarrowLayout extends StatelessWidget {
-  final List<ProductDefinition> defs;
-  final ProductDefinition? selected;
-  final VoucherTemplate edited;
-  final bool saving;
-  final TextEditingController headerCtrl;
-  final TextEditingController footerCtrl;
-  final TextEditingController redeemCtrl;
-  final TextEditingController prefixCtrl;
-  final TextEditingController suffixCtrl;
-  final ValueChanged<ProductDefinition> onSelect;
-  final ValueChanged<String> onHeaderChanged;
-  final ValueChanged<String> onFooterChanged;
-  final ValueChanged<String> onRedeemChanged;
-  final ValueChanged<String> onPrefixChanged;
-  final ValueChanged<String> onSuffixChanged;
-  final _TemplateToggleCb onToggle;
-  final VoidCallback onSave;
+  final Widget picker;
+  final Widget? editor;
+  final Widget? preview;
 
-  /// UX-78: the template on screen differs from the saved one.
-  final bool dirty;
-
-  const _NarrowLayout({
-    required this.defs,
-    required this.selected,
-    required this.edited,
-    required this.saving,
-    required this.headerCtrl,
-    required this.footerCtrl,
-    required this.redeemCtrl,
-    required this.prefixCtrl,
-    required this.suffixCtrl,
-    required this.onSelect,
-    required this.onHeaderChanged,
-    required this.onFooterChanged,
-    required this.onRedeemChanged,
-    required this.onPrefixChanged,
-    required this.onSuffixChanged,
-    required this.onToggle,
-    required this.onSave,
-    required this.dirty,
-  });
+  const _NarrowLayout({required this.picker, required this.editor, required this.preview});
 
   @override
   Widget build(BuildContext context) {
@@ -477,35 +619,14 @@ class _NarrowLayout extends StatelessWidget {
     return ListView(
       padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 16, 32),
       children: [
-        // Product picker dropdown
-        _SkuDropdown(defs: defs, selected: selected, onSelect: onSelect),
+        picker,
         const SizedBox(height: IntesharSpacing.lg),
-        if (selected != null) ...[
-          _TemplateEditor(
-            def: selected!,
-            edited: edited,
-            saving: saving,
-            headerCtrl: headerCtrl,
-            footerCtrl: footerCtrl,
-            redeemCtrl: redeemCtrl,
-            prefixCtrl: prefixCtrl,
-            suffixCtrl: suffixCtrl,
-            onHeaderChanged: onHeaderChanged,
-            onFooterChanged: onFooterChanged,
-            onRedeemChanged: onRedeemChanged,
-            onPrefixChanged: onPrefixChanged,
-            onSuffixChanged: onSuffixChanged,
-            onToggle: onToggle,
-            onSave: onSave,
-            dirty: dirty,
-            inScrollable: true,
-          ),
+        if (editor != null) ...[
+          editor!,
           const SizedBox(height: IntesharSpacing.xl),
           SectionLabel(l.vtPreview),
           const SizedBox(height: IntesharSpacing.lg),
-          Center(
-            child: _ReceiptPreview(def: selected!, template: edited),
-          ),
+          Center(child: preview),
         ] else
           Padding(
             padding: const EdgeInsets.only(top: 40),
@@ -516,155 +637,398 @@ class _NarrowLayout extends StatelessWidget {
   }
 }
 
-// ─── SKU list (wide sidebar) ─────────────────────────────────────────────────
+// ─── Company / category list (wide sidebar) ──────────────────────────────────
 
-class _SkuList extends StatelessWidget {
-  final List<ProductDefinition> defs;
-  final ProductDefinition? selected;
-  final ValueChanged<ProductDefinition> onSelect;
+/// PROD-023: each company (its own template) with its categories under it, each
+/// marked "follows the company" or "own template"; categories with no company last.
+class _TemplateList extends StatelessWidget {
+  final List<_Group> groups;
+  final String? selectedDefId;
+  final String? selectedCompanyId;
+  final ValueChanged<ProductDefinition> onSelectDef;
+  final ValueChanged<Company> onSelectCompany;
 
-  const _SkuList({
-    required this.defs,
-    required this.selected,
-    required this.onSelect,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return ListView.builder(
-      padding: const EdgeInsetsDirectional.fromSTEB(12, 12, 12, 24),
-      itemCount: defs.length,
-      itemBuilder: (context, i) {
-        final def = defs[i];
-        final isSelected = selected?.id == def.id;
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: IntesharSpacing.xs),
-          child: Material(
-            color: isSelected
-                ? context.tones.brand.withValues(alpha: 0.18)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(IntesharRadii.md),
-            child: InkWell(
-              onTap: () => onSelect(def),
-              borderRadius: BorderRadius.circular(IntesharRadii.md),
-              splashColor: context.tones.brand.withValues(alpha: 0.10),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.md, vertical: IntesharSpacing.sm2),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? context.tones.brand
-                            : cs.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(IntesharRadii.sm),
-                      ),
-                      child: Center(
-                        child: Text(
-                          def.sku,
-                          style: IntesharType.mono(11,
-                              color: isSelected
-                                  ? context.tones.onBrand
-                                  : cs.onSurface,
-                              w: kMonoHeaviest,
-                              letterSpacing: 0.4),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: IntesharSpacing.sm2),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            // UX-127: was an off-scale 13.5 at a `w500` that has
-                            // no registered face. `bodyLg` is the list-row step,
-                            // and the row already ellipsizes.
-                            def.name,
-                            style: IntesharText.bodyLg(
-                              color: cs.onSurface,
-                              w: isSelected
-                                  ? IntesharWeight.heavy
-                                  : IntesharWeight.regular,
-                              height: 1.2,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            Formatters.iqd(def.defaultPrice),
-                            style: IntesharType.mono(11, color: cs.onSurfaceVariant, letterSpacing: 0.2),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (isSelected)
-                      Icon(Icons.edit_outlined,
-                          size: 14, color: context.tones.brandInk),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-// ─── SKU dropdown (narrow) ───────────────────────────────────────────────────
-
-class _SkuDropdown extends StatelessWidget {
-  final List<ProductDefinition> defs;
-  final ProductDefinition? selected;
-  final ValueChanged<ProductDefinition> onSelect;
-
-  const _SkuDropdown({
-    required this.defs,
-    required this.selected,
-    required this.onSelect,
+  const _TemplateList({
+    required this.groups,
+    required this.selectedDefId,
+    required this.selectedCompanyId,
+    required this.onSelectDef,
+    required this.onSelectCompany,
   });
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
-    return InkCard(
-      padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.lg, vertical: IntesharSpacing.xs),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<ProductDefinition>(
-          value: selected,
-          hint: Text(l.vtSelectPrompt,
-              style: Theme.of(context).textTheme.bodyMedium),
-          isExpanded: true,
-          items: defs
-              .map(
-                (d) => DropdownMenuItem(
-                  value: d,
-                  child: Row(
+    final cs = Theme.of(context).colorScheme;
+    return ListView(
+      padding: const EdgeInsetsDirectional.fromSTEB(12, 12, 12, 24),
+      children: [
+        for (final g in groups) ...[
+          if (g.company != null)
+            _CompanyRow(
+              company: g.company!,
+              selected: selectedCompanyId == g.company!.id,
+              onTap: () => onSelectCompany(g.company!),
+            )
+          else
+            Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(8, 12, 8, 4),
+              child: Text(l.vtNoCompany,
+                  style: IntesharType.sans(12, color: cs.onSurfaceVariant, w: FontWeight.w700)),
+            ),
+          for (final d in g.defs)
+            Padding(
+              padding: EdgeInsetsDirectional.only(start: g.company != null ? 16 : 0),
+              child: _SkuRow(
+                def: d,
+                selected: selectedDefId == d.id,
+                inheritance: g.company == null
+                    ? null
+                    : (followsCompany(d, g.company) ? _Inherit.follows : _Inherit.own),
+                onTap: () => onSelectDef(d),
+              ),
+            ),
+          const SizedBox(height: IntesharSpacing.sm),
+        ],
+      ],
+    );
+  }
+}
+
+enum _Inherit { follows, own }
+
+class _CompanyRow extends StatelessWidget {
+  final Company company;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _CompanyRow({required this.company, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l = AppLocalizations.of(context)!;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: IntesharSpacing.xs),
+      child: Material(
+        color: selected ? context.tones.brand.withValues(alpha: 0.18) : Colors.transparent,
+        borderRadius: BorderRadius.circular(IntesharRadii.md),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(IntesharRadii.md),
+          splashColor: context.tones.brand.withValues(alpha: 0.10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.md, vertical: IntesharSpacing.sm2),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: selected ? context.tones.brand : cs.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(IntesharRadii.sm),
+                  ),
+                  child: Icon(Icons.apartment_outlined,
+                      size: 20, color: selected ? context.tones.onBrand : cs.onSurface),
+                ),
+                const SizedBox(width: IntesharSpacing.sm2),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(company.name,
+                          style: IntesharText.bodyLg(color: cs.onSurface, w: IntesharWeight.heavy, height: 1.2),
+                          overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 2),
+                      Text(l.vtCompanyTemplate,
+                          style: IntesharType.sans(11, color: cs.onSurfaceVariant),
+                          overflow: TextOverflow.ellipsis),
+                    ],
+                  ),
+                ),
+                if (selected) Icon(Icons.edit_outlined, size: 14, color: context.tones.brandInk),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SkuRow extends StatelessWidget {
+  final ProductDefinition def;
+  final bool selected;
+
+  /// null = the category has no company (nothing to follow).
+  final _Inherit? inheritance;
+  final VoidCallback onTap;
+
+  const _SkuRow({required this.def, required this.selected, required this.inheritance, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l = AppLocalizations.of(context)!;
+    final follows = inheritance == _Inherit.follows;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: IntesharSpacing.xs),
+      child: Material(
+        color: selected ? context.tones.brand.withValues(alpha: 0.18) : Colors.transparent,
+        borderRadius: BorderRadius.circular(IntesharRadii.md),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(IntesharRadii.md),
+          splashColor: context.tones.brand.withValues(alpha: 0.10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.md, vertical: IntesharSpacing.sm2),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: selected ? context.tones.brand : cs.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(IntesharRadii.sm),
+                  ),
+                  child: Center(
+                    child: Text(
+                      def.sku,
+                      style: IntesharType.mono(11,
+                          color: selected ? context.tones.onBrand : cs.onSurface,
+                          w: kMonoHeaviest,
+                          letterSpacing: 0.4),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: IntesharSpacing.sm2),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        d.sku,
-                        style: IntesharType.mono(12, color: context.tones.brandInk, w: FontWeight.w700),
+                        // UX-127: `bodyLg` is the list-row step, and the row ellipsizes.
+                        def.name,
+                        style: IntesharText.bodyLg(
+                          color: cs.onSurface,
+                          w: selected ? IntesharWeight.heavy : IntesharWeight.regular,
+                          height: 1.2,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(width: IntesharSpacing.sm2),
-                      Expanded(
-                        child: Text(d.name,
-                            style: Theme.of(context).textTheme.bodyMedium,
-                            overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Text(
+                            Formatters.iqd(def.defaultPrice),
+                            style: IntesharType.mono(11, color: cs.onSurfaceVariant, letterSpacing: 0.2),
+                          ),
+                          if (inheritance != null) ...[
+                            const SizedBox(width: IntesharSpacing.sm),
+                            // Icon + words, never colour alone.
+                            Icon(follows ? Icons.link : Icons.tune,
+                                size: 12, color: follows ? cs.onSurfaceVariant : context.tones.brandInk),
+                            const SizedBox(width: 2),
+                            Flexible(
+                              child: Text(
+                                follows ? l.vtFollowsCompany : l.vtOwnTemplate,
+                                style: IntesharType.sans(11,
+                                    color: follows ? cs.onSurfaceVariant : context.tones.brandInk,
+                                    w: follows ? FontWeight.w400 : FontWeight.w700),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ],
                   ),
                 ),
-              )
-              .toList(),
-          onChanged: (d) {
-            if (d != null) onSelect(d);
+                if (selected) Icon(Icons.edit_outlined, size: 14, color: context.tones.brandInk),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Company / category dropdown (narrow) ────────────────────────────────────
+
+class _TargetDropdown extends StatelessWidget {
+  final List<_Group> groups;
+
+  /// `co:<id>` or `def:<id>`.
+  final String? value;
+  final ValueChanged<String> onPick;
+
+  const _TargetDropdown({required this.groups, required this.value, required this.onPick});
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final items = <DropdownMenuItem<String>>[];
+    for (final g in groups) {
+      final c = g.company;
+      if (c != null) {
+        items.add(DropdownMenuItem(
+          value: 'co:${c.id}',
+          child: Row(children: [
+            Icon(Icons.apartment_outlined, size: 16, color: context.tones.brandInk),
+            const SizedBox(width: IntesharSpacing.sm),
+            Expanded(
+              child: Text('${c.name} · ${l.vtCompanyTemplate}',
+                  style: IntesharType.sans(14, color: cs.onSurface, w: FontWeight.w700),
+                  overflow: TextOverflow.ellipsis),
+            ),
+          ]),
+        ));
+      } else {
+        items.add(DropdownMenuItem(
+          value: 'hdr:none',
+          enabled: false,
+          child: Text(l.vtNoCompany, style: IntesharType.sans(12, color: cs.onSurfaceVariant, w: FontWeight.w700)),
+        ));
+      }
+      for (final d in g.defs) {
+        final follows = followsCompany(d, c);
+        items.add(DropdownMenuItem(
+          value: 'def:${d.id}',
+          child: Padding(
+            padding: EdgeInsetsDirectional.only(start: c != null ? 20 : 0),
+            child: Row(children: [
+              Text(d.sku, style: IntesharType.mono(12, color: context.tones.brandInk, w: FontWeight.w700)),
+              const SizedBox(width: IntesharSpacing.sm2),
+              Expanded(
+                child: Text(d.name, style: Theme.of(context).textTheme.bodyMedium, overflow: TextOverflow.ellipsis),
+              ),
+              if (c != null)
+                Text(follows ? l.vtFollowsCompany : l.vtOwnTemplate,
+                    style: IntesharType.sans(11, color: follows ? cs.onSurfaceVariant : context.tones.brandInk)),
+            ]),
+          ),
+        ));
+      }
+    }
+    return InkCard(
+      padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.lg, vertical: IntesharSpacing.xs),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          hint: Text(l.vtSelectPrompt, style: Theme.of(context).textTheme.bodyMedium),
+          isExpanded: true,
+          items: items,
+          onChanged: (v) {
+            if (v != null) onPick(v);
           },
         ),
       ),
+    );
+  }
+}
+
+// ─── Inheritance note + the "follows its company" panel (PROD-023) ───────────
+
+class _InheritanceNote extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final List<Widget> actions;
+
+  const _InheritanceNote({required this.icon, required this.text, this.actions = const []});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return InkCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, size: 18, color: context.tones.brandInk),
+              const SizedBox(width: IntesharSpacing.sm2),
+              Expanded(child: Text(text, style: IntesharType.sans(13, color: cs.onSurface))),
+            ],
+          ),
+          if (actions.isNotEmpty) ...[
+            const SizedBox(height: IntesharSpacing.sm),
+            Wrap(spacing: IntesharSpacing.sm, runSpacing: IntesharSpacing.xs, children: actions),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// A category that follows its company has nothing of its own to edit: say so,
+/// show the company's template in the preview, and offer the two ways out.
+class _FollowingPanel extends StatelessWidget {
+  final ProductDefinition def;
+  final String companyName;
+  final bool busy;
+  final VoidCallback onCustomise;
+  final VoidCallback onEditCompany;
+
+  const _FollowingPanel({
+    required this.def,
+    required this.companyName,
+    required this.busy,
+    required this.onCustomise,
+    required this.onEditCompany,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: IntesharSpacing.sm2, vertical: IntesharSpacing.xs),
+              decoration: BoxDecoration(
+                color: context.tones.brand,
+                borderRadius: BorderRadius.circular(IntesharRadii.xs),
+              ),
+              child: Text(def.sku, style: IntesharType.mono(12, color: context.tones.onBrand, w: kMonoHeaviest)),
+            ),
+            const SizedBox(width: IntesharSpacing.sm2),
+            Expanded(
+              child: Text(def.name,
+                  style: IntesharType.sans(16, color: cs.onSurface, w: FontWeight.w700),
+                  overflow: TextOverflow.ellipsis),
+            ),
+          ],
+        ),
+        const SizedBox(height: IntesharSpacing.lg),
+        _InheritanceNote(icon: Icons.link, text: l.vtFollowsBanner(companyName)),
+        const SizedBox(height: IntesharSpacing.lg),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: busy ? null : onCustomise,
+            icon: const Icon(Icons.tune, size: 18),
+            label: Text(l.vtCustomise),
+          ),
+        ),
+        const SizedBox(height: IntesharSpacing.sm),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: busy ? null : onEditCompany,
+            icon: const Icon(Icons.apartment_outlined, size: 18),
+            label: Text(l.vtEditCompany),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -699,7 +1063,16 @@ class _SelectPrompt extends StatelessWidget {
 // ─── Template editor ─────────────────────────────────────────────────────────
 
 class _TemplateEditor extends StatelessWidget {
-  final ProductDefinition def;
+  /// The badge (a SKU, or "Company template") and the name beside it.
+  final String code;
+  final String title;
+
+  /// A SKU badge is set in the mono face; a words badge is not.
+  final bool monoCode;
+
+  /// PROD-023: what this template applies to (company scope, own / no company),
+  /// shown under the name.
+  final Widget? notice;
   final VoucherTemplate edited;
   final bool saving;
   final TextEditingController headerCtrl;
@@ -720,7 +1093,10 @@ class _TemplateEditor extends StatelessWidget {
   final bool inScrollable;
 
   const _TemplateEditor({
-    required this.def,
+    required this.code,
+    required this.title,
+    this.monoCode = true,
+    this.notice,
     required this.edited,
     required this.saving,
     required this.headerCtrl,
@@ -763,14 +1139,16 @@ class _TemplateEditor extends StatelessWidget {
                   borderRadius: BorderRadius.circular(IntesharRadii.xs),
                 ),
                 child: Text(
-                  def.sku,
-                  style: IntesharType.mono(12, color: context.tones.onBrand, w: kMonoHeaviest),
+                  code,
+                  style: monoCode
+                      ? IntesharType.mono(12, color: context.tones.onBrand, w: kMonoHeaviest)
+                      : IntesharType.sans(12, color: context.tones.onBrand, w: FontWeight.w700),
                 ),
               ),
               const SizedBox(width: IntesharSpacing.sm2),
               Expanded(
                 child: Text(
-                  def.name,
+                  title,
                   style: IntesharType.sans(16,
                       color: cs.onSurface, w: FontWeight.w700),
                   overflow: TextOverflow.ellipsis,
@@ -791,6 +1169,11 @@ class _TemplateEditor extends StatelessWidget {
             ],
           ),
         ),
+
+        if (notice != null) ...[
+          notice!,
+          const SizedBox(height: 20),
+        ],
 
         // ── Header text ──────────────────────────────────────────────────
         SectionLabel(l.vtHeaderText),
@@ -1124,7 +1507,10 @@ class _ReceiptPreview extends StatelessWidget {
   final ProductDefinition def;
   final VoucherTemplate template;
 
-  const _ReceiptPreview({required this.def, required this.template});
+  /// The company printed on the COMPANY NAME line; a sample when unknown.
+  final String? companyName;
+
+  const _ReceiptPreview({required this.def, required this.template, this.companyName});
 
   @override
   Widget build(BuildContext context) {
@@ -1184,7 +1570,7 @@ class _ReceiptPreview extends StatelessWidget {
             // ── Company name (telecom) ───────────────────────────────────
             if (template.showCompanyName) ...[
               Text(
-                _sampleCompanyName,
+                companyName ?? _sampleCompanyName,
                 textAlign: TextAlign.center,
                 style: IntesharType.mono(14, color: Colors.black, w: FontWeight.w700, letterSpacing: 0.6),
               ),

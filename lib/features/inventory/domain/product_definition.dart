@@ -13,6 +13,11 @@ class ProductDefinition {
   /// template when the backend hasn't stored one yet.
   final VoucherTemplate template;
 
+  /// PROD-023: true = prints with its company's template ([template] is then only the
+  /// starting point for "customise"); false = [template] is its own. null = not known yet
+  /// (an old backend, or a new category) — never sent, so the backend keeps or decides.
+  final bool? followsCompanyTemplate;
+
   const ProductDefinition({
     required this.id,
     required this.name,
@@ -22,6 +27,7 @@ class ProductDefinition {
     required this.sku,
     this.companyId = '',
     this.template = const VoucherTemplate(),
+    this.followsCompanyTemplate,
   });
 
   factory ProductDefinition.fromJson(Map<String, dynamic> j) =>
@@ -36,6 +42,7 @@ class ProductDefinition {
         sku: j['sku'] as String? ?? '',
         companyId: j['companyId'] as String? ?? '',
         template: VoucherTemplate.fromJson(j['voucherTemplate'] as Map<String, dynamic>?),
+        followsCompanyTemplate: j['followsCompanyTemplate'] as bool?,
       );
 
   Map<String, dynamic> toJson() => {
@@ -47,6 +54,7 @@ class ProductDefinition {
         'sku': sku,
         if (companyId.isNotEmpty) 'companyId': companyId,
         'voucherTemplate': template.toJson(),
+        if (followsCompanyTemplate != null) 'followsCompanyTemplate': followsCompanyTemplate,
       };
 
   ProductDefinition copyWith({
@@ -58,6 +66,7 @@ class ProductDefinition {
     String? sku,
     String? companyId,
     VoucherTemplate? template,
+    bool? followsCompanyTemplate,
   }) =>
       ProductDefinition(
         id: id ?? this.id,
@@ -68,5 +77,6 @@ class ProductDefinition {
         sku: sku ?? this.sku,
         companyId: companyId ?? this.companyId,
         template: template ?? this.template,
+        followsCompanyTemplate: followsCompanyTemplate ?? this.followsCompanyTemplate,
       );
 }

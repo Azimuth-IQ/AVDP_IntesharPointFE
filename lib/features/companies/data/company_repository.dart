@@ -1,6 +1,7 @@
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/endpoints.dart';
 import 'package:inteshar/features/companies/domain/company.dart';
+import 'package:inteshar/features/inventory/domain/voucher_template.dart';
 
 /// Company CRUD. Reads are open; the backend enforces HQ-only on writes.
 class CompanyRepository {
@@ -17,6 +18,12 @@ class CompanyRepository {
 
   Future<Company> create(Company company) async {
     final r = await _api.post(Endpoints.companyCreate, data: company.toJson());
+    return _api.unwrap(r, (d) => Company.fromJson(d as Map<String, dynamic>));
+  }
+
+  /// PROD-023: the print template every category of [id] follows unless it has its own.
+  Future<Company> setTemplate(String id, VoucherTemplate template) async {
+    final r = await _api.put(Endpoints.companyTemplate, params: {'id': id}, data: template.toJson());
     return _api.unwrap(r, (d) => Company.fromJson(d as Map<String, dynamic>));
   }
 

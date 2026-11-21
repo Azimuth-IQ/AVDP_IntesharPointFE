@@ -215,9 +215,9 @@ class ApiClient {
     return _dio.post('$base$path', data: data, queryParameters: params);
   }
 
-  Future<Response<dynamic>> put(String path, {dynamic data}) async {
+  Future<Response<dynamic>> put(String path, {dynamic data, Map<String, dynamic>? params}) async {
     final base = await baseUrl;
-    return _dio.put('$base$path', data: data);
+    return _dio.put('$base$path', data: data, queryParameters: params);
   }
 
   Future<Response<dynamic>> delete(String path, {Map<String, dynamic>? params, dynamic data}) async {

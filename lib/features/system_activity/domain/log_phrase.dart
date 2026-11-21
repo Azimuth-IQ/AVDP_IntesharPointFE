@@ -93,6 +93,7 @@ const Map<String, (String, String)> _routes = {
   // ── categories (product definitions) ─────────────────────────────────────
   '/definition/create': ('Category created', 'إنشاء فئة'),
   '/definition/update': ('Category updated', 'تعديل فئة'),
+  '/definition/template': ('Category print template saved', 'حفظ قالب طباعة فئة'), // PROD-023
   '/definition/delete': ('Category deleted', 'حذف فئة'),
   '/definition/restrictions': ('Category restrictions', 'قيود الفئات'),
   '/definition/restrict': ('Category restricted', 'تقييد فئة'),
@@ -167,6 +168,7 @@ const Map<String, (String, String)> _routes = {
   // ── companies ───────────────────────────────────────────────────────────
   '/company/create': ('Company created', 'إنشاء شركة'),
   '/company/update': ('Company updated', 'تعديل شركة'),
+  '/company/template': ('Company print template saved', 'حفظ قالب طباعة شركة'), // PROD-023
   '/company/delete': ('Company deleted', 'حذف شركة'),
   '/company/restrictions': ('Company restrictions', 'قيود الشركات'),
   '/company/restrict': ('Company restricted', 'تقييد شركة'),

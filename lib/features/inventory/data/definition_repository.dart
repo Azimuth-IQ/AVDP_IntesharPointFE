@@ -1,6 +1,7 @@
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/core/api/endpoints.dart';
 import 'package:inteshar/features/inventory/domain/product_definition.dart';
+import 'package:inteshar/features/inventory/domain/voucher_template.dart';
 
 class DefinitionRepository {
   final ApiClient _api;
@@ -33,6 +34,17 @@ class DefinitionRepository {
   Future<ProductDefinition> update(ProductDefinition def) async {
     final response =
         await _api.put(Endpoints.definitionUpdate, data: def.toJson());
+    return _api.unwrap(
+        response, (d) => ProductDefinition.fromJson(d as Map<String, dynamic>));
+  }
+
+  /// PROD-023: set a category's own [template] and/or whether it [followsCompany]'s
+  /// template, without resending the whole category. A part left null is kept.
+  Future<ProductDefinition> setTemplate(String id, {bool? followsCompany, VoucherTemplate? template}) async {
+    final response = await _api.put(Endpoints.definitionTemplate, params: {'id': id}, data: {
+      'followsCompany': ?followsCompany,
+      'template': ?template?.toJson(),
+    });
     return _api.unwrap(
         response, (d) => ProductDefinition.fromJson(d as Map<String, dynamic>));
   }

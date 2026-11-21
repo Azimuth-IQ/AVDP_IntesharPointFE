@@ -2384,6 +2384,96 @@ abstract class AppLocalizations {
   /// **'Template saved'**
   String get vtSaved;
 
+  /// No description provided for @vtCompanyTemplate.
+  ///
+  /// In en, this message translates to:
+  /// **'Company template'**
+  String get vtCompanyTemplate;
+
+  /// No description provided for @vtFollowsCompany.
+  ///
+  /// In en, this message translates to:
+  /// **'Follows company'**
+  String get vtFollowsCompany;
+
+  /// No description provided for @vtOwnTemplate.
+  ///
+  /// In en, this message translates to:
+  /// **'Own template'**
+  String get vtOwnTemplate;
+
+  /// No description provided for @vtNoCompany.
+  ///
+  /// In en, this message translates to:
+  /// **'No company'**
+  String get vtNoCompany;
+
+  /// No description provided for @vtFollowsBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'This category prints with {company}\'s template. A change to the company template shows here and on every card in stock.'**
+  String vtFollowsBanner(String company);
+
+  /// No description provided for @vtCustomise.
+  ///
+  /// In en, this message translates to:
+  /// **'Customise this category'**
+  String get vtCustomise;
+
+  /// No description provided for @vtEditCompany.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit the company template'**
+  String get vtEditCompany;
+
+  /// No description provided for @vtOwnBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'This category has its own template. Changes to {company}\'s template don\'t affect it.'**
+  String vtOwnBanner(String company);
+
+  /// No description provided for @vtBackToCompany.
+  ///
+  /// In en, this message translates to:
+  /// **'Back to the company template'**
+  String get vtBackToCompany;
+
+  /// No description provided for @vtBackToCompanyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This category will print with {company}\'s template instead of its own.'**
+  String vtBackToCompanyBody(String company);
+
+  /// No description provided for @vtMakeCompany.
+  ///
+  /// In en, this message translates to:
+  /// **'Make it the company template'**
+  String get vtMakeCompany;
+
+  /// No description provided for @vtMakeCompanyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This template becomes {company}\'s, and every category that follows the company ({count}) prints with it.'**
+  String vtMakeCompanyBody(String company, int count);
+
+  /// No description provided for @vtCompanyScope.
+  ///
+  /// In en, this message translates to:
+  /// **'Applies to {follow} of the company\'s categories · {own} have their own template'**
+  String vtCompanyScope(int follow, int own);
+
+  /// No description provided for @vtNoCompanyNote.
+  ///
+  /// In en, this message translates to:
+  /// **'This category has no company, so its template is its own.'**
+  String get vtNoCompanyNote;
+
+  /// No description provided for @vtConfirmChange.
+  ///
+  /// In en, this message translates to:
+  /// **'Change'**
+  String get vtConfirmChange;
+
   /// No description provided for @vtSaveFailed.
   ///
   /// In en, this message translates to:

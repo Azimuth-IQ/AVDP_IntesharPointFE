@@ -236,6 +236,12 @@ abstract class AppLocalizations {
   /// **'Opening installer…'**
   String get updateOpenInstaller;
 
+  /// No description provided for @updateKeepOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep the app open until the download finishes.'**
+  String get updateKeepOpen;
+
   /// No description provided for @updateRetry.
   ///
   /// In en, this message translates to:

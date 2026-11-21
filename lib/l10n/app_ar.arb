@@ -25,6 +25,7 @@
   "updateLater": "لاحقاً",
   "updateDownloading": "جارٍ التنزيل…",
   "updateOpenInstaller": "فتح المُثبِّت…",
+  "updateKeepOpen": "لا تُغلق التطبيق حتى يكتمل التنزيل.",
   "updateRetry": "إعادة المحاولة",
   "updatePermissionBody": "فعّل «تثبيت تطبيقات غير معروفة» لإنتشار، ثم اضغط تحديث مرة أخرى.",
   "updatePermissionOpenSettings": "فتح الإعدادات",

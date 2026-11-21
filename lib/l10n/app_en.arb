@@ -50,6 +50,7 @@
   "@updateDownloading": {},
   "updateOpenInstaller": "Opening installer…",
   "@updateOpenInstaller": {},
+  "updateKeepOpen": "Keep the app open until the download finishes.",
   "updateRetry": "Retry",
   "@updateRetry": {},
   "updatePermissionBody": "Enable \"Install unknown apps\" for Inteshar, then tap Update again.",

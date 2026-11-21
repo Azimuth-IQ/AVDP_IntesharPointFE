@@ -35,22 +35,31 @@ Future<void> installApk(
     throw Exception('No external storage directory available');
   }
   final file = File('${dir.path}/inteshar-${release.versionCode}.apk');
-  if (await file.exists()) {
-    await file.delete();
+  final expected = release.sha256;
+  // PROD-018: the cashier may cancel the installer and tap "Update now" again. A file that
+  // already matches the published hash is reused instead of downloading ~50 MB again.
+  final reusable = await file.exists() &&
+      expected != null &&
+      expected.isNotEmpty &&
+      (await sha256.bind(file.openRead()).first).toString().toLowerCase() == expected.toLowerCase();
+  if (reusable) {
+    onProgress?.call(1);
+  } else {
+    if (await file.exists()) {
+      await file.delete();
+    }
+    await dio.download(
+      release.apkUrl,
+      file.path,
+      onReceiveProgress: (received, total) {
+        if (total > 0) onProgress?.call(received / total);
+      },
+    );
   }
-
-  await dio.download(
-    release.apkUrl,
-    file.path,
-    onReceiveProgress: (received, total) {
-      if (total > 0) onProgress?.call(received / total);
-    },
-  );
 
   // 3. Integrity: refuse to install unless the bytes match the published hash. A release
   //    without a hash is refused too (audit G02) — skipping the check when it was missing
   //    meant anyone able to tamper with the release record could ship any APK.
-  final expected = release.sha256;
   if (expected == null || expected.isEmpty) {
     await file.delete();
     throw Exception('APK integrity check failed (the release has no sha256)');

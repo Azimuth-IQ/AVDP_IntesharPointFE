@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -8,9 +10,9 @@ import 'package:inteshar/features/update/domain/app_release.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/brand_star.dart';
 
-/// Wraps the app: checks for updates once on first frame, shows a dismissible
-/// sheet for optional updates, and replaces the UI with a blocking screen for
-/// mandatory ones. Non-Android targets resolve to [UpToDate] immediately.
+/// Wraps the app: checks for updates on first frame, again when the app comes back to
+/// the screen and every few hours (PROD-017), shows a sheet for optional updates and a
+/// blocking screen for mandatory ones. Non-Android targets resolve to [UpToDate].
 class UpdateGate extends ConsumerStatefulWidget {
   final Widget child;
   const UpdateGate({super.key, required this.child});
@@ -19,46 +21,77 @@ class UpdateGate extends ConsumerStatefulWidget {
   ConsumerState<UpdateGate> createState() => _UpdateGateState();
 }
 
-class _UpdateGateState extends ConsumerState<UpdateGate> {
-  bool _dismissed = false;
+/// Whether the optional-update sheet is on screen for [s]. PROD-018: it stays up while
+/// the APK downloads (with its progress bar) and when the download fails — before, it was
+/// drawn only for [UpdateAvailableState], so it vanished the moment "Update now" was tapped
+/// and the 50 MB download ran with nothing on screen.
+bool showsOptionalUpdate(UpdateState s) => switch (s) {
+  UpdateAvailableState v => !v.mandatory,
+  UpdateDownloading v => !v.mandatory,
+  UpdateFailed v => !v.mandatory,
+  _ => false,
+};
+
+/// Whether [s] blocks the app behind the forced-update screen.
+bool blocksForUpdate(UpdateState s) => switch (s) {
+  UpdateAvailableState v => v.mandatory,
+  UpdateDownloading v => v.mandatory,
+  UpdateFailed v => v.mandatory,
+  _ => false,
+};
+
+class _UpdateGateState extends ConsumerState<UpdateGate> with WidgetsBindingObserver {
+  Timer? _recheck;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(updateControllerProvider.notifier).check();
-    });
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _check());
+    _recheck = Timer.periodic(updateRecheckEvery, (_) => _check());
   }
 
-  bool _isMandatory(UpdateState s) => switch (s) {
-    UpdateAvailableState v => v.mandatory,
-    UpdateDownloading v => v.mandatory,
-    UpdateFailed v => v.mandatory,
-    _ => false,
-  };
+  @override
+  void dispose() {
+    _recheck?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState lifecycle) {
+    if (lifecycle != AppLifecycleState.resumed) return;
+    final last = ref.read(updateControllerProvider.notifier).lastCheck;
+    if (shouldRecheckOnResume(last, DateTime.now())) _check();
+  }
+
+  void _check() {
+    if (mounted) ref.read(updateControllerProvider.notifier).check();
+  }
 
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(updateControllerProvider);
-    if (_isMandatory(state)) {
-      return _ForcedUpdateScreen(state: state);
-    }
+    final forced = blocksForUpdate(state);
     // Optional update: render the prompt as an IN-TREE overlay above the whole app rather than
     // a Navigator route. A route (showModalBottomSheet) gets buried when the app navigates
     // (splash → shell) after the check resolves — leaving the sheet under the nav rail. As a
     // Stack child of the UpdateGate (which wraps `child` in MaterialApp.builder) it's always on top.
-    final showOptional =
-        state is UpdateAvailableState && !state.mandatory && !_dismissed;
+    //
+    // A forced update is drawn over the app too, never in place of it: a re-check can land
+    // in the middle of a sale (PROD-017), and swapping the tree out would throw away the
+    // sold card on screen. Offstage keeps it alive (a print in progress finishes) while
+    // hiding it and taking no taps; the structure stays the same so nothing is rebuilt.
     return Stack(
+      fit: StackFit.expand,
       children: [
-        widget.child,
-        if (showOptional)
+        Offstage(offstage: forced, child: widget.child),
+        if (forced) Positioned.fill(child: _ForcedUpdateScreen(state: state)),
+        if (!forced && showsOptionalUpdate(state))
           Positioned.fill(
             child: _OptionalUpdateOverlay(
-              onDismiss: () {
-                ref.read(updateControllerProvider.notifier).dismiss();
-                if (mounted) setState(() => _dismissed = true);
-              },
+              downloading: state is UpdateDownloading,
+              onDismiss: () => ref.read(updateControllerProvider.notifier).dismiss(),
             ),
           ),
       ],
@@ -70,7 +103,8 @@ class _UpdateGateState extends ConsumerState<UpdateGate> {
 /// can never be buried by the app's own navigation.
 class _OptionalUpdateOverlay extends StatelessWidget {
   final VoidCallback onDismiss;
-  const _OptionalUpdateOverlay({required this.onDismiss});
+  final bool downloading;
+  const _OptionalUpdateOverlay({required this.onDismiss, this.downloading = false});
 
   @override
   Widget build(BuildContext context) {
@@ -79,7 +113,9 @@ class _OptionalUpdateOverlay extends StatelessWidget {
       children: [
         Positioned.fill(
           child: GestureDetector(
-            onTap: onDismiss,
+            // A tap outside the card must not hide a download in progress (PROD-018).
+            onTap: downloading ? null : onDismiss,
+            behavior: HitTestBehavior.opaque,
             child: const ColoredBox(color: Colors.black54),
           ),
         ),
@@ -306,11 +342,19 @@ class _ActionArea extends ConsumerWidget {
           ),
           const SizedBox(height: IntesharSpacing.sm),
           Text(
-            p > 0
-                ? '${l.updateDownloading} ${(p * 100).round()}%'
-                : l.updateOpenInstaller,
+            updateProgressLabel(l, p),
             style: Theme.of(context).textTheme.bodySmall,
           ),
+          if (p < 1) ...[
+            const SizedBox(height: 2),
+            Text(
+              l.updateKeepOpen,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
         ],
       );
     }
@@ -357,6 +401,15 @@ class _ActionArea extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// The line under the download bar (PROD-018): "Downloading…" before the first bytes,
+/// then the percentage, then "Opening installer…" once the file is complete. Before,
+/// "Opening installer…" was shown at 0 % — i.e. while nothing had downloaded yet.
+String updateProgressLabel(AppLocalizations l, double p) {
+  if (p >= 1) return l.updateOpenInstaller;
+  if (p <= 0) return l.updateDownloading;
+  return '${l.updateDownloading} ${(p * 100).floor()}%';
 }
 
 AppRelease? _releaseOf(UpdateState s) => switch (s) {

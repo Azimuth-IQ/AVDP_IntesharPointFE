@@ -79,6 +79,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get updateOpenInstaller => 'Opening installer…';
 
   @override
+  String get updateKeepOpen => 'Keep the app open until the download finishes.';
+
+  @override
   String get updateRetry => 'Retry';
 
   @override

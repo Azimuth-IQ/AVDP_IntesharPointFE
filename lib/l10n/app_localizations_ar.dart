@@ -78,6 +78,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get updateOpenInstaller => 'فتح المُثبِّت…';
 
   @override
+  String get updateKeepOpen => 'لا تُغلق التطبيق حتى يكتمل التنزيل.';
+
+  @override
   String get updateRetry => 'إعادة المحاولة';
 
   @override

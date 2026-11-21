@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
+import 'package:inteshar/core/printing/escpos_builder.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/inventory/data/definition_repository.dart';
 import 'package:inteshar/features/inventory/domain/product_definition.dart';
@@ -1250,12 +1251,16 @@ class _ReceiptPreview extends StatelessWidget {
                 size: 120,
                 backgroundColor: Colors.white,
               ),
-              const SizedBox(height: 6),
-              Text(
-                qrPayload,
-                textAlign: TextAlign.center,
-                style: IntesharType.mono(11, color: Colors.black54, letterSpacing: 0.3),
-              ),
+              // PROD-022: like the paper — the QR's content is written under it only when
+              // the PIN/serial it carries is not already printed above.
+              if (!qrValueAlreadyPrinted(template, pin: _samplePin, serial: _sampleSerial)) ...[
+                const SizedBox(height: 6),
+                Text(
+                  qrPayload,
+                  textAlign: TextAlign.center,
+                  style: IntesharType.mono(11, color: Colors.black54, letterSpacing: 0.3),
+                ),
+              ],
               const SizedBox(height: IntesharSpacing.sm),
             ],
 

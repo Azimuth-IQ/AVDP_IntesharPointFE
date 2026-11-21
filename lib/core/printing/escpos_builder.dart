@@ -9,6 +9,26 @@ String _fmtTs(DateTime t) =>
     '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')} '
     '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
+/// Whether the PIN or serial the QR carries is already printed as text on this receipt.
+bool qrValueAlreadyPrinted(VoucherTemplate t, {required String pin, required String serial}) {
+  final payload = t.qrPayload(pin: pin, serial: serial);
+  return (t.showPin && pin.isNotEmpty && payload.contains(pin)) ||
+      (t.showSerial && serial.isNotEmpty && payload.contains(serial));
+}
+
+/// The line under the QR — on paper and on the sale screen alike.
+///
+/// PROD-022 (client, 2026-11-21: «يظهر الكود مرتين»): when there were no redeem instructions
+/// the QR's own content was printed under it, which is the PIN again — the code appeared twice
+/// in every category. Now: the redeem instructions if HQ wrote some; otherwise nothing, unless
+/// the receipt does not show that value anywhere else (PIN/serial hidden by the template).
+String? qrCaption(VoucherTemplate t, {required String pin, required String serial}) {
+  final instructions = t.redeemInstructions.trim();
+  if (instructions.isNotEmpty) return instructions;
+  if (qrValueAlreadyPrinted(t, pin: pin, serial: serial)) return null;
+  return t.qrPayload(pin: pin, serial: serial);
+}
+
 /// Builds a 58mm voucher receipt driven by the SKU's [VoucherTemplate] — the
 /// same template HQ designs in the Voucher Templates screen. Field visibility,
 /// header/footer, redeem instructions and the QR payload (prefix + PIN/serial +
@@ -136,10 +156,8 @@ Future<List<int>> buildVoucherReceipt({
     final payload = template.qrPayload(pin: pin, serial: serial);
     blocks.add(GapBlock(8));
     blocks.add(QrBlock(payload, size: 170));
-    final caption = template.redeemInstructions.trim().isNotEmpty
-        ? template.redeemInstructions.trim()
-        : payload;
-    blocks.add(TextBlock(caption, fontSize: 24, padBottom: 5));
+    final caption = qrCaption(template, pin: pin, serial: serial);
+    if (caption != null) blocks.add(TextBlock(caption, fontSize: 24, padBottom: 5));
   } else if (template.redeemInstructions.trim().isNotEmpty) {
     blocks.add(GapBlock(8));
     blocks.add(TextBlock(template.redeemInstructions.trim(), fontSize: 24, padBottom: 5));
@@ -230,10 +248,14 @@ String buildVoucherReceiptText({
   if (template.showPin) line('PIN: $pin');
 
   if (template.qrEnabled) {
+    // No QR on this path, so its content stands in for it — unless the PIN/serial it
+    // carries is already printed above (PROD-022: the code once, not twice).
     if (template.redeemInstructions.trim().isNotEmpty) {
       line(template.redeemInstructions.trim());
     }
-    line(template.qrPayload(pin: pin, serial: serial));
+    if (!qrValueAlreadyPrinted(template, pin: pin, serial: serial)) {
+      line(template.qrPayload(pin: pin, serial: serial));
+    }
   } else if (template.redeemInstructions.trim().isNotEmpty) {
     line(template.redeemInstructions.trim());
   }

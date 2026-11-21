@@ -1908,10 +1908,11 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                           )
                         else
                           _LockedQr(label: l.posPinHidden),
-                        if (revealed) ...[
+                        // PROD-022: the same line as on paper — never the code a second time.
+                        if (revealed && qrCaption(t, pin: p.pin, serial: p.serialNumber) != null) ...[
                           const SizedBox(height: 8),
                           Text(
-                            t.redeemInstructions.trim().isNotEmpty ? t.redeemInstructions.trim() : t.qrPayload(pin: p.pin, serial: p.serialNumber),
+                            qrCaption(t, pin: p.pin, serial: p.serialNumber)!,
                             textAlign: TextAlign.center,
                             style: IntesharType.mono(12, color: cs.onSurface, w: FontWeight.w700),
                           ),

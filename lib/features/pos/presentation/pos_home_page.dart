@@ -507,7 +507,8 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
         onRefresh: _load,
         child: CustomScrollView(
           slivers: [
-            SliverToBoxAdapter(child: _header(l, title: l.posHomePickDenomination, subtitle: l.posHomeCounterSubtitle)),
+            // PROD-021: no «اطبع عند المنفذ من المخزون المتاح.» line — the client asked what it was for.
+            SliverToBoxAdapter(child: _header(l, title: l.posHomePickDenomination)),
             // PROD-012: no search bar (the client: «الغي شريط البحث ما احتاجة»).
               if (_sliderUrls.isNotEmpty)
                 SliverToBoxAdapter(child: _HomeSlider(urls: _sliderUrls)),

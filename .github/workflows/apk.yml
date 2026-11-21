@@ -105,8 +105,19 @@ jobs:
         env:
           RELEASE_API_KEY: ${{ github.ref_name == 'prod' && secrets.PROD_RELEASE_API_KEY || secrets.RELEASE_API_KEY }}
           VC: ${{ github.run_number }}
+          IS_PROD: ${{ github.ref_name == 'prod' }}
         run: |
-          CHANGELOG=$(git log -1 --pretty=%B)
+          # Shops read this text on the update sheet. Production gets a short Arabic line —
+          # not the English commit message with its trailers (PROD-018) — and every
+          # production release is forced: no «لاحقاً» (PROD-019, the client's request
+          # 2026-11-21). UAT keeps the commit message and stays optional.
+          if [ "$IS_PROD" = "true" ]; then
+            MANDATORY=true
+            CHANGELOG="تحسينات وإصلاحات في البيع والطباعة."
+          else
+            MANDATORY=false
+            CHANGELOG=$(git log -1 --pretty=%B | grep -viE '^(co-authored-by|signed-off-by):' || true)
+          fi
           BODY=$(jq -n \
             --arg channel "$RELEASE_CHANNEL" \
             --arg platform "$RELEASE_PLATFORM" \
@@ -115,7 +126,7 @@ jobs:
             --arg apkUrl "${{ steps.upload.outputs.apk_url }}" \
             --argjson sizeBytes "${{ steps.build.outputs.size }}" \
             --arg sha256 "${{ steps.build.outputs.sha256 }}" \
-            --argjson mandatory false \
+            --argjson mandatory "$MANDATORY" \
             --argjson minSupportedVersionCode "$MIN_SUPPORTED" \
             --arg changelog "$CHANGELOG" \
             '{channel:$channel, platform:$platform, versionCode:$versionCode, versionName:$versionName, apkUrl:$apkUrl, sizeBytes:$sizeBytes, sha256:$sha256, mandatory:$mandatory, minSupportedVersionCode:$minSupportedVersionCode, changelog:$changelog}')

@@ -35,7 +35,7 @@ jobs:
       # API_BASE points the web app at the platform on the SAME origin (Caddy routes
       # /api → backend), so there's no CORS / "blocked origin" and testers don't need
       # to set a server URL. HTTPS on the domain since 2026-10-22.
-      - run: flutter build web --release --dart-define=API_BASE=https://inteshar.smartsolutionsiraq.net
+      - run: flutter build web --release --dart-define=API_BASE=https://inteshar-uat.azimuth-iraq.com
 
       - name: Log in to GHCR
         uses: docker/login-action@v3

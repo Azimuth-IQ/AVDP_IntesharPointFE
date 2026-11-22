@@ -3,7 +3,7 @@ name: Android APK (UAT / Production)
 # One workflow for both servers, so the run number (= the APK versionCode) keeps rising across
 # them: a production APK must always be newer than any UAT APK already installed, or Android
 # refuses it as a downgrade. The branch picks the server:
-#   uat  -> https://inteshar.smartsolutionsiraq.net, key RELEASE_API_KEY
+#   uat  -> https://inteshar-uat.azimuth-iraq.com, key RELEASE_API_KEY
 #   prod -> https://inteshar.azimuth-iraq.com,       key PROD_RELEASE_API_KEY
 # Both publish on the `uat` update channel: it is the channel every installed app asks for
 # (release_repository.dart); renaming it would cut every app off from updates.
@@ -18,7 +18,7 @@ concurrency:
 
 env:
   # The platform's https address — baked into the APK, and where CI uploads/publishes it.
-  API_BASE: ${{ github.ref_name == 'prod' && 'https://inteshar.azimuth-iraq.com' || 'https://inteshar.smartsolutionsiraq.net' }}
+  API_BASE: ${{ github.ref_name == 'prod' && 'https://inteshar.azimuth-iraq.com' || 'https://inteshar-uat.azimuth-iraq.com' }}
   # NOT named CHANNEL — subosito/flutter-action reads $CHANNEL and would treat
   # it as the Flutter channel.
   RELEASE_CHANNEL: uat

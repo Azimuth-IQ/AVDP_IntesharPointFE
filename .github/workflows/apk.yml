@@ -105,19 +105,14 @@ jobs:
         env:
           RELEASE_API_KEY: ${{ github.ref_name == 'prod' && secrets.PROD_RELEASE_API_KEY || secrets.RELEASE_API_KEY }}
           VC: ${{ github.run_number }}
-          IS_PROD: ${{ github.ref_name == 'prod' }}
         run: |
-          # Shops read this text on the update sheet. Production gets a short Arabic line —
-          # not the English commit message with its trailers (PROD-018) — and every
-          # production release is forced: no «لاحقاً» (PROD-019, the client's request
-          # 2026-11-21). UAT keeps the commit message and stays optional.
-          if [ "$IS_PROD" = "true" ]; then
-            MANDATORY=true
-            CHANGELOG="تحسينات وإصلاحات في البيع والطباعة."
-          else
-            MANDATORY=false
-            CHANGELOG=$(git log -1 --pretty=%B | grep -viE '^(co-authored-by|signed-off-by):' || true)
-          fi
+          # Shops read this text on the update sheet: a short Arabic line, not the English
+          # commit message with its trailers (PROD-018), and every release is forced — no
+          # «لاحقاً» (PROD-019, the client's request 2026-11-21). UAT does exactly the same
+          # since PROD-024: every change is tried on UAT first, so the owner's test POS sees
+          # the very update screen the shops will get next.
+          MANDATORY=true
+          CHANGELOG="تحسينات وإصلاحات في البيع والطباعة."
           BODY=$(jq -n \
             --arg channel "$RELEASE_CHANNEL" \
             --arg platform "$RELEASE_PLATFORM" \

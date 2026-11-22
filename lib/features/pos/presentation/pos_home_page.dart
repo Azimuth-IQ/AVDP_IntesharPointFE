@@ -36,6 +36,7 @@ import 'package:inteshar/features/pos/presentation/pos_app_bar_title.dart';
 import 'package:inteshar/core/geo/device_location.dart';
 import 'package:inteshar/features/pos/presentation/pos_sales_panel.dart';
 import 'package:inteshar/features/pos/presentation/pos_statement_panel.dart';
+import 'package:inteshar/features/pos/presentation/pos_tiles.dart';
 import 'package:inteshar/features/pos/presentation/print_queue_indicator.dart';
 import 'package:inteshar/features/pos/presentation/printer_picker_page.dart';
 import 'package:inteshar/features/pos/presentation/printer_status_chip.dart';
@@ -465,27 +466,10 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
 
   bool get _ar => Localizations.localeOf(context).languageCode == 'ar';
 
-  /// Columns for the company and governorate grids. Mobile was 2, which on the
-  /// 5" handhelds the shops actually use put four operators' worth of companies
-  /// below the fold; the client asked for three (2026-09-28). The tiles are
-  /// logo-first with a one-line name, so they still read at ~110dp.
-  int _gridCols() => switch (context.screenSize) {
-        ScreenSize.desktop => 4,
-        ScreenSize.tablet => 3,
-        ScreenSize.mobile => 3,
-      };
+  /// Columns for both grids (companies, card types) — see [posGridColumns] (PROD-025).
+  int _gridCols() => posGridColumns(context.screenSize);
 
-  double _skuTileExtent() => switch (context.screenSize) {
-        ScreenSize.desktop => 240.0,
-        ScreenSize.tablet => 210.0,
-        ScreenSize.mobile => 172.0,
-      };
-
-  /// UX-52/UX-110: the tile now has to fit a two-line SKU name (so an Arabic name
-  /// never ellipsises away its denomination), a large price, the sellable count
-  /// and a 48dp Sell button. Both SKU grids (global search + cards step) share
-  /// this so they can't drift apart.
-  double _skuRowHeight() => context.screenSize == ScreenSize.mobile ? 250.0 : 264.0;
+  static const double _gridSpacing = 12;
 
   // Home: HQ slider + a grid of telecom companies (printing companies).
   /// Unread-chat badge for the التواصل tab. Silent on error (the provider yields
@@ -534,26 +518,36 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
               else
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                  sliver: SliverGrid(
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: _gridCols(),
-                      mainAxisSpacing: 14,
-                      crossAxisSpacing: 14,
-                      mainAxisExtent: 150,
-                    ),
-                    delegate: SliverChildBuilderDelegate(
-                      (context, i) {
-                        final key = keys[i];
-                        final rows = groups[key]!;
-                        return _CompanyCard(
-                          decodeWidth: MediaQuery.sizeOf(context).width / _gridCols(),
-                          name: _companyLabel(key),
-                          logoUrl: rows.firstWhere((s) => (s.companyLogoUrl ?? '').isNotEmpty, orElse: () => rows.first).companyLogoUrl,
-                          onTap: () => _openCompany(key),
-                        );
-                      },
-                      childCount: keys.length,
-                    ),
+                  // PROD-025: the row height follows the tile width — the picture is 4:3.
+                  sliver: SliverLayoutBuilder(
+                    builder: (context, c) {
+                      final cols = _gridCols();
+                      return SliverGrid(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: cols,
+                          mainAxisSpacing: _gridSpacing,
+                          crossAxisSpacing: _gridSpacing,
+                          mainAxisExtent: posTileExtent(c.crossAxisExtent, cols, spacing: _gridSpacing),
+                        ),
+                        delegate: SliverChildBuilderDelegate(
+                          (context, i) {
+                            final key = keys[i];
+                            final rows = groups[key]!;
+                            final name = _companyLabel(key);
+                            return PosPictureTile(
+                              decodeWidth: c.crossAxisExtent / cols,
+                              name: name,
+                              imageUrl: rows
+                                  .firstWhere((s) => (s.companyLogoUrl ?? '').isNotEmpty, orElse: () => rows.first)
+                                  .companyLogoUrl,
+                              fallback: PosLetterArt(name: name),
+                              onTap: () => _openCompany(key),
+                            );
+                          },
+                          childCount: keys.length,
+                        ),
+                      );
+                    },
                   ),
                 ),
           ],
@@ -567,8 +561,7 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
     final cards = _currentCards();
     // PROD-012: never a governorate name («اخفاء اسماء المحافظات بالتطبيق»).
     final subtitle = _ar ? 'اختر نوع البطاقة' : 'Choose a card type';
-    final tileExtent = _skuTileExtent();
-    final rowHeight = _skuRowHeight();
+    final cols = _gridCols();
 
     return MaxWidthBox(
       child: Column(
@@ -587,18 +580,23 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
             Expanded(
               child: RefreshIndicator(
                 onRefresh: _load,
-                child: GridView.builder(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                  gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: tileExtent,
-                    mainAxisSpacing: 14,
-                    crossAxisSpacing: 14,
-                    mainAxisExtent: rowHeight,
-                  ),
-                  itemCount: cards.length,
-                  itemBuilder: (context, i) {
-                    final s = cards[i];
-                    return _SkuCard(sellable: s, decodeWidth: tileExtent, onTap: () => _showVoucher(s));
+                child: LayoutBuilder(
+                  builder: (context, c) {
+                    final width = c.maxWidth - 40; // the grid's own side padding
+                    return GridView.builder(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: cols,
+                        mainAxisSpacing: _gridSpacing,
+                        crossAxisSpacing: _gridSpacing,
+                        mainAxisExtent: posTileExtent(width, cols, spacing: _gridSpacing),
+                      ),
+                      itemCount: cards.length,
+                      itemBuilder: (context, i) {
+                        final s = cards[i];
+                        return _SkuCard(sellable: s, decodeWidth: width / cols, onTap: () => _showVoucher(s));
+                      },
+                    );
                   },
                 ),
               ),
@@ -1004,233 +1002,34 @@ class _HomeSliderState extends State<_HomeSlider> {
   }
 }
 
-// ── Company card ──────────────────────────────────────────────────────────────
+// ── Card-type tile ────────────────────────────────────────────────────────────
 
-class _CompanyCard extends StatelessWidget {
-  final String name;
-  final String? logoUrl;
-  final VoidCallback onTap;
-  /// Logical width the logo can occupy at most — the decode size (see decodePx).
-  final double decodeWidth;
-  const _CompanyCard({required this.name, required this.logoUrl, required this.onTap, required this.decodeWidth});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final hasLogo = (logoUrl ?? '').trim().isNotEmpty;
-    return PressableScale(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: cs.surfaceContainer,
-          borderRadius: BorderRadius.circular(IntesharRadii.lg),
-          boxShadow: IntesharShadows.elev1,
-        ),
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Center(
-                child: hasLogo
-                    ? Image.network(
-                        logoUrl!,
-                        fit: BoxFit.contain,
-                        cacheWidth: decodePx(context, decodeWidth),
-                        // UX-150: the logo IS the company name for a screen
-                        // reader — the text below it is the only other clue.
-                        semanticLabel: name,
-                        errorBuilder: (_, _, _) => _logoFallback(context, cs, name),
-                      )
-                    : _logoFallback(context, cs, name),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: IntesharType.codec(color: cs.onSurface, size: 15, w: FontWeight.w800, letterSpacing: -0.2),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _logoFallback(BuildContext context, ColorScheme cs, String name) => Container(
-        width: 52,
-        height: 52,
-        alignment: Alignment.center,
-        // UX-135: a raw `circular(26)` that only ever meant "half of 52" — say
-        // the shape instead of re-deriving it if the disc is ever resized.
-        decoration: BoxDecoration(color: cs.primary, shape: BoxShape.circle),
-        child: Text(
-          name.trim().isEmpty ? '?' : name.trim().substring(0, 1).toUpperCase(),
-          // UX-127: was an off-scale 22; one letter in a 52dp disc, so `display`
-          // (24) cannot overflow it.
-          style: IntesharType.display(IntesharScale.display,
-              color: context.tones.onBrand, w: IntesharWeight.black),
-        ),
-      );
-}
-
-// ── SKU card (card type with artwork) ─────────────────────────────────────────
-
+/// PROD-025: a card type on the POS — its artwork fills the tile and only the name sits under it
+/// (see [PosPictureTile]). The price and the Sell button live on the sale sheet the tap opens.
 class _SkuCard extends StatelessWidget {
   final SellableSku sellable;
   final VoidCallback onTap;
-  /// The grid's max tile extent — the most width the artwork is ever drawn at.
+  /// The tile's width — the most the artwork is ever drawn at (its decode size).
   final double decodeWidth;
   const _SkuCard({required this.sellable, required this.onTap, required this.decodeWidth});
 
   @override
   Widget build(BuildContext context) {
-    final l = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     final ar = Localizations.localeOf(context).languageCode == 'ar';
     final s = sellable;
-    final hasImg = (s.imageUrl ?? '').trim().isNotEmpty;
-    // UX-53: the server only returns a row when the pool HAS stock (`avail > 0`),
-    // so `affordable == 0` can only mean one thing — the shop's withdrawal limit
-    // no longer covers a single card. Selling it would fail 402 three taps later,
-    // after the customer has been promised a card, so the tile has to say so up
-    // front and refuse the tap.
+    // UX-53: the server only returns a row when the pool HAS stock (`avail > 0`), so
+    // `affordable == 0` can only mean the shop's withdrawal limit no longer covers a single card.
+    // Selling it would fail 402 after the customer has been promised a card, so the tile says so
+    // up front and refuses the tap.
     final unaffordable = s.affordable <= 0;
-    final artHeight = context.screenSize == ScreenSize.mobile ? 88.0 : 96.0;
-
-    return PressableScale(
+    return PosPictureTile(
+      name: s.name,
+      imageUrl: s.imageUrl,
+      decodeWidth: decodeWidth,
+      fallback: _artFallback(context, cs, s.sku),
+      notice: unaffordable ? (ar ? 'الرصيد لا يكفي' : 'Balance too low') : null,
       onTap: unaffordable ? null : onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          // Washed-out surface rather than a blanket Opacity: the operator must
-          // still be able to READ which card they can't sell, and the reason
-          // line has to keep its contrast.
-          color: unaffordable ? cs.surfaceContainerHighest : cs.surfaceContainer,
-          borderRadius: BorderRadius.circular(IntesharRadii.lg),
-          boxShadow: unaffordable ? const [] : IntesharShadows.elev1,
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Card-type artwork (fixed height so the tile can never overflow); a
-            // gradient + SKU chip stands in when no image is configured.
-            SizedBox(
-              height: artHeight,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (hasImg)
-                    Image.network(
-                      s.imageUrl!,
-                      fit: BoxFit.cover,
-                      cacheWidth: decodePx(context, decodeWidth),
-                      // UX-150: the card artwork is how an operator recognises
-                      // the denomination at a glance; name it.
-                      semanticLabel: s.name,
-                      errorBuilder: (_, _, _) => _artFallback(context, cs, s.sku),
-                      loadingBuilder: (ctx, child, progress) =>
-                          progress == null ? child : Container(color: cs.surfaceContainerHighest),
-                    )
-                  else
-                    _artFallback(context, cs, s.sku),
-                  if (unaffordable)
-                    const Positioned.fill(
-                      child: ColoredBox(color: Color(0x59FFFFFF)),
-                    ),
-                ],
-              ),
-            ),
-            // Text + CTA fill the remaining bounded height — no Spacer overflow.
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // UX-52: TWO lines. At one line a 153px tile ellipsised
-                    // "أسياسيل بطاقة شحن ٥٠٠٠ دينار" after its first two words —
-                    // cutting the denomination, the only thing the customer
-                    // actually asked for, on an irreversible money action.
-                    Text(
-                      s.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: IntesharType.codec(
-                        color: cs.onSurface,
-                        size: 13,
-                        height: 1.15,
-                        w: FontWeight.w700,
-                        letterSpacing: -0.2,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    // …and the price is now the loudest thing on the tile:
-                    // it is the number the operator matches against what the
-                    // customer said, and it shrinks rather than truncating.
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: AlignmentDirectional.centerStart,
-                      child: Text(
-                        s.price > 0 ? Formatters.iqd(s.price) : (ar ? 'السعر غير محدَّد' : 'Price not set'),
-                        maxLines: 1,
-                        style: IntesharType.mono(20, color: context.tones.brandInk, w: kMonoHeaviest),
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    // UX-52: the old bare "× 12" pill floated over arbitrary
-                    // artwork at 11px with a 14%-alpha fill — an unlabelled
-                    // number nobody could read or interpret. It is now a
-                    // labelled line on the tile's own surface.
-                    _availabilityLine(context, ar: ar, unaffordable: unaffordable),
-                    const Spacer(),
-                    BrandCTAButton(
-                      label: unaffordable ? (ar ? 'غير متاح' : 'Unavailable') : l.posHomeSell,
-                      leading: unaffordable ? null : Icons.sell_outlined,
-                      // UX-110: 36dp was the literal hit box of the most-tapped
-                      // control on the handheld, all shift, one-handed.
-                      onPressed: unaffordable ? null : onTap,
-                      height: 48,
-                      fontSize: 13,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Whether this card can be sold right now — or why not. PROD-013: no count; the client does not
-  /// want shops to see how many cards the main agent holds.
-  Widget _availabilityLine(BuildContext context, {required bool ar, required bool unaffordable}) {
-    final cs = Theme.of(context).colorScheme;
-    final color = unaffordable ? context.status.warn : context.status.success;
-    return Row(
-      children: [
-        Icon(unaffordable ? Icons.block : Icons.inventory_2_outlined, size: 12, color: color),
-        const SizedBox(width: 4),
-        Expanded(
-          child: Text(
-            unaffordable
-                ? (ar ? 'الرصيد لا يكفي' : 'Balance too low')
-                // PROD-013: never a count — the number was the main agent's stock.
-                : (ar ? 'متاح للبيع' : 'Available'),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: IntesharType.codec(
-              size: 11,
-              height: 1.1,
-              w: FontWeight.w800,
-              color: unaffordable ? color : cs.onSurfaceVariant,
-            ),
-          ),
-        ),
-      ],
     );
   }
 

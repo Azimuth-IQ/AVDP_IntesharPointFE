@@ -3,7 +3,7 @@
 #
 # Every route the backend controllers map: class @RequestMapping +
 # method @Get/@Post/@Put/@Patch/@DeleteMapping, comments stripped.
-# 143 distinct routes across 21 controllers.
+# 145 distinct routes across 21 controllers.
 #
 # The system_activity coverage test asserts each of these resolves to a
 # phrase in lib/features/system_activity/domain/log_phrase.dart, and
@@ -132,8 +132,10 @@
 /api/pos/statement
 /api/pos/statement/page
 /api/pricing/catalog
+/api/pricing/lock
 /api/pricing/set
 /api/pricing/set-bulk
+/api/pricing/unlock
 /api/pricing/unpriced-agents
 /api/reports/balances
 /api/reports/sales

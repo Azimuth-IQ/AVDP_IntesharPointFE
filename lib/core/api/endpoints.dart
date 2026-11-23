@@ -126,6 +126,8 @@ class Endpoints {
   static const pricingSet = '/api/pricing/set';
   static const pricingSetBulk = '/api/pricing/set-bulk';       // B-059 Excel bulk apply
   static const pricingUnpricedAgents = '/api/pricing/unpriced-agents'; // B-060 HQ oversight
+  static const pricingUnlock = '/api/pricing/unlock'; // PROD-026: a Main Agent opens pricing with the code
+  static const pricingLock = '/api/pricing/lock';     // PROD-026: the page was left
   static const balance = '/api/balance';
   static const balanceGrant = '/api/balance/grant';
   static const balanceGrants = '/api/balance/grants';

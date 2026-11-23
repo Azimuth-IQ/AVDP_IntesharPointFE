@@ -3,8 +3,10 @@ import 'package:excel/excel.dart' hide Border;
 import 'package:file_picker/file_picker.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/api/api_client.dart';
+import 'package:inteshar/core/api/api_exception.dart';
 import 'package:inteshar/core/auth/capabilities.dart';
 import 'package:inteshar/core/geo/governorates.dart';
 import 'package:inteshar/core/utils/formatters.dart';
@@ -13,6 +15,7 @@ import 'package:inteshar/core/files/report_export.dart';
 import 'package:inteshar/features/entities/data/entity_repository.dart';
 import 'package:inteshar/features/entities/domain/entity_summary_row.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
+import 'package:inteshar/features/entities/presentation/confirm_code_dialog.dart';
 import 'package:inteshar/features/pricing/data/pricing_repository.dart';
 import 'package:inteshar/features/pricing/domain/price_filter.dart';
 import 'package:inteshar/features/pricing/domain/price_sheet.dart';
@@ -120,6 +123,18 @@ class _S {
   String get allRegions => p('All regions', 'كل المحافظات');
   String get unauthorized =>
       p('Pricing access not granted', 'لا تملك صلاحية إدارة الأسعار');
+  // PROD-026: a Main Agent opens pricing with the authenticator code, every time.
+  String get unlockTitle => p('Authentication code', 'رمز المصادقة');
+  String get unlockBody => p('Enter the code from your authenticator app to open prices.',
+      'أدخل الرمز من تطبيق المصادقة لفتح الأسعار.');
+  String get unlockOpen => p('Open prices', 'فتح الأسعار');
+  String get unlockWrong =>
+      p('That code is not right. Try the current code.', 'الرمز غير صحيح. أدخل الرمز الحالي.');
+  String get lockedBody => p('Prices are locked. Enter your authenticator code to open them.',
+      'الأسعار مقفلة. أدخل رمز المصادقة لفتحها.');
+  String get lockedButton => p('Enter the code', 'إدخال الرمز');
+  String get lockedAgain => p('Prices locked after a pause — enter the code, then try again.',
+      'قُفلت الأسعار بعد فترة توقف — أدخل الرمز ثم أعد المحاولة.');
   String get exportXlsx => p('Export', 'تصدير');
   String get uploadXlsx => p('Upload', 'رفع');
   // UX-10: the spreadsheet round trip IS the tool for "set 200 prices", but it
@@ -303,6 +318,13 @@ class _PricingPageState extends ConsumerState<PricingPage> {
       );
   bool _authorized = true;
 
+  /// PROD-026: a Main Agent's prices stay closed until the authenticator code is typed — on
+  /// every visit, and again if the server's unlock ran out while the page sat idle (423).
+  bool _locked = false;
+
+  /// Kept from [initState] so [dispose] can close pricing without touching `ref`.
+  PricingRepository? _lockRepo;
+
   /// UX-68: set for the single frame in which an answered discard prompt lets the
   /// route pop; otherwise [PopScope] would veto its own retry forever.
   bool _allowPop = false;
@@ -390,15 +412,72 @@ class _PricingPageState extends ConsumerState<PricingPage> {
     _authorized =
         auth is AuthAuthenticated && auth.can({Capability.MANAGE_PRICING});
     if (_authorized) {
-      _load();
+      if (_callerType == EntityType.AGENT1) {
+        _lockRepo = _repo;
+        _locked = true;
+        _loading = false;
+        WidgetsBinding.instance.addPostFrameCallback((_) => _unlock());
+      } else {
+        _load();
+      }
       _loadTargets();
     } else {
       _loading = false;
     }
   }
 
+  /// PROD-026: asks for the code and opens pricing. [reload] loads the catalog afterwards — not
+  /// when a Save hit the lock, so the prices typed so far stay on screen. Backing out leaves the
+  /// page; too many wrong codes (429) does too. True when pricing is open.
+  Future<bool> _unlock({bool reload = true, String? problem}) async {
+    if (!mounted) return false;
+    final s = _S.of(context);
+    final code = await showConfirmCodeDialog(
+      context,
+      title: s.unlockTitle,
+      warning: problem ?? s.unlockBody,
+      confirmLabel: s.unlockOpen,
+      destructive: false,
+    );
+    if (!mounted) return false;
+    if (code == null) {
+      _leave();
+      return false;
+    }
+    try {
+      await _repo.unlockPricing(code);
+    } catch (e) {
+      if (!mounted) return false;
+      if (e is ApiException && e.statusCode == 429) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
+        _leave();
+        return false;
+      }
+      final wrong = e is ApiException && e.statusCode == 403;
+      return _unlock(reload: reload, problem: wrong ? s.unlockWrong : friendlyError(e, context));
+    }
+    if (!mounted) return false;
+    setState(() => _locked = false);
+    if (reload) await _load();
+    return true;
+  }
+
+  /// A pricing call refused because the unlock ran out (or was never made).
+  static bool _isLocked(Object e) => e is ApiException && e.statusCode == 423;
+
+  void _leave() {
+    if (!mounted) return;
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/agent1/home');
+    }
+  }
+
   @override
   void dispose() {
+    // PROD-026: leaving closes pricing on the server too, so the next visit asks again.
+    _lockRepo?.lockPricing().catchError((_) {});
     for (final c in _ctrls.values) {
       c.dispose();
     }
@@ -492,6 +571,14 @@ class _PricingPageState extends ConsumerState<PricingPage> {
         _loading = false;
       });
     } catch (e) {
+      if (mounted && _isLocked(e)) {
+        setState(() {
+          _locked = true;
+          _loading = false;
+        });
+        _unlock();
+        return;
+      }
       if (mounted) {
         setState(() {
           _error = e;
@@ -591,6 +678,12 @@ class _PricingPageState extends ConsumerState<PricingPage> {
       // grid re-reads it rather than trusting the numbers still on screen.
       await _load();
     } catch (e) {
+      if (mounted && _isLocked(e)) {
+        // Idle past the unlock: ask again and save the same typed prices — nothing is reloaded.
+        setState(() => _locked = true);
+        if (await _unlock(reload: false)) return _save();
+        return;
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('${friendlyError(e, context)} · ${s.saveFailedNone}'),
@@ -884,6 +977,13 @@ class _PricingPageState extends ConsumerState<PricingPage> {
       }
       await _load();
     } catch (e) {
+      if (mounted && _isLocked(e)) {
+        setState(() => _locked = true);
+        if (await _unlock(reload: false) && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.lockedAgain)));
+        }
+        return;
+      }
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
@@ -1191,6 +1291,30 @@ class _PricingPageState extends ConsumerState<PricingPage> {
               style: IntesharType.sans(14, color: cs.onSurfaceVariant),
             ),
           ],
+        ),
+      );
+    }
+    if (_locked) {
+      final cs = Theme.of(context).colorScheme;
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(IntesharSpacing.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.lock_outline, size: 48, color: cs.onSurfaceVariant),
+              const SizedBox(height: IntesharSpacing.md),
+              Text(s.lockedBody,
+                  textAlign: TextAlign.center,
+                  style: IntesharType.sans(14, color: cs.onSurfaceVariant)),
+              const SizedBox(height: IntesharSpacing.lg),
+              FilledButton.icon(
+                onPressed: () => _unlock(reload: _catalog == null),
+                icon: const Icon(Icons.pin_outlined),
+                label: Text(s.lockedButton),
+              ),
+            ],
+          ),
         ),
       );
     }

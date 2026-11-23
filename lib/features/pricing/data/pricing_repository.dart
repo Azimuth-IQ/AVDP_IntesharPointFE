@@ -31,6 +31,18 @@ class PricingRepository {
     });
   }
 
+  /// PROD-026: a Main Agent opens pricing with their authenticator [code]. Throws the
+  /// server's refusal (403 wrong code, 429 too many tries) as an [ApiException].
+  Future<void> unlockPricing(String code) async {
+    final r = await _api.post(Endpoints.pricingUnlock, data: {'totp': code});
+    _api.unwrap(r, (_) => null);
+  }
+
+  /// PROD-026: the pricing page was left — the next visit asks for the code again.
+  Future<void> lockPricing() async {
+    await _api.post(Endpoints.pricingLock);
+  }
+
   /// B-059: apply the same price list to one or more agents (Excel re-upload).
   /// [entityIds] empty = the caller itself. Each row = {sku, governorate?, price}.
   /// Returns per-agent applied counts.

@@ -109,6 +109,9 @@ const Map<String, (String, String)> _routes = {
   '/pricing/set': ('Price set', 'تعديل سعر'),
   '/pricing/catalog': ('Price list', 'قائمة الأسعار'),
   '/pricing/unpriced-agents': ('Unpriced agents check', 'فحص الوكلاء بلا أسعار'),
+  // PROD-026: a Main Agent opens pricing with the authenticator code; leaving closes it.
+  '/pricing/unlock': ('Prices opened with the code', 'فتح الأسعار برمز المصادقة'),
+  '/pricing/lock': ('Prices closed', 'إغلاق الأسعار'),
 
   // ── POS quota / network ─────────────────────────────────────────────────
   '/pos-quota/network/summary': ('POS network summary', 'ملخص شبكة نقاط البيع'),

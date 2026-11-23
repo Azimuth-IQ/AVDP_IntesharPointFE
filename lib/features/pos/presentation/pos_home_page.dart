@@ -541,8 +541,6 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
                                   .firstWhere((s) => (s.companyLogoUrl ?? '').isNotEmpty, orElse: () => rows.first)
                                   .companyLogoUrl,
                               fallback: PosLetterArt(name: name),
-                              // The logo whole: it is also the receipt's logo, so it keeps its shape.
-                              wholePicture: true,
                               onTap: () => _openCompany(key),
                             );
                           },

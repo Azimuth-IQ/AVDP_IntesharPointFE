@@ -9,6 +9,10 @@ import 'package:inteshar/shared/widgets/responsive.dart';
 /// the Sell button left the card-type tile: a tap opens the sale sheet, which shows the price and the
 /// total before anything is sold (and PROD-013 already keeps stock counts off every screen).
 
+/// The picture is never cut (23 Nov, the owner): it is drawn WHOLE in the 4:3 frame (contain, on white).
+/// A 4:3 picture fills the frame edge to edge — the catalog's pictures are prepared at 4:3 (800×600);
+/// any other shape shows whole with white above and below, or at the sides.
+
 /// The picture's height is this share of the tile's width (4:3, as in the example).
 const double kPosTilePictureRatio = 0.75;
 
@@ -16,10 +20,6 @@ const double kPosTilePictureRatio = 0.75;
 /// its denomination (UX-52).
 const double kPosTileBandHeight = 50;
 
-/// A whole-picture tile (company logos) draws its logo inside this share of the frame's width and
-/// height, centred on white.
-const double kPosTileLogoWidth = 0.8;
-const double kPosTileLogoHeight = 0.7;
 
 /// Columns of both POS grids (companies, then a company's card types). Three on a phone-sized
 /// terminal, as the client asked on 2026-09-28 and as in the example.
@@ -51,11 +51,6 @@ class PosPictureTile extends StatelessWidget {
   /// A short warning over the picture (e.g. «الرصيد لا يكفي»); the tile is washed out with it.
   final String? notice;
 
-  /// Draw the picture whole, centred with a margin, instead of filling (and cutting) the 4:3 frame.
-  /// For company logos: the same file is the receipt's logo, so it keeps its own shape and is
-  /// never padded to 4:3 on the server (PROD-025 follow-up, 23 Nov). Card pictures fill the frame.
-  final bool wholePicture;
-
   const PosPictureTile({
     super.key,
     required this.name,
@@ -64,7 +59,6 @@ class PosPictureTile extends StatelessWidget {
     required this.decodeWidth,
     required this.fallback,
     this.notice,
-    this.wholePicture = false,
   });
 
   @override
@@ -102,20 +96,9 @@ class PosPictureTile extends StatelessWidget {
                         color: Colors.white,
                         child: Image.network(
                           url,
-                          fit: wholePicture ? BoxFit.contain : BoxFit.cover,
+                          fit: BoxFit.contain,
                           cacheWidth: decodePx(context, decodeWidth),
                           excludeFromSemantics: true,
-                          // The margin goes on the loaded picture only, so a failed load's fallback
-                          // still fills the whole frame.
-                          frameBuilder: wholePicture
-                              ? (_, child, _, _) => Center(
-                                    child: FractionallySizedBox(
-                                      widthFactor: kPosTileLogoWidth,
-                                      heightFactor: kPosTileLogoHeight,
-                                      child: child,
-                                    ),
-                                  )
-                              : null,
                           errorBuilder: (_, _, _) => fallback,
                           loadingBuilder: (ctx, child, progress) =>
                               progress == null ? child : ColoredBox(color: cs.surfaceContainerHighest),

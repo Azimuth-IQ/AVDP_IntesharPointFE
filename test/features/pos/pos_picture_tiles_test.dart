@@ -67,42 +67,13 @@ void main() {
       expect(taps, 0);
     });
 
-    // 23 Nov: company logos were cut by the 4:3 frame. The logo file is also the receipt's logo, so it
-    // cannot be padded to 4:3 — the tile draws it whole instead.
-    testWidgets('a company logo is drawn whole, centred, inside a margin', (tester) async {
-      debugNetworkImageHttpClientProvider = () => _FakeHttpClient({'https://x/wide.png': _art(0xFFFFFF, 'KOREK', 0, w: 800, h: 230)});
+    // 23 Nov (the owner): pictures were cut by the 4:3 frame. Now a picture is never cut — drawn whole.
+    Future<Rect> pictureRect(WidgetTester tester, String url, Uint8List bytes) async {
+      debugNetworkImageHttpClientProvider = () => _FakeHttpClient({url: bytes});
       await _pumpGrid(tester, [
         PosPictureTile(
-          name: 'KOREK',
-          imageUrl: 'https://x/wide.png',
-          decodeWidth: 120,
-          fallback: const PosLetterArt(name: 'KOREK'),
-          wholePicture: true,
-          onTap: () {},
-        ),
-      ]);
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
-      await tester.pumpAndSettle();
-      debugNetworkImageHttpClientProvider = null;
-
-      final raw = tester.widget<RawImage>(find.byType(RawImage));
-      expect(raw.image, isNotNull, reason: 'the picture loaded');
-      expect(raw.fit, BoxFit.contain, reason: 'whole, not cut');
-      final tile = tester.getRect(find.byType(PosPictureTile));
-      final frame = Size(tile.width, tile.height - kPosTileBandHeight);
-      final box = tester.getRect(find.byType(RawImage));
-      expect(box.width, closeTo(frame.width * kPosTileLogoWidth, 0.5));
-      expect(box.height, closeTo(frame.height * kPosTileLogoHeight, 0.5));
-      expect(box.center.dx, closeTo(tile.center.dx, 0.5));
-      expect(box.center.dy, closeTo(tile.top + frame.height / 2, 0.5));
-    });
-
-    testWidgets('a card picture still fills the frame', (tester) async {
-      debugNetworkImageHttpClientProvider = () => _FakeHttpClient({'https://x/card.jpg': _art(0xE53935, '5000', 0xFFFFFF)});
-      await _pumpGrid(tester, [
-        PosPictureTile(
-          name: 'Asiacell 5000',
-          imageUrl: 'https://x/card.jpg',
+          name: 'X',
+          imageUrl: url,
           decodeWidth: 120,
           fallback: const ColoredBox(color: Colors.red),
           onTap: () {},
@@ -111,11 +82,38 @@ void main() {
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
       await tester.pumpAndSettle();
       debugNetworkImageHttpClientProvider = null;
-
       final raw = tester.widget<RawImage>(find.byType(RawImage));
-      expect(raw.fit, BoxFit.cover);
+      expect(raw.image, isNotNull, reason: 'the picture loaded');
+      expect(raw.fit, BoxFit.contain, reason: 'whole, never cut');
+      // Where the picture's pixels land inside the frame (contain keeps its shape, centred).
+      final box = tester.getRect(find.byType(RawImage));
+      final w = raw.image!.width.toDouble(), h = raw.image!.height.toDouble();
+      final scale = (box.width / w) < (box.height / h) ? box.width / w : box.height / h;
+      return Rect.fromCenter(center: box.center, width: w * scale, height: h * scale);
+    }
+
+    testWidgets('a 4:3 picture fills the frame edge to edge', (tester) async {
+      final drawn = await pictureRect(tester, 'https://x/43.jpg', _art(0xE53935, '5000', 0xFFFFFF, w: 800, h: 600));
       final tile = tester.getRect(find.byType(PosPictureTile));
-      expect(tester.getRect(find.byType(RawImage)).width, tile.width);
+      expect(drawn.width, closeTo(tile.width, 0.5));
+      expect(drawn.height, closeTo(tile.height - kPosTileBandHeight, 0.5));
+      expect(drawn.top, closeTo(tile.top, 0.5));
+    });
+
+    testWidgets('a wide picture (2:1) shows whole: full width, centred, nothing cut', (tester) async {
+      final drawn = await pictureRect(tester, 'https://x/wide.jpg', _art(0x1565C0, 'KOREK', 0xFFFFFF, w: 800, h: 400));
+      final tile = tester.getRect(find.byType(PosPictureTile));
+      final frame = tile.height - kPosTileBandHeight;
+      expect(drawn.width, closeTo(tile.width, 0.5));
+      expect(drawn.height, closeTo(tile.width / 2, 0.5));
+      expect(drawn.center.dy, closeTo(tile.top + frame / 2, 0.5));
+    });
+
+    testWidgets('a square logo shows whole: full height, centred', (tester) async {
+      final drawn = await pictureRect(tester, 'https://x/sq.png', _art(0xFFFFFF, 'A', 0, w: 400, h: 400));
+      final tile = tester.getRect(find.byType(PosPictureTile));
+      expect(drawn.height, closeTo(tile.height - kPosTileBandHeight, 0.5));
+      expect(drawn.center.dx, closeTo(tile.center.dx, 0.5));
     });
   });
 
@@ -135,10 +133,8 @@ void main() {
       expect(tile, isNot(contains(gone)), reason: '$gone is back on the tile');
     }
     expect(src, isNot(contains('class _CompanyCard')), reason: 'companies use PosPictureTile too');
-    expect(tile, isNot(contains('wholePicture')), reason: 'card pictures fill the frame');
-    final company = RegExp(r'PosPictureTile\([^;]*PosLetterArt\(name: name\)[^;]*;').firstMatch(src)?.group(0) ?? '';
-    expect(company, contains('_openCompany(key)'), reason: 'found the company tile');
-    expect(company, contains('wholePicture: true'), reason: 'company logos are drawn whole');
+    final tiles = File('lib/features/pos/presentation/pos_tiles.dart').readAsStringSync();
+    expect(tiles, isNot(contains('BoxFit.cover')), reason: 'a tile picture is never cut (23 Nov)');
   });
 
   // Picture for review, with the real fonts and made-up artwork:
@@ -148,27 +144,26 @@ void main() {
 
     testWidgets('picture: pos_tiles', (tester) async {
       final art = <String, Uint8List>{
-        // Logos come in any shape (a wide one, a square one): drawn whole.
-        'https://x/korek.png': _art(0xFFFFFF, 'KOREK', 0x1565C0, w: 790, h: 230),
+        // The catalog's 4:3 pictures fill the frame; other shapes show whole (never cut).
+        'https://x/korek.png': _art(0x1565C0, 'KOREK', 0xFFFFFF, w: 800, h: 600),
         'https://x/zain.png': _art(0xF2F2F2, 'zain', 0x8A8A8A, w: 400, h: 400),
-        'https://x/asiacell.png': _art(0xFFFFFF, 'Asiacell', 0xD81E2C, w: 600, h: 320),
-        'https://x/ac5000.png': _art(0xE53935, '5000', 0xFFFFFF),
-        'https://x/ac10000.png': _art(0xB71C1C, '10000', 0xFFFFFF),
+        'https://x/asiacell.png': _art(0xD81E2C, 'Asiacell', 0xFFFFFF, w: 800, h: 400),
+        'https://x/ac5000.png': _art(0xE53935, '5000', 0xFFFFFF, w: 800, h: 600),
+        'https://x/ac10000.png': _art(0xB71C1C, '10000', 0xFFFFFF, w: 800, h: 600),
       };
       debugNetworkImageHttpClientProvider = () => _FakeHttpClient(art);
-      Widget tile(String name, String? url, {String? notice, bool logo = false}) => PosPictureTile(
+      Widget tile(String name, String? url, {String? notice}) => PosPictureTile(
             name: name,
             imageUrl: url,
             decodeWidth: 120,
             fallback: PosLetterArt(name: name),
             notice: notice,
-            wholePicture: logo,
             onTap: notice == null ? () {} : null,
           );
       await _pumpGrid(tester, [
-        tile('KOREK', 'https://x/korek.png', logo: true),
-        tile('Zain', 'https://x/zain.png', logo: true),
-        tile('Asiacell', 'https://x/asiacell.png', logo: true),
+        tile('KOREK', 'https://x/korek.png'),
+        tile('Zain', 'https://x/zain.png'),
+        tile('Asiacell', 'https://x/asiacell.png'),
         tile('Asiacell 5000 IQD', 'https://x/ac5000.png'),
         tile('Asiacell 10000 IQD', 'https://x/ac10000.png', notice: 'الرصيد لا يكفي'),
         tile('iTunes', null),

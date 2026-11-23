@@ -19,7 +19,10 @@ import 'package:inteshar/l10n/app_localizations.dart';
 const _good = '123456';
 
 class _FakeApi extends ApiClient {
-  _FakeApi() : super(Dio());
+  _FakeApi({this.oldServer = false}) : super(Dio());
+
+  /// A backend from before PROD-026: /unlock and /lock do not exist (404).
+  final bool oldServer;
 
   /// Every call, in order: "GET /api/…" or "POST /api/…".
   final calls = <String>[];
@@ -47,6 +50,9 @@ class _FakeApi extends ApiClient {
   @override
   Future<Response<dynamic>> post(String path, {dynamic data, Map<String, dynamic>? params}) async {
     calls.add('POST $path');
+    if (oldServer && (path == Endpoints.pricingUnlock || path == Endpoints.pricingLock)) {
+      throw const ApiException('Not Found', 404);
+    }
     if (path == Endpoints.pricingUnlock) {
       if ((data as Map)['totp'] != _good) throw const ApiException('That authentication code is not valid', 403);
       return _ok(path, {'required': true, 'minutes': 15});
@@ -70,12 +76,12 @@ AuthAuthenticated _session(EntityType type) => AuthAuthenticated(
     );
 
 /// Home at /agent1/home, the pricing page pushed on top — as an agent reaches it.
-Future<(_FakeApi, GoRouter)> _open(WidgetTester tester, EntityType type) async {
+Future<(_FakeApi, GoRouter)> _open(WidgetTester tester, EntityType type, {bool oldServer = false}) async {
   tester.view.physicalSize = const Size(1200, 1000);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
-  final api = _FakeApi();
+  final api = _FakeApi(oldServer: oldServer);
   final router = GoRouter(initialLocation: '/agent1/home', routes: [
     GoRoute(path: '/agent1/home', builder: (_, _) => const Scaffold(body: Text('HOME'))),
     GoRoute(
@@ -150,6 +156,13 @@ void main() {
     router.push('/agent1/pricing');
     await tester.pumpAndSettle();
     expect(find.text('Open prices'), findsOneWidget, reason: 'asked again on the next visit');
+  });
+
+  testWidgets('a server from before the change (no /unlock) does not trap the agent', (tester) async {
+    final (api, _) = await _open(tester, EntityType.AGENT1, oldServer: true);
+    await _type(tester, _good);
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(api.calls, contains('GET ${Endpoints.pricingCatalog}'));
   });
 
   testWidgets('HQ is not asked', (tester) async {

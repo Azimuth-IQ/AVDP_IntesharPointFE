@@ -448,6 +448,13 @@ class _PricingPageState extends ConsumerState<PricingPage> {
       await _repo.unlockPricing(code);
     } catch (e) {
       if (!mounted) return false;
+      // A server from before PROD-026 has no /unlock (404) and does not lock pricing: carry on. This
+      // lets the app go out first in a release — an agent never meets a prompt that cannot succeed.
+      if (e is ApiException && e.statusCode == 404) {
+        setState(() => _locked = false);
+        if (reload) await _load();
+        return true;
+      }
       if (e is ApiException && e.statusCode == 429) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
         _leave();

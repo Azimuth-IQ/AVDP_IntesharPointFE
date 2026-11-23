@@ -66,6 +66,57 @@ void main() {
       await tester.tap(find.byType(PosPictureTile), warnIfMissed: false);
       expect(taps, 0);
     });
+
+    // 23 Nov: company logos were cut by the 4:3 frame. The logo file is also the receipt's logo, so it
+    // cannot be padded to 4:3 — the tile draws it whole instead.
+    testWidgets('a company logo is drawn whole, centred, inside a margin', (tester) async {
+      debugNetworkImageHttpClientProvider = () => _FakeHttpClient({'https://x/wide.png': _art(0xFFFFFF, 'KOREK', 0, w: 800, h: 230)});
+      await _pumpGrid(tester, [
+        PosPictureTile(
+          name: 'KOREK',
+          imageUrl: 'https://x/wide.png',
+          decodeWidth: 120,
+          fallback: const PosLetterArt(name: 'KOREK'),
+          wholePicture: true,
+          onTap: () {},
+        ),
+      ]);
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
+      await tester.pumpAndSettle();
+      debugNetworkImageHttpClientProvider = null;
+
+      final raw = tester.widget<RawImage>(find.byType(RawImage));
+      expect(raw.image, isNotNull, reason: 'the picture loaded');
+      expect(raw.fit, BoxFit.contain, reason: 'whole, not cut');
+      final tile = tester.getRect(find.byType(PosPictureTile));
+      final frame = Size(tile.width, tile.height - kPosTileBandHeight);
+      final box = tester.getRect(find.byType(RawImage));
+      expect(box.width, closeTo(frame.width * kPosTileLogoWidth, 0.5));
+      expect(box.height, closeTo(frame.height * kPosTileLogoHeight, 0.5));
+      expect(box.center.dx, closeTo(tile.center.dx, 0.5));
+      expect(box.center.dy, closeTo(tile.top + frame.height / 2, 0.5));
+    });
+
+    testWidgets('a card picture still fills the frame', (tester) async {
+      debugNetworkImageHttpClientProvider = () => _FakeHttpClient({'https://x/card.jpg': _art(0xE53935, '5000', 0xFFFFFF)});
+      await _pumpGrid(tester, [
+        PosPictureTile(
+          name: 'Asiacell 5000',
+          imageUrl: 'https://x/card.jpg',
+          decodeWidth: 120,
+          fallback: const ColoredBox(color: Colors.red),
+          onTap: () {},
+        ),
+      ]);
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
+      await tester.pumpAndSettle();
+      debugNetworkImageHttpClientProvider = null;
+
+      final raw = tester.widget<RawImage>(find.byType(RawImage));
+      expect(raw.fit, BoxFit.cover);
+      final tile = tester.getRect(find.byType(PosPictureTile));
+      expect(tester.getRect(find.byType(RawImage)).width, tile.width);
+    });
   });
 
   test('row height: a 4:3 picture plus the name band', () {
@@ -84,6 +135,10 @@ void main() {
       expect(tile, isNot(contains(gone)), reason: '$gone is back on the tile');
     }
     expect(src, isNot(contains('class _CompanyCard')), reason: 'companies use PosPictureTile too');
+    expect(tile, isNot(contains('wholePicture')), reason: 'card pictures fill the frame');
+    final company = RegExp(r'PosPictureTile\([^;]*PosLetterArt\(name: name\)[^;]*;').firstMatch(src)?.group(0) ?? '';
+    expect(company, contains('_openCompany(key)'), reason: 'found the company tile');
+    expect(company, contains('wholePicture: true'), reason: 'company logos are drawn whole');
   });
 
   // Picture for review, with the real fonts and made-up artwork:
@@ -93,25 +148,27 @@ void main() {
 
     testWidgets('picture: pos_tiles', (tester) async {
       final art = <String, Uint8List>{
-        'https://x/korek.png': _art(0x1565C0, 'KOREK', 0xFFFFFF),
-        'https://x/zain.png': _art(0xF2F2F2, 'zain', 0x8A8A8A),
-        'https://x/asiacell.png': _art(0xFFFFFF, 'Asiacell', 0xD81E2C),
+        // Logos come in any shape (a wide one, a square one): drawn whole.
+        'https://x/korek.png': _art(0xFFFFFF, 'KOREK', 0x1565C0, w: 790, h: 230),
+        'https://x/zain.png': _art(0xF2F2F2, 'zain', 0x8A8A8A, w: 400, h: 400),
+        'https://x/asiacell.png': _art(0xFFFFFF, 'Asiacell', 0xD81E2C, w: 600, h: 320),
         'https://x/ac5000.png': _art(0xE53935, '5000', 0xFFFFFF),
         'https://x/ac10000.png': _art(0xB71C1C, '10000', 0xFFFFFF),
       };
       debugNetworkImageHttpClientProvider = () => _FakeHttpClient(art);
-      Widget tile(String name, String? url, {String? notice}) => PosPictureTile(
+      Widget tile(String name, String? url, {String? notice, bool logo = false}) => PosPictureTile(
             name: name,
             imageUrl: url,
             decodeWidth: 120,
             fallback: PosLetterArt(name: name),
             notice: notice,
+            wholePicture: logo,
             onTap: notice == null ? () {} : null,
           );
       await _pumpGrid(tester, [
-        tile('KOREK', 'https://x/korek.png'),
-        tile('Zain', 'https://x/zain.png'),
-        tile('Asiacell', 'https://x/asiacell.png'),
+        tile('KOREK', 'https://x/korek.png', logo: true),
+        tile('Zain', 'https://x/zain.png', logo: true),
+        tile('Asiacell', 'https://x/asiacell.png', logo: true),
         tile('Asiacell 5000 IQD', 'https://x/ac5000.png'),
         tile('Asiacell 10000 IQD', 'https://x/ac10000.png', notice: 'الرصيد لا يكفي'),
         tile('iTunes', null),
@@ -154,13 +211,16 @@ Future<void> _pumpGrid(WidgetTester tester, List<Widget> tiles, {Size size = con
   await tester.pumpAndSettle();
 }
 
-Uint8List _art(int bg, String word, int ink) {
-  final im = img.Image(width: 400, height: 300);
+Uint8List _art(int bg, String word, int ink, {int w = 400, int h = 300}) {
+  final im = img.Image(width: w, height: h);
   img.fill(im, color: img.ColorRgb8((bg >> 16) & 0xFF, (bg >> 8) & 0xFF, bg & 0xFF));
+  // A frame marks the picture's own edges, so a review picture shows whether it was cut.
+  img.drawRect(im, x1: 0, y1: 0, x2: w - 1, y2: h - 1,
+      color: img.ColorRgb8((ink >> 16) & 0xFF, (ink >> 8) & 0xFF, ink & 0xFF), thickness: 6);
   img.drawString(im, word,
       font: img.arial48,
       x: 40,
-      y: 126,
+      y: h ~/ 2 - 24,
       color: img.ColorRgb8((ink >> 16) & 0xFF, (ink >> 8) & 0xFF, ink & 0xFF));
   return Uint8List.fromList(img.encodePng(im));
 }

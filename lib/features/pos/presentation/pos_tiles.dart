@@ -16,6 +16,11 @@ const double kPosTilePictureRatio = 0.75;
 /// its denomination (UX-52).
 const double kPosTileBandHeight = 50;
 
+/// A whole-picture tile (company logos) draws its logo inside this share of the frame's width and
+/// height, centred on white.
+const double kPosTileLogoWidth = 0.8;
+const double kPosTileLogoHeight = 0.7;
+
 /// Columns of both POS grids (companies, then a company's card types). Three on a phone-sized
 /// terminal, as the client asked on 2026-09-28 and as in the example.
 int posGridColumns(ScreenSize size) => switch (size) {
@@ -46,6 +51,11 @@ class PosPictureTile extends StatelessWidget {
   /// A short warning over the picture (e.g. «الرصيد لا يكفي»); the tile is washed out with it.
   final String? notice;
 
+  /// Draw the picture whole, centred with a margin, instead of filling (and cutting) the 4:3 frame.
+  /// For company logos: the same file is the receipt's logo, so it keeps its own shape and is
+  /// never padded to 4:3 on the server (PROD-025 follow-up, 23 Nov). Card pictures fill the frame.
+  final bool wholePicture;
+
   const PosPictureTile({
     super.key,
     required this.name,
@@ -54,6 +64,7 @@ class PosPictureTile extends StatelessWidget {
     required this.decodeWidth,
     required this.fallback,
     this.notice,
+    this.wholePicture = false,
   });
 
   @override
@@ -91,9 +102,20 @@ class PosPictureTile extends StatelessWidget {
                         color: Colors.white,
                         child: Image.network(
                           url,
-                          fit: BoxFit.cover,
+                          fit: wholePicture ? BoxFit.contain : BoxFit.cover,
                           cacheWidth: decodePx(context, decodeWidth),
                           excludeFromSemantics: true,
+                          // The margin goes on the loaded picture only, so a failed load's fallback
+                          // still fills the whole frame.
+                          frameBuilder: wholePicture
+                              ? (_, child, _, _) => Center(
+                                    child: FractionallySizedBox(
+                                      widthFactor: kPosTileLogoWidth,
+                                      heightFactor: kPosTileLogoHeight,
+                                      child: child,
+                                    ),
+                                  )
+                              : null,
                           errorBuilder: (_, _, _) => fallback,
                           loadingBuilder: (ctx, child, progress) =>
                               progress == null ? child : ColoredBox(color: cs.surfaceContainerHighest),

@@ -10,7 +10,7 @@ import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/pos_admin/data/pos_admin_repository.dart';
 import 'package:inteshar/features/pos_admin/domain/pos_roles.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
-import 'package:inteshar/shared/widgets/password_field.dart';
+import 'package:inteshar/shared/widgets/new_password_field.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
 /// What the نقطة البيع section means for a STORE-tier owner.
@@ -71,7 +71,6 @@ class _S {
       'Reset two-factor for the counter? The operator must re-enrol on their next sign-in.',
       'إعادة تعيين المصادقة الثنائية للكاشير؟ سيحتاج المشغّل إلى إعادة التسجيل عند الدخول القادم.');
   String get newPassword => p('New password', 'كلمة المرور الجديدة');
-  String get passwordTooShort => p('At least 6 characters', '6 أحرف على الأقل');
   String get passwordResetDone => p('Password changed', 'تم تغيير كلمة المرور');
   String get pinResetTitle => p('New POS PIN', 'رمز نقطة البيع الجديد');
   String get pinResetBody => p('Give this PIN to the operator — it will not be shown again.',
@@ -286,11 +285,11 @@ class _StorePosViewState extends ConsumerState<StorePosView> {
         title: Text(s.resetPassword),
         content: Form(
           key: formKey,
-          child: PasswordField(
+          // PROD-008: the strong rule, with its checklist under the field.
+          child: NewPasswordField(
             controller: ctrl,
             label: s.newPassword,
             autofocus: true,
-            validator: (v) => (v == null || v.trim().length < 6) ? s.passwordTooShort : null,
           ),
         ),
         actions: [

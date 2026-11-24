@@ -15,6 +15,8 @@ import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/brand_cta.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/password_field.dart';
+import 'package:inteshar/shared/widgets/new_password_field.dart';
+import 'package:inteshar/core/auth/password_rule.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
 enum _TotpStep { credentials, enroll, code, changePassword }
@@ -105,6 +107,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       setState(
         () => _error = ar ? 'أدخل كلمة مرور جديدة' : 'Enter a new password',
       );
+      return;
+    }
+    // PROD-008: the strong rule, said before the server has to refuse it.
+    final weak = PasswordRule.validate(newPass, ar: ar);
+    if (weak != null) {
+      setState(() => _error = weak);
       return;
     }
     if (newPass != _confirmPassCtrl.text) {
@@ -672,7 +680,7 @@ class _ChangePasswordForm extends StatelessWidget {
             ],
           ),
           const SizedBox(height: IntesharSpacing.lg),
-          PasswordField(
+          NewPasswordField(
             controller: newPassCtrl,
             label: ar ? 'كلمة المرور الجديدة' : 'New password',
           ),

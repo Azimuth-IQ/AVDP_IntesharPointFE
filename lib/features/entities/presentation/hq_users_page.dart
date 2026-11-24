@@ -12,7 +12,8 @@ import 'package:inteshar/features/entities/presentation/confirm_code_dialog.dart
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/empty_state.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
-import 'package:inteshar/shared/widgets/password_field.dart';
+import 'package:inteshar/shared/widgets/new_password_field.dart';
+import 'package:inteshar/core/auth/password_rule.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 import 'package:inteshar/shared/widgets/sheet_frame.dart';
 
@@ -533,6 +534,15 @@ class _UserFormSheetState extends ConsumerState<_UserFormSheet> {
           _error = _tr(context, 'أدخل كلمة مرور', 'Enter a password'));
       return;
     }
+    // PROD-008: the strong rule (the checklist under the field shows what is missing).
+    if (!_isEdit) {
+      final weak = PasswordRule.validate(_password.text,
+          ar: Localizations.localeOf(context).languageCode == 'ar');
+      if (weak != null) {
+        setState(() => _error = weak);
+        return;
+      }
+    }
     setState(() {
       _saving = true;
       _error = null;
@@ -617,7 +627,7 @@ class _UserFormSheetState extends ConsumerState<_UserFormSheet> {
               const SizedBox(height: IntesharSpacing.md),
               // Masked: this is typed in an office, frequently with the new
               // supervisor (or anyone else) standing over the shoulder.
-              PasswordField(
+              NewPasswordField(
                 controller: _password,
                 label: _tr(context, 'كلمة المرور المبدئية', 'Initial password'),
               ),

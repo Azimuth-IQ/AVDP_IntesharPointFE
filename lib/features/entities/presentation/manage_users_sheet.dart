@@ -7,7 +7,8 @@ import 'package:inteshar/features/entities/domain/entity.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
-import 'package:inteshar/shared/widgets/password_field.dart';
+import 'package:inteshar/shared/widgets/new_password_field.dart';
+import 'package:inteshar/core/auth/password_rule.dart';
 import 'package:inteshar/shared/widgets/sheet_frame.dart';
 
 /// "Archive N users" in Arabic, which does not simply take a number and a
@@ -110,8 +111,10 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
       setState(() => _addError = l.invalidPhone);
       return false;
     }
-    if (pass.length < 6) {
-      setState(() => _addError = l.passwordTooShort);
+    // PROD-008: the strong rule (the checklist under the field shows what is missing).
+    final weak = PasswordRule.validate(pass, ar: _ar);
+    if (weak != null) {
+      setState(() => _addError = weak);
       return false;
     }
     if (_users.any((u) => u.phone == phone)) {
@@ -172,16 +175,22 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
 
   Future<void> _resetPassword(EntityUser u) async {
     final ctrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
     final pass = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(
           _ar ? 'كلمة مرور جديدة لـ ${u.phone}' : 'New password for ${u.phone}',
         ),
-        content: PasswordField(
-          controller: ctrl,
-          autofocus: true,
-          label: _ar ? 'كلمة المرور' : 'Password',
+        // PROD-008: the strong rule, with its checklist; Save stays in the dialog until
+        // every point is met.
+        content: Form(
+          key: formKey,
+          child: NewPasswordField(
+            controller: ctrl,
+            autofocus: true,
+            label: _ar ? 'كلمة المرور' : 'Password',
+          ),
         ),
         actions: [
           TextButton(
@@ -189,21 +198,18 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
             child: Text(_ar ? 'إلغاء' : 'Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+            onPressed: () {
+              if (formKey.currentState?.validate() ?? false) {
+                Navigator.pop(ctx, ctrl.text.trim());
+              }
+            },
             child: Text(_ar ? 'حفظ' : 'Save'),
           ),
         ],
       ),
     );
     if (pass == null) return;
-    if (pass.length < 6) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context)!.passwordTooShort),
-          ),
-        );
-      }
+    if (!PasswordRule.isStrong(pass)) {
       return;
     }
     try {
@@ -465,6 +471,8 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
                     controller: _passCtrl,
                     obscureText: _obscurePass,
                     textInputAction: TextInputAction.next,
+                    // PROD-008: redraw the checklist under the field as they type.
+                    onChanged: (_) => setState(() {}),
                     style: GoogleFonts.jetBrainsMono(
                       fontSize: 14,
                       color: cs.onSurface,
@@ -488,6 +496,8 @@ class _ManageUsersSheetState extends State<ManageUsersSheet> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: IntesharSpacing.sm),
+                  PasswordRuleChecklist(value: _passCtrl.text),
                   const SizedBox(height: IntesharSpacing.md),
                   DropdownButtonFormField<UserRole>(
                     initialValue: _selectedRole,

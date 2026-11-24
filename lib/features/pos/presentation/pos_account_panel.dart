@@ -12,6 +12,7 @@ import 'package:inteshar/shared/widgets/brand_cta.dart';
 import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/language_switcher_row.dart';
 import 'package:inteshar/shared/widgets/password_field.dart';
+import 'package:inteshar/shared/widgets/new_password_field.dart';
 
 /// الحساب (سستم A92): the shop profile — trade name, owner triple name, address,
 /// nearest landmark, governorate and login phone, all READ-ONLY for the operator
@@ -152,12 +153,10 @@ class PosAccountPanel extends ConsumerWidget {
                   (v == null || v.isEmpty) ? (ar ? 'مطلوب' : 'Required') : null,
             ),
             const SizedBox(height: 10),
-            PasswordField(
+            // PROD-008: the strong rule, with its checklist under the field.
+            NewPasswordField(
               controller: newCtrl,
               label: ar ? 'كلمة المرور الجديدة' : 'New password',
-              validator: (v) => (v == null || v.trim().length < 6)
-                  ? (ar ? '٦ أحرف على الأقل' : 'At least 6 characters')
-                  : null,
             ),
           ]),
         ),

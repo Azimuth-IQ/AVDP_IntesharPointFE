@@ -26,6 +26,7 @@ import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/error_state.dart';
 import 'package:inteshar/shared/widgets/multi_select.dart';
 import 'package:inteshar/shared/widgets/password_field.dart';
+import 'package:inteshar/shared/widgets/new_password_field.dart';
 import 'package:inteshar/shared/widgets/responsive.dart';
 
 /// POS-user quota + lifecycle for the signed-in entity (POS-quota model, Docs/plans/POS-QUOTA-PLAN.md).
@@ -113,7 +114,6 @@ class _S {
       'سلّم هذا الرمز للمشغّل — لن يُعرض مرة أخرى.');
   String get resetPassword => p('Reset password', 'تغيير كلمة المرور');
   String get newPassword => p('New password', 'كلمة المرور الجديدة');
-  String get passwordTooShort => p('At least 6 characters', '6 أحرف على الأقل');
   String get passwordResetDone => p('Password changed', 'تم تغيير كلمة المرور');
   String get close => p('Close', 'إغلاق');
   String get activate => p('Activate', 'تفعيل');
@@ -845,11 +845,11 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
         title: Text('${s.resetPassword} — $name'),
         content: Form(
           key: formKey,
-          child: PasswordField(
+          // PROD-008: the strong rule, with its checklist under the field.
+          child: NewPasswordField(
             controller: ctrl,
             label: s.newPassword,
             autofocus: true,
-            validator: (v) => (v == null || v.trim().length < 6) ? s.passwordTooShort : null,
           ),
         ),
         actions: [
@@ -904,9 +904,12 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
                       if (!RegExp(r'^07\d{9}$').hasMatch(t)) return s.invalidPhone;
                       return null;
                     }),
-                // Min-6 to match the reset-password rule for the same credential (B-080).
-                _field(pw, s.password, obscure: true,
-                    validator: (v) => (v == null || v.trim().length < 6) ? s.passwordTooShort : null),
+                // PROD-008: the strong rule, the same as every other password (with its
+                // checklist under the field).
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: IntesharSpacing.xs),
+                  child: NewPasswordField(controller: pw, label: s.password, isDense: true),
+                ),
                 _field(name, s.posName, validator: _req(s)),
                 _field(owner, s.ownerName, validator: _req(s)),
                 DropdownButtonFormField<String>(

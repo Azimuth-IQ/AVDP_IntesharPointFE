@@ -24,7 +24,8 @@ import 'package:inteshar/shared/widgets/design_system.dart';
 import 'package:inteshar/shared/widgets/entity_search_picker.dart';
 import 'package:inteshar/shared/widgets/image_upload_field.dart';
 import 'package:inteshar/shared/widgets/map_location_picker.dart';
-import 'package:inteshar/shared/widgets/password_field.dart';
+import 'package:inteshar/shared/widgets/new_password_field.dart';
+import 'package:inteshar/core/auth/password_rule.dart';
 import 'package:inteshar/shared/widgets/working_hours_editor.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -490,9 +491,12 @@ class _AgentFormState extends ConsumerState<AgentForm> {
       // An existing user (already has an id) may keep its current password by
       // leaving this blank: EntityUser.toJson omits a blank password and the
       // backend restores the stored hash on update. Only a NEW user must set one.
-      final passErr = (d.password.text.trim().isEmpty && d.id.isEmpty)
-          ? s.errUserPassword
-          : null;
+      // PROD-008: a password typed here (new user, or a change) must meet the strong rule.
+      final typed = d.password.text.trim();
+      final passErr = typed.isEmpty
+          ? (d.id.isEmpty ? s.errUserPassword : null)
+          : PasswordRule.validate(typed,
+              ar: Localizations.localeOf(context).languageCode == 'ar');
       d.phoneError = phoneErr;
       d.passwordError = passErr;
       if (phoneErr != null || passErr != null) userFieldsOk = false;
@@ -1299,9 +1303,10 @@ class _UserCard extends StatelessWidget {
             },
           ),
           const SizedBox(height: IntesharSpacing.sm2),
-          PasswordField(
+          NewPasswordField(
             controller: draft.password,
             isDense: true,
+            allowEmpty: draft.id.isNotEmpty,
             label: draft.id.isNotEmpty
                 ? s.fieldUserPasswordKeep
                 : s.fieldUserPassword,

@@ -13,7 +13,9 @@ import 'package:latlong2/latlong.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
 import 'package:inteshar/features/chat/presentation/supply_request.dart';
+import 'package:inteshar/features/entities/data/entity_repository.dart';
 import 'package:inteshar/features/entities/domain/entity.dart';
+import 'package:inteshar/features/entities/domain/entity_summary_row.dart';
 import 'package:inteshar/features/entities/domain/entity_type.dart';
 import 'package:inteshar/features/pos_admin/data/pos_admin_repository.dart';
 import 'package:inteshar/features/pos_admin/presentation/pos_archive.dart';
@@ -76,6 +78,16 @@ class _S {
   String get address => p('Address / nearest landmark', 'العنوان / أقرب نقطة دالة');
   String get cancel => p('Cancel', 'إلغاء');
   String get create => p('Onboard', 'إضافة');
+  // PROD-031
+  String get belongsTo => p('Belongs to', 'تابعة الى');
+  String direct(String name) => p('$name (directly)', '$name (مباشرة)');
+  String addedUnder(String name) => p('Added under $name', 'انضافت على $name');
+  String get subAgentNoSlots => p(
+      'This sub-agent has no POS points left. Ask headquarters for points for it.',
+      'هذا الوكيل الفرعي ما عنده نقاط بيع متاحة. اطلب له نقاط من الإدارة.');
+  String get addLocked => p(
+      'Your Main Agent adds POS for this account.',
+      'إضافة نقاط البيع لهذا الحساب يسويها الوكيل الرئيسي.');
   String get count => p('Number of slots', 'عدد النقاط');
   String get search => p('Search by name…', 'بحث بالاسم…');
   // B-129: POS list search (server-side, name or operator phone).
@@ -436,7 +448,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
           Row(children: [
             Expanded(
               child: FilledButton.icon(
-                onPressed: (_pageBusy || (q != null && q.available <= 0))
+                onPressed: (_pageBusy || (q != null && q.available <= 0) || _addLocked)
                     ? null
                     : () => _onboardDialog(s),
                 icon: _isBusy('page:onboard')
@@ -461,6 +473,10 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
               ),
             ],
           ]),
+          if (_addLocked) ...[
+            const SizedBox(height: IntesharSpacing.sm),
+            Text(s.addLocked, style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
+          ],
           if (q != null && q.available <= 0) ...[
             const SizedBox(height: IntesharSpacing.sm),
             // UX-28: this line told the manager to "ask headquarters" and then
@@ -869,7 +885,31 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
     }
   }
 
+  /// PROD-031: a sub-agent whose Main Agent took over adding its POS (the server refuses too).
+  bool get _addLocked {
+    final me = ref.read(authStateProvider).signedIn?.entity;
+    return !_isDrill && me != null && me.type == EntityType.AGENT2 && me.meta.posCreationLocked;
+  }
+
+  /// PROD-031: a Main Agent may add a POS for itself or for one of its sub-agents.
+  Future<List<EntitySummaryRow>> _subAgentsForOnboard() async {
+    if (_isDrill || _signedInType != EntityType.AGENT1) return const [];
+    final id = _effectiveId;
+    if (id == null || id.isEmpty) return const [];
+    try {
+      final page = await EntityRepository(ref.read(apiClientProvider)).children(id, size: 200);
+      return page.items.where((e) => e.type == EntityType.AGENT2 && e.active).toList()
+        ..sort((a, b) => a.name.compareTo(b.name));
+    } catch (_) {
+      return const []; // the dialog still works for the Main Agent itself
+    }
+  }
+
   Future<void> _onboardDialog(_S s) async {
+    final subAgents = await _subAgentsForOnboard();
+    if (!mounted) return;
+    final selfName = ref.read(authStateProvider).signedIn?.entity.meta.name ?? '';
+    String? hostId; // null = the Main Agent itself
     final phone = TextEditingController();
     final pw = TextEditingController();
     final name = TextEditingController();
@@ -894,6 +934,20 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
               key: formKey,
               autovalidateMode: AutovalidateMode.onUserInteraction,
               child: Column(mainAxisSize: MainAxisSize.min, children: [
+                // PROD-031: which agent the new POS belongs to.
+                if (subAgents.isNotEmpty)
+                  DropdownButtonFormField<String?>(
+                    key: const ValueKey('onboard-belongs-to'),
+                    initialValue: hostId,
+                    isExpanded: true,
+                    decoration: InputDecoration(labelText: s.belongsTo, isDense: true),
+                    items: [
+                      DropdownMenuItem<String?>(value: null, child: Text(s.direct(selfName))),
+                      for (final a in subAgents)
+                        DropdownMenuItem<String?>(value: a.id, child: Text(a.name, overflow: TextOverflow.ellipsis)),
+                    ],
+                    onChanged: (v) => setD(() => hostId = v),
+                  ),
                 // B-044: every field is mandatory — nothing optional.
                 _field(phone, s.phone,
                     keyboard: TextInputType.phone,
@@ -989,7 +1043,7 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
       final messenger = ScaffoldMessenger.of(context);
       try {
         await _repo.onboard(
-          entityId: _effectiveId ?? '',
+          entityId: hostId ?? _effectiveId ?? '',
           phone: phone.text.trim(),
           password: pw.text,
           posName: name.text.trim(),
@@ -999,12 +1053,16 @@ class _PosAdminPageState extends ConsumerState<PosAdminPage> {
           posLatitude: hint?.latitude,
           posLongitude: hint?.longitude,
         );
-        if (mounted) messenger.showSnackBar(SnackBar(content: Text(s.done)));
+        final under = hostId == null ? null : subAgents.where((a) => a.id == hostId).map((a) => a.name).firstOrNull;
+        if (mounted) messenger.showSnackBar(SnackBar(content: Text(under == null ? s.done : s.addedUnder(under))));
         await _load(silent: true);
       } catch (e) {
         if (!mounted) return;
         if (isDuplicatePhone(e)) {
           await _showAlreadyExistsDialog(s, phone.text.trim(), serverReason(e));
+        } else if (hostId != null && (serverReason(e) ?? '').contains('slots')) {
+          // PROD-031: the POS uses one of the SUB-AGENT's points; it has none left.
+          messenger.showSnackBar(SnackBar(content: Text(s.subAgentNoSlots)));
         } else {
           messenger.showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
         }

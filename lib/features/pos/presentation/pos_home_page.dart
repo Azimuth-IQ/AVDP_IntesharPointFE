@@ -13,6 +13,7 @@ import 'package:inteshar/core/printing/logo_loader.dart';
 import 'package:inteshar/core/printing/print_queue.dart';
 import 'package:inteshar/core/printing/printer_errors.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:inteshar/core/utils/hand_off.dart';
 import 'package:inteshar/core/utils/formatters.dart';
 import 'package:inteshar/core/utils/image_decode.dart';
 import 'package:inteshar/features/auth/application/auth_controller.dart';
@@ -98,11 +99,11 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
   // governorate step). Null [_company] == the home step.
   String? _company;      // selected company key ('' = the "Other" bucket)
 
-  // B-065: when the app was backgrounded, re-lock the session on return if it was
-  // away long enough to be a walk-away — but NOT for the brief background caused by
-  // a Share sheet or a Rovo/Sunmi print intent (those return in seconds).
+  // PROD-033 (was B-065's 90-second grace): the PIN comes back EVERY time the app returns from
+  // the background — screen off and on, the app left or reopened — because a grace made it
+  // appear only sometimes (the client, 25 Nov). The one exception is a trip the app started
+  // itself (the vendor print app, Android settings, the installer): see [HandOff].
   DateTime? _backgroundedAt;
-  static const _relockAfter = Duration(seconds: 90);
 
   @override
   void initState() {
@@ -133,8 +134,8 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
       // on the first sale back. Fire-and-forget: it writes no bytes, it cannot
       // fail loudly, and nothing on screen waits for it.
       unawaited(ref.read(printerServiceProvider.notifier).verifyConnection());
-      if (since != null && DateTime.now().difference(since) >= _relockAfter) {
-        // Left unattended — drop the unlock flag and send the operator back to the PIN.
+      if (since != null && !HandOff.consume(since)) {
+        // Back from the background — drop the unlock flag and send the operator to the PIN.
         ref.read(posUnlockedProvider.notifier).state = false;
         if (mounted) context.go('/pos/pin-lock');
         return;
@@ -186,6 +187,14 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
       if (!ref.read(posUnlockedProvider)) return;
       unawaited(_load());
     });
+  }
+
+  /// PROD-032: pulling down also re-reads the session's branding — the HQ slider, the agent's
+  /// logo and background — which were otherwise read only at sign-in (the client had to sign out
+  /// and back in to see a new slide). [AuthController.refresh] keeps the session on a failure.
+  Future<void> _pullToRefresh() async {
+    await ref.read(authStateProvider.notifier).refresh();
+    await _load();
   }
 
   /// Fetch the sellable pool + balance.
@@ -488,7 +497,7 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
 
     return MaxWidthBox(
       child: RefreshIndicator(
-        onRefresh: _load,
+        onRefresh: _pullToRefresh,
         child: CustomScrollView(
           slivers: [
             // PROD-021: no «اطبع عند المنفذ من المخزون المتاح.» line — the client asked what it was for.
@@ -579,7 +588,7 @@ class _PosHomePageState extends ConsumerState<PosHomePage> with WidgetsBindingOb
           else
             Expanded(
               child: RefreshIndicator(
-                onRefresh: _load,
+                onRefresh: _pullToRefresh,
                 child: LayoutBuilder(
                   builder: (context, c) {
                     final width = c.maxWidth - 40; // the grid's own side padding
@@ -1684,7 +1693,17 @@ class _VoucherSheetState extends ConsumerState<_VoucherSheet> {
                       const _ReceiptDivider(),
                       const SizedBox(height: 14),
                       if (t.showSerial) ...[_ReceiptRow(label: l.posSerial, value: p.serialNumber, monoSize: 13), const SizedBox(height: 12)],
-                      if (t.showPin) _ReceiptRow(label: l.posPin, value: revealed ? p.pin : '•••• •••• ••••', monoSize: 20, monoSpacing: 5),
+                      // PROD-030: framed like the paper, so the PIN stands out.
+                      if (t.showPin)
+                        Container(
+                          key: const ValueKey('pin-frame'),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: cs.onSurface, width: 1.5),
+                            borderRadius: BorderRadius.circular(IntesharRadii.sm),
+                          ),
+                          child: _ReceiptRow(label: l.posPin, value: revealed ? p.pin : '•••• •••• ••••', monoSize: 20, monoSpacing: 5),
+                        ),
                       if (t.qrEnabled) ...[
                         const SizedBox(height: 16),
                         if (revealed)

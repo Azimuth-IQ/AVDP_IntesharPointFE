@@ -221,8 +221,11 @@ class TextBlock extends ReceiptBlock {
     // above all, so the platform font stack is allowed to supply glyphs the
     // bundled face lacks. The ONE exception is [mono] — a PIN or serial, ASCII
     // by construction, where ambiguous glyphs cost the customer their code.
+    // PROD-027: laid out at the FULL width (min = max). With only a maxWidth a one-line text
+    // shrinks to its own width, so "centre" has nothing to centre in and every line printed at
+    // the left edge (the client's receipt, 25 Nov), while the on-screen preview centred it.
     final tp = _paint(text, size, spacing, maxLines: singleLine ? 1 : null)
-      ..layout(maxWidth: avail);
+      ..layout(minWidth: avail, maxWidth: avail);
     _painter = tp;
     _rendered = size;
     _height = tp.height + padTop + padBottom;
@@ -398,7 +401,11 @@ class LabelValueBlock extends ReceiptBlock {
   final double padBottom;
 
   late TextBlock _label;
-  late TextBlock _value;
+  late ReceiptBlock _value;
+  late TextBlock _valueText;
+
+  /// PROD-030: a box drawn around the value — the client asked for the PIN to stand out.
+  final bool framed;
 
   /// Keep [value] on one line, shrinking it to fit (see [TextBlock.singleLine]).
   final bool singleLineValue;
@@ -423,15 +430,16 @@ class LabelValueBlock extends ReceiptBlock {
     this.singleLineValue = false,
     this.minValueSize = 14,
     this.valueMono = false,
+    this.framed = false,
   });
 
   /// What the value was actually painted at, for tests.
-  double get renderedValueSize => _value.renderedFontSize;
+  double get renderedValueSize => _valueText.renderedFontSize;
 
   @override
   void measure(int width) {
     _label = TextBlock(label, fontSize: labelSize, padBottom: 1);
-    _value = TextBlock(
+    _valueText = TextBlock(
       value,
       fontSize: valueSize,
       weight: valueWeight,
@@ -441,6 +449,7 @@ class LabelValueBlock extends ReceiptBlock {
       minFontSize: minValueSize,
       mono: valueMono,
     );
+    _value = framed ? FramedBlock(_valueText) : _valueText;
     _label.measure(width);
     _value.measure(width);
     _height = _label.height + _value.height + padBottom;
@@ -450,6 +459,38 @@ class LabelValueBlock extends ReceiptBlock {
   void paint(ui.Canvas canvas, int width, double y) {
     _label.paint(canvas, width, y);
     _value.paint(canvas, width, y + _label.height);
+  }
+}
+
+/// PROD-030: [child] inside a plain rectangle. The child is measured [inset] narrower on each
+/// side and drawn shifted in by the same amount, so a single-line PIN shrinks to fit inside the
+/// box instead of running into it.
+class FramedBlock extends ReceiptBlock {
+  final ReceiptBlock child;
+  final double inset;
+  final double stroke;
+  FramedBlock(this.child, {this.inset = 10, this.stroke = 2});
+
+  @override
+  void measure(int width) {
+    child.measure((width - 2 * inset).floor());
+    _height = child.height + 2 * inset;
+  }
+
+  @override
+  void paint(ui.Canvas canvas, int width, double y) {
+    final half = stroke / 2;
+    canvas.drawRect(
+      ui.Rect.fromLTWH(4 + half, y + half, width - 8 - stroke, _height - stroke),
+      ui.Paint()
+        ..color = const ui.Color(0xFF000000)
+        ..style = ui.PaintingStyle.stroke
+        ..strokeWidth = stroke,
+    );
+    canvas.save();
+    canvas.translate(inset, 0);
+    child.paint(canvas, (width - 2 * inset).floor(), y + inset);
+    canvas.restore();
   }
 }
 
@@ -504,7 +545,7 @@ class FieldLineBlock extends ReceiptBlock {
       // combined string used to.
       textDirection:
           containsArabic(label) ? TextDirection.rtl : TextDirection.ltr,
-    )..layout(maxWidth: avail);
+    )..layout(minWidth: avail, maxWidth: avail); // PROD-027: see TextBlock.measure
     _painter = tp;
     _height = tp.height + padBottom;
   }

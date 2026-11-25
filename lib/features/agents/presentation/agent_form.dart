@@ -92,6 +92,8 @@ class _AgentFormState extends ConsumerState<AgentForm> {
   final _lowStock = TextEditingController();
   final _bulkLimit = TextEditingController();
   bool _bulkLocked = true;
+  bool _receiptHeaderHidden = false; // PROD-029
+  bool _posLocked = false;           // PROD-031
   final _ownerName = TextEditingController();
   List<String> _documentUrls = [];
   final _landmark = TextEditingController();
@@ -176,6 +178,8 @@ class _AgentFormState extends ConsumerState<AgentForm> {
         _bulkLimit.text = e.meta.maxBulkPrint.toString();
       }
       _bulkLocked = e.meta.bulkLimitLocked;
+      _receiptHeaderHidden = e.meta.receiptHeaderHidden;
+      _posLocked = e.meta.posCreationLocked;
       _primary.text = e.meta.primaryColor;
       _secondary.text = e.meta.secondaryColor;
       _background.text = e.meta.backgroundUrl;
@@ -561,6 +565,8 @@ class _AgentFormState extends ConsumerState<AgentForm> {
       lowStockThreshold: int.tryParse(_lowStock.text.trim()) ?? 0,
       maxBulkPrint: int.tryParse(_bulkLimit.text.trim()) ?? 0,
       bulkLimitLocked: _bulkLocked,
+      receiptHeaderHidden: _receiptHeaderHidden,
+      posCreationLocked: _posLocked,
     );
     final profile = EntityProfile(
       ownerName: _ownerName.text.trim(),
@@ -1097,6 +1103,28 @@ class _AgentFormState extends ConsumerState<AgentForm> {
             kind: 'agent-branding',
             label: s.fieldBackground,
             onChanged: (u) => setState(() => _background.text = u),
+          ),
+          const SizedBox(height: IntesharSpacing.sm),
+          // PROD-029: HQ decides per Main Agent whether the template header goes on its receipts.
+          SwitchListTile(
+            key: const ValueKey('receipt-header-switch'),
+            contentPadding: EdgeInsets.zero,
+            title: Text(s.receiptHeaderShown),
+            subtitle: Text(s.receiptHeaderShownHint),
+            value: !_receiptHeaderHidden,
+            onChanged: (v) => setState(() => _receiptHeaderHidden = !v),
+          ),
+        ],
+        if (tier == AgentTier.sub) ...[
+          const SizedBox(height: IntesharSpacing.md),
+          // PROD-031: the Main Agent may take over adding this sub-agent's POS.
+          SwitchListTile(
+            key: const ValueKey('pos-creation-switch'),
+            contentPadding: EdgeInsets.zero,
+            title: Text(s.posCreationAllowed),
+            subtitle: Text(s.posCreationAllowedHint),
+            value: !_posLocked,
+            onChanged: (v) => setState(() => _posLocked = !v),
           ),
         ],
       ],

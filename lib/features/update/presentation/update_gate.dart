@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'package:inteshar/core/utils/hand_off.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/features/update/application/update_controller.dart';
 import 'package:inteshar/features/update/domain/app_release.dart';
@@ -373,6 +374,7 @@ class _ActionArea extends ConsumerWidget {
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: () async {
+                HandOff.mark(); // PROD-033
                 await openAppSettings();
               },
               icon: const Icon(Icons.settings_outlined, size: 18),

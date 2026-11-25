@@ -39,6 +39,11 @@ class _S {
   // There is no text box and no URL to paste anywhere in the widget, so "Logo
   // URL" sent the operator hunting for a link they were never given.
   String get logo => p('Logo (optional)', 'الشعار (اختياري)');
+  // PROD-028: the client asked for a separate, transparent logo for the paper.
+  String get receiptLogo => p('Receipt logo (optional)', 'شعار الوصل (اختياري)');
+  String get receiptLogoHint => p(
+      'Printed at the top of the receipt in black and white. Use a PNG with a transparent background, ideally a black logo. Empty = the logo above is printed.',
+      'يطبع أعلى الوصل بالأبيض والأسود. ارفع صورة PNG بخلفية شفافة، والأفضل شعار أسود. إذا تركته فارغ يطبع الشعار الي فوق.');
   String get description => p('Description (optional)', 'الوصف (اختياري)');
   String get order => p('Display order', 'ترتيب العرض');
   String get active => p('Active', 'مفعّلة');
@@ -376,6 +381,7 @@ class _CompanyDialog extends StatefulWidget {
 class _CompanyDialogState extends State<_CompanyDialog> {
   late final TextEditingController _name = TextEditingController(text: widget.existing?.name ?? '');
   late final TextEditingController _logo = TextEditingController(text: widget.existing?.logoUrl ?? '');
+  late final TextEditingController _receiptLogo = TextEditingController(text: widget.existing?.receiptLogoUrl ?? '');
   late final TextEditingController _desc = TextEditingController(text: widget.existing?.description ?? '');
   late final TextEditingController _order =
       TextEditingController(text: (widget.existing?.displayOrder ?? 0).toString());
@@ -391,6 +397,7 @@ class _CompanyDialogState extends State<_CompanyDialog> {
   void dispose() {
     _name.dispose();
     _logo.dispose();
+    _receiptLogo.dispose();
     _desc.dispose();
     _order.dispose();
     _cap.dispose();
@@ -412,6 +419,7 @@ class _CompanyDialogState extends State<_CompanyDialog> {
     final company = base.copyWith(
       name: _name.text.trim(),
       logoUrl: _logo.text.trim(),
+      receiptLogoUrl: _receiptLogo.text.trim(),
       description: _desc.text.trim(),
       displayOrder: int.tryParse(_order.text.trim()) ?? 0,
       active: _active,
@@ -524,6 +532,18 @@ class _CompanyDialogState extends State<_CompanyDialog> {
               label: s.logo,
               kind: 'agent-branding',
               onChanged: (u) => setState(() => _logo.text = u),
+            ),
+            const SizedBox(height: IntesharSpacing.sm2),
+            ImageUploadField(
+              value: _receiptLogo.text.isEmpty ? null : _receiptLogo.text,
+              label: s.receiptLogo,
+              kind: 'agent-branding',
+              onChanged: (u) => setState(() => _receiptLogo.text = u),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: IntesharSpacing.xs),
+              child: Text(s.receiptLogoHint,
+                  style: IntesharText.caption(color: Theme.of(context).colorScheme.onSurfaceVariant)),
             ),
             const SizedBox(height: IntesharSpacing.sm2),
             TextField(controller: _desc, decoration: InputDecoration(labelText: s.description)),

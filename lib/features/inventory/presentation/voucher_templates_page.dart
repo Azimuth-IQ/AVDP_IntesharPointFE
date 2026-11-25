@@ -1619,10 +1619,15 @@ class _ReceiptPreview extends StatelessWidget {
             // ── PIN (larger, bold) ───────────────────────────────────────
             if (template.showPin) ...[
               const SizedBox(height: IntesharSpacing.xs),
-              Text(
-                _samplePin,
-                textAlign: TextAlign.center,
-                style: IntesharType.mono(20, color: Colors.black, w: kMonoHeaviest, letterSpacing: 2),
+              // PROD-030: the paper frames the PIN, so the preview does too.
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(border: Border.all(color: Colors.black, width: 1.5)),
+                child: Text(
+                  _samplePin,
+                  textAlign: TextAlign.center,
+                  style: IntesharType.mono(20, color: Colors.black, w: kMonoHeaviest, letterSpacing: 2),
+                ),
               ),
               const SizedBox(height: IntesharSpacing.sm),
             ],

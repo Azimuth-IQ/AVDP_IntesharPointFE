@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import 'package:inteshar/core/utils/hand_off.dart';
 import 'package:inteshar/core/api/api_client.dart';
 import 'package:inteshar/features/update/data/apk_installer.dart';
 import 'package:inteshar/features/update/data/release_repository.dart';
@@ -103,6 +104,7 @@ class UpdateController extends Notifier<UpdateState> {
 
   /// Downloads + verifies + launches the installer for the pending release.
   Future<void> install() async {
+    HandOff.mark(); // PROD-033: the installer takes the screen; cancelling must not ask for the PIN
     final (release, mandatory) = switch (state) {
       UpdateAvailableState s => (s.release, s.mandatory),
       UpdateFailed s => (s.release, s.mandatory),

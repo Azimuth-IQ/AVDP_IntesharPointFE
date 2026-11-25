@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:inteshar/core/utils/hand_off.dart';
 import 'package:inteshar/app/theme.dart';
 import 'package:inteshar/core/printing/escpos_builder.dart';
 import 'package:inteshar/core/printing/printer_service.dart';
@@ -747,7 +748,10 @@ class _PrinterPickerPageState extends ConsumerState<PrinterPickerPage>
               ? 'التطبيق غير مسموح له برؤية «الأجهزة المجاورة»، لذلك لا يمكن العثور على الطابعة. من الإعدادات: الأذونات ← الأجهزة المجاورة ← سماح.'
               : 'Inteshar Point is not allowed to see "Nearby devices", so the printer can\'t be found. In settings: Permissions → Nearby devices → Allow.',
           actionLabel: ar ? 'فتح الإعدادات' : 'Open settings',
-          onAction: openAppSettings,
+          onAction: () {
+            HandOff.mark(); // PROD-033: our own trip to settings
+            openAppSettings();
+          },
         ),
       BluetoothAccess.off => _noticeCard(
           cs,

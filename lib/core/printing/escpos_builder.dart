@@ -148,6 +148,8 @@ Future<List<int>> buildVoucherReceipt({
         singleLineValue: true,
         minValueSize: 18,
         valueMono: true,
+        // PROD-030: the PIN sits in a frame so it stands out on the paper.
+        framed: true,
       ),
     );
   }
@@ -245,7 +247,12 @@ String buildVoucherReceiptText({
   if (template.showProductName || template.showPrice) line();
 
   if (template.showSerial) line('Serial: $serial');
-  if (template.showPin) line('PIN: $pin');
+  if (template.showPin) {
+    // PROD-030: the text-only path cannot draw a box; rules above and below set the PIN apart.
+    line('================================');
+    line('PIN: $pin');
+    line('================================');
+  }
 
   if (template.qrEnabled) {
     // No QR on this path, so its content stands in for it — unless the PIN/serial it

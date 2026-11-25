@@ -6,6 +6,9 @@ class Company {
   final String id;
   final String name;
   final String logoUrl;
+  /// PROD-028: the logo printed on receipts (transparent PNG), separate from [logoUrl], the
+  /// full-colour picture on the POS tile. Empty = receipts use [logoUrl], as before.
+  final String receiptLogoUrl;
   final String description;
   final int displayOrder;
   final bool active;
@@ -22,6 +25,7 @@ class Company {
     this.id = '',
     required this.name,
     this.logoUrl = '',
+    this.receiptLogoUrl = '',
     this.description = '',
     this.displayOrder = 0,
     this.active = true,
@@ -34,6 +38,7 @@ class Company {
         id: j['id'] as String? ?? '',
         name: j['name'] as String? ?? '',
         logoUrl: j['logoUrl'] as String? ?? '',
+        receiptLogoUrl: j['receiptLogoUrl'] as String? ?? '',
         description: j['description'] as String? ?? '',
         displayOrder: (j['displayOrder'] as num?)?.toInt() ?? 0,
         active: j['active'] as bool? ?? true,
@@ -48,6 +53,7 @@ class Company {
         if (id.isNotEmpty) 'id': id,
         'name': name,
         'logoUrl': logoUrl,
+        'receiptLogoUrl': receiptLogoUrl,
         'description': description,
         'displayOrder': displayOrder,
         'active': active,
@@ -55,11 +61,12 @@ class Company {
         'withdrawalWindowHours': withdrawalWindowHours,
       };
 
-  Company copyWith({String? id, String? name, String? logoUrl, String? description, int? displayOrder, bool? active, int? withdrawalCap, int? withdrawalWindowHours}) =>
+  Company copyWith({String? id, String? name, String? logoUrl, String? receiptLogoUrl, String? description, int? displayOrder, bool? active, int? withdrawalCap, int? withdrawalWindowHours}) =>
       Company(
         id: id ?? this.id,
         name: name ?? this.name,
         logoUrl: logoUrl ?? this.logoUrl,
+        receiptLogoUrl: receiptLogoUrl ?? this.receiptLogoUrl,
         description: description ?? this.description,
         displayOrder: displayOrder ?? this.displayOrder,
         active: active ?? this.active,

@@ -160,6 +160,15 @@ class AgentStrings {
   String get fieldPrimary => pick('Main color (hex)', 'اللون الرئيسي (hex)');
   String get fieldSecondary => pick('Accent color (hex)', 'لون التمييز (hex)');
   String get fieldBackground => pick('Background image (optional)', 'صورة الخلفية (اختياري)');
+  // PROD-029 / PROD-031
+  String get receiptHeaderShown => pick('Print the template header on this agent\'s receipts', 'إظهار عنوان القالب بوصولات هذا الوكيل');
+  String get receiptHeaderShownHint => pick(
+      'For example the word «inteshar» typed as a company template\'s header. Off: this agent\'s shops print their own name in its place.',
+      'مثل كلمة inteshar المكتوبة كعنوان بقالب الشركة. إذا أطفأته، نقاط بيع هذا الوكيل تطبع اسمها بدلها.');
+  String get posCreationAllowed => pick('May add POS itself', 'يضيف نقاط بيع بنفسه');
+  String get posCreationAllowedHint => pick(
+      'Off: only its Main Agent (or HQ) adds POS for this sub-agent.',
+      'إذا أطفأته، الوكيل الرئيسي (أو الإدارة) هو الي يضيف نقاط البيع لهذا الوكيل الفرعي.');
 
   String get usersSubtitle => _sub
       ? pick('A single admin user. Sub agents cannot set card prices.', 'مستخدم مدير واحد. لا يمكن للوكلاء الفرعيين تسعير الكروت.')

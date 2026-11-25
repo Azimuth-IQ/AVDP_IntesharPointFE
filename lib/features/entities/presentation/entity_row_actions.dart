@@ -376,6 +376,10 @@ Future<void> showEntityMetaSheet(
   final bulkCtrl = TextEditingController(
       text: full.meta.maxBulkPrint > 0 ? full.meta.maxBulkPrint.toString() : '');
   var bulkLocked = full.meta.bulkLimitLocked;
+  // PROD-031: HQ or the Main Agent may take over adding a sub-agent's POS (never the sub-agent itself).
+  var posLocked = full.meta.posCreationLocked;
+  final viewerId = ref.read(authStateProvider).signedIn?.entity.id;
+  final showPosLock = full.type == EntityType.AGENT2 && viewerId != null && viewerId != full.id;
 
   await showModalBottomSheet<void>(
     context: context,
@@ -395,6 +399,9 @@ Future<void> showEntityMetaSheet(
       showBulkLock: viewerIsHq(ref),
       bulkLocked: bulkLocked,
       onBulkLockChanged: (v) => bulkLocked = v,
+      showPosLock: showPosLock,
+      posLocked: posLocked,
+      onPosLockChanged: (v) => posLocked = v,
       onSave: () async {
         final repo = EntityRepository(ref.read(apiClientProvider));
         // NOTE (C-10): this is a read-back entity going back out through a
@@ -413,6 +420,7 @@ Future<void> showEntityMetaSheet(
             lowStockThreshold: int.tryParse(thresholdCtrl.text.trim()) ?? 0,
             maxBulkPrint: int.tryParse(bulkCtrl.text.trim()) ?? 0,
             bulkLimitLocked: bulkLocked,
+            posCreationLocked: posLocked,
           ),
         );
         await repo.updateWithUsers(updated);
@@ -545,6 +553,9 @@ class EntityMetaFormSheet extends StatefulWidget {
   final bool showBulkLock;
   final bool bulkLocked;
   final ValueChanged<bool> onBulkLockChanged;
+  final bool showPosLock;
+  final bool posLocked;
+  final ValueChanged<bool>? onPosLockChanged;
   final Future<void> Function() onSave;
 
   const EntityMetaFormSheet({
@@ -562,6 +573,9 @@ class EntityMetaFormSheet extends StatefulWidget {
     this.showBulkLock = false,
     this.bulkLocked = true,
     required this.onBulkLockChanged,
+    this.showPosLock = false,
+    this.posLocked = false,
+    this.onPosLockChanged,
     required this.onSave,
   });
 
@@ -571,6 +585,7 @@ class EntityMetaFormSheet extends StatefulWidget {
 
 class _EntityMetaFormSheetState extends State<EntityMetaFormSheet> {
   bool _saving = false;
+  late bool _posLocked = widget.posLocked; // PROD-031: the sheet's own copy, so the switch moves
   String? _nameError;
   String? _thresholdError;
 
@@ -726,6 +741,28 @@ class _EntityMetaFormSheetState extends State<EntityMetaFormSheet> {
                   ar
                       ? 'عند التعطيل، الإدارة وحدها تحدد الحد لهذا الحساب وكل ما تحته.'
                       : 'When off, only HQ sets the limit for this account and everything under it.',
+                  style: IntesharType.sans(11, color: cs.onSurfaceVariant),
+                ),
+              ),
+            // PROD-031: the Main Agent adds this sub-agent's POS when it is off.
+            if (widget.showPosLock)
+              SwitchListTile(
+                key: const ValueKey('tree-pos-creation-switch'),
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                value: !_posLocked,
+                onChanged: (v) => setState(() {
+                  _posLocked = !v;
+                  widget.onPosLockChanged?.call(_posLocked);
+                }),
+                title: Text(
+                  ar ? 'يضيف نقاط بيع بنفسه' : 'May add POS itself',
+                  style: IntesharText.bodyLg(color: cs.onSurface, w: IntesharWeight.semibold),
+                ),
+                subtitle: Text(
+                  ar
+                      ? 'إذا أطفأته، الوكيل الرئيسي هو الي يضيف نقاط البيع لهذا الوكيل الفرعي.'
+                      : 'When off, the Main Agent adds POS for this sub-agent.',
                   style: IntesharType.sans(11, color: cs.onSurfaceVariant),
                 ),
               ),

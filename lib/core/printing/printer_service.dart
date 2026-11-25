@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inteshar/core/utils/hand_off.dart';
 import 'package:inteshar/core/printing/auto_connect.dart';
 import 'package:inteshar/core/printing/centerm_printer.dart';
 import 'package:inteshar/core/printing/print_job.dart';
@@ -537,6 +538,8 @@ class PrinterService extends Notifier<PrinterState> {
           if (!job.hasText) {
             throw Exception('This printer cannot print a graphical receipt');
           }
+          // PROD-033: the vendor app takes the screen; coming back must not ask for the PIN.
+          HandOff.mark();
           await RovoPrinter.printText(job.text);
       }
       // A receipt that reached the printer is the strongest possible proof of

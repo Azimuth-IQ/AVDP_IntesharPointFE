@@ -71,10 +71,15 @@ class EntityMeta {
   // B-086: when true this account (and its subtree) may not edit bulk limits — HQ-only
   // to change. Defaults to true (locked) so the right is granted, never assumed.
   final bool bulkLimitLocked;
+  // PROD-029 (Main Agent): its shops' receipts leave out the print template's header text
+  // (e.g. «inteshar»). HQ sets it; the server keeps it for everyone else.
+  final bool receiptHeaderHidden;
+  // PROD-031 (Sub-Agent): it may not add POS itself — its Main Agent adds them for it.
+  final bool posCreationLocked;
   final List<String> governorates; // governorate codes this entity operates in (geo-lock)
   final WorkingHours? workingHours; // per-account login window (BRD FR-03); null = always open
 
-  const EntityMeta({this.name = '', this.slogan = '', this.description = '', this.logoUrl = '', this.backgroundUrl = '', this.sliderImagesUrl = const [], this.sliderImages = const [], this.primaryColor = '', this.secondaryColor = '', this.lowStockThreshold = 0, this.maxBulkPrint = 0, this.bulkLimitLocked = true, this.governorates = const [], this.workingHours});
+  const EntityMeta({this.name = '', this.slogan = '', this.description = '', this.logoUrl = '', this.backgroundUrl = '', this.sliderImagesUrl = const [], this.sliderImages = const [], this.primaryColor = '', this.secondaryColor = '', this.lowStockThreshold = 0, this.maxBulkPrint = 0, this.bulkLimitLocked = true, this.receiptHeaderHidden = false, this.posCreationLocked = false, this.governorates = const [], this.workingHours});
 
   /// The structured slider list, migrating legacy flat [sliderImagesUrl] (all
   /// active, in order) when no structured list has been saved yet.
@@ -103,6 +108,8 @@ class EntityMeta {
     lowStockThreshold: (j['lowStockThreshold'] as num?)?.toInt() ?? 0,
     maxBulkPrint: (j['maxBulkPrint'] as num?)?.toInt() ?? 0,
     bulkLimitLocked: j['bulkLimitLocked'] as bool? ?? true,
+    receiptHeaderHidden: j['receiptHeaderHidden'] as bool? ?? false,
+    posCreationLocked: j['posCreationLocked'] as bool? ?? false,
     governorates: (j['governorates'] as List<dynamic>?)?.cast<String>() ?? const [],
     workingHours: j['workingHours'] == null ? null : WorkingHours.fromJson((j['workingHours'] as Map).cast<String, dynamic>()),
   );
@@ -120,11 +127,13 @@ class EntityMeta {
     'lowStockThreshold': lowStockThreshold,
     if (maxBulkPrint > 0) 'maxBulkPrint': maxBulkPrint,
     'bulkLimitLocked': bulkLimitLocked,
+    'receiptHeaderHidden': receiptHeaderHidden,
+    'posCreationLocked': posCreationLocked,
     'governorates': governorates,
     if (workingHours != null) 'workingHours': workingHours!.toJson(),
   };
 
-  EntityMeta copyWith({String? name, String? slogan, String? description, String? logoUrl, String? backgroundUrl, List<String>? sliderImagesUrl, List<SliderImage>? sliderImages, String? primaryColor, String? secondaryColor, int? lowStockThreshold, int? maxBulkPrint, bool? bulkLimitLocked, List<String>? governorates, WorkingHours? workingHours}) => EntityMeta(
+  EntityMeta copyWith({String? name, String? slogan, String? description, String? logoUrl, String? backgroundUrl, List<String>? sliderImagesUrl, List<SliderImage>? sliderImages, String? primaryColor, String? secondaryColor, int? lowStockThreshold, int? maxBulkPrint, bool? bulkLimitLocked, bool? receiptHeaderHidden, bool? posCreationLocked, List<String>? governorates, WorkingHours? workingHours}) => EntityMeta(
     name: name ?? this.name,
     slogan: slogan ?? this.slogan,
     description: description ?? this.description,
@@ -137,6 +146,8 @@ class EntityMeta {
     lowStockThreshold: lowStockThreshold ?? this.lowStockThreshold,
     maxBulkPrint: maxBulkPrint ?? this.maxBulkPrint,
     bulkLimitLocked: bulkLimitLocked ?? this.bulkLimitLocked,
+    receiptHeaderHidden: receiptHeaderHidden ?? this.receiptHeaderHidden,
+    posCreationLocked: posCreationLocked ?? this.posCreationLocked,
     governorates: governorates ?? this.governorates,
     workingHours: workingHours ?? this.workingHours,
   );

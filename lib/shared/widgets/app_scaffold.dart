@@ -416,6 +416,15 @@ class AppShell extends ConsumerWidget {
             required: Capability.AGENT_ADMIN,
             group: 'administration',
           ),
+          // PROD-037: the telecom companies' read-only accounts (Asiacell, Zain).
+          _NavItem(
+            Icons.badge_outlined,
+            Icons.badge,
+            l.localeName.startsWith('ar') ? 'حسابات الشركات' : 'Company accounts',
+            '/hq/company-accounts',
+            required: Capability.AGENT_ADMIN,
+            group: 'administration',
+          ),
           _NavItem(
             Icons.schedule_outlined,
             Icons.schedule,
@@ -661,6 +670,10 @@ class AppShell extends ConsumerWidget {
             '/store/notifications',
           ),
         ];
+      case EntityType.COMPANY:
+        // PROD-037: a company account never gets the shell — its one screen,
+        // /company/home, sits outside it (router.dart).
+        return const [];
     }
   }
 

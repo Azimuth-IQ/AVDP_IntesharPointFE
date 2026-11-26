@@ -122,6 +122,14 @@ class Endpoints {
   static const companyTemplate = '/api/company/template'; // PROD-023
   static const companyRestrict = '/api/company/restrict';      // B-058 per-agent restriction
   static const companyRestrictions = '/api/company/restrictions';
+  // PROD-037: a telecom company's own uploaded-cards screen, and HQ's management of those accounts.
+  static const companyPortalMe = '/api/company-portal/me';
+  static const companyPortalUploads = '/api/company-portal/uploads';
+  static const companyPortalExported = '/api/company-portal/exported';
+  static const companyAccounts = '/api/company-accounts';
+  static const companyAccountsActive = '/api/company-accounts/active';
+  static const companyAccountsPassword = '/api/company-accounts/password';
+  static const companyAccountsActivity = '/api/company-accounts/activity';
   static const pricingCatalog = '/api/pricing/catalog';
   static const pricingSet = '/api/pricing/set';
   static const pricingSetBulk = '/api/pricing/set-bulk';       // B-059 Excel bulk apply

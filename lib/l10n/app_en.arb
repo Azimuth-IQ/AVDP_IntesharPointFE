@@ -244,6 +244,8 @@
   "@entityTypeAgent2": {},
   "entityTypeStore": "Store",
   "@entityTypeStore": {},
+  "entityTypeCompany": "Company account",
+  "@entityTypeCompany": {},
   "entityTypeUser": "User",
   "@entityTypeUser": {},
 

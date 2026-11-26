@@ -38,6 +38,7 @@ class RecipientTile extends StatelessWidget {
         EntityType.AGENT1 => l.entityTypeAgent1,
         EntityType.AGENT2 => l.entityTypeAgent2,
         EntityType.STORE => l.entityTypeStore,
+        EntityType.COMPANY => l.entityTypeCompany,
       };
 
   /// Brand for an agent, structural ink for a POS point.

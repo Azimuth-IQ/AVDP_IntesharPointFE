@@ -23,6 +23,8 @@ import 'package:inteshar/features/update/presentation/app_download_page.dart';
 import 'package:inteshar/features/notifications/presentation/notifications_inbox_page.dart';
 import 'package:inteshar/features/settings/presentation/working_hours_page.dart';
 import 'package:inteshar/features/companies/presentation/companies_page.dart';
+import 'package:inteshar/features/company_portal/presentation/company_accounts_page.dart';
+import 'package:inteshar/features/company_portal/presentation/company_portal_page.dart';
 import 'package:inteshar/features/pos/presentation/pos_home_page.dart';
 import 'package:inteshar/features/pos/presentation/pos_pin_lock_page.dart';
 import 'package:inteshar/features/pos/presentation/pos_pin_setup_page.dart';
@@ -92,6 +94,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/pos/home', builder: (_, _) => const PosHomePage()),
       GoRoute(path: '/pos/pin-lock', builder: (_, _) => const PosPinLockPage()),
       GoRoute(path: '/pos/pin-setup', builder: (_, _) => const PosPinSetupPage()),
+
+      // PROD-037: a telecom company's account has ONE screen, outside the shell — the
+      // shell's nav and its unread-count polls are for the agent network, and the server
+      // refuses a company account every route but its own report.
+      GoRoute(path: '/company/home', builder: (_, _) => const CompanyPortalPage()),
+      // HQ sees exactly what a company sees (pushed, with a back button).
+      GoRoute(
+        path: '/hq/company-accounts/preview',
+        builder: (_, s) => CompanyPortalPage(companyId: s.uri.queryParameters['companyId'] ?? ''),
+      ),
 
       // Detail routes (pushed on top, outside the shell) — keep their own
       // back-aware AppBars.
@@ -190,6 +202,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/hq/reports', builder: (_, _) => const ReportsPage()),
           GoRoute(path: '/hq/chat', builder: (_, _) => const ChatThreadsPage()),
           GoRoute(path: '/hq/pos-users', builder: (_, _) => const PosAdminPage()),
+          GoRoute(path: '/hq/company-accounts', builder: (_, _) => const CompanyAccountsPage()), // PROD-037
 
           // Agent1
           GoRoute(path: '/agent1/home', builder: (_, _) => const DashboardPage()),
@@ -252,7 +265,7 @@ EntityType? _typeParam(GoRouterState state) {
 /// role-scoped route (e.g. `/splash`, `/login`, `/diagnostics`). Used by the
 /// router redirect to keep a signed-in session inside its own section.
 String? _rolePrefixOf(String location) {
-  const prefixes = ['/hq', '/agent1', '/agent2', '/store', '/pos'];
+  const prefixes = ['/hq', '/agent1', '/agent2', '/store', '/pos', '/company'];
   for (final p in prefixes) {
     if (location == p || location.startsWith('$p/')) return p;
   }

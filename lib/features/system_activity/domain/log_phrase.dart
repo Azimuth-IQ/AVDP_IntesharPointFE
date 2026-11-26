@@ -178,6 +178,15 @@ const Map<String, (String, String)> _routes = {
   '/company/readall': ('Company list', 'قائمة الشركات'),
   '/company/read': ('Company lookup', 'استعلام شركة'),
 
+  // ── company accounts (PROD-037: Asiacell / Zain read-only logins) ────────
+  '/company-portal/uploads': ('Company uploads report opened', 'فتح تقرير الشركة للكروت المرفوعة'),
+  '/company-portal/exported': ('Company report saved as Excel', 'حفظ تقرير الشركة كملف Excel'),
+  '/company-portal/me': ('Company page opened', 'فتح صفحة حساب الشركة'),
+  '/company-accounts/activity': ('Company account activity viewed', 'عرض نشاط حساب شركة'),
+  '/company-accounts/password': ('Company account password set', 'تعيين كلمة مرور حساب شركة'),
+  '/company-accounts/active': ('Company account switched on or off', 'تشغيل أو إيقاف حساب شركة'),
+  '/company-accounts': ('Company accounts', 'حسابات الشركات'),
+
   // ── transfers (legacy transaction flow) ──────────────────────────────────
   '/transactions/create': ('Transfer created', 'إنشاء تحويل'),
   '/transactions/update': ('Transfer updated', 'تعديل تحويل'),

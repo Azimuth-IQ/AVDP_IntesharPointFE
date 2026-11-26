@@ -770,6 +770,12 @@ abstract class AppLocalizations {
   /// **'Store'**
   String get entityTypeStore;
 
+  /// No description provided for @entityTypeCompany.
+  ///
+  /// In en, this message translates to:
+  /// **'Company account'**
+  String get entityTypeCompany;
+
   /// No description provided for @entityTypeUser.
   ///
   /// In en, this message translates to:

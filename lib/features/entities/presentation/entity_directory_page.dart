@@ -74,6 +74,8 @@ String _typeInitial(EntityType t) {
       return 'S';
     case EntityType.STORE:
       return 'P';
+    case EntityType.COMPANY:
+      return 'C';
   }
 }
 

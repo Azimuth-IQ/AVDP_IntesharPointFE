@@ -135,6 +135,7 @@
   "entityTypeAgent1": "الوكيل الرئيسي",
   "entityTypeAgent2": "الوكيل الفرعي",
   "entityTypeStore": "متجر",
+  "entityTypeCompany": "حساب شركة",
   "entityTypeUser": "مستخدم",
 
   "entityTreeSubtitle": "كل الحسابات التابعة لك، مستوى بمستوى.",

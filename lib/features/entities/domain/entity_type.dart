@@ -4,6 +4,10 @@ enum EntityType {
   AGENT1,
   AGENT2,
   STORE,
+
+  /// PROD-037: a telecom company's read-only account (Asiacell, Zain). Outside the agent
+  /// tree; its one screen is its own uploaded-cards report (`/company/home`).
+  COMPANY,
 }
 
 extension EntityTypeX on EntityType {
@@ -17,6 +21,8 @@ extension EntityTypeX on EntityType {
         return 'Sub Agent';
       case EntityType.STORE:
         return 'Store';
+      case EntityType.COMPANY:
+        return 'Company';
     }
   }
 
@@ -30,6 +36,8 @@ extension EntityTypeX on EntityType {
         return '/agent2/home';
       case EntityType.STORE:
         return '/store/home';
+      case EntityType.COMPANY:
+        return '/company/home';
     }
   }
 
@@ -46,6 +54,7 @@ extension EntityTypeX on EntityType {
         return '/agent2/transfers';
       case EntityType.INTESHAR:
       case EntityType.STORE:
+      case EntityType.COMPANY:
         return null;
     }
   }

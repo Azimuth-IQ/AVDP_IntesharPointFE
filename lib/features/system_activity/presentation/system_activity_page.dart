@@ -2015,6 +2015,7 @@ String _entityTypeLabel(AppLocalizations l, EntityType t) => switch (t) {
       EntityType.AGENT1 => l.entityTypeAgent1,
       EntityType.AGENT2 => l.entityTypeAgent2,
       EntityType.STORE => l.entityTypeStore,
+      EntityType.COMPANY => l.entityTypeCompany,
     };
 
 /// UX-93: this tab was the FOURTH surface listing the same entity objects, and

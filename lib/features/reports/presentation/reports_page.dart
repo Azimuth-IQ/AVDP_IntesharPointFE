@@ -416,6 +416,20 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
   /// so both sit in one filter row. '' = every governorate.
   String _stockGov = '';
 
+  /// PROD-036: the uploaded-cards report narrowed to one company (Asiacell, Zain) and one
+  /// governorate, so HQ can send each company its own figures. Null = all; '' in
+  /// [_upGov] = the region-free cards. The table, its total, the comparison and the Excel
+  /// file all follow both.
+  String? _upCompany;
+  String? _upGov;
+
+  bool _upMatch(UploadsRow r) =>
+      (_upCompany == null || r.companyName == _upCompany) &&
+      (_upGov == null || r.governorate == _upGov);
+
+  List<UploadsRow> _uploadsIn(dynamic data) =>
+      rowsOf<UploadsRow>(data).where(_upMatch).toList();
+
   void _invalidate() => setState(() {
         _cache.clear();
         _acc.clear();
@@ -457,7 +471,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
             .fold<num>(0, (a, r) => a + r.amount),
         'sold' || 'totalSold' => (rowsOf<SalesRow>(data))
             .fold<int>(0, (a, r) => a + r.count),
-        'uploaded' => (rowsOf<UploadsRow>(data))
+        'uploaded' => _uploadsIn(data)
             .fold<int>(0, (a, r) => a + r.count),
         _ => null,
       };
@@ -474,7 +488,9 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     final src = _sourceKey(key);
     final id = _effectiveId;
     final from = _ymd(win.$1), to = _ymd(win.$2);
-    return _prevCache.putIfAbsent('$src|$id|$from|$to', () async {
+    // PROD-036: the uploads comparison follows the company/governorate filter too.
+    final narrow = src == 'uploaded' ? '|${_upCompany ?? '*'}|${_upGov ?? '*'}' : '';
+    return _prevCache.putIfAbsent('$src|$id|$from|$to$narrow', () async {
       switch (src) {
         case 'sales':
           final rows =
@@ -483,7 +499,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         case 'uploaded':
           final rows =
               await _repo.uploads(rootId: id, from: from, to: to);
-          return _PrevTotal(rows.fold<int>(0, (a, r) => a + r.count));
+          return _PrevTotal(rows.where(_upMatch).fold<int>(0, (a, r) => a + r.count));
         case 'transfers':
           final page = await _repo.transfers(
               rootId: id, from: from, to: to, page: 0, size: _pageSize);
@@ -771,7 +787,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         final rows = rowsOf<SalesRow>(data);
         return (s.totalSoldCards, Formatters.money(rows.fold<int>(0, (a, r) => a + r.count)));
       case 'uploaded':
-        final rows = rowsOf<UploadsRow>(data);
+        final rows = _uploadsIn(data);
         return (s.totalUploaded, Formatters.money(rows.fold<int>(0, (a, r) => a + r.count)));
       default:
         return null;
@@ -893,12 +909,14 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         ];
         return _Export([s.mainAgent, s.subAgent, s.governorate, s.company, s.category, s.cards], rows, 'total_sold');
       case 'uploaded':
-        final list = rowsOf<UploadsRow>(data);
+        final list = _uploadsIn(data);
         final rows = <List<XlsxCell>>[
           for (final r in list)
             [r.agentName, gov(r.governorate), r.companyName, r.category, r.count],
         ];
-        return _Export([s.mainAgent, s.governorate, s.company, s.category, s.cards], rows, 'uploaded');
+        final tag = _slug(_upCompany ?? '');
+        return _Export([s.mainAgent, s.governorate, s.company, s.category, s.cards], rows,
+            tag.isEmpty ? 'uploaded' : 'uploaded-$tag');
       default:
         return null;
     }
@@ -1096,6 +1114,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
             onPressed: (_booting || _exporting != null) ? null : () => _export(key, s),
           ),
         ]),
+        if (key == 'uploaded') _uploadsFilterBar(s),
         // UX-43: say what the sheet will contain, the way the pricing screen does.
         // "Export" beside a filtered screen otherwise reads as "export everything",
         // and the two silently disagreeing is exactly what went wrong on stock.
@@ -1126,6 +1145,9 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
       if (_targetId != null && _currentAgentLabel.isNotEmpty) _currentAgentLabel,
       if (_isDated(key)) (_allDates ? s.allDates : '${_ymd(_from)} → ${_ymd(_to)}'),
       if (key == 'stock' && _stockGov.isNotEmpty) governorateLabel(_stockGov, loc),
+      if (key == 'uploaded' && _upCompany != null) _upCompany!,
+      if (key == 'uploaded' && _upGov != null)
+        _upGov!.isEmpty ? s.untagged : governorateLabel(_upGov!, loc),
     ];
     return parts.isEmpty ? null : parts.join(' · ');
   }
@@ -1215,6 +1237,63 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     );
   }
 
+  /// PROD-036: company + governorate filters for the uploaded-cards report. The options
+  /// come from the loaded rows, so they only offer what the window actually holds.
+  Widget _uploadsFilterBar(_RS s) {
+    final cs = Theme.of(context).colorScheme;
+    final loc = Localizations.localeOf(context).languageCode;
+    return FutureBuilder<dynamic>(
+      future: _cache[_sourceKey('uploaded')],
+      builder: (context, snap) {
+        final list = rowsOf<UploadsRow>(snap.data);
+        final companies = <String>{
+          for (final r in list)
+            if (r.companyName.isNotEmpty) r.companyName,
+          ?_upCompany,
+        }.toList()
+          ..sort();
+        final govs = <String>{for (final r in list) r.governorate, ?_upGov}.toList()..sort();
+        if (companies.isEmpty && govs.isEmpty) return const SizedBox.shrink();
+        Widget pick(String label, String? value, List<DropdownMenuItem<String?>> items,
+                ValueChanged<String?> onChanged) =>
+            Expanded(
+              child: Row(children: [
+                Text('$label: ', style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
+                Expanded(
+                  child: DropdownButtonFormField<String?>(
+                    initialValue: value,
+                    isExpanded: true,
+                    decoration: const InputDecoration(isDense: true),
+                    items: items,
+                    onChanged: onChanged,
+                  ),
+                ),
+              ]),
+            );
+        return Padding(
+          padding: const EdgeInsets.only(top: IntesharSpacing.xs),
+          child: Row(children: [
+            pick(s.company, _upCompany, [
+              DropdownMenuItem<String?>(value: null, child: Text(s.allGovernorates)),
+              for (final c in companies)
+                DropdownMenuItem<String?>(value: c, child: Text(c, overflow: TextOverflow.ellipsis)),
+            ], (v) => setState(() => _upCompany = v)),
+            const SizedBox(width: IntesharSpacing.sm),
+            pick(s.governorate, _upGov, [
+              DropdownMenuItem<String?>(value: null, child: Text(s.allGovernorates)),
+              for (final g in govs)
+                DropdownMenuItem<String?>(
+                  value: g,
+                  child: Text(g.isEmpty ? s.untagged : governorateLabel(g, loc),
+                      overflow: TextOverflow.ellipsis),
+                ),
+            ], (v) => setState(() => _upGov = v)),
+          ]),
+        );
+      },
+    );
+  }
+
   /// Governorate filter for the stock report — the options come from the loaded
   /// summary, so it only offers regions that actually hold cards.
   Widget _stockGovBar(_RS s) {
@@ -1300,7 +1379,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
             'totalSold' => _TotalSoldReport(
                 rows: rowsOf<SalesRow>(data), s: s, delta: delta),
             'uploaded' => _UploadsReport(
-                rows: rowsOf<UploadsRow>(data), s: s, delta: delta),
+                rows: _uploadsIn(data), s: s, delta: delta),
             _ => _RosterReport(
                 rows: rowsOf<BalanceRosterRow>(data),
                 s: s,

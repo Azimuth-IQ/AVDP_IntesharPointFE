@@ -92,7 +92,7 @@ bool entityHasDetailPage(EntityType type) =>
 AgentTier? agentTierOf(EntityType type) => switch (type) {
       EntityType.AGENT1 => AgentTier.main,
       EntityType.AGENT2 => AgentTier.sub,
-      EntityType.INTESHAR || EntityType.STORE => null,
+      EntityType.INTESHAR || EntityType.STORE || EntityType.COMPANY => null,
     };
 
 /// The child tier an "Add child" creates, or null where the tree does not
@@ -102,6 +102,7 @@ EntityType? childTypeOf(EntityType parent) => switch (parent) {
       EntityType.AGENT1 => EntityType.AGENT2,
       EntityType.AGENT2 => null,
       EntityType.STORE => null,
+      EntityType.COMPANY => null,
     };
 
 enum EntityRowAction { open, edit, manageUsers, visibleProducts, viewInventory, addChild, delete }
@@ -353,6 +354,7 @@ String localizedEntityTypeLabel(EntityType t, AppLocalizations l) => switch (t) 
       EntityType.AGENT1 => l.entityTypeAgent1,
       EntityType.AGENT2 => l.entityTypeAgent2,
       EntityType.STORE => l.entityTypeStore,
+      EntityType.COMPANY => l.entityTypeCompany,
     };
 
 /// Branding + operational limits for the tiers with no [AgentForm] (HQ, shops).

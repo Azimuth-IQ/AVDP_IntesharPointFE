@@ -370,6 +370,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get entityTypeStore => 'متجر';
 
   @override
+  String get entityTypeCompany => 'حساب شركة';
+
+  @override
   String get entityTypeUser => 'مستخدم';
 
   @override

@@ -47,6 +47,13 @@ class CategoryPriceRow {
   final bool priced;
   final List<GovPriceRow> governorates;
 
+  /// PROD-038: the price this account inherits from above (its parent's, or HQ's official).
+  final num? parentPrice;
+
+  /// PROD-038: this category's company (Asiacell, Zain) forbids an agent pricing below
+  /// [parentPrice]. HQ is not held to it.
+  final bool priceFloor;
+
   const CategoryPriceRow({
     this.sku = '',
     this.name = '',
@@ -59,7 +66,12 @@ class CategoryPriceRow {
     this.lineValue = 0,
     this.priced = false,
     this.governorates = const [],
+    this.parentPrice,
+    this.priceFloor = false,
   });
+
+  /// The lowest price an agent may set here, or null when the category is unbound.
+  num? get floor => priceFloor ? parentPrice : null;
 
   factory CategoryPriceRow.fromJson(Map<String, dynamic> j) => CategoryPriceRow(
         sku: j['sku'] as String? ?? '',
@@ -75,6 +87,8 @@ class CategoryPriceRow {
         governorates: ((j['governorates'] as List<dynamic>?) ?? const [])
             .map((e) => GovPriceRow.fromJson(e as Map<String, dynamic>))
             .toList(),
+        parentPrice: j['parentPrice'] as num?,
+        priceFloor: j['priceFloor'] as bool? ?? false,
       );
 }
 

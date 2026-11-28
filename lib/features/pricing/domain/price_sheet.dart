@@ -2,9 +2,10 @@ import 'package:inteshar/core/geo/governorates.dart';
 import 'package:inteshar/features/pricing/domain/price_filter.dart';
 import 'package:inteshar/features/pricing/domain/pricing_models.dart';
 
-bool isRegionalRow(CategoryPriceRow row) =>
-    row.governorates.length > 1 ||
-    (row.governorates.length == 1 && row.governorates.first.governorate.isNotEmpty);
+/// PROD-038 (client, 28 Nov 2026): pricing is per agent, never per governorate — no category is
+/// "regional" any more, whatever an older server still sends. Kept as a function so every caller
+/// reads the one rule.
+bool isRegionalRow(CategoryPriceRow row) => false;
 
 /// Builds the price sheet's data cells for [filter]'s scope.
 ///
@@ -93,4 +94,45 @@ String _slug(String s) {
       .replaceAll(RegExp(r'[^a-z0-9؀-ۿ]+'), '-')
       .replaceAll(RegExp(r'^-+|-+$'), '');
   return cleaned.isEmpty ? 'filtered' : cleaned;
+}
+
+/// PROD-038: how many of [prices] (`{sku, price}` maps, as sent to set-bulk) are under their
+/// category's floor in [rows] — Asiacell / Zain only; every other category is unbound.
+int belowFloorCount(List<CategoryPriceRow> rows, List<Map<String, dynamic>> prices) {
+  final floors = <String, num>{
+    for (final r in rows)
+      if (r.floor != null) r.sku: r.floor!,
+  };
+  var n = 0;
+  for (final p in prices) {
+    final f = floors[p['sku']];
+    final v = p['price'];
+    if (f != null && v is num && v < f) n++;
+  }
+  return n;
+}
+
+/// PROD-038: one price per category from an uploaded sheet. An older sheet lists a category once
+/// per governorate: the row without a governorate wins, else the first; the governorate is
+/// dropped. Order follows the sheet. [merged] = rows that folded into another.
+({List<Map<String, dynamic>> rows, int merged}) onePricePerCategory(List<Map<String, dynamic>> parsed) {
+  final bySku = <String, Map<String, dynamic>>{};
+  final general = <String>{};
+  var merged = 0;
+  for (final p in parsed) {
+    final sku = (p['sku'] as String?)?.trim() ?? '';
+    if (sku.isEmpty) continue;
+    final isGeneral = ((p['governorate'] as String?) ?? '').isEmpty;
+    if (!bySku.containsKey(sku)) {
+      bySku[sku] = {'sku': sku, 'governorate': '', 'price': p['price']};
+      if (isGeneral) general.add(sku);
+      continue;
+    }
+    merged++;
+    if (isGeneral && !general.contains(sku)) {
+      bySku[sku] = {'sku': sku, 'governorate': '', 'price': p['price']};
+      general.add(sku);
+    }
+  }
+  return (rows: bySku.values.toList(), merged: merged);
 }

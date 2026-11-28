@@ -390,6 +390,8 @@ class _CompanyDialogState extends State<_CompanyDialog> {
   late final TextEditingController _window =
       TextEditingController(text: (widget.existing?.withdrawalWindowHours ?? 24).toString());
   late bool _active = widget.existing?.active ?? true;
+  // PROD-038: agents may not price below the price from above (Asiacell, Zain).
+  late bool _floor = widget.existing?.parentPriceFloor ?? false;
   bool _saving = false;
   String? _error;
 
@@ -423,6 +425,7 @@ class _CompanyDialogState extends State<_CompanyDialog> {
       description: _desc.text.trim(),
       displayOrder: int.tryParse(_order.text.trim()) ?? 0,
       active: _active,
+      parentPriceFloor: _floor,
       withdrawalCap: int.tryParse(_cap.text.trim()) ?? 0,
       withdrawalWindowHours: int.tryParse(_window.text.trim()) ?? 24,
     );
@@ -561,6 +564,19 @@ class _CompanyDialogState extends State<_CompanyDialog> {
               title: Text(s.active),
               value: _active,
               onChanged: (v) => setState(() => _active = v),
+            ),
+            // PROD-038 (client, 28 Nov 2026): Asiacell and Zain only — every other company lets an
+            // agent sell even below HQ.
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(Localizations.localeOf(context).languageCode == 'ar'
+                  ? 'لا يبيع الوكيل بأقل من سعر الجهة الأعلى'
+                  : 'Agents may not price below the price from above'),
+              subtitle: Text(Localizations.localeOf(context).languageCode == 'ar'
+                  ? 'مثل آسيا سيل وزين. بدونه يسعّر الوكيل كما يشاء.'
+                  : 'Like Asiacell and Zain. Without it an agent prices freely.'),
+              value: _floor,
+              onChanged: (v) => setState(() => _floor = v),
             ),
             if (widget.existing != null) ...[
               const Divider(height: 20),

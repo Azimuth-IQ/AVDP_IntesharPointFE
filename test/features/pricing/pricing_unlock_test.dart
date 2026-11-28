@@ -58,7 +58,9 @@ class _FakeApi extends ApiClient {
     if (path == Endpoints.pricingCatalog) {
       return _ok(path, {
         'rows': [
-          {'sku': 'ZAIN-5000', 'name': 'زين 5,000', 'companyName': 'زين', 'officialPrice': 5000, 'effectivePrice': 5000},
+          // PROD-038: Zain floors agent prices — this account may not go below 5,000.
+          {'sku': 'ZAIN-5000', 'name': 'زين 5,000', 'companyName': 'زين', 'officialPrice': 5000, 'effectivePrice': 5000,
+           'parentPrice': 5000, 'priceFloor': true},
         ],
       });
     }
@@ -271,5 +273,40 @@ void main() {
     expect(api.setBulkBodies, hasLength(1));
     expect(find.textContaining('PRICING_LOCKED'), findsNothing);
     expect(find.text('HOME'), findsOneWidget, reason: 'backing out leaves pricing, as on every lock');
+  });
+
+  // ── PROD-038 (client, 28 Nov): Asiacell / Zain may not be priced below the price from above ──
+
+  Finder priceField(String text) =>
+      find.byWidgetPredicate((w) => w is TextField && w.controller?.text == text);
+
+  testWidgets('an agent sees the floor on a Zain card and Save refuses a price under it', (tester) async {
+    final (api, _) = await _open(tester, EntityType.AGENT1);
+    await _type(tester, _good);
+    expect(find.textContaining('Not below'), findsOneWidget);
+
+    // The card rebuilds as it is typed into, so hold on to the field's controller, not its widget.
+    final ctrl = tester.widget<TextField>(priceField('5000')).controller;
+    final field = find.byWidgetPredicate((w) => w is TextField && w.controller == ctrl);
+    await tester.enterText(field, '4000');
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('Save prices'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('below the price from above'), findsOneWidget);
+    expect(api.setBulkBodies, isEmpty, reason: 'nothing is sent while a price is under the floor');
+
+    // The refusal's snackbar sits over the Save bar; clear it first.
+    tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger).first).hideCurrentSnackBar();
+    await tester.pumpAndSettle();
+    await tester.enterText(field, '5500');
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('Save prices'));
+    await tester.pumpAndSettle();
+    expect(api.setBulkBodies, hasLength(1));
+  });
+
+  testWidgets('HQ is not held to the floor and sees no hint', (tester) async {
+    await _open(tester, EntityType.INTESHAR);
+    expect(find.textContaining('Not below'), findsNothing);
   });
 }

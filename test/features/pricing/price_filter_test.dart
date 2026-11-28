@@ -55,20 +55,21 @@ void main() {
       );
 
   group('the exported sheet follows the filters on screen', () {
-    test('unfiltered still exports everything, every region', () {
+    // PROD-038 (client, 28 Nov 2026): one price per agent per category. A category whose stock
+    // is spread over governorates is still ONE line, at the agent's one price — the per-region
+    // lines B-114 exported are gone (an older server may still send them; they are ignored).
+    test('PROD-038: unfiltered, every category is one line at the agent\'s one price', () {
       final rows = sheet([regional(), skuWide()], PriceFilter.none);
-      expect(rows.length, 3); // 2 regions + 1 SKU-wide
-      expect(rows.map((r) => r[2]),
-          containsAll(['Baghdad', 'Basra', 'All governorates']));
+      expect(rows.length, 2);
+      expect(rows.map((r) => r[2]).toSet(), {'All governorates'});
+      expect(rows.first[4], '5200', reason: 'the SKU-wide price, never a governorate line');
     });
 
-    test('BAGHDAD exports the Baghdad line and NOT Basra', () {
-      // The reported bug, stated as a test.
+    test('PROD-038: a governorate filter never splits a category into regions', () {
       final rows = sheet([regional()], const PriceFilter(governorate: 'BAGHDAD'));
       expect(rows.length, 1);
-      expect(rows.single[2], 'Baghdad');
-      expect(rows.single[4], '5100', reason: 'the Baghdad price, not the SKU-wide one');
-      expect(rows.toString(), isNot(contains('Basra')));
+      expect(rows.single[2], 'All governorates');
+      expect(rows.toString(), isNot(contains('Baghdad')));
     });
 
     test('a company filter drops the other company entirely', () {
@@ -83,7 +84,8 @@ void main() {
         const PriceFilter(company: 'Asiacell', governorate: 'BASRA'),
       );
       expect(rows.length, 1);
-      expect(rows.single[2], 'Basra');
+      expect(rows.single[0], 'ASC-5000');
+      expect(rows.single[2], 'All governorates', reason: 'PROD-038: one line per category');
     });
 
     test('a governorate filter excludes untagged SKUs — exactly as the list does', () {

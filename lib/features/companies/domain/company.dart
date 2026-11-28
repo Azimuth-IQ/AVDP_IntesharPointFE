@@ -21,6 +21,10 @@ class Company {
   /// never sent by [toJson] (the backend keeps it on a company edit).
   final VoucherTemplate? voucherTemplate;
 
+  /// PROD-038: an agent may not price this company's cards below the price from above (its
+  /// parent's, or HQ's official). On for Asiacell and Zain; every other company is unbound.
+  final bool parentPriceFloor;
+
   const Company({
     this.id = '',
     required this.name,
@@ -32,6 +36,7 @@ class Company {
     this.withdrawalCap = 0,
     this.withdrawalWindowHours = 24,
     this.voucherTemplate,
+    this.parentPriceFloor = false,
   });
 
   factory Company.fromJson(Map<String, dynamic> j) => Company(
@@ -47,6 +52,7 @@ class Company {
         voucherTemplate: j['voucherTemplate'] is Map<String, dynamic>
             ? VoucherTemplate.fromJson(j['voucherTemplate'] as Map<String, dynamic>)
             : null,
+        parentPriceFloor: j['parentPriceFloor'] as bool? ?? false,
       );
 
   Map<String, dynamic> toJson() => {
@@ -59,9 +65,10 @@ class Company {
         'active': active,
         'withdrawalCap': withdrawalCap,
         'withdrawalWindowHours': withdrawalWindowHours,
+        'parentPriceFloor': parentPriceFloor,
       };
 
-  Company copyWith({String? id, String? name, String? logoUrl, String? receiptLogoUrl, String? description, int? displayOrder, bool? active, int? withdrawalCap, int? withdrawalWindowHours}) =>
+  Company copyWith({String? id, String? name, String? logoUrl, String? receiptLogoUrl, String? description, int? displayOrder, bool? active, int? withdrawalCap, int? withdrawalWindowHours, bool? parentPriceFloor}) =>
       Company(
         id: id ?? this.id,
         name: name ?? this.name,
@@ -73,5 +80,6 @@ class Company {
         withdrawalCap: withdrawalCap ?? this.withdrawalCap,
         withdrawalWindowHours: withdrawalWindowHours ?? this.withdrawalWindowHours,
         voucherTemplate: voucherTemplate,
+        parentPriceFloor: parentPriceFloor ?? this.parentPriceFloor,
       );
 }

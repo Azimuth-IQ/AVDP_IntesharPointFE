@@ -180,6 +180,18 @@ class _S {
       'Applied $applied of $total prices to ${accountsPhrase(accounts)}',
       'تم تطبيق $applied من $total سعر على ${accountsPhrase(accounts)}');
   String get nothingParsed => p('No prices found in the file', 'لا توجد أسعار في الملف');
+  // PROD-038: Asiacell / Zain may not be priced below the price from above.
+  String floorHint(String amount) =>
+      p('Not below $amount — the price from above', 'لا يقل عن $amount — سعر الجهة الأعلى');
+  String belowFloorBlocked(int n) => p(
+      '$n ${n == 1 ? 'price is' : 'prices are'} below the price from above (Asiacell / Zain). Raise ${n == 1 ? 'it' : 'them'} first.',
+      '$n سعر أقل من سعر الجهة الأعلى (آسيا سيل / زين). ارفعها أولًا.');
+  String uploadBelowFloor(int n) => p(
+      '$n ${n == 1 ? 'row is' : 'rows are'} below the price from above (Asiacell / Zain) and will not apply.',
+      '$n صف أقل من سعر الجهة الأعلى (آسيا سيل / زين) ولن يُطبَّق.');
+  String uploadMerged(int n) => p(
+      '$n repeated ${n == 1 ? 'row' : 'rows'} for the same category merged — one price per category.',
+      'دُمج $n صف مكرر لنفس الفئة — سعر واحد لكل فئة.');
   // B-117: export/upload follow the filters on screen.
   String get nothingToExport =>
       p('Nothing to export in the current filter', 'لا توجد بيانات ضمن التصفية الحالية');
@@ -237,9 +249,9 @@ String _pct(num v) {
 /// A SKU is "regional" when its stock is broken down by governorate (a real
 /// governorate bucket, or more than one bucket). Regional SKUs are priced ONLY
 /// per governorate — they get no standalone global/"all regions" price (B-041).
-bool _regionalRow(CategoryPriceRow row) =>
-    row.governorates.length > 1 ||
-    (row.governorates.length == 1 && row.governorates.first.governorate.isNotEmpty);
+///
+/// PROD-038: no row is regional any more — one price per agent per category.
+bool _regionalRow(CategoryPriceRow row) => isRegionalRow(row);
 
 /// UX-01/UX-21: how the two figures on a price card are NAMED depends on whose
 /// account is being priced.
@@ -664,6 +676,16 @@ class _PricingPageState extends ConsumerState<PricingPage> {
           .showSnackBar(SnackBar(content: Text(s.nothingToSave)));
       return;
     }
+    // PROD-038: the server would refuse an Asiacell / Zain price under the floor; say so here,
+    // with the count, rather than saving the rest and leaving those quietly unchanged.
+    if (!_callerIsHq) {
+      final below = belowFloorCount(catalog.rows, pending);
+      if (below > 0) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(s.belowFloorBlocked(below))));
+        return;
+      }
+    }
     setState(() => _saving = true);
     try {
       // Empty target list = the caller's own account (the server's default),
@@ -830,6 +852,15 @@ class _PricingPageState extends ConsumerState<PricingPage> {
           .showSnackBar(SnackBar(content: Text(s.nothingParsed)));
       return;
     }
+    // PROD-038: one price per category — an older sheet listing a category per governorate folds
+    // into one row (the row without a governorate wins). Counted, so nothing vanishes silently.
+    final one = onePricePerCategory(parsed);
+    final merged = one.merged;
+    parsed
+      ..clear()
+      ..addAll(one.rows);
+    // PROD-038: Asiacell / Zain rows under the floor of the account on screen — the server skips them.
+    final belowFloor = _callerIsHq ? 0 : belowFloorCount(_catalog?.rows ?? const [], parsed);
 
     final ar = Localizations.localeOf(context).languageCode == 'ar';
     final myId = _myId;
@@ -852,12 +883,14 @@ class _PricingPageState extends ConsumerState<PricingPage> {
               width: 420,
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                 // Recognized N of M — warn (error tint) when the sheet had rows we couldn't read.
+                // PROD-038: "recognized" counts the sheet's readable rows, before the per-category
+                // merge — merged rows were read fine and are reported on their own line below.
                 Text(
-                  sheetDataRows > parsed.length
-                      ? (ar ? 'تم التعرف على ${parsed.length} من $sheetDataRows صفًا' : 'Recognized ${parsed.length} of $sheetDataRows rows')
-                      : (ar ? 'تم التعرف على ${parsed.length} صفًا' : 'Recognized ${parsed.length} rows'),
+                  sheetDataRows > parsed.length + merged
+                      ? (ar ? 'تم التعرف على ${parsed.length + merged} من $sheetDataRows صفًا' : 'Recognized ${parsed.length + merged} of $sheetDataRows rows')
+                      : (ar ? 'تم التعرف على ${parsed.length + merged} صفًا' : 'Recognized ${parsed.length + merged} rows'),
                   style: IntesharType.sans(12,
-                      color: sheetDataRows > parsed.length
+                      color: sheetDataRows > parsed.length + merged
                           ? ctx.status.danger
                           : cs.onSurfaceVariant,
                       w: FontWeight.w700),
@@ -879,9 +912,6 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                             child: Row(children: [
                               Expanded(flex: 3, child: Text('${p['sku']}',
                                   style: IntesharType.mono(12, color: cs.onSurface), overflow: TextOverflow.ellipsis)),
-                              Expanded(flex: 2, child: Text(
-                                  (p['governorate'] as String).isEmpty ? '—' : '${p['governorate']}',
-                                  style: IntesharType.sans(12, color: cs.onSurfaceVariant), overflow: TextOverflow.ellipsis)),
                               Text(Formatters.iqd((p['price'] as num).round()),
                                   style: IntesharType.mono(12, color: cs.onSurface)),
                             ]),
@@ -890,6 +920,17 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                     ),
                   ),
                 ),
+                if (merged > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: IntesharSpacing.xs),
+                    child: Text(s.uploadMerged(merged), style: IntesharType.sans(12, color: cs.onSurfaceVariant)),
+                  ),
+                if (belowFloor > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: IntesharSpacing.xs),
+                    child: Text(s.uploadBelowFloor(belowFloor),
+                        style: IntesharType.sans(12, color: ctx.status.danger, w: FontWeight.w700)),
+                  ),
                 const SizedBox(height: 6),
                 // Explicit target — checked by default writes MY prices. When agents
                 // are added the id list becomes non-empty, so self is only included
@@ -1420,6 +1461,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                             // which HQ (who sets it) does not.
                             wording: _PriceWording.of(s,
                                 forSelf: _targetId == null, hq: _callerIsHq),
+                            enforceFloor: !_callerIsHq,
                           ),
                         ),
                       ),
@@ -1592,6 +1634,9 @@ class _PriceRow extends StatelessWidget {
   /// UX-21/UX-01: how the official price, the computed difference and the loss
   /// warning are named for THIS caller and THIS target.
   final _PriceWording wording;
+
+  /// PROD-038: show (and hold to) the Asiacell / Zain floor — every caller but HQ.
+  final bool enforceFloor;
   const _PriceRow({
     required this.row,
     required this.ctrls,
@@ -1599,6 +1644,7 @@ class _PriceRow extends StatelessWidget {
     required this.s,
     required this.priceLabel,
     required this.wording,
+    this.enforceFloor = false,
   });
 
   /// The field keys this card actually RENDERS (a regional row shows only its
@@ -1672,22 +1718,32 @@ class _PriceRow extends StatelessWidget {
             ],
           ),
           const SizedBox(height: IntesharSpacing.sm2),
-          if (!regional)
-            // Non-regional category: one price for all its (untagged) stock.
+          if (!regional) ...[
+            // PROD-038: one price for the category, whatever governorate its cards carry.
             _PriceField(
               ctrl: ctrls['${row.sku}::'],
               original: original['${row.sku}::'] ?? '',
               available: row.available,
               lineValue: row.lineValue,
-              // The backend sets the same official price on the row and on every
-              // one of its governorate lines (PricingHelper writes one `off` for
-              // all of them), so one value is correct for every field here.
               officialPrice: row.officialPrice,
               priceLabel: priceLabel,
               wording: wording,
               s: s,
-            )
-          else ...[
+            ),
+            // PROD-038: Asiacell / Zain may not go below the price from above. Said on the card,
+            // and red as soon as the typed price is under it — Save refuses it too.
+            if (enforceFloor && row.floor != null)
+              Padding(
+                padding: const EdgeInsets.only(top: IntesharSpacing.xs),
+                child: Text(
+                  s.floorHint(Formatters.iqd(row.floor!.round())),
+                  style: IntesharType.sans(12,
+                      color: (parseAmount(ctrls['${row.sku}::']?.text) ?? row.floor!) < row.floor!
+                          ? cs.error
+                          : cs.onSurfaceVariant),
+                ),
+              ),
+          ] else ...[
             // Regional category: price ONLY per governorate — no global price (B-041).
             Text(
               s.byGovernorate,

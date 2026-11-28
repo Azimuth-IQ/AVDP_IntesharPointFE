@@ -1620,6 +1620,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get errNetwork => 'Connection problem — check your network';
 
   @override
+  String get errPricingLocked =>
+      'Prices are locked after a pause. Enter your authenticator code to open them again.';
+
+  @override
   String get errInsufficientBalance => 'Insufficient balance';
 
   @override

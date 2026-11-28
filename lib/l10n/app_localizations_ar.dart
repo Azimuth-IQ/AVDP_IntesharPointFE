@@ -1610,6 +1610,10 @@ class AppLocalizationsAr extends AppLocalizations {
   String get errNetwork => 'مشكلة في الاتصال — تحقق من الشبكة';
 
   @override
+  String get errPricingLocked =>
+      'قُفلت الأسعار بعد فترة توقف. أدخل رمز المصادقة لفتحها من جديد.';
+
+  @override
   String get errInsufficientBalance => 'الرصيد غير كافٍ';
 
   @override

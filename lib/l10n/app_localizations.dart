@@ -2990,6 +2990,12 @@ abstract class AppLocalizations {
   /// **'Connection problem — check your network'**
   String get errNetwork;
 
+  /// No description provided for @errPricingLocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Prices are locked after a pause. Enter your authenticator code to open them again.'**
+  String get errPricingLocked;
+
   /// No description provided for @errInsufficientBalance.
   ///
   /// In en, this message translates to:

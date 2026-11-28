@@ -133,8 +133,6 @@ class _S {
   String get lockedBody => p('Prices are locked. Enter your authenticator code to open them.',
       'الأسعار مقفلة. أدخل رمز المصادقة لفتحها.');
   String get lockedButton => p('Enter the code', 'إدخال الرمز');
-  String get lockedAgain => p('Prices locked after a pause — enter the code, then try again.',
-      'قُفلت الأسعار بعد فترة توقف — أدخل الرمز ثم أعد المحاولة.');
   String get exportXlsx => p('Export', 'تصدير');
   String get uploadXlsx => p('Upload', 'رفع');
   // UX-10: the spreadsheet round trip IS the tool for "set 200 prices", but it
@@ -448,19 +446,22 @@ class _PricingPageState extends ConsumerState<PricingPage> {
       await _repo.unlockPricing(code);
     } catch (e) {
       if (!mounted) return false;
+      // PROD-039: the interceptor throws a DioException that WRAPS the ApiException, so a bare
+      // `e is ApiException` never matched and every branch below was dead. Unwrap first.
+      final status = ApiException.from(e)?.statusCode;
       // A server from before PROD-026 has no /unlock (404) and does not lock pricing: carry on. This
       // lets the app go out first in a release — an agent never meets a prompt that cannot succeed.
-      if (e is ApiException && e.statusCode == 404) {
+      if (status == 404) {
         setState(() => _locked = false);
         if (reload) await _load();
         return true;
       }
-      if (e is ApiException && e.statusCode == 429) {
+      if (status == 429) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, context))));
         _leave();
         return false;
       }
-      final wrong = e is ApiException && e.statusCode == 403;
+      final wrong = status == 403;
       return _unlock(reload: reload, problem: wrong ? s.unlockWrong : friendlyError(e, context));
     }
     if (!mounted) return false;
@@ -470,7 +471,11 @@ class _PricingPageState extends ConsumerState<PricingPage> {
   }
 
   /// A pricing call refused because the unlock ran out (or was never made).
-  static bool _isLocked(Object e) => e is ApiException && e.statusCode == 423;
+  ///
+  /// PROD-039: unwraps the DioException the interceptor throws. The bare `e is ApiException` this
+  /// used to be never matched, so a lock that ran out mid-upload fell through to a snackbar showing
+  /// the server's raw `PRICING_LOCKED: …` text and the file was not applied (client, 28 Nov).
+  static bool _isLocked(Object e) => ApiException.from(e)?.statusCode == 423;
 
   void _leave() {
     if (!mounted) return;
@@ -963,10 +968,25 @@ class _PricingPageState extends ConsumerState<PricingPage> {
 
     setState(() => _saving = true);
     try {
-      final result = await _repo.setBulk(
-        prices: parsed,
-        entityIds: targetIds, // empty = self only; non-empty = exactly these
-      );
+      // PROD-039: the unlock lasts 15 minutes from the last pricing call, and preparing a sheet can
+      // take longer. When the server refuses (423), ask for the code and apply the SAME file — the
+      // agent never has to pick it again. Bounded: a second refusal right after a fresh unlock is
+      // a real failure, not a timeout, and goes to the error below.
+      late Map<String, int> result;
+      for (var attempt = 0;; attempt++) {
+        try {
+          result = await _repo.setBulk(
+            prices: parsed,
+            entityIds: targetIds, // empty = self only; non-empty = exactly these
+          );
+          break;
+        } catch (e) {
+          if (!mounted || attempt > 0 || !_isLocked(e)) rethrow;
+          setState(() => _locked = true);
+          // Backing out of the code leaves the page (as on every lock); nothing was applied.
+          if (!await _unlock(reload: false)) return;
+        }
+      }
       if (mounted) {
         // Same convention as the grid Save: the server answers with a per-account
         // applied count, and the smallest of them is the honest headline rather
@@ -984,13 +1004,6 @@ class _PricingPageState extends ConsumerState<PricingPage> {
       }
       await _load();
     } catch (e) {
-      if (mounted && _isLocked(e)) {
-        setState(() => _locked = true);
-        if (await _unlock(reload: false) && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.lockedAgain)));
-        }
-        return;
-      }
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(friendlyError(e, context))));

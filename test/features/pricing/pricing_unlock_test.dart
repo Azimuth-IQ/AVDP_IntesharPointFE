@@ -1,4 +1,8 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
+import 'package:excel/excel.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -18,6 +22,15 @@ import 'package:inteshar/l10n/app_localizations.dart';
 /// backing out leaves the page; leaving closes pricing on the server. HQ is not asked.
 const _good = '123456';
 
+/// Throws a server refusal the way the REAL app sees it: the auth interceptor packs the
+/// [ApiException] into a [DioException]. Throwing a bare ApiException here (as this fake used to)
+/// is why PROD-039 passed every test and still broke in production.
+Never _refuse(String path, String message, int status) => throw DioException(
+      requestOptions: RequestOptions(path: path),
+      error: ApiException(message, status),
+      response: Response(requestOptions: RequestOptions(path: path), statusCode: status),
+    );
+
 class _FakeApi extends ApiClient {
   _FakeApi({this.oldServer = false}) : super(Dio());
 
@@ -26,6 +39,12 @@ class _FakeApi extends ApiClient {
 
   /// Every call, in order: "GET /api/…" or "POST /api/…".
   final calls = <String>[];
+
+  /// PROD-039: how many set-bulk calls still find pricing locked (the 15-minute unlock ran out).
+  int lockSetBulk = 0;
+
+  /// The bodies of every set-bulk call.
+  final setBulkBodies = <dynamic>[];
 
   Response<dynamic> _ok(String path, dynamic data) => Response(
         requestOptions: RequestOptions(path: path),
@@ -51,15 +70,57 @@ class _FakeApi extends ApiClient {
   Future<Response<dynamic>> post(String path, {dynamic data, Map<String, dynamic>? params}) async {
     calls.add('POST $path');
     if (oldServer && (path == Endpoints.pricingUnlock || path == Endpoints.pricingLock)) {
-      throw const ApiException('Not Found', 404);
+      _refuse(path, 'Not Found', 404);
     }
     if (path == Endpoints.pricingUnlock) {
-      if ((data as Map)['totp'] != _good) throw const ApiException('That authentication code is not valid', 403);
+      if ((data as Map)['totp'] != _good) _refuse(path, 'That authentication code is not valid', 403);
       return _ok(path, {'required': true, 'minutes': 15});
     }
     if (path == Endpoints.pricingLock) return _ok(path, true);
+    if (path == Endpoints.pricingSetBulk) {
+      setBulkBodies.add(data);
+      if (lockSetBulk > 0) {
+        lockSetBulk--;
+        _refuse(path, 'PRICING_LOCKED: enter your authenticator code to open pricing', 423);
+      }
+      return _ok(path, {'me': ((data as Map)['prices'] as List).length});
+    }
     throw UnsupportedError('_FakeApi: unexpected POST $path');
   }
+}
+
+/// Hands the page one .xlsx, as if the agent picked it.
+class _FakePicker extends FilePicker {
+  _FakePicker(this.bytes);
+  final Uint8List bytes;
+
+  @override
+  Future<FilePickerResult?> pickFiles({
+    String? dialogTitle,
+    String? initialDirectory,
+    FileType type = FileType.any,
+    List<String>? allowedExtensions,
+    Function(FilePickerStatus)? onFileLoading,
+    bool allowCompression = true,
+    int compressionQuality = 30,
+    bool allowMultiple = false,
+    bool withData = false,
+    bool withReadStream = false,
+    bool lockParentWindow = false,
+    bool readSequential = false,
+  }) async =>
+      FilePickerResult([PlatformFile(name: 'prices.xlsx', size: bytes.length, bytes: bytes)]);
+}
+
+/// A price sheet the way the page's own export lays it out: SKU, name, governorate, official, price.
+Uint8List _sheet() {
+  final book = Excel.createExcel();
+  final sheet = book[book.getDefaultSheet()!];
+  sheet.appendRow([TextCellValue('sku'), TextCellValue('name'), TextCellValue('governorate'),
+      TextCellValue('official'), TextCellValue('price')]);
+  sheet.appendRow([TextCellValue('ZAIN-5000'), TextCellValue('زين 5,000'), TextCellValue(''),
+      IntCellValue(5000), IntCellValue(4800)]);
+  return Uint8List.fromList(book.encode()!);
 }
 
 class _StubAuth extends AuthController {
@@ -170,5 +231,45 @@ void main() {
     expect(find.byType(AlertDialog), findsNothing);
     expect(api.calls, contains('GET ${Endpoints.pricingCatalog}'));
     expect(api.calls, isNot(contains('POST ${Endpoints.pricingUnlock}')));
+  });
+
+  // ── PROD-039 (client, 28 Nov): the unlock ran out while the agent prepared the sheet ──────────
+
+  testWidgets('a lock that runs out mid-upload asks for the code and applies the SAME file', (tester) async {
+    FilePicker.platform = _FakePicker(_sheet());
+    final (api, _) = await _open(tester, EntityType.AGENT1);
+    await _type(tester, _good);
+    api.lockSetBulk = 1; // 15 minutes went by
+
+    await tester.tap(find.text('Upload'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Apply'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('PRICING_LOCKED'), findsNothing, reason: 'never the raw server code');
+    expect(find.text('Open prices'), findsOneWidget, reason: 'asked for the code, not told to retry');
+    await _type(tester, _good);
+
+    expect(api.setBulkBodies, hasLength(2), reason: 'the same file was applied again after the code');
+    expect(api.setBulkBodies.last, api.setBulkBodies.first);
+    expect(find.textContaining('Applied'), findsOneWidget);
+    expect(find.textContaining('PRICING_LOCKED'), findsNothing);
+  });
+
+  testWidgets('backing out of the code after a mid-upload lock applies nothing and shows no raw code',
+      (tester) async {
+    FilePicker.platform = _FakePicker(_sheet());
+    final (api, _) = await _open(tester, EntityType.AGENT1);
+    await _type(tester, _good);
+    api.lockSetBulk = 1;
+    await tester.tap(find.text('Upload'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Apply'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+    expect(api.setBulkBodies, hasLength(1));
+    expect(find.textContaining('PRICING_LOCKED'), findsNothing);
+    expect(find.text('HOME'), findsOneWidget, reason: 'backing out leaves pricing, as on every lock');
   });
 }

@@ -101,6 +101,10 @@ String friendlyErrorL(Object? e, AppLocalizations l) {
     429 => hasRealBackendMessage ? msg : l.errTooManyAttempts,
     404 => hasRealBackendMessage ? msg : l.errNotFound,
     402 => hasRealBackendMessage ? msg : l.errInsufficientBalance,
+    // PROD-039: 423 = pricing locked (the authenticator unlock ran out). The server's text is a
+    // developer code ("PRICING_LOCKED: …"), never shown — a screen that can ask for the code does
+    // so itself; anywhere else the agent reads what to do.
+    423 => l.errPricingLocked,
     400 || 409 || 422 => hasRealBackendMessage ? msg : l.errValidation,
     int s when s >= 500 => l.errServer,
     null => l.errNetwork,

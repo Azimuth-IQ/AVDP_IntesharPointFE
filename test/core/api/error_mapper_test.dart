@@ -1,7 +1,9 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inteshar/core/api/api_exception.dart';
 import 'package:inteshar/core/api/error_mapper.dart';
 import 'package:inteshar/l10n/app_localizations.dart';
+import 'package:inteshar/l10n/app_localizations_ar.dart';
 import 'package:inteshar/l10n/app_localizations_en.dart';
 
 /// B-108: 401/403 were flattened to "wrong credentials" / "access denied"
@@ -34,6 +36,20 @@ void main() {
   });
 
   group('technical noise never reaches the user', () {
+    test('PROD-039: a pricing lock (423) never shows the server code, in either language', () {
+      final locked = DioException(
+        requestOptions: RequestOptions(path: '/api/pricing/set-bulk'),
+        error: const ApiException('PRICING_LOCKED: enter your authenticator code to open pricing', 423),
+      );
+      final en = friendlyErrorL(locked, l);
+      final ar = friendlyErrorL(locked, AppLocalizationsAr());
+      expect(en, isNot(contains('PRICING_LOCKED')));
+      expect(en, contains('authenticator code'));
+      expect(ar, isNot(contains('PRICING_LOCKED')));
+      expect(ar, contains('رمز المصادقة'));
+    });
+
+
     test('an exception string falls back to the localized text', () {
       for (final raw in [
         'DioException [bad response]: …',
